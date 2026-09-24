@@ -1,0 +1,19 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+*.userprefs
+.vs/
+.idea/
+*.DotSettings.user
+TestResults/
+*.trx
+*.coverage
+artifacts/
+publish/
+
+## OS
+Thumbs.db
+.DS_Store
+CLAUDE.md

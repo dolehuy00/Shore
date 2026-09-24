@@ -1,0 +1,88 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Shorekeeper.Desktop.ViewModels"
+        x:Class="Shorekeeper.Desktop.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="Shorekeeper"
+        Icon="/Assets/shorekeeper.png"
+        Width="960" Height="620" MinWidth="720" MinHeight="480"
+        WindowStartupLocation="CenterScreen">
+
+  <Window.Styles>
+    <Style Selector="TextBlock.label">
+      <Setter Property="Opacity" Value="0.65" />
+      <Setter Property="VerticalAlignment" Value="Top" />
+      <Setter Property="Margin" Value="0,0,16,10" />
+    </Style>
+    <Style Selector="SelectableTextBlock.value">
+      <Setter Property="TextWrapping" Value="Wrap" />
+      <Setter Property="Margin" Value="0,0,0,10" />
+    </Style>
+  </Window.Styles>
+
+  <Grid RowDefinitions="Auto,*" ColumnDefinitions="200,*">
+
+    <!-- Header -->
+    <Border Grid.ColumnSpan="2" Padding="16,10" BorderThickness="0,0,0,1" BorderBrush="#33808080">
+      <Grid ColumnDefinitions="Auto,*,Auto">
+        <StackPanel Orientation="Horizontal" Spacing="10">
+          <Image Source="/Assets/shorekeeper.png" Width="28" Height="28" />
+          <TextBlock Text="Shorekeeper" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" />
+        </StackPanel>
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <Ellipse Width="10" Height="10" Fill="#22C55E" VerticalAlignment="Center" />
+          <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" VerticalAlignment="Center" />
+          <TextBlock Text="{Binding DeviceIdShort}" Opacity="0.55" FontFamily="Consolas,monospace" VerticalAlignment="Center" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <!-- Navigation -->
+    <ListBox Grid.Row="1"
+             ItemsSource="{Binding NavItems}"
+             SelectedItem="{Binding SelectedNavItem}"
+             Background="Transparent"
+             BorderThickness="0,0,1,0" BorderBrush="#33808080"
+             Padding="6">
+      <ListBox.ItemTemplate>
+        <DataTemplate x:DataType="vm:NavItem">
+          <TextBlock Text="{Binding Title}" Padding="6,4" />
+        </DataTemplate>
+      </ListBox.ItemTemplate>
+    </ListBox>
+
+    <!-- Content -->
+    <ScrollViewer Grid.Row="1" Grid.Column="1">
+      <StackPanel Margin="28,24" Spacing="18" MaxWidth="760" HorizontalAlignment="Left">
+
+        <Border Padding="14,10" CornerRadius="8" Background="#1A808080">
+          <TextBlock Text="{Binding ComingSoonText}" Opacity="0.8" TextWrapping="Wrap" />
+        </Border>
+
+        <TextBlock Text="Thiết bị này" FontSize="20" FontWeight="SemiBold" />
+
+        <Border Padding="18,16,18,6" CornerRadius="8" BorderThickness="1" BorderBrush="#33808080">
+          <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto">
+            <TextBlock Classes="label" Text="Tên hiển thị" />
+            <SelectableTextBlock Classes="value" Grid.Column="1" Text="{Binding DisplayName}" />
+
+            <TextBlock Classes="label" Grid.Row="1" Text="DeviceId" />
+            <SelectableTextBlock Classes="value" Grid.Row="1" Grid.Column="1" Text="{Binding DeviceId}" FontFamily="Consolas,monospace" />
+
+            <TextBlock Classes="label" Grid.Row="2" Text="Thư mục nhận" />
+            <SelectableTextBlock Classes="value" Grid.Row="2" Grid.Column="1" Text="{Binding DownloadDirectory}" />
+
+            <TextBlock Classes="label" Grid.Row="3" Text="Dữ liệu ứng dụng" />
+            <SelectableTextBlock Classes="value" Grid.Row="3" Grid.Column="1" Text="{Binding DataDirectory}" />
+
+            <TextBlock Classes="label" Grid.Row="4" Text="Phiên bản" />
+            <SelectableTextBlock Classes="value" Grid.Row="4" Grid.Column="1" Text="{Binding AppVersion}" />
+          </Grid>
+        </Border>
+
+        <TextBlock Opacity="0.6" TextWrapping="Wrap"
+                   Text="DeviceId được tạo từ khóa riêng của máy này và giữ nguyên qua các lần mở app. Đóng cửa sổ thì Shorekeeper vẫn chạy dưới khay hệ thống." />
+      </StackPanel>
+    </ScrollViewer>
+  </Grid>
+</Window>
