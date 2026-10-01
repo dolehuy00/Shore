@@ -7,6 +7,7 @@ using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Shorekeeper.Desktop.ViewModels;
 using Shorekeeper.Desktop.Views;
+using Shorekeeper.Engine.Trust;
 
 namespace Shorekeeper.Desktop;
 
@@ -35,6 +36,12 @@ public partial class App : Application
             mainWindow.Closing += OnMainWindowClosing;
 
             CreateTrayIcon(desktop);
+
+            // Connect requests arrive on API threads; the window must open even when the app is in the tray.
+            var pairing = Services.GetRequiredService<PairingService>();
+            var dialogs = Services.GetRequiredService<DialogService>();
+            pairing.IncomingRequested += (_, request) => Dispatcher.UIThread.Post(() => dialogs.ShowIncoming(request));
+            pairing.IncomingClosed += (_, id) => Dispatcher.UIThread.Post(() => dialogs.CloseIncoming(id));
 
             if (!StartInBackground)
             {

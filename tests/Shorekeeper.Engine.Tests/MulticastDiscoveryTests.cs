@@ -79,7 +79,22 @@ public sealed class MulticastDiscoveryTests : IAsyncDisposable
         await WaitUntil(() => a.Directory.Snapshot().Single().IsBusy, TimeSpan.FromSeconds(3));
     }
 
-    private async Task<TestPeer> StartPeer(string name)
+    [Fact]
+    public async Task Peer_outside_multicast_reach_is_found_by_probe()
+    {
+        // A different port stands in for another subnet: B never hears A's multicast and vice versa.
+        int otherPort = port + 1;
+        TestPeer a = await StartPeer("A");
+        TestPeer b = await StartPeer("B", otherPort, multicast: false, probe: [new IPEndPoint(IPAddress.Loopback, port)]);
+
+        // B probes A; A records B from the probe and replies, so both sides see each other.
+        await WaitUntil(() => a.Directory.Snapshot().Count == 1 && b.Directory.Snapshot().Count == 1, SeeEachOtherWithin);
+
+        Assert.Equal("B", a.Directory.Snapshot().Single().DisplayName);
+        Assert.Equal("A", b.Directory.Snapshot().Single().DisplayName);
+    }
+
+    private async Task<TestPeer> StartPeer(string name, int? peerPort = null, bool multicast = true, IPEndPoint[]? probe = null)
     {
         var presence = new FakePresence(name);
         var directory = new PeerDirectory(TimeProvider.System);
@@ -87,9 +102,10 @@ public sealed class MulticastDiscoveryTests : IAsyncDisposable
             presence,
             directory,
             NullLogger<MulticastDiscovery>.Instance,
-            () => port,
+            () => peerPort ?? port,
             IPAddress.Loopback,
-            () => [new LocalInterface("Loopback", "test", IPAddress.Loopback, 8, null)]);
+            () => multicast ? [new LocalInterface("Loopback", "test", IPAddress.Loopback, 8, null)] : [],
+            new FixedProbeTargets(probe ?? []));
 
         var peer = new TestPeer(presence, directory, discovery);
         peers.Add(peer);
@@ -107,6 +123,11 @@ public sealed class MulticastDiscoveryTests : IAsyncDisposable
             Assert.True(DateTime.UtcNow < deadline, $"Condition not met within {timeout.TotalSeconds}s.");
             await Task.Delay(50, TestContext.Current.CancellationToken);
         }
+    }
+
+    private sealed class FixedProbeTargets(IReadOnlyList<IPEndPoint> targets) : IProbeTargetSource
+    {
+        public Task<IReadOnlyList<IPEndPoint>> GetTargetsAsync(CancellationToken cancellationToken) => Task.FromResult(targets);
     }
 
     private sealed record TestPeer(FakePresence Presence, PeerDirectory Directory, MulticastDiscovery Discovery);

@@ -48,7 +48,10 @@ public static class PresencePacketTypes
     public const string Reply = "reply";
     public const string Bye = "bye";
 
-    public static bool IsKnown(string type) => type is Announce or Heartbeat or Reply or Bye;
+    /// <summary>Unicast to a known address outside the multicast reach; carries our presence and asks for a reply.</summary>
+    public const string Probe = "probe";
+
+    public static bool IsKnown(string type) => type is Announce or Heartbeat or Reply or Bye or Probe;
 }
 
 public static class PresenceStatus

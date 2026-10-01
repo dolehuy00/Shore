@@ -18,7 +18,7 @@
 
 ## 2. Kênh truyền: mutual TLS
 
-- Mọi HTTP giữa peer là **HTTPS TLS 1.3**, cả hai phía xuất trình cert (mTLS).
+- Mọi HTTP giữa peer là **HTTPS** (TLS 1.2 hoặc 1.3 tùy hệ điều hành; Windows 10 chưa có TLS 1.3 phía server), cả hai phía xuất trình cert (mTLS).
 - Không có CA. Kiểm tra bằng **fingerprint pinning**:
   - Client: so DeviceId của cert server với DeviceId định kết nối.
   - Server (Kestrel): `ClientCertificateMode.RequireCertificate`, tính DeviceId client, gắn vào `HttpContext.User`.
@@ -62,15 +62,19 @@ Mạng cho phép kết nối thẳng giữa các VLAN, nên **ai trong LAN cũng
 sequenceDiagram
     participant A as A (người xin)
     participant B as B
-    A->>B: POST /api/v1/pairing/request {nonceA, note}
-    B->>A: 202 {nonceB}
+    A->>B: POST /api/v1/pairing/request {pairingId, nonceA, name, host, apiPort, note}
+    B->>A: 202 {nonceB, name, host}
     Note over A,B: Cả hai tính mã 6 số = SHA-256("sk-pair-v1" ‖ min(idA,idB) ‖ max(idA,idB) ‖ nonceA ‖ nonceB)
     A-->>A: "Đang chờ Mai chấp nhận… Mã: 482 913"
     B-->>B: Toast/hộp thoại: "Huy (PC-DEV-03) muốn kết nối · Mã: 482 913" [Chấp nhận] [Từ chối] [Chặn]
-    B->>A: POST /api/v1/pairing/{id}/accept
+    loop đến khi có quyết định
+        A->>B: GET /api/v1/pairing/{id}/decision (long-poll 25 giây)
+    end
+    B-->>A: {status: accepted}
     Note over A,B: Cả hai lưu nhau là Trusted
 ```
 
+- **Người xin chờ bằng long-poll**, nên chỉ cần A kết nối được tới B. B chỉ ghi nhận "đã kết nối" khi A đã nhận được câu trả lời, nhờ vậy hai bên không lệch trạng thái. B chặn A trong lúc chờ thì A thấy như bị từ chối.
 - **Một bước chấp nhận là đủ.** Mã 6 số hiện ở cả hai màn hình để **đối chiếu nếu muốn chắc chắn** (nói qua điện thoại, nhắn tin). Nếu bị tấn công MITM thì hai mã sẽ khác nhau.
 - Yêu cầu hết hạn sau 5 phút.
 - Gỡ tin cậy (Ngắt kết nối) làm một phía, phía kia sẽ nhận `403` ở lần gọi sau và tự hạ xuống Unknown.
@@ -103,7 +107,7 @@ Liên hệ Trusted xuất hiện với DeviceId khác (cùng tên, cùng máy) t
 
 | Mối đe dọa | Bảo vệ | Ghi chú |
 |---|---|---|
-| Nghe lén LAN | ✅ | TLS 1.3 |
+| Nghe lén LAN | ✅ | TLS 1.2/1.3 |
 | Máy lạ ở VLAN khác dò/khai thác API | ✅ | Mặc định từ chối; Unknown chỉ gọi được 3 endpoint (hello, xin kết nối, xin vào nhóm), có giới hạn tần suất |
 | Giả mạo presence UDP | ⚠️ | Chỉ là gợi ý; danh tính xác minh khi handshake TLS |
 | MITM | ⚠️ | Mã 6 số để đối chiếu (không bắt buộc) |

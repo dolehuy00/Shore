@@ -5,7 +5,7 @@
 | Kênh | Giao thức | Cổng | Dùng cho |
 |---|---|---|---|
 | Discovery | UDP multicast `239.255.47.47` + unicast | `47470/udp` | announce, heartbeat, reply, bye, probe |
-| API | HTTPS (TLS 1.3, mTLS), HTTP/1.1 | `47471/tcp` | mọi thứ còn lại |
+| API | HTTPS (TLS 1.2/1.3 theo hệ điều hành, mTLS), HTTP/1.1 | `47471/tcp` | mọi thứ còn lại |
 
 - Cổng 47471 bận (phiên người dùng thứ 2 trên cùng máy) thì dùng cổng động, quảng bá qua `port` trong presence.
 - Đổi được qua GPO, nhưng toàn mạng phải dùng **cùng cổng UDP**.
@@ -85,10 +85,10 @@
 | GET | `/hello` | Any | Tên, phiên bản, `proto`, `caps` |
 | GET | `/hello/avatar` | Any | Ảnh đại diện (AD mức 1, [13](13-active-directory.md)) |
 | GET | `/identity/attestation?nonce=` | Any | Chứng thực bằng cert AD (AD mức 3) |
-| POST | `/pairing/request` | Any (rate limit) | `{ pairingId, nonceA, note }` → `202 { nonceB }` |
-| POST | `/pairing/{id}/accept` | (phía được xin gọi lại) | Chấp nhận |
-| POST | `/pairing/{id}/decline` | | Từ chối |
-| POST | `/pairing/revoke` | Trusted | Ngắt kết nối |
+| POST | `/pairing/request` | Any (rate limit) | `{ pairingId, nonce, name, host, apiPort, note }` → `202 { nonce, name, host }`. Gửi lại cùng `pairingId` thì nhận lại cùng câu trả lời |
+| GET | `/pairing/{id}/decision` | Any (chỉ người xin) | Long-poll tối đa 25 giây → `{ status: pending \| accepted \| declined \| expired \| cancelled }` |
+| DELETE | `/pairing/{id}` | Any (chỉ người xin) | Người xin hủy |
+| POST | `/pairing/revoke` | Trusted | Ngắt kết nối: bên nhận quên người gọi |
 | GET | `/peers/known` | Trusted | PEX |
 
 ### 4.2 Gửi file — endpoint trên **máy người nhận** (Hộp nhận)

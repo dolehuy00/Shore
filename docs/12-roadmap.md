@@ -21,7 +21,7 @@ Mỗi milestone kết thúc bằng một bản **chạy được, demo được*
 
 **Xong khi:** 3 máy cùng subnet thấy nhau trong ≤ 3 giây; rút dây thì máy đó Offline trong ≤ 30 giây.
 
-## M2 — Kết nối & quyền hạn
+## M2 — Kết nối & quyền hạn ✅ (2026-10-01)
 
 - Kestrel + mTLS; `PeerConnector`; `GET /hello`.
 - **AccessPolicy** (Any / Trusted / GroupMember / Recipient) + rate limit cho Unknown. Viết test cho từng endpoint.

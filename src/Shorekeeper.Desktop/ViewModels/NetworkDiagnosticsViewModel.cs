@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Shorekeeper.Core.Platform;
+using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Settings;
 
@@ -25,7 +26,7 @@ public sealed record DiagnosticItem(string Label, string Value, DiagnosticLevel 
 }
 
 /// <summary>"Cài đặt → Mạng": explains why peers may not be visible (docs/10-ux.md §8).</summary>
-public sealed partial class NetworkDiagnosticsViewModel(IFirewallInspector firewall, PeerDirectory directory, SettingsService settings)
+public sealed partial class NetworkDiagnosticsViewModel(IFirewallInspector firewall, PeerDirectory directory, SettingsService settings, ApiServer api)
     : ObservableObject
 {
     public ObservableCollection<DiagnosticItem> Items { get; } = [];
@@ -51,6 +52,9 @@ public sealed partial class NetworkDiagnosticsViewModel(IFirewallInspector firew
             Items.Add(seen > 0
                 ? new DiagnosticItem("Multicast", $"Đang thấy {seen} máy · UDP {settings.Current.DiscoveryPort}", DiagnosticLevel.Ok)
                 : new DiagnosticItem("Multicast", $"Chưa nhận được tín hiệu từ máy nào · UDP {settings.Current.DiscoveryPort}", DiagnosticLevel.Info));
+            Items.Add(api.Port > 0
+                ? new DiagnosticItem("HTTPS (kết nối)", $"Đang nghe TCP {api.Port}", DiagnosticLevel.Ok)
+                : new DiagnosticItem("HTTPS (kết nối)", "Không mở được cổng: máy khác sẽ không kết nối được tới bạn", DiagnosticLevel.Error));
         }
         finally
         {

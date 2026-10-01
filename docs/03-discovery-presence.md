@@ -73,7 +73,7 @@
 ## 4. Nguồn 2 — Known Endpoints (ghi nhớ)
 
 - Mọi kết nối mTLS thành công tới một peer thì lưu `(DeviceId, địa chỉ, cổng, lastSuccess)` vào bảng `PeerEndpoints`.
-- Khi khởi động và mỗi 2 phút, gửi `probe` UDP unicast tới địa chỉ đã biết của **liên hệ tin cậy** và **peer đã giao tiếp trong 14 ngày** không cùng subnet (tối đa 200 peer).
+- Mỗi 5 giây gửi `probe` UDP unicast tới địa chỉ đã biết của **liên hệ tin cậy** và tới các **máy nhập tay** (tối đa 200 địa chỉ). `probe` mang đầy đủ presence nên bên nhận cũng thấy mình, và bên nhận trả `reply` về đúng địa chỉ nguồn. Chu kỳ ngắn giữ peer khác subnet ở trạng thái Online, không bị chuyển Stale.
 - Nếu probe UDP bị chặn: thử `GET /api/v1/hello` qua TCP (timeout 2 giây).
 - Địa chỉ không thành công quá 14 ngày thì bị xóa.
 
@@ -150,7 +150,7 @@ Cách client biết Bridge:
 ## 11. Connector
 
 1. Sắp xếp ứng viên: `lastSuccess` gần nhất → cùng subnet → địa chỉ nguồn UDP → `observedAddr` → còn lại.
-2. **Happy eyeballs:** sau 250 ms chưa xong thì thử thêm ứng viên kế song song.
+2. **Hiện trạng M2:** thử lần lượt từng ứng viên (connect timeout 3 giây). Happy eyeballs (thử song song sau 250 ms) để sau, khi có nhu cầu thực tế.
 3. TLS phải khớp DeviceId, nếu không thì hủy ([04](04-identity-security.md)).
 4. Ghi `lastSuccess`. Mỗi peer có một `HttpClient` riêng.
 

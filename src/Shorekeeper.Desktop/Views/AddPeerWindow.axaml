@@ -1,0 +1,30 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Shorekeeper.Desktop.ViewModels"
+        x:Class="Shorekeeper.Desktop.Views.AddPeerWindow"
+        x:DataType="vm:AddPeerViewModel"
+        Title="Thêm máy ở mạng khác"
+        Icon="/Assets/shorekeeper.png"
+        Width="460" SizeToContent="Height" CanResize="False"
+        WindowStartupLocation="CenterOwner">
+  <StackPanel Margin="24" Spacing="14">
+    <TextBlock Text="Thêm máy ở mạng khác" FontSize="18" FontWeight="SemiBold" />
+    <TextBlock Text="Nhập tên máy hoặc địa chỉ IP (có thể kèm cổng, vd PC-DEV-11 hoặc 10.1.5.12:47471)."
+               Opacity="0.75" TextWrapping="Wrap" />
+
+    <Grid ColumnDefinitions="*,Auto">
+      <TextBox Text="{Binding Input}" PlaceholderText="Tên máy hoặc IP" Margin="0,0,8,0" />
+      <Button Grid.Column="1" Content="Tìm" Command="{Binding FindCommand}" IsDefault="True" />
+    </Grid>
+
+    <TextBlock Text="{Binding Status}" TextWrapping="Wrap" />
+    <TextBlock IsVisible="{Binding HasFound}" Opacity="0.65" FontSize="12" TextWrapping="Wrap"
+               Text="Máy này sẽ được ghi nhớ và tự tìm lại mỗi lần mở app." />
+
+    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+      <Button Content="Đóng" Command="{Binding CancelCommand}" />
+      <Button Content="Chỉ lưu" Command="{Binding SaveOnlyCommand}" IsVisible="{Binding HasFound}" />
+      <Button Content="Kết nối" Command="{Binding ConnectCommand}" IsVisible="{Binding HasFound}" Classes="accent" />
+    </StackPanel>
+  </StackPanel>
+</Window>

@@ -1,0 +1,27 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Shorekeeper.Desktop.ViewModels"
+        x:Class="Shorekeeper.Desktop.Views.IncomingPairingWindow"
+        x:DataType="vm:IncomingPairingViewModel"
+        Title="Yêu cầu kết nối"
+        Icon="/Assets/shorekeeper.png"
+        Width="440" SizeToContent="Height" CanResize="False"
+        WindowStartupLocation="CenterScreen">
+  <StackPanel Margin="24" Spacing="14">
+    <TextBlock Text="{Binding Title}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
+    <TextBlock Text="{Binding Note}" IsVisible="{Binding HasNote}" FontStyle="Italic" TextWrapping="Wrap" />
+
+    <StackPanel Spacing="4">
+      <TextBlock Text="Mã xác nhận" Opacity="0.65" />
+      <TextBlock Text="{Binding Code}" FontSize="32" FontWeight="SemiBold" FontFamily="Consolas,monospace" />
+      <TextBlock Text="Muốn chắc chắn? Hỏi người kia xem mã trên máy họ có giống không. Chỉ chấp nhận nếu bạn biết người này."
+                 Opacity="0.65" FontSize="12" TextWrapping="Wrap" />
+    </StackPanel>
+
+    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+      <Button Content="Chặn" Command="{Binding BlockCommand}" />
+      <Button Content="Từ chối" Command="{Binding DeclineCommand}" />
+      <Button Content="Chấp nhận" Command="{Binding AcceptCommand}" Classes="accent" IsDefault="True" />
+    </StackPanel>
+  </StackPanel>
+</Window>

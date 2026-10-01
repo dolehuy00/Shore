@@ -31,11 +31,13 @@ public sealed partial class MainWindowViewModel : ObservableObject
         AppPaths paths,
         LocalPresence presence,
         NeighborhoodViewModel neighborhood,
-        NetworkDiagnosticsViewModel diagnostics)
+        NetworkDiagnosticsViewModel diagnostics,
+        BlockedPeersViewModel blocked)
     {
         this.presence = presence;
         Neighborhood = neighborhood;
         Diagnostics = diagnostics;
+        Blocked = blocked;
         DeviceId = engine.Identity.DeviceId.Value;
         DeviceIdShort = engine.Identity.DeviceId.ShortForm;
         DisplayName = settings.Current.DisplayName;
@@ -51,6 +53,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public NeighborhoodViewModel Neighborhood { get; }
 
     public NetworkDiagnosticsViewModel Diagnostics { get; }
+
+    public BlockedPeersViewModel Blocked { get; }
 
     public string DisplayName { get; }
 

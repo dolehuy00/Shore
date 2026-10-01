@@ -2,18 +2,20 @@ using Microsoft.Extensions.Logging;
 using Shorekeeper.Engine.Identity;
 using Shorekeeper.Engine.Settings;
 using Shorekeeper.Engine.Storage;
+using Shorekeeper.Engine.Trust;
 
 namespace Shorekeeper.Engine;
 
 /// <summary>
 /// Entry point of the engine shared by the desktop app (and headless test hosts).
-/// M0: folders, settings, database schema and device identity.
+/// Prepares folders, settings, database schema, contacts and the device identity.
 /// </summary>
 public sealed class ShorekeeperEngine(
     AppPaths paths,
     SettingsService settings,
     MigrationRunner migrations,
     IdentityStore identityStore,
+    TrustStore trustStore,
     ILogger<ShorekeeperEngine> logger) : IDisposable
 {
     private DeviceIdentity? identity;
@@ -32,6 +34,7 @@ public sealed class ShorekeeperEngine(
         paths.EnsureCreated();
         settings.Load();
         await migrations.MigrateAsync(cancellationToken);
+        await trustStore.LoadAsync(cancellationToken);
         identity = identityStore.LoadOrCreate();
 
         logger.LogInformation(

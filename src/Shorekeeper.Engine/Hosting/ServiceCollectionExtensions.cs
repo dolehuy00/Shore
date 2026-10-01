@@ -1,13 +1,19 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Shorekeeper.Core.Platform;
+using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Identity;
 using Shorekeeper.Engine.Settings;
 using Shorekeeper.Engine.Storage;
+using Shorekeeper.Engine.Trust;
 
 namespace Shorekeeper.Engine.Hosting;
 
+/// <summary>
+/// Hosted services start in registration order. Call <see cref="AddShorekeeperEngine"/>, then
+/// <see cref="AddPeerApi"/>, then <see cref="AddMulticastDiscovery"/>: discovery announces the API port.
+/// </summary>
 public static class ServiceCollectionExtensions
 {
     /// <summary>
@@ -26,21 +32,34 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<SqliteDatabase>();
         services.AddSingleton<MigrationRunner>();
         services.AddSingleton<IdentityStore>();
+        services.AddSingleton<TrustStore>();
+        services.AddSingleton<PeerDirectory>();
+        services.AddSingleton<LocalDevice>();
         services.AddSingleton<ShorekeeperEngine>();
         services.AddHostedService<EngineHostedService>();
 
         return services;
     }
 
-    /// <summary>
-    /// Registers same-subnet discovery. Call after <see cref="AddShorekeeperEngine"/>:
-    /// hosted services start in registration order, so discovery runs once the engine is initialized.
-    /// </summary>
+    /// <summary>Registers the HTTPS peer API (mutual TLS), the client for calling peers, and connecting.</summary>
+    public static IServiceCollection AddPeerApi(this IServiceCollection services)
+    {
+        services.TryAddSingleton(new ApiServerOptions());
+        services.AddSingleton<ApiServer>();
+        services.AddHostedService(sp => sp.GetRequiredService<ApiServer>());
+        services.AddSingleton<PeerClient>();
+        services.AddSingleton<PairingService>();
+
+        return services;
+    }
+
+    /// <summary>Registers UDP discovery: multicast in the subnet, unicast probes beyond it.</summary>
     public static IServiceCollection AddMulticastDiscovery(this IServiceCollection services)
     {
-        services.AddSingleton<PeerDirectory>();
         services.AddSingleton<LocalPresence>();
         services.AddSingleton<ILocalPresence>(sp => sp.GetRequiredService<LocalPresence>());
+        services.AddSingleton<IProbeTargetSource, ProbeTargets>();
+        services.AddSingleton<ManualPeerFinder>();
         services.AddHostedService<MulticastDiscovery>();
 
         return services;

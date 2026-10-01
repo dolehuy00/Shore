@@ -1,6 +1,5 @@
-using System.Reflection;
 using Shorekeeper.Core.Discovery;
-using Shorekeeper.Engine.Settings;
+using Shorekeeper.Engine.Api;
 
 namespace Shorekeeper.Engine.Discovery;
 
@@ -15,11 +14,8 @@ public interface ILocalPresence
     PresencePacket CreatePacket(string type);
 }
 
-public sealed class LocalPresence(ShorekeeperEngine engine, SettingsService settings) : ILocalPresence
+public sealed class LocalPresence(LocalDevice device, ApiServer api) : ILocalPresence
 {
-    private static readonly string AppVersion =
-        typeof(LocalPresence).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0] ?? "0.0.0";
-
     private MyStatus status = MyStatus.Online;
 
     public event EventHandler? Changed;
@@ -40,14 +36,13 @@ public sealed class LocalPresence(ShorekeeperEngine engine, SettingsService sett
     public PresencePacket CreatePacket(string type) => new()
     {
         Type = type,
-        Id = engine.Identity.DeviceId.Value,
-        Name = settings.Current.DisplayName.Length > PresenceCodec.MaxNameLength
-            ? settings.Current.DisplayName[..PresenceCodec.MaxNameLength]
-            : settings.Current.DisplayName,
-        Host = Environment.MachineName,
-        Os = OperatingSystem.IsWindows() ? "windows" : OperatingSystem.IsMacOS() ? "macos" : "linux",
-        App = AppVersion,
-        Port = settings.Current.ApiPort,
+        Id = device.DeviceId.Value,
+        Name = device.DisplayName,
+        Host = LocalDevice.HostName,
+        Os = LocalDevice.Os,
+        App = LocalDevice.AppVersion,
+        // The port actually bound, which differs from the setting when a second Windows session runs Shorekeeper.
+        Port = api.Port,
         Status = status == MyStatus.Busy ? PresenceStatus.Busy : PresenceStatus.Available,
     };
 }

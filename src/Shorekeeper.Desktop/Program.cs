@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Serilog;
 using Shorekeeper.Desktop.Hosting;
 using Shorekeeper.Desktop.ViewModels;
+using Shorekeeper.Desktop.Views;
 using Shorekeeper.Engine;
 using Shorekeeper.Engine.Hosting;
 using Shorekeeper.Platform.Windows;
@@ -86,10 +87,13 @@ internal static class Program
 
         builder.Services.AddSerilog();
         builder.Services.AddShorekeeperEngine(paths);
+        builder.Services.AddPeerApi();
         builder.Services.AddMulticastDiscovery();
         builder.Services.AddWindowsPlatform();
+        builder.Services.AddSingleton<DialogService>();
         builder.Services.AddSingleton<NeighborhoodViewModel>();
         builder.Services.AddSingleton<NetworkDiagnosticsViewModel>();
+        builder.Services.AddSingleton<BlockedPeersViewModel>();
         builder.Services.AddSingleton<MainWindowViewModel>();
 
         return builder.Build();

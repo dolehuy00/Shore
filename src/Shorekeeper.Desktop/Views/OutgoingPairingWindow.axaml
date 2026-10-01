@@ -1,0 +1,23 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Shorekeeper.Desktop.ViewModels"
+        x:Class="Shorekeeper.Desktop.Views.OutgoingPairingWindow"
+        x:DataType="vm:OutgoingPairingViewModel"
+        Title="{Binding Title}"
+        Icon="/Assets/shorekeeper.png"
+        Width="420" SizeToContent="Height" CanResize="False"
+        WindowStartupLocation="CenterOwner">
+  <StackPanel Margin="24" Spacing="14">
+    <TextBlock Text="{Binding Title}" FontSize="18" FontWeight="SemiBold" />
+    <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />
+
+    <StackPanel IsVisible="{Binding HasCode}" Spacing="4">
+      <TextBlock Text="Mã xác nhận" Opacity="0.65" />
+      <TextBlock Text="{Binding Code}" FontSize="32" FontWeight="SemiBold" FontFamily="Consolas,monospace" />
+      <TextBlock Text="Muốn chắc chắn? Hỏi người kia xem mã trên máy họ có giống không." Opacity="0.65" FontSize="12" TextWrapping="Wrap" />
+    </StackPanel>
+
+    <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsWaiting}" />
+    <Button Content="{Binding CloseText}" Command="{Binding CloseCommand}" HorizontalAlignment="Right" />
+  </StackPanel>
+</Window>

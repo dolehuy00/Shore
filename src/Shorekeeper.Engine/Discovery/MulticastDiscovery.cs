@@ -10,14 +10,16 @@ using Shorekeeper.Engine.Settings;
 namespace Shorekeeper.Engine.Discovery;
 
 /// <summary>
-/// Same-subnet discovery over UDP multicast (docs/03-discovery-presence.md §3).
-/// One socket bound to the discovery port joins the group on every usable interface;
-/// multicast sends go out on each interface in turn. The socket is rebuilt when the network changes.
+/// UDP discovery (docs/03-discovery-presence.md §3, §4). Same subnet: multicast. One socket bound to the
+/// discovery port joins the group on every usable interface; multicast sends go out on each interface in turn.
+/// Other subnets: unicast probes to known addresses (contacts, machines added by hand).
+/// The socket is rebuilt when the network changes.
 /// </summary>
 public sealed class MulticastDiscovery : BackgroundService
 {
     public static readonly IPAddress Group = IPAddress.Parse("239.255.47.47");
     public static readonly TimeSpan HeartbeatInterval = TimeSpan.FromSeconds(5);
+    public static readonly TimeSpan ProbeInterval = TimeSpan.FromSeconds(5);
 
     private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1);
     private static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(10);
@@ -29,13 +31,19 @@ public sealed class MulticastDiscovery : BackgroundService
     private readonly Func<int> getPort;
     private readonly IPAddress bindAddress;
     private readonly Func<IReadOnlyList<LocalInterface>> getInterfaces;
+    private readonly IProbeTargetSource probeTargets;
 
     private int port;
     private volatile bool networkChanged;
     private volatile bool presenceChanged;
 
-    public MulticastDiscovery(ILocalPresence presence, PeerDirectory directory, SettingsService settings, ILogger<MulticastDiscovery> logger)
-        : this(presence, directory, logger, () => settings.Current.DiscoveryPort, IPAddress.Any, LocalInterfaces.GetUsable)
+    public MulticastDiscovery(
+        ILocalPresence presence,
+        PeerDirectory directory,
+        IProbeTargetSource probeTargets,
+        SettingsService settings,
+        ILogger<MulticastDiscovery> logger)
+        : this(presence, directory, logger, () => settings.Current.DiscoveryPort, IPAddress.Any, LocalInterfaces.GetUsable, probeTargets)
     {
     }
 
@@ -46,7 +54,8 @@ public sealed class MulticastDiscovery : BackgroundService
         ILogger<MulticastDiscovery> logger,
         Func<int> getPort,
         IPAddress bindAddress,
-        Func<IReadOnlyList<LocalInterface>> getInterfaces)
+        Func<IReadOnlyList<LocalInterface>> getInterfaces,
+        IProbeTargetSource probeTargets)
     {
         this.presence = presence;
         this.directory = directory;
@@ -54,6 +63,7 @@ public sealed class MulticastDiscovery : BackgroundService
         this.getPort = getPort;
         this.bindAddress = bindAddress;
         this.getInterfaces = getInterfaces;
+        this.probeTargets = probeTargets;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -106,6 +116,7 @@ public sealed class MulticastDiscovery : BackgroundService
 
         bool announced = false;
         DateTimeOffset nextHeartbeat = DateTimeOffset.MinValue;
+        DateTimeOffset nextProbe = DateTimeOffset.MinValue;
         try
         {
             using var timer = new PeriodicTimer(Tick);
@@ -125,6 +136,12 @@ public sealed class MulticastDiscovery : BackgroundService
                 {
                     SendMulticast(socket, interfaces, addresses, PresencePacketTypes.Heartbeat);
                     nextHeartbeat = NextHeartbeat();
+                }
+
+                if (!hidden && DateTimeOffset.UtcNow >= nextProbe)
+                {
+                    await SendProbesAsync(socket, addresses, stoppingToken);
+                    nextProbe = DateTimeOffset.UtcNow + ProbeInterval;
                 }
             }
             while (!networkChanged && await timer.WaitForNextTickAsync(stoppingToken));
@@ -218,15 +235,15 @@ public sealed class MulticastDiscovery : BackgroundService
             }
 
             directory.Observe(packet, source.Address);
-            if (packet.Type == PresencePacketTypes.Announce)
+            if (packet.Type is PresencePacketTypes.Announce or PresencePacketTypes.Probe)
             {
-                _ = ReplyAsync(socket, source.Address, addresses, cancellationToken);
+                _ = ReplyAsync(socket, source, addresses, cancellationToken);
             }
         }
     }
 
     /// <summary>A newcomer announced itself: tell it about us right away instead of making it wait for our heartbeat.</summary>
-    private async Task ReplyAsync(Socket socket, IPAddress target, string[] addresses, CancellationToken cancellationToken)
+    private async Task ReplyAsync(Socket socket, IPEndPoint target, string[] addresses, CancellationToken cancellationToken)
     {
         try
         {
@@ -238,7 +255,7 @@ public sealed class MulticastDiscovery : BackgroundService
             }
 
             byte[] data = Encode(PresencePacketTypes.Reply, addresses);
-            await socket.SendToAsync(data, SocketFlags.None, new IPEndPoint(target, port), cancellationToken);
+            await socket.SendToAsync(data, SocketFlags.None, target, cancellationToken);
         }
         catch (OperationCanceledException)
         {
@@ -246,6 +263,28 @@ public sealed class MulticastDiscovery : BackgroundService
         catch (Exception ex) when (ex is SocketException or ObjectDisposedException)
         {
             logger.LogDebug(ex, "Discovery reply to {Target} failed", target);
+        }
+    }
+
+    private async Task SendProbesAsync(Socket socket, string[] addresses, CancellationToken cancellationToken)
+    {
+        IReadOnlyList<IPEndPoint> targets = await probeTargets.GetTargetsAsync(cancellationToken);
+        if (targets.Count == 0)
+        {
+            return;
+        }
+
+        byte[] data = Encode(PresencePacketTypes.Probe, addresses);
+        foreach (IPEndPoint target in targets)
+        {
+            try
+            {
+                await socket.SendToAsync(data, SocketFlags.None, target, cancellationToken);
+            }
+            catch (SocketException ex)
+            {
+                logger.LogDebug(ex, "Probe to {Target} failed", target);
+            }
         }
     }
 

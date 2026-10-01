@@ -2,60 +2,123 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Shorekeeper.Core.Identity;
+using Shorekeeper.Core.Trust;
+using Shorekeeper.Desktop.Views;
 using Shorekeeper.Engine.Discovery;
+using Shorekeeper.Engine.Trust;
 
 namespace Shorekeeper.Desktop.ViewModels;
 
-/// <summary>The "Xóm" page: peers currently visible on the network, sorted by name.</summary>
+/// <summary>
+/// The "Xóm" page (docs/10-ux.md §2): contacts (online or not) first, then everyone else currently online.
+/// Blocked peers are hidden.
+/// </summary>
 public sealed partial class NeighborhoodViewModel : ObservableObject
 {
-    public NeighborhoodViewModel(PeerDirectory directory)
+    private readonly PeerDirectory directory;
+    private readonly TrustStore trust;
+    private readonly PairingService pairing;
+    private readonly DialogService dialogs;
+    private readonly Dictionary<DeviceId, PeerCardViewModel> cards = [];
+
+    public NeighborhoodViewModel(PeerDirectory directory, TrustStore trust, PairingService pairing, DialogService dialogs)
     {
-        // Subscribe before taking the snapshot so nothing is missed; Apply is idempotent.
-        directory.Changed += (_, change) => Dispatcher.UIThread.Post(() => Apply(change));
-        foreach (PeerInfo peer in directory.Snapshot())
-        {
-            Apply(new PeerChange(PeerChangeKind.Added, peer));
-        }
+        this.directory = directory;
+        this.trust = trust;
+        this.pairing = pairing;
+        this.dialogs = dialogs;
+
+        directory.Changed += (_, _) => Dispatcher.UIThread.Post(Refresh);
+        trust.Changed += (_, _) => Dispatcher.UIThread.Post(Refresh);
+        Refresh();
     }
 
-    public ObservableCollection<PeerCardViewModel> Peers { get; } = [];
+    public ObservableCollection<PeerCardViewModel> Contacts { get; } = [];
 
-    public bool IsEmpty => Peers.Count == 0;
+    public ObservableCollection<PeerCardViewModel> Others { get; } = [];
 
-    public string Header => $"Đang online trong mạng ({Peers.Count})";
+    public bool HasContacts => Contacts.Count > 0;
 
-    private void Apply(PeerChange change)
+    public bool IsEmpty => Contacts.Count == 0 && Others.Count == 0;
+
+    public string ContactsHeader => $"Đã kết nối ({Contacts.Count})";
+
+    public string OthersHeader => $"Đang online trong mạng ({Others.Count})";
+
+    [RelayCommand]
+    private Task AddPeerAsync() => dialogs.AddPeerAsync();
+
+    private void Refresh()
     {
-        PeerCardViewModel? card = Peers.FirstOrDefault(p => p.DeviceId == change.Peer.DeviceId);
-        if (card is not null)
-        {
-            Peers.Remove(card);
-        }
+        Dictionary<DeviceId, PeerInfo> live = directory.Snapshot().ToDictionary(p => p.DeviceId);
 
-        if (change.Kind != PeerChangeKind.Removed)
-        {
-            card ??= new PeerCardViewModel(change.Peer.DeviceId);
-            card.Update(change.Peer);
-            int index = 0;
-            // Culture-aware so Vietnamese names sort the way people expect.
-            while (index < Peers.Count && CultureInfo.CurrentCulture.CompareInfo.Compare(Peers[index].DisplayName, card.DisplayName, CompareOptions.IgnoreCase) <= 0)
-            {
-                index++;
-            }
+        var contacts = trust.GetAll(TrustLevel.Trusted)
+            .Select(record => Card(record.DeviceId).Update(record, live.GetValueOrDefault(record.DeviceId)))
+            .ToList();
+        var others = live.Values
+            .Where(peer => trust.GetLevel(peer.DeviceId) == TrustLevel.Unknown)
+            .Select(peer => Card(peer.DeviceId).Update(null, peer))
+            .ToList();
 
-            Peers.Insert(index, card);
-        }
-
+        Sync(Contacts, contacts);
+        Sync(Others, others);
+        OnPropertyChanged(nameof(HasContacts));
         OnPropertyChanged(nameof(IsEmpty));
-        OnPropertyChanged(nameof(Header));
+        OnPropertyChanged(nameof(ContactsHeader));
+        OnPropertyChanged(nameof(OthersHeader));
     }
+
+    private PeerCardViewModel Card(DeviceId id)
+    {
+        if (!cards.TryGetValue(id, out PeerCardViewModel? card))
+        {
+            card = new PeerCardViewModel(id, this);
+            cards[id] = card;
+        }
+
+        return card;
+    }
+
+    /// <summary>Cards are updated in place; the list is only rebuilt when membership or order changes.</summary>
+    private static void Sync(ObservableCollection<PeerCardViewModel> target, List<PeerCardViewModel> desired)
+    {
+        // Culture-aware so Vietnamese names sort the way people expect.
+        desired.Sort((x, y) => CultureInfo.CurrentCulture.CompareInfo.Compare(x.DisplayName, y.DisplayName, CompareOptions.IgnoreCase));
+        if (target.SequenceEqual(desired))
+        {
+            return;
+        }
+
+        target.Clear();
+        foreach (PeerCardViewModel card in desired)
+        {
+            target.Add(card);
+        }
+    }
+
+    internal Task ConnectAsync(PeerCardViewModel card) => dialogs.ConnectAsync(card.DeviceId, card.DisplayName);
+
+    internal async Task RenameAsync(PeerCardViewModel card)
+    {
+        string? alias = await DialogService.PromptAsync("Đặt tên gợi nhớ", $"Tên gợi nhớ cho {card.HostName}:", card.DisplayName);
+        if (alias is not null)
+        {
+            await trust.SetAliasAsync(card.DeviceId, alias);
+        }
+    }
+
+    internal Task DisconnectAsync(PeerCardViewModel card) => pairing.DisconnectAsync(card.DeviceId);
+
+    internal Task BlockAsync(PeerCardViewModel card) => trust.BlockAsync(card.DeviceId, card.DisplayName, card.HostName);
 }
 
-public sealed partial class PeerCardViewModel(DeviceId deviceId) : ObservableObject
+public sealed partial class PeerCardViewModel(DeviceId deviceId, NeighborhoodViewModel owner) : ObservableObject
 {
     public DeviceId DeviceId { get; } = deviceId;
+
+    public string HostName { get; private set; } = "";
 
     [ObservableProperty]
     public partial string DisplayName { get; set; } = "";
@@ -69,15 +132,47 @@ public sealed partial class PeerCardViewModel(DeviceId deviceId) : ObservableObj
     [ObservableProperty]
     public partial bool IsBusy { get; set; }
 
+    /// <summary>Stale or offline: shown dimmed with a gray dot.</summary>
     [ObservableProperty]
-    public partial bool IsStale { get; set; }
+    public partial bool IsInactive { get; set; }
 
-    public void Update(PeerInfo peer)
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanConnect))]
+    public partial bool IsTrusted { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanConnect))]
+    public partial bool IsOnline { get; set; }
+
+    public bool CanConnect => !IsTrusted && IsOnline;
+
+    /// <param name="record">Set for contacts.</param>
+    /// <param name="live">Set while the peer is visible on the network.</param>
+    public PeerCardViewModel Update(PeerRecord? record, PeerInfo? live)
     {
-        DisplayName = peer.DisplayName;
-        Subtitle = $"{peer.HostName} · {peer.Address}";
-        IsBusy = peer.IsBusy;
-        IsStale = peer.State == PeerState.Stale;
-        StatusText = IsStale ? "Mất tín hiệu…" : IsBusy ? "Bận" : "Online";
+        HostName = live?.HostName ?? record?.HostName ?? "";
+        DisplayName = record?.ShownName ?? live?.DisplayName ?? "";
+        IsTrusted = record?.TrustLevel == TrustLevel.Trusted;
+        IsOnline = live is not null;
+        IsBusy = live?.IsBusy == true;
+        IsInactive = live is null || live.State == PeerState.Stale;
+        Subtitle = live is null ? HostName : $"{HostName} · {live.Address}";
+        StatusText = live is null ? "Offline"
+            : live.State == PeerState.Stale ? "Mất tín hiệu…"
+            : IsBusy ? "Bận"
+            : "Online";
+        return this;
     }
+
+    [RelayCommand]
+    private Task ConnectAsync() => owner.ConnectAsync(this);
+
+    [RelayCommand]
+    private Task RenameAsync() => owner.RenameAsync(this);
+
+    [RelayCommand]
+    private Task DisconnectAsync() => owner.DisconnectAsync(this);
+
+    [RelayCommand]
+    private Task BlockAsync() => owner.BlockAsync(this);
 }
