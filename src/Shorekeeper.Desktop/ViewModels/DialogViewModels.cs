@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Shorekeeper.Core.Identity;
 using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Discovery;
+using Shorekeeper.Engine.Transfers;
 using Shorekeeper.Engine.Trust;
 
 namespace Shorekeeper.Desktop.ViewModels;
@@ -172,6 +173,61 @@ public sealed partial class AddPeerViewModel(ManualPeerFinder finder, Func<Found
 
     [RelayCommand]
     private void Cancel() => RequestClose();
+}
+
+/// <summary>A message with one to three buttons; <see cref="Choice"/> is the index pressed, or -1 if closed.</summary>
+public sealed partial class ChoiceViewModel(string title, string message, IReadOnlyList<string> choices) : DialogViewModel
+{
+    public string Title { get; } = title;
+
+    public string Message { get; } = message;
+
+    public IReadOnlyList<ChoiceButton> Buttons { get; } = [.. choices.Select((text, index) => new ChoiceButton(text, index))];
+
+    public int Choice { get; private set; } = -1;
+
+    [RelayCommand]
+    private void Choose(ChoiceButton button)
+    {
+        Choice = button.Index;
+        RequestClose();
+    }
+}
+
+public sealed record ChoiceButton(string Text, int Index);
+
+/// <summary>"Huy gửi cho bạn · app.zip + 1 mục · 2.4 GB" [Tải] [Bỏ qua] [Xem] (docs/10-ux.md §4).</summary>
+public sealed partial class IncomingOfferViewModel(ReceivedOffer offer, string senderName, Action download, Func<Task> decline, Action show)
+    : DialogViewModel
+{
+    public string Title { get; } = $"{senderName} gửi cho bạn";
+
+    public string Summary { get; } = $"{TransferText.Summary(offer.Files.Select(f => f.RelativePath))} · {TransferText.Size(offer.TotalBytes)}";
+
+    public string? Note { get; } = offer.Note is null ? null : $"\"{offer.Note}\"";
+
+    public bool HasNote => offer.Note is not null;
+
+    [RelayCommand]
+    private void Download()
+    {
+        download();
+        RequestClose();
+    }
+
+    [RelayCommand]
+    private async Task DeclineAsync()
+    {
+        await decline();
+        RequestClose();
+    }
+
+    [RelayCommand]
+    private void Show()
+    {
+        show();
+        RequestClose();
+    }
 }
 
 /// <summary>Single-line text input, e.g. "Đặt tên gợi nhớ".</summary>

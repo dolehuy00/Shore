@@ -1,17 +1,148 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using Shorekeeper.Core.Identity;
 using Shorekeeper.Desktop.ViewModels;
 using Shorekeeper.Engine.Discovery;
+using Shorekeeper.Engine.Settings;
+using Shorekeeper.Engine.Transfers;
 using Shorekeeper.Engine.Trust;
 
 namespace Shorekeeper.Desktop.Views;
 
 /// <summary>Opens the app's small windows. Must be called on the UI thread.</summary>
-public sealed class DialogService(PairingService pairing, ManualPeerFinder finder)
+public sealed class DialogService(
+    PairingService pairing,
+    ManualPeerFinder finder,
+    OfferService offers,
+    InboxService inbox,
+    SettingsService settings)
 {
+    private static readonly TimeSpan OfferPopupLifetime = TimeSpan.FromSeconds(20);
+
     private readonly Dictionary<string, Window> incoming = [];
+
+    /// <summary>An offer was created; the main window shows the "Đã gửi" page.</summary>
+    public event EventHandler? OfferSent;
+
+    /// <summary>The user pressed "Xem" on the incoming-offer popup.</summary>
+    public event EventHandler? InboxRequested;
+
+    /// <summary>
+    /// Sends files/folders to contacts (docs/06-file-transfer.md §6). Files another program is writing
+    /// can only go as a temporary copy, so the user is asked first.
+    /// </summary>
+    public async Task SendAsync(IReadOnlyList<string> paths, IReadOnlyList<(DeviceId Id, string Name)> recipients)
+    {
+        if (paths.Count == 0 || recipients.Count == 0)
+        {
+            return;
+        }
+
+        PreparedOffer prepared;
+        try
+        {
+            prepared = await Task.Run(() => OfferService.Prepare(paths));
+        }
+        catch (InvalidOperationException ex)
+        {
+            await ChooseAsync("Không gửi được", ex.Message, ["Đóng"]);
+            return;
+        }
+
+        if (prepared.Files.Count == 0)
+        {
+            await ChooseAsync("Không gửi được", "Không đọc được file nào trong số đã chọn.", ["Đóng"]);
+            return;
+        }
+
+        bool snapshotLocked = false;
+        if (prepared.LockedFiles.Count > 0 && !settings.Current.AlwaysSnapshotBeforeSend)
+        {
+            string names = string.Join(", ", prepared.LockedFiles.Take(3).Select(f => Path.GetFileName(f.SourcePath)));
+            int choice = await ChooseAsync(
+                "File đang được sử dụng",
+                $"{prepared.LockedFiles.Count} file đang được ứng dụng khác ghi ({names}). Gửi một bản sao tạm của chúng?",
+                ["Sao chép tạm rồi gửi", "Bỏ qua các file đó", "Hủy"]);
+            if (choice is < 0 or 2)
+            {
+                return;
+            }
+
+            snapshotLocked = choice == 0;
+        }
+
+        try
+        {
+            await offers.CreateAsync(prepared, [.. recipients.Select(r => r.Id)], null, snapshotLocked, CancellationToken.None);
+        }
+        catch (IOException ex)
+        {
+            await ChooseAsync("Không gửi được", $"Không sao chép tạm được file: {ex.Message}", ["Đóng"]);
+            return;
+        }
+
+        if (prepared.Unreadable.Count > 0)
+        {
+            await ChooseAsync("Một số mục không đọc được", $"{prepared.Unreadable.Count} mục đã bị bỏ qua vì không đọc được (không có quyền hoặc đã bị xóa).", ["Đóng"]);
+        }
+
+        OfferSent?.Invoke(this, EventArgs.Empty);
+    }
+
+    public static async Task<IReadOnlyList<string>> PickFilesAsync()
+    {
+        if (MainWindow is not { } window)
+        {
+            return [];
+        }
+
+        IReadOnlyList<IStorageFile> files = await window.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions { Title = "Chọn file để gửi", AllowMultiple = true });
+        return [.. files.Select(f => f.TryGetLocalPath()).OfType<string>()];
+    }
+
+    public static async Task<IReadOnlyList<string>> PickFolderAsync()
+    {
+        if (MainWindow is not { } window)
+        {
+            return [];
+        }
+
+        IReadOnlyList<IStorageFolder> folders = await window.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { Title = "Chọn thư mục để gửi" });
+        return [.. folders.Select(f => f.TryGetLocalPath()).OfType<string>()];
+    }
+
+    /// <returns>Index of the button pressed, or -1 if the window was closed.</returns>
+    public static async Task<int> ChooseAsync(string title, string message, IReadOnlyList<string> choices)
+    {
+        var viewModel = new ChoiceViewModel(title, message, choices);
+        await ShowAsync(new ChoiceWindow { DataContext = viewModel }, viewModel);
+        return viewModel.Choice;
+    }
+
+    /// <summary>Small popup in the corner of the screen: "Huy gửi cho bạn …" [Tải] [Bỏ qua] [Xem].</summary>
+    public void ShowIncomingOffer(ReceivedOffer offer, string senderName)
+    {
+        var key = new OfferKey(offer.SenderId, offer.OfferId);
+        var viewModel = new IncomingOfferViewModel(offer, senderName, () => inbox.Download(key), () => inbox.DeclineAsync(key), () => InboxRequested?.Invoke(this, EventArgs.Empty));
+        var window = new IncomingOfferWindow { DataContext = viewModel, Topmost = true, ShowActivated = false };
+        viewModel.CloseRequested += (_, _) => window.Close();
+        window.Opened += (_, _) =>
+        {
+            // Bottom-right corner of the primary screen, like a notification.
+            if (window.Screens.Primary is { } screen)
+            {
+                PixelRect area = screen.WorkingArea;
+                var size = PixelSize.FromSize(window.Bounds.Size, screen.Scaling);
+                window.Position = new PixelPoint(area.Right - size.Width - 16, area.Bottom - size.Height - 16);
+            }
+        };
+
+        window.Show();
+        DispatcherTimer.RunOnce(window.Close, OfferPopupLifetime);
+    }
 
     public async Task ConnectAsync(DeviceId target, string name)
     {
@@ -73,11 +204,13 @@ public sealed class DialogService(PairingService pairing, ManualPeerFinder finde
         }
     }
 
+    private static Window? MainWindow => (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?
+        .Windows.FirstOrDefault(w => w is MainWindow { IsVisible: true });
+
     private static async Task ShowAsync(Window window, DialogViewModel viewModel)
     {
         viewModel.CloseRequested += (_, _) => window.Close();
-        Window? owner = (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?
-            .Windows.FirstOrDefault(w => w is MainWindow { IsVisible: true });
+        Window? owner = MainWindow;
 
         if (owner is not null)
         {

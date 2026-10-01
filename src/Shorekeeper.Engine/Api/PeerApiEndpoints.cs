@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Shorekeeper.Core.Identity;
+using Shorekeeper.Engine.Transfers;
 using Shorekeeper.Engine.Trust;
 
 namespace Shorekeeper.Engine.Api;
@@ -19,6 +20,8 @@ internal static class PeerApiEndpoints
         var server = services.GetRequiredService<ApiServer>();
         var pairing = services.GetRequiredService<PairingService>();
         var trust = services.GetRequiredService<TrustStore>();
+        var offers = services.GetRequiredService<OfferService>();
+        var inbox = services.GetRequiredService<InboxService>();
 
         RouteGroupBuilder api = app.MapGroup(PeerClient.ApiBasePath.TrimEnd('/'));
 
@@ -56,6 +59,35 @@ internal static class PeerApiEndpoints
                 await trust.ForgetAsync(caller);
                 return Results.NoContent();
             })
+            .RequireTrustedPeer();
+
+        // ───────────── Sending files (docs/05-protocol.md §4.2, §4.3) ─────────────
+
+        // Recipient side: a contact offers us files.
+        api.MapPost("/inbox/offers", async (HttpContext context, OfferManifest manifest) =>
+                await inbox.HandleOfferAsync(context.GetCaller(), manifest)
+                    ? Results.Accepted()
+                    : ApiResults.Problem(StatusCodes.Status400BadRequest, ApiErrorCodes.InvalidRequest))
+            .RequireTrustedPeer();
+
+        api.MapPost("/inbox/offers/{offerId}/withdrawn", async (HttpContext context, string offerId) =>
+            {
+                await inbox.HandleWithdrawnAsync(context.GetCaller(), offerId);
+                return Results.NoContent();
+            })
+            .RequireTrustedPeer();
+
+        // Sender side: recipients pull the data. Each handler also checks the caller is a recipient.
+        api.MapGet("/offers/{offerId}/files/{fileId}", (HttpContext context, string offerId, string fileId) =>
+                offers.ServeFile(context.GetCaller(), offerId, fileId))
+            .RequireTrustedPeer();
+
+        api.MapGet("/offers/{offerId}/files/{fileId}/hash", (HttpContext context, string offerId, string fileId, CancellationToken cancellationToken) =>
+                offers.GetHashAsync(context.GetCaller(), offerId, fileId, cancellationToken))
+            .RequireTrustedPeer();
+
+        api.MapPost("/offers/{offerId}/receipts", (HttpContext context, string offerId, OfferReceipt receipt) =>
+                offers.HandleReceiptAsync(context.GetCaller(), offerId, receipt))
             .RequireTrustedPeer();
     }
 }

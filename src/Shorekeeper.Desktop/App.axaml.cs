@@ -5,8 +5,11 @@ using Avalonia.Markup.Xaml;
 using Avalonia.Platform;
 using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
+using Shorekeeper.Core.Discovery;
 using Shorekeeper.Desktop.ViewModels;
 using Shorekeeper.Desktop.Views;
+using Shorekeeper.Engine.Discovery;
+using Shorekeeper.Engine.Transfers;
 using Shorekeeper.Engine.Trust;
 
 namespace Shorekeeper.Desktop;
@@ -42,6 +45,19 @@ public partial class App : Application
             var dialogs = Services.GetRequiredService<DialogService>();
             pairing.IncomingRequested += (_, request) => Dispatcher.UIThread.Post(() => dialogs.ShowIncoming(request));
             pairing.IncomingClosed += (_, id) => Dispatcher.UIThread.Post(() => dialogs.CloseIncoming(id));
+
+            // Files offered to us: a small popup unless we chose "Bận" (then only the inbox badge).
+            var inbox = Services.GetRequiredService<InboxService>();
+            var presence = Services.GetRequiredService<LocalPresence>();
+            var names = Services.GetRequiredService<PeerNames>();
+            inbox.OfferArrived += (_, offer) => Dispatcher.UIThread.Post(() =>
+            {
+                if (presence.Status != MyStatus.Busy)
+                {
+                    dialogs.ShowIncomingOffer(offer, names.Of(offer.SenderId));
+                }
+            });
+            dialogs.InboxRequested += (_, _) => ShowMainWindow();
 
             if (!StartInBackground)
             {

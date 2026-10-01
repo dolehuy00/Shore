@@ -6,13 +6,15 @@ using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Identity;
 using Shorekeeper.Engine.Settings;
 using Shorekeeper.Engine.Storage;
+using Shorekeeper.Engine.Transfers;
 using Shorekeeper.Engine.Trust;
 
 namespace Shorekeeper.Engine.Hosting;
 
 /// <summary>
 /// Hosted services start in registration order. Call <see cref="AddShorekeeperEngine"/>, then
-/// <see cref="AddPeerApi"/>, then <see cref="AddMulticastDiscovery"/>: discovery announces the API port.
+/// <see cref="AddTransfers"/>, <see cref="AddPeerApi"/> and <see cref="AddMulticastDiscovery"/>:
+/// transfers load before the API serves them, and discovery announces the API port.
 /// </summary>
 public static class ServiceCollectionExtensions
 {
@@ -37,6 +39,19 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<LocalDevice>();
         services.AddSingleton<ShorekeeperEngine>();
         services.AddHostedService<EngineHostedService>();
+
+        return services;
+    }
+
+    /// <summary>Registers sending and receiving files.</summary>
+    public static IServiceCollection AddTransfers(this IServiceCollection services)
+    {
+        services.TryAddSingleton<IFileTagger>(NullFileTagger.Instance);
+        services.AddSingleton<FileHasher>();
+        services.AddSingleton<FileDownloader>();
+        services.AddSingleton<OfferService>();
+        services.AddSingleton<InboxService>();
+        services.AddHostedService<TransferWorker>();
 
         return services;
     }

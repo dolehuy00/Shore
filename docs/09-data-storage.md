@@ -113,7 +113,8 @@ CREATE TABLE InboxFiles (
   FileId       TEXT NOT NULL,
   RelativePath TEXT NOT NULL,
   Size         INTEGER NOT NULL,
-  State        TEXT NOT NULL,           -- available|downloading|completed|failed|skipped
+  ModifiedAt   INTEGER,                 -- thêm ở 0002: để khôi phục thời gian sửa file khi tải lại
+  State        TEXT NOT NULL,           -- available|downloading|completed|failed
   FinalPath    TEXT,
   Sha256       TEXT,
   Error        TEXT,

@@ -51,6 +51,32 @@
     <Style Selector="Border.card.inactive">
       <Setter Property="Opacity" Value="0.55" />
     </Style>
+    <Style Selector="Border.card.selected">
+      <Setter Property="BorderBrush" Value="#3B82F6" />
+      <Setter Property="BorderThickness" Value="2" />
+    </Style>
+    <Style Selector="Border.card.droptarget">
+      <Setter Property="BorderBrush" Value="#22C55E" />
+      <Setter Property="BorderThickness" Value="2" />
+      <Setter Property="Background" Value="#1A22C55E" />
+    </Style>
+    <Style Selector="Border.panel">
+      <Setter Property="Padding" Value="16,12" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="#33808080" />
+      <Setter Property="Margin" Value="0,0,0,10" />
+    </Style>
+    <Style Selector="TextBlock.error">
+      <Setter Property="Foreground" Value="#EF4444" />
+    </Style>
+    <Style Selector="Border.badge">
+      <Setter Property="Background" Value="#EF4444" />
+      <Setter Property="CornerRadius" Value="9" />
+      <Setter Property="MinWidth" Value="18" />
+      <Setter Property="Padding" Value="5,0" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
     <Style Selector="Border.tag">
       <Setter Property="Background" Value="#33F59E0B" />
       <Setter Property="CornerRadius" Value="4" />
@@ -62,9 +88,12 @@
   <Window.Resources>
     <!-- One card for contacts and for everyone else; actions depend on IsTrusted. -->
     <DataTemplate x:Key="PeerCard" x:DataType="vm:PeerCardViewModel">
-      <Border Classes="card" Classes.inactive="{Binding IsInactive}" Background="Transparent">
+      <Border Classes="card" Classes.inactive="{Binding IsInactive}" Classes.selected="{Binding IsSelected}" Classes.droptarget="{Binding IsDropTarget}"
+              Background="Transparent" DragDrop.AllowDrop="True">
         <Border.ContextMenu>
           <ContextMenu>
+            <MenuItem Header="Gửi file…" Command="{Binding SendFilesCommand}" IsVisible="{Binding IsTrusted}" />
+            <MenuItem Header="Gửi thư mục…" Command="{Binding SendFolderCommand}" IsVisible="{Binding IsTrusted}" />
             <MenuItem Header="Kết nối" Command="{Binding ConnectCommand}" IsVisible="{Binding CanConnect}" />
             <MenuItem Header="Đặt tên gợi nhớ…" Command="{Binding RenameCommand}" IsVisible="{Binding IsTrusted}" />
             <MenuItem Header="Ngắt kết nối" Command="{Binding DisconnectCommand}" IsVisible="{Binding IsTrusted}" />
@@ -122,7 +151,12 @@
              Padding="6">
       <ListBox.ItemTemplate>
         <DataTemplate x:DataType="vm:NavItem">
-          <TextBlock Text="{Binding Title}" Padding="6,4" />
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <TextBlock Text="{Binding Title}" Padding="6,4" />
+            <Border Classes="badge" IsVisible="{Binding HasBadge}">
+              <TextBlock Text="{Binding Badge}" FontSize="11" Foreground="White" HorizontalAlignment="Center" />
+            </Border>
+          </StackPanel>
         </DataTemplate>
       </ListBox.ItemTemplate>
     </ListBox>
@@ -168,7 +202,61 @@
             </ItemsControl>
           </StackPanel>
 
-          <TextBlock Opacity="0.55" FontSize="12" Text="Chuột phải vào một thẻ để đặt tên gợi nhớ, ngắt kết nối hoặc chặn." />
+          <TextBlock Opacity="0.55" FontSize="12" TextWrapping="Wrap"
+                     Text="Kéo file hoặc thư mục vào một người đã kết nối để gửi. Ctrl+click để chọn nhiều người. Chuột phải để gửi file, đặt tên gợi nhớ, ngắt kết nối hoặc chặn." />
+        </StackPanel>
+
+        <!-- Hộp nhận -->
+        <StackPanel IsVisible="{Binding IsInboxVisible}" Spacing="14" MaxWidth="860" HorizontalAlignment="Stretch">
+          <TextBlock Classes="h2" Text="Hộp nhận" />
+          <TextBlock IsVisible="{Binding Inbox.IsEmpty}" Opacity="0.65" Text="Chưa có ai gửi gì cho bạn." />
+          <ItemsControl ItemsSource="{Binding Inbox.Items}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:InboxItemViewModel">
+                <Border Classes="panel">
+                  <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto,Auto">
+                    <TextBlock Text="{Binding SenderName}" FontWeight="SemiBold" />
+                    <TextBlock Grid.Row="1" Text="{Binding Summary}" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="2" Text="{Binding Note}" IsVisible="{Binding HasNote}" FontStyle="Italic" Opacity="0.75" TextWrapping="Wrap" />
+                    <StackPanel Grid.Row="3" Spacing="4" Margin="0,4,0,0">
+                      <ProgressBar Value="{Binding Progress}" Maximum="100" IsVisible="{Binding IsDownloading}" />
+                      <TextBlock Text="{Binding StatusText}" Classes.error="{Binding IsError}" Opacity="0.85" FontSize="12" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Grid.RowSpan="4" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="12,0,0,0">
+                      <Button Content="{Binding DownloadText}" Command="{Binding DownloadCommand}" IsVisible="{Binding CanDownload}" Classes="accent" />
+                      <Button Content="Bỏ qua" Command="{Binding DeclineCommand}" IsVisible="{Binding IsNew}" />
+                      <Button Content="Hủy" Command="{Binding CancelCommand}" IsVisible="{Binding IsDownloading}" />
+                      <Button Content="Mở" Command="{Binding OpenCommand}" IsVisible="{Binding CanOpen}" />
+                      <Button Content="Mở thư mục" Command="{Binding OpenFolderCommand}" IsVisible="{Binding CanOpen}" />
+                    </StackPanel>
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+
+        <!-- Đã gửi -->
+        <StackPanel IsVisible="{Binding IsSentVisible}" Spacing="14" MaxWidth="860" HorizontalAlignment="Stretch">
+          <TextBlock Classes="h2" Text="Đã gửi" />
+          <TextBlock IsVisible="{Binding !Sent.Items.Count}" Opacity="0.65" Text="Bạn chưa gửi gì. Kéo file vào một người ở trang Xóm để gửi." />
+          <ItemsControl ItemsSource="{Binding Sent.Items}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:SentItemViewModel">
+                <Border Classes="panel">
+                  <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto,Auto">
+                    <TextBlock Text="{Binding Summary}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="1" Text="{Binding StatusText}" Opacity="0.7" FontSize="12" />
+                    <TextBlock Grid.Row="2" Text="{Binding RecipientsText}" Margin="0,6,0,0" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="3" IsVisible="{Binding HasChangedFiles}" Classes="error" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0"
+                               Text="File gốc đã bị sửa sau khi gửi: ai chưa tải sẽ không tải được bản cũ. Hãy gửi lại." />
+                    <Button Grid.Column="1" Grid.RowSpan="4" Content="Thu hồi" Command="{Binding WithdrawCommand}" IsVisible="{Binding CanWithdraw}"
+                            VerticalAlignment="Center" Margin="12,0,0,0" />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
         </StackPanel>
 
         <!-- Cài đặt -->

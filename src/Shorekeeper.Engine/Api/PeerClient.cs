@@ -43,12 +43,19 @@ public sealed class PeerClient(
     private readonly ConcurrentDictionary<DeviceId, (IPEndPoint Endpoint, DateTimeOffset At)> lastRecorded = new();
 
     /// <summary>Sends a request to a peer, trying its current address first, then addresses that worked before.</summary>
-    /// <param name="timeout">Per attempt; long-polls pass more than the server's wait.</param>
+    /// <param name="timeout">Per attempt, until the response headers arrive; long-polls pass more than the server's wait.</param>
+    /// <param name="completion">Use <see cref="HttpCompletionOption.ResponseHeadersRead"/> to stream large bodies.</param>
     public async Task<HttpResponseMessage> SendAsync(
-        DeviceId peer, Func<Uri, HttpRequestMessage> createRequest, TimeSpan timeout, CancellationToken cancellationToken)
+        DeviceId peer,
+        Func<Uri, HttpRequestMessage> createRequest,
+        TimeSpan timeout,
+        CancellationToken cancellationToken,
+        HttpCompletionOption completion = HttpCompletionOption.ResponseContentRead)
     {
         IReadOnlyList<IPEndPoint> endpoints = await GetEndpointsAsync(peer, cancellationToken);
-        HttpClient client = clients.GetOrAdd(peer, id => new HttpClient(CreateHandler(cert => DeviceIdentity.FromCertificate(cert) == id)));
+        // No overall timeout: file bodies stream for as long as they need; each attempt has its own timeout.
+        HttpClient client = clients.GetOrAdd(peer, id =>
+            new HttpClient(CreateHandler(cert => DeviceIdentity.FromCertificate(cert) == id)) { Timeout = Timeout.InfiniteTimeSpan });
 
         Exception? lastError = null;
         foreach (IPEndPoint endpoint in endpoints)
@@ -58,7 +65,7 @@ public sealed class PeerClient(
             try
             {
                 using HttpRequestMessage request = createRequest(BaseUri(endpoint));
-                HttpResponseMessage response = await client.SendAsync(request, attempt.Token);
+                HttpResponseMessage response = await client.SendAsync(request, completion, attempt.Token);
                 await RememberEndpointAsync(peer, endpoint);
                 return response;
             }
@@ -103,23 +110,30 @@ public sealed class PeerClient(
     /// <summary>Reads a JSON body, turning problem+json errors into <see cref="PeerApiException"/>.</summary>
     public static async Task<T> ReadAsync<T>(HttpResponseMessage response, CancellationToken cancellationToken)
     {
-        if (!response.IsSuccessStatusCode)
-        {
-            string? code = null;
-            try
-            {
-                using JsonDocument problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
-                code = problem.RootElement.TryGetProperty("code", out JsonElement element) ? element.GetString() : null;
-            }
-            catch (JsonException)
-            {
-            }
-
-            throw new PeerApiException((int)response.StatusCode, code);
-        }
-
+        await EnsureSuccessAsync(response, cancellationToken);
         return await response.Content.ReadFromJsonAsync<T>(cancellationToken)
             ?? throw new PeerApiException((int)response.StatusCode, ApiErrorCodes.InvalidRequest);
+    }
+
+    /// <summary>Turns a problem+json error into <see cref="PeerApiException"/>; success responses may have no body.</summary>
+    public static async Task EnsureSuccessAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        if (response.IsSuccessStatusCode)
+        {
+            return;
+        }
+
+        string? code = null;
+        try
+        {
+            using JsonDocument problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
+            code = problem.RootElement.TryGetProperty("code", out JsonElement element) ? element.GetString() : null;
+        }
+        catch (JsonException)
+        {
+        }
+
+        throw new PeerApiException((int)response.StatusCode, code);
     }
 
     public static Uri BaseUri(IPEndPoint endpoint) => new($"https://{endpoint}{ApiBasePath}");

@@ -117,7 +117,6 @@
 
 | Method | Path | Quyền | Mô tả |
 |---|---|---|---|
-| GET | `/offers/{offerId}` | Recipient | Manifest + trạng thái offer |
 | GET | `/offers/{offerId}/files/{fileId}` | Recipient | Dữ liệu; hỗ trợ `Range`, `If-Range`, `ETag` |
 | GET | `/offers/{offerId}/files/{fileId}/hash` | Recipient | `{ sha256 }` (`202` nếu đang tính) |
 | POST | `/offers/{offerId}/receipts` | Recipient | `{ status: "downloading" \| "completed" \| "failed" \| "declined", fileIds? }` |

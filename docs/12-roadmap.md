@@ -32,13 +32,22 @@ Mỗi milestone kết thúc bằng một bản **chạy được, demo được*
 
 ## M3 — Gửi & nhận file ⭐ (trọng tâm)
 
+### M3a ✅ (2026-10-01)
+
 - Offer: tạo, giao (kể cả khi người nhận online sau), thu hồi, hết hạn, lưu DB.
-- Hộp nhận: tải hết / chọn file / bỏ qua / để sau; tự nhận theo liên hệ.
-- Downloader: stream, hash incremental, `.skpart`, **Reconnecting + Range tải tiếp** trong cửa sổ 60 giây, Lỗi → Tải lại.
-- Người gửi: phục vụ Range/ETag, hash cache, snapshot, phát hiện file gốc bị đổi.
-- Gửi nhiều file, thư mục, nhiều người nhận; trùng tên; MOTW; kiểm tra dung lượng.
-- UX: kéo thả, chọn nhiều, `Ctrl+V`, toast có nút, Đã gửi / Hộp nhận.
-- Benchmark: 20 GB, 10.000 file nhỏ, 1 Gbps.
+- Hộp nhận: tải / bỏ qua / để sau / tải lại / hủy; mở file, mở thư mục.
+- Downloader: stream, hash incremental, `.skpart`, **Reconnecting + Range/If-Range tải tiếp** trong cửa sổ 60 giây, Lỗi → Tải lại.
+- Người gửi: phục vụ Range/ETag, hash nền có cache, snapshot khi file bị khóa (có hỏi), phát hiện file gốc bị đổi, tối đa 16 stream (vượt thì trả `503 busy`, bên nhận coi như rớt mạng ngắn).
+- Gửi nhiều file, thư mục, nhiều người nhận; trùng tên; Mark of the Web; kiểm tra dung lượng.
+- UX: kéo thả lên thẻ, Ctrl+click chọn nhiều, menu Gửi file…/Gửi thư mục…, popup góc màn hình khi có file đến, trang Hộp nhận / Đã gửi, badge số offer mới.
+- Đo trên loopback (một máy, cùng ổ đĩa): 4 GB trong 34,9 giây tính cả kiểm tra SHA-256 (~117 MB/s trung bình, ~176 MB/s lúc truyền). Kill máy gửi giữa chừng rồi bật lại: bên nhận tải tiếp và checksum khớp.
+
+### M3b (còn lại)
+
+- Windows toast thật (cần đăng ký COM activator cho app không đóng gói MSIX); hiện dùng popup góc màn hình.
+- `Ctrl+V` gửi file từ clipboard; "Chọn file…" để tải một phần offer; tự nhận theo từng liên hệ.
+- Màn hình chỉnh Cài đặt (thư mục nhận, thời hạn offer, luôn sao chép tạm, thời gian chờ kết nối lại); hiện chỉnh được qua `settings.json`.
+- Benchmark trên LAN 1 Gbps thật giữa hai máy; 10.000 file nhỏ.
 
 **Xong khi:** gửi 20 GB đạt ≥ 90 MB/s và hash khớp; rút dây 20 giây rồi cắm lại thì tải tiếp; rút 2 phút thì báo Lỗi rõ ràng, không để lại file rác, và [Tải lại] thành công.
 

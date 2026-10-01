@@ -87,10 +87,14 @@ internal static class Program
 
         builder.Services.AddSerilog();
         builder.Services.AddShorekeeperEngine(paths);
+        builder.Services.AddTransfers();
         builder.Services.AddPeerApi();
         builder.Services.AddMulticastDiscovery();
         builder.Services.AddWindowsPlatform();
         builder.Services.AddSingleton<DialogService>();
+        builder.Services.AddSingleton<PeerNames>();
+        builder.Services.AddSingleton<InboxViewModel>();
+        builder.Services.AddSingleton<SentViewModel>();
         builder.Services.AddSingleton<NeighborhoodViewModel>();
         builder.Services.AddSingleton<NetworkDiagnosticsViewModel>();
         builder.Services.AddSingleton<BlockedPeersViewModel>();

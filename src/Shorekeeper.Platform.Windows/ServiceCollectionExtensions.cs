@@ -10,6 +10,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ISecretProtector>(new DpapiSecretProtector());
         services.AddSingleton<IPolicyProvider, RegistryPolicyProvider>();
         services.AddSingleton<IFirewallInspector, WindowsFirewallInspector>();
+        services.AddSingleton<IFileTagger, MarkOfTheWebTagger>();
         return services;
     }
 }

@@ -1,6 +1,7 @@
 using System.Reflection;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Shorekeeper.Core.Discovery;
+using Shorekeeper.Desktop.Views;
 using Shorekeeper.Engine;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Settings;
@@ -16,8 +17,22 @@ public enum NavPage
     Settings,
 }
 
-/// <param name="Milestone">Set while the page is not built yet.</param>
-public sealed record NavItem(NavPage Page, string Title, string? Milestone = null);
+/// <param name="milestone">Set while the page is not built yet.</param>
+public sealed partial class NavItem(NavPage page, string title, string? milestone = null) : ObservableObject
+{
+    public NavPage Page { get; } = page;
+
+    public string Title { get; } = title;
+
+    public string? Milestone { get; } = milestone;
+
+    /// <summary>E.g. the number of new offers in the inbox; 0 hides it.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasBadge))]
+    public partial int Badge { get; set; }
+
+    public bool HasBadge => Badge > 0;
+}
 
 public sealed record StatusOption(MyStatus Status, string Label);
 
@@ -31,11 +46,16 @@ public sealed partial class MainWindowViewModel : ObservableObject
         AppPaths paths,
         LocalPresence presence,
         NeighborhoodViewModel neighborhood,
+        InboxViewModel inbox,
+        SentViewModel sent,
         NetworkDiagnosticsViewModel diagnostics,
-        BlockedPeersViewModel blocked)
+        BlockedPeersViewModel blocked,
+        DialogService dialogs)
     {
         this.presence = presence;
         Neighborhood = neighborhood;
+        Inbox = inbox;
+        Sent = sent;
         Diagnostics = diagnostics;
         Blocked = blocked;
         DeviceId = engine.Identity.DeviceId.Value;
@@ -48,9 +68,24 @@ public sealed partial class MainWindowViewModel : ObservableObject
             ?? "0.0.0";
         SelectedNavItem = NavItems[0];
         SelectedStatus = StatusOptions.First(o => o.Status == presence.Status);
+
+        NavItems[1].Badge = inbox.NewCount;
+        inbox.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(InboxViewModel.NewCount))
+            {
+                NavItems[1].Badge = inbox.NewCount;
+            }
+        };
+        dialogs.OfferSent += (_, _) => SelectedNavItem = NavItems[2];
+        dialogs.InboxRequested += (_, _) => SelectedNavItem = NavItems[1];
     }
 
     public NeighborhoodViewModel Neighborhood { get; }
+
+    public InboxViewModel Inbox { get; }
+
+    public SentViewModel Sent { get; }
 
     public NetworkDiagnosticsViewModel Diagnostics { get; }
 
@@ -71,8 +106,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public IReadOnlyList<NavItem> NavItems { get; } =
     [
         new(NavPage.Neighborhood, "Xóm"),
-        new(NavPage.Inbox, "Hộp nhận", "M3"),
-        new(NavPage.Sent, "Đã gửi", "M3"),
+        new(NavPage.Inbox, "Hộp nhận"),
+        new(NavPage.Sent, "Đã gửi"),
         new(NavPage.Groups, "Nhóm", "M5"),
         new(NavPage.Settings, "Cài đặt"),
     ];
@@ -85,7 +120,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
     ];
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ComingSoonText), nameof(IsComingSoonVisible), nameof(IsNeighborhoodVisible), nameof(IsSettingsVisible))]
+    [NotifyPropertyChangedFor(nameof(ComingSoonText), nameof(IsComingSoonVisible), nameof(IsNeighborhoodVisible),
+        nameof(IsInboxVisible), nameof(IsSentVisible), nameof(IsSettingsVisible))]
     public partial NavItem SelectedNavItem { get; set; }
 
     [ObservableProperty]
@@ -97,6 +133,10 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public bool IsHidden => SelectedStatus.Status == MyStatus.Hidden;
 
     public bool IsNeighborhoodVisible => SelectedNavItem.Page == NavPage.Neighborhood;
+
+    public bool IsInboxVisible => SelectedNavItem.Page == NavPage.Inbox;
+
+    public bool IsSentVisible => SelectedNavItem.Page == NavPage.Sent;
 
     public bool IsSettingsVisible => SelectedNavItem.Page == NavPage.Settings;
 

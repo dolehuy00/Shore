@@ -98,6 +98,27 @@ public sealed partial class NeighborhoodViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Sends to the card, or to every selected card when it is part of a Ctrl+click selection
+    /// (docs/10-ux.md §2). Only contacts can receive files.
+    /// </summary>
+    public async Task SendAsync(PeerCardViewModel card, IReadOnlyList<string> paths)
+    {
+        PeerCardViewModel[] targets = card.IsSelected
+            ? [.. Contacts.Where(c => c.IsSelected)]
+            : [card];
+        foreach (PeerCardViewModel selected in Contacts.Where(c => c.IsSelected))
+        {
+            selected.IsSelected = false;
+        }
+
+        await dialogs.SendAsync(paths, [.. targets.Where(t => t.IsTrusted).Select(t => (t.DeviceId, t.DisplayName))]);
+    }
+
+    internal async Task SendFilesAsync(PeerCardViewModel card) => await SendAsync(card, await DialogService.PickFilesAsync());
+
+    internal async Task SendFolderAsync(PeerCardViewModel card) => await SendAsync(card, await DialogService.PickFolderAsync());
+
     internal Task ConnectAsync(PeerCardViewModel card) => dialogs.ConnectAsync(card.DeviceId, card.DisplayName);
 
     internal async Task RenameAsync(PeerCardViewModel card)
@@ -146,6 +167,14 @@ public sealed partial class PeerCardViewModel(DeviceId deviceId, NeighborhoodVie
 
     public bool CanConnect => !IsTrusted && IsOnline;
 
+    /// <summary>Picked with Ctrl+click; dropping files on any selected card sends to all of them.</summary>
+    [ObservableProperty]
+    public partial bool IsSelected { get; set; }
+
+    /// <summary>Files are being dragged over this card.</summary>
+    [ObservableProperty]
+    public partial bool IsDropTarget { get; set; }
+
     /// <param name="record">Set for contacts.</param>
     /// <param name="live">Set while the peer is visible on the network.</param>
     public PeerCardViewModel Update(PeerRecord? record, PeerInfo? live)
@@ -166,6 +195,12 @@ public sealed partial class PeerCardViewModel(DeviceId deviceId, NeighborhoodVie
 
     [RelayCommand]
     private Task ConnectAsync() => owner.ConnectAsync(this);
+
+    [RelayCommand]
+    private Task SendFilesAsync() => owner.SendFilesAsync(this);
+
+    [RelayCommand]
+    private Task SendFolderAsync() => owner.SendFolderAsync(this);
 
     [RelayCommand]
     private Task RenameAsync() => owner.RenameAsync(this);

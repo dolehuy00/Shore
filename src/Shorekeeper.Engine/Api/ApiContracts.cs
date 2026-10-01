@@ -20,6 +20,26 @@ public static class PairingStatus
     public const string Cancelled = "cancelled";
 }
 
+/// <summary>One entry of an offer. Directories end with '/' and have size 0 (docs/05-protocol.md §4.2).</summary>
+public sealed record OfferFileEntry(string FileId, string RelativePath, long Size, DateTimeOffset? ModifiedAt);
+
+/// <summary>Body of <c>POST /api/v1/inbox/offers</c>: what the sender offers; no data yet.</summary>
+public sealed record OfferManifest(
+    string OfferId, DateTimeOffset CreatedAt, DateTimeOffset ExpiresAt, string? Note, long TotalSize, IReadOnlyList<OfferFileEntry> Files);
+
+public sealed record FileHashResponse(string Sha256);
+
+/// <summary>Body of <c>POST /api/v1/offers/{offerId}/receipts</c>, sent by a recipient.</summary>
+public sealed record OfferReceipt(string Status);
+
+public static class ReceiptStatus
+{
+    public const string Downloading = "downloading";
+    public const string Completed = "completed";
+    public const string Failed = "failed";
+    public const string Declined = "declined";
+}
+
 /// <summary>Stable error codes in problem+json responses (docs/05-protocol.md §3).</summary>
 public static class ApiErrorCodes
 {
@@ -27,4 +47,8 @@ public static class ApiErrorCodes
     public const string RateLimited = "rate_limited";
     public const string NotFound = "not_found";
     public const string InvalidRequest = "invalid_request";
+    public const string NotRecipient = "not_recipient";
+    public const string OfferClosed = "offer_closed";
+    public const string SourceChanged = "source_changed";
+    public const string Busy = "busy";
 }

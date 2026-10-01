@@ -1,3 +1,5 @@
+using System.Net;
+using System.Net.Sockets;
 using Microsoft.Data.Sqlite;
 using Shorekeeper.Core.Platform;
 
@@ -62,4 +64,22 @@ internal sealed class XorSecretProtector : ISecretProtector
     }
 
     private static byte[] Xor(byte[] data) => [.. data.Select(b => (byte)(b ^ 0x5A))];
+}
+
+/// <summary>Ports the OS reports free right now, so parallel tests never collide (Windows answers "access denied" on clashes).</summary>
+internal static class FreePort
+{
+    public static int Tcp()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        return ((IPEndPoint)listener.LocalEndpoint).Port;
+    }
+
+    public static int Udp()
+    {
+        using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        socket.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+        return ((IPEndPoint)socket.LocalEndPoint!).Port;
+    }
 }

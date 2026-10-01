@@ -14,7 +14,7 @@ public sealed class MulticastDiscoveryTests : IAsyncDisposable
 {
     private static readonly TimeSpan SeeEachOtherWithin = TimeSpan.FromSeconds(3);
 
-    private readonly int port = Random.Shared.Next(40000, 45000);
+    private readonly int port = FreePort.Udp();
     private readonly List<TestPeer> peers = [];
 
     public async ValueTask DisposeAsync()
@@ -55,7 +55,8 @@ public sealed class MulticastDiscoveryTests : IAsyncDisposable
     {
         TestPeer a = await StartPeer("A");
         TestPeer b = await StartPeer("B");
-        await WaitUntil(() => a.Directory.Snapshot().Count == 1, SeeEachOtherWithin);
+        // B learns about A from A's reply, which is deliberately delayed by up to 500 ms.
+        await WaitUntil(() => a.Directory.Snapshot().Count == 1 && b.Directory.Snapshot().Count == 1, SeeEachOtherWithin);
 
         b.Presence.Status = MyStatus.Hidden;
         await WaitUntil(() => a.Directory.Snapshot().Count == 0, TimeSpan.FromSeconds(3));
@@ -83,7 +84,11 @@ public sealed class MulticastDiscoveryTests : IAsyncDisposable
     public async Task Peer_outside_multicast_reach_is_found_by_probe()
     {
         // A different port stands in for another subnet: B never hears A's multicast and vice versa.
-        int otherPort = port + 1;
+        int otherPort = FreePort.Udp();
+        while (otherPort == port)
+        {
+            otherPort = FreePort.Udp(); // the OS may hand the same free port out twice in a row
+        }
         TestPeer a = await StartPeer("A");
         TestPeer b = await StartPeer("B", otherPort, multicast: false, probe: [new IPEndPoint(IPAddress.Loopback, port)]);
 
