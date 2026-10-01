@@ -118,8 +118,8 @@
 | Method | Path | Quyền | Mô tả |
 |---|---|---|---|
 | GET | `/offers/{offerId}/files/{fileId}` | Recipient | Dữ liệu; hỗ trợ `Range`, `If-Range`, `ETag` |
-| GET | `/offers/{offerId}/files/{fileId}/hash` | Recipient | `{ sha256 }` (`202` nếu đang tính) |
-| POST | `/offers/{offerId}/receipts` | Recipient | `{ status: "downloading" \| "completed" \| "failed" \| "declined", fileIds? }` |
+| GET | `/offers/{offerId}/files/{fileId}/hash` | Recipient | `{ sha256 }`. Server chờ hash nền tối đa 10 giây rồi mới trả `202` (đang tính, hỏi lại sau) |
+| POST | `/offers/{offerId}/receipts` | Recipient | `{ status: "downloading" \| "completed" \| "partial" \| "failed" \| "declined" }`. `partial` = đã lấy file mình chọn, offer vẫn mở |
 
 `Recipient` = DeviceId nằm trong `recipients` của offer **và** vẫn còn quyền (Trusted, hoặc còn là thành viên nhóm của offer).
 

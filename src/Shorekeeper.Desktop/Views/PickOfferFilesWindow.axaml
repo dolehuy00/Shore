@@ -1,0 +1,42 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Shorekeeper.Desktop.ViewModels"
+        x:Class="Shorekeeper.Desktop.Views.PickOfferFilesWindow"
+        x:DataType="vm:PickOfferFilesViewModel"
+        Title="Chọn file để tải"
+        Icon="/Assets/shorekeeper.png"
+        Width="520" Height="480" MinHeight="300"
+        WindowStartupLocation="CenterOwner">
+  <Grid RowDefinitions="Auto,*,Auto" Margin="20">
+    <StackPanel Spacing="6" Margin="0,0,0,10">
+      <TextBlock Text="Chọn file để tải" FontSize="18" FontWeight="SemiBold" />
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <Button Content="Chọn tất cả" Command="{Binding SelectAllCommand}" />
+        <Button Content="Bỏ chọn tất cả" Command="{Binding SelectNoneCommand}" />
+      </StackPanel>
+    </StackPanel>
+
+    <ScrollViewer Grid.Row="1">
+      <ItemsControl ItemsSource="{Binding Files}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:PickableFile">
+            <CheckBox IsChecked="{Binding IsChecked}">
+              <TextBlock>
+                <Run Text="{Binding Path}" />
+                <Run Text="{Binding SizeText}" Foreground="Gray" />
+              </TextBlock>
+            </CheckBox>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+
+    <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Margin="0,12,0,0">
+      <TextBlock Text="{Binding SummaryText}" VerticalAlignment="Center" Opacity="0.75" />
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+        <Button Content="Hủy" Command="{Binding CancelCommand}" IsCancel="True" />
+        <Button Content="Tải các file đã chọn" Command="{Binding ConfirmCommand}" Classes="accent" IsDefault="True" />
+      </StackPanel>
+    </Grid>
+  </Grid>
+</Window>

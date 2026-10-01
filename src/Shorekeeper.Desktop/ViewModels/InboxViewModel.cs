@@ -3,6 +3,7 @@ using System.Diagnostics;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Shorekeeper.Desktop.Views;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Transfers;
 
@@ -123,6 +124,10 @@ public sealed partial class InboxItemViewModel(OfferKey key, InboxViewModel owne
     [ObservableProperty]
     public partial string DownloadText { get; set; } = "Tải";
 
+    /// <summary>"Chọn file…" makes sense when several files are still to come.</summary>
+    [ObservableProperty]
+    public partial bool CanPick { get; set; }
+
     [ObservableProperty]
     public partial bool CanOpen { get; set; }
 
@@ -144,8 +149,14 @@ public sealed partial class InboxItemViewModel(OfferKey key, InboxViewModel owne
         OnPropertyChanged(nameof(HasNote));
         IsNew = value.State == InboxState.New && open;
         IsDownloading = value.State == InboxState.Downloading;
-        CanDownload = open && senderOnline && value.State is InboxState.New or InboxState.Failed or InboxState.Cancelled;
-        DownloadText = value.State == InboxState.New ? "Tải" : "Tải lại";
+        CanDownload = open && senderOnline && value.State is InboxState.New or InboxState.Partial or InboxState.Failed or InboxState.Cancelled;
+        CanPick = CanDownload && value.Files.Count(f => !f.IsDirectory && f.State != InboxFileState.Completed) > 1;
+        DownloadText = value.State switch
+        {
+            InboxState.New => "Tải",
+            InboxState.Partial => "Tải phần còn lại",
+            _ => "Tải lại",
+        };
         CanOpen = value.Files.Any(f => f.FinalPath is not null);
         IsError = value.State == InboxState.Failed;
         Progress = value.TotalBytes == 0 ? 0 : 100.0 * value.BytesReceived / value.TotalBytes;
@@ -157,6 +168,7 @@ public sealed partial class InboxItemViewModel(OfferKey key, InboxViewModel owne
                 $"Mất kết nối với {SenderName}, đang thử lại (còn {Math.Max(0, (int)(until - now).TotalSeconds)} giây)…",
             InboxState.Downloading => $"Đang tải {Progress:0}% · {TransferText.Size((long)speed)}/s",
             InboxState.Completed => "Đã nhận",
+            InboxState.Partial => $"Đã nhận {value.Files.Count(f => !f.IsDirectory && f.State == InboxFileState.Completed)}/{value.Files.Count(f => !f.IsDirectory)} file",
             InboxState.Failed => $"Lỗi: {value.Error}",
             InboxState.Cancelled => "Đã hủy",
             InboxState.Declined => "Đã bỏ qua",
@@ -170,6 +182,15 @@ public sealed partial class InboxItemViewModel(OfferKey key, InboxViewModel owne
 
     [RelayCommand]
     private void Download() => owner.Inbox.Download(Key);
+
+    [RelayCommand]
+    private async Task PickFilesAsync()
+    {
+        if (offer is not null && await DialogService.PickOfferFilesAsync(offer) is { } picked)
+        {
+            owner.Inbox.Download(Key, [.. picked]);
+        }
+    }
 
     [RelayCommand]
     private Task DeclineAsync() => owner.Inbox.DeclineAsync(Key);

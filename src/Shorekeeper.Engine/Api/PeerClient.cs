@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Json;
 using System.Net.Security;
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
@@ -52,14 +53,15 @@ public sealed class PeerClient(
         CancellationToken cancellationToken,
         HttpCompletionOption completion = HttpCompletionOption.ResponseContentRead)
     {
-        IReadOnlyList<IPEndPoint> endpoints = await GetEndpointsAsync(peer, cancellationToken);
         // No overall timeout: file bodies stream for as long as they need; each attempt has its own timeout.
         HttpClient client = clients.GetOrAdd(peer, id =>
             new HttpClient(CreateHandler(cert => DeviceIdentity.FromCertificate(cert) == id)) { Timeout = Timeout.InfiniteTimeSpan });
 
         Exception? lastError = null;
-        foreach (IPEndPoint endpoint in endpoints)
+        bool any = false;
+        await foreach (IPEndPoint endpoint in GetEndpointsAsync(peer, cancellationToken))
         {
+            any = true;
             using var attempt = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             attempt.CancelAfter(timeout);
             try
@@ -81,7 +83,8 @@ public sealed class PeerClient(
             logger.LogDebug(lastError, "Peer {Peer} not reachable at {Endpoint}", peer, endpoint);
         }
 
-        throw new PeerUnreachableException($"Peer {peer.ShortForm} is not reachable.", lastError);
+        throw new PeerUnreachableException(
+            any ? $"Peer {peer.ShortForm} is not reachable." : $"No known address for peer {peer.ShortForm}.", lastError);
     }
 
     /// <summary>Asks an address who it is; used to add a machine by host name or IP.</summary>
@@ -146,17 +149,26 @@ public sealed class PeerClient(
         }
     }
 
-    private async Task<IReadOnlyList<IPEndPoint>> GetEndpointsAsync(DeviceId peer, CancellationToken cancellationToken)
+    /// <summary>
+    /// The address the peer is announcing right now, then addresses that worked before. Stored addresses are
+    /// only read from the database when the live one fails, so a busy transfer does not query it per request.
+    /// </summary>
+    private async IAsyncEnumerable<IPEndPoint> GetEndpointsAsync(DeviceId peer, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        var endpoints = new List<IPEndPoint>();
+        IPEndPoint? liveEndpoint = null;
         if (directory.Snapshot().FirstOrDefault(p => p.DeviceId == peer) is { ApiPort: > 0 } live)
         {
-            endpoints.Add(new IPEndPoint(live.Address, live.ApiPort));
+            liveEndpoint = new IPEndPoint(live.Address, live.ApiPort);
+            yield return liveEndpoint;
         }
 
-        endpoints.AddRange(await trust.GetEndpointsAsync(peer, cancellationToken));
-        IReadOnlyList<IPEndPoint> distinct = [.. endpoints.Distinct()];
-        return distinct.Count > 0 ? distinct : throw new PeerUnreachableException($"No known address for peer {peer.ShortForm}.");
+        foreach (IPEndPoint known in await trust.GetEndpointsAsync(peer, cancellationToken))
+        {
+            if (!known.Equals(liveEndpoint))
+            {
+                yield return known;
+            }
+        }
     }
 
     private async Task RememberEndpointAsync(DeviceId peer, IPEndPoint endpoint)

@@ -27,8 +27,15 @@ public sealed class OfferService(
     TimeProvider timeProvider,
     ILogger<OfferService> logger)
 {
-    public const int MaxEntries = 10_000;
+    /// <summary>Files per offer (docs/05-protocol.md §5).</summary>
+    public const int MaxFiles = 10_000;
+
+    /// <summary>Files plus folders, which bounds the manifest size.</summary>
+    public const int MaxEntries = 20_000;
     public const int MaxConcurrentStreams = 16;
+
+    /// <summary>How long a hash request waits for the background hash before answering 202 (must stay below the client timeout).</summary>
+    private static readonly TimeSpan HashWait = TimeSpan.FromSeconds(10);
 
     private static readonly TimeSpan HistoryRetention = TimeSpan.FromDays(90);
     private static readonly TimeSpan ProgressEvery = TimeSpan.FromMilliseconds(250);
@@ -106,11 +113,12 @@ public sealed class OfferService(
     // ───────────── Creating ─────────────
 
     /// <summary>Lists what would be sent: folders are expanded, links and system clutter skipped, locked files flagged.</summary>
-    /// <exception cref="InvalidOperationException">More than <see cref="MaxEntries"/> entries.</exception>
+    /// <exception cref="InvalidOperationException">More than <see cref="MaxFiles"/> files or <see cref="MaxEntries"/> entries.</exception>
     public static PreparedOffer Prepare(IEnumerable<string> selectedPaths)
     {
         var files = new List<PreparedFile>();
         var unreadable = new List<string>();
+        int fileCount = 0;
         var usedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (string selected in selectedPaths)
@@ -131,13 +139,18 @@ public sealed class OfferService(
                 unreadable.Add(selected);
             }
 
-            if (files.Count > MaxEntries)
-            {
-                throw new InvalidOperationException($"Quá nhiều file: tối đa {MaxEntries:N0} file và thư mục mỗi lần gửi.");
-            }
+            CheckLimits();
         }
 
         return new PreparedOffer(files, unreadable);
+
+        void CheckLimits()
+        {
+            if (files.Count > MaxEntries || fileCount > MaxFiles)
+            {
+                throw new InvalidOperationException($"Quá nhiều file: tối đa {MaxFiles:N0} file mỗi lần gửi.");
+            }
+        }
 
         void AddDirectory(DirectoryInfo dir, string relative)
         {
@@ -170,10 +183,7 @@ public sealed class OfferService(
                     AddFile(file, relative + file.Name);
                 }
 
-                if (files.Count > MaxEntries)
-                {
-                    throw new InvalidOperationException($"Quá nhiều file: tối đa {MaxEntries:N0} file và thư mục mỗi lần gửi.");
-                }
+                CheckLimits();
             }
         }
 
@@ -182,6 +192,7 @@ public sealed class OfferService(
             try
             {
                 files.Add(new PreparedFile(relative, file.FullName, file.Length, ToMsPrecision(file.LastWriteTimeUtc), IsDirectory: false, IsLocked(file.FullName)));
+                fileCount++;
             }
             catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
             {
@@ -429,7 +440,7 @@ public sealed class OfferService(
             return ApiResults.Problem(StatusCodes.Status412PreconditionFailed, ApiErrorCodes.SourceChanged);
         }
 
-        string? hash = await hasher.TryGetAsync(file.ServePath, file.Size, file.ModifiedAt, cancellationToken);
+        string? hash = await hasher.TryGetAsync(file.ServePath, file.Size, file.ModifiedAt, HashWait, cancellationToken);
         return hash is null ? Results.Accepted() : Results.Ok(new FileHashResponse(hash));
     }
 
@@ -439,6 +450,7 @@ public sealed class OfferService(
         {
             ReceiptStatus.Downloading => RecipientState.Downloading,
             ReceiptStatus.Completed => RecipientState.Completed,
+            ReceiptStatus.Partial => RecipientState.Partial,
             ReceiptStatus.Failed => RecipientState.Failed,
             ReceiptStatus.Declined => RecipientState.Declined,
             _ => null,

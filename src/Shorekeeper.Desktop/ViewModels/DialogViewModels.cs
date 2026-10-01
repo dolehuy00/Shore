@@ -196,6 +196,72 @@ public sealed partial class ChoiceViewModel(string title, string message, IReadO
 
 public sealed record ChoiceButton(string Text, int Index);
 
+public sealed partial class PickableFile(string fileId, string path, long size) : ObservableObject
+{
+    public string FileId { get; } = fileId;
+
+    public string Path { get; } = path;
+
+    public long Size { get; } = size;
+
+    public string SizeText { get; } = TransferText.Size(size);
+
+    [ObservableProperty]
+    public partial bool IsChecked { get; set; } = true;
+}
+
+/// <summary>"Chọn file…": download only some files of an offer (docs/06-file-transfer.md §3.2).</summary>
+public sealed partial class PickOfferFilesViewModel : DialogViewModel
+{
+    public PickOfferFilesViewModel(ReceivedOffer offer)
+    {
+        Files = [.. offer.Files
+            .Where(f => !f.IsDirectory && f.State != InboxFileState.Completed)
+            .Select(f => new PickableFile(f.FileId, f.RelativePath, f.Size))];
+        foreach (PickableFile file in Files)
+        {
+            file.PropertyChanged += (_, _) => OnPropertyChanged(nameof(SummaryText));
+        }
+    }
+
+    public IReadOnlyList<PickableFile> Files { get; }
+
+    public string SummaryText =>
+        $"{Files.Count(f => f.IsChecked)}/{Files.Count} file · {TransferText.Size(Files.Where(f => f.IsChecked).Sum(f => f.Size))}";
+
+    /// <summary>Set when the user confirms with at least one file.</summary>
+    public IReadOnlyList<string>? Selected { get; private set; }
+
+    [RelayCommand]
+    private void SelectAll() => SetAll(true);
+
+    [RelayCommand]
+    private void SelectNone() => SetAll(false);
+
+    [RelayCommand]
+    private void Confirm()
+    {
+        string[] picked = [.. Files.Where(f => f.IsChecked).Select(f => f.FileId)];
+        if (picked.Length > 0)
+        {
+            Selected = picked;
+        }
+
+        RequestClose();
+    }
+
+    [RelayCommand]
+    private void Cancel() => RequestClose();
+
+    private void SetAll(bool value)
+    {
+        foreach (PickableFile file in Files)
+        {
+            file.IsChecked = value;
+        }
+    }
+}
+
 /// <summary>"Huy gửi cho bạn · app.zip + 1 mục · 2.4 GB" [Tải] [Bỏ qua] [Xem] (docs/10-ux.md §4).</summary>
 public sealed partial class IncomingOfferViewModel(ReceivedOffer offer, string senderName, Action download, Func<Task> decline, Action show)
     : DialogViewModel

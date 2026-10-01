@@ -198,6 +198,42 @@ public sealed class TransferTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Auto_accept_downloads_offers_within_the_limit_without_asking()
+    {
+        await b.Trust.SetAutoAcceptAsync(a.Id, 1024, Ct);
+
+        string small = await SendAsync(a, [WriteFile(a, "small.txt", new byte[1000])], b.Id);
+        string large = await SendAsync(a, [WriteFile(a, "large.bin", new byte[5000])], b.Id);
+
+        await WaitUntil(() => b.Inbox.Get(new OfferKey(a.Id, small))?.State == InboxState.Completed);
+        await WaitForOfferAsync(b, large);
+        Assert.Equal(InboxState.New, b.Inbox.Get(new OfferKey(a.Id, large))!.State);
+    }
+
+    [Fact]
+    public async Task Picked_files_download_first_and_the_rest_can_follow()
+    {
+        string root = Path.Combine(a.WorkDirectory, "photos");
+        Directory.CreateDirectory(root);
+        await File.WriteAllTextAsync(Path.Combine(root, "1.jpg"), "one", Ct);
+        await File.WriteAllTextAsync(Path.Combine(root, "2.jpg"), "two", Ct);
+        string offerId = await SendAsync(a, [root], b.Id);
+        ReceivedOffer offer = await WaitForOfferAsync(b, offerId);
+        var key = new OfferKey(a.Id, offerId);
+        string first = offer.Files.Single(f => f.RelativePath == "photos/1.jpg").FileId;
+
+        b.Inbox.Download(key, [first]);
+        await WaitUntil(() => b.Inbox.Get(key)!.State == InboxState.Partial);
+
+        Assert.True(File.Exists(Path.Combine(b.DownloadDirectory, "photos", "1.jpg")));
+        Assert.False(File.Exists(Path.Combine(b.DownloadDirectory, "photos", "2.jpg")));
+
+        b.Inbox.Download(key);
+        await WaitUntil(() => b.Inbox.Get(key)!.State == InboxState.Completed);
+        Assert.Equal("two", await File.ReadAllTextAsync(Path.Combine(b.DownloadDirectory, "photos", "2.jpg"), Ct));
+    }
+
+    [Fact]
     public async Task Sender_honours_range_and_if_range_for_resuming()
     {
         byte[] content = RandomNumberGenerator.GetBytes(100_000);

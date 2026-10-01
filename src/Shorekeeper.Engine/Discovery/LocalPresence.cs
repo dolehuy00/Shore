@@ -1,5 +1,6 @@
 using Shorekeeper.Core.Discovery;
 using Shorekeeper.Engine.Api;
+using Shorekeeper.Engine.Settings;
 
 namespace Shorekeeper.Engine.Discovery;
 
@@ -14,9 +15,19 @@ public interface ILocalPresence
     PresencePacket CreatePacket(string type);
 }
 
-public sealed class LocalPresence(LocalDevice device, ApiServer api) : ILocalPresence
+public sealed class LocalPresence : ILocalPresence
 {
+    private readonly LocalDevice device;
+    private readonly ApiServer api;
     private MyStatus status = MyStatus.Online;
+
+    public LocalPresence(LocalDevice device, ApiServer api, SettingsService settings)
+    {
+        this.device = device;
+        this.api = api;
+        // A new display name is announced right away instead of with the next heartbeat.
+        settings.Changed += (_, _) => Changed?.Invoke(this, EventArgs.Empty);
+    }
 
     public event EventHandler? Changed;
 

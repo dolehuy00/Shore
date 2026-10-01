@@ -94,6 +94,8 @@
           <ContextMenu>
             <MenuItem Header="Gửi file…" Command="{Binding SendFilesCommand}" IsVisible="{Binding IsTrusted}" />
             <MenuItem Header="Gửi thư mục…" Command="{Binding SendFolderCommand}" IsVisible="{Binding IsTrusted}" />
+            <MenuItem Header="Tự nhận file (tối đa 2 GB)" Command="{Binding ToggleAutoAcceptCommand}" IsVisible="{Binding IsTrusted}"
+                      ToggleType="CheckBox" IsChecked="{Binding IsAutoAccept, Mode=OneWay}" />
             <MenuItem Header="Kết nối" Command="{Binding ConnectCommand}" IsVisible="{Binding CanConnect}" />
             <MenuItem Header="Đặt tên gợi nhớ…" Command="{Binding RenameCommand}" IsVisible="{Binding IsTrusted}" />
             <MenuItem Header="Ngắt kết nối" Command="{Binding DisconnectCommand}" IsVisible="{Binding IsTrusted}" />
@@ -203,7 +205,7 @@
           </StackPanel>
 
           <TextBlock Opacity="0.55" FontSize="12" TextWrapping="Wrap"
-                     Text="Kéo file hoặc thư mục vào một người đã kết nối để gửi. Ctrl+click để chọn nhiều người. Chuột phải để gửi file, đặt tên gợi nhớ, ngắt kết nối hoặc chặn." />
+                     Text="Kéo file hoặc thư mục vào một người đã kết nối để gửi, hoặc click chọn người rồi nhấn Ctrl+V để gửi file đã copy. Ctrl+click để chọn nhiều người. Chuột phải để gửi file, tự nhận file, đặt tên gợi nhớ, ngắt kết nối hoặc chặn." />
         </StackPanel>
 
         <!-- Hộp nhận -->
@@ -224,6 +226,7 @@
                     </StackPanel>
                     <StackPanel Grid.Column="1" Grid.RowSpan="4" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="12,0,0,0">
                       <Button Content="{Binding DownloadText}" Command="{Binding DownloadCommand}" IsVisible="{Binding CanDownload}" Classes="accent" />
+                      <Button Content="Chọn file…" Command="{Binding PickFilesCommand}" IsVisible="{Binding CanPick}" />
                       <Button Content="Bỏ qua" Command="{Binding DeclineCommand}" IsVisible="{Binding IsNew}" />
                       <Button Content="Hủy" Command="{Binding CancelCommand}" IsVisible="{Binding IsDownloading}" />
                       <Button Content="Mở" Command="{Binding OpenCommand}" IsVisible="{Binding CanOpen}" />
@@ -280,6 +283,58 @@
               <TextBlock Classes="label" Grid.Row="4" Text="Phiên bản" />
               <SelectableTextBlock Classes="value" Grid.Row="4" Grid.Column="1" Text="{Binding AppVersion}" />
             </Grid>
+          </Border>
+
+          <TextBlock Classes="h2" Text="Gửi &amp; nhận" />
+          <Border Padding="18,16" CornerRadius="8" BorderThickness="1" BorderBrush="#33808080">
+            <StackPanel Spacing="12">
+              <StackPanel Spacing="4">
+                <TextBlock Text="Tên hiển thị" Opacity="0.7" />
+                <TextBox Text="{Binding Settings.DisplayName}" MaxLength="64" />
+              </StackPanel>
+
+              <StackPanel Spacing="4">
+                <TextBlock Text="Thư mục nhận" Opacity="0.7" />
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBox Text="{Binding Settings.DownloadDirectory}" IsReadOnly="{Binding Settings.IsDownloadDirectoryLocked}" Margin="0,0,8,0" />
+                  <Button Grid.Column="1" Content="Chọn…" Command="{Binding Settings.PickDownloadDirectoryCommand}"
+                          IsEnabled="{Binding !Settings.IsDownloadDirectoryLocked}" />
+                </Grid>
+                <TextBlock Text="Do quản trị viên đặt" IsVisible="{Binding Settings.IsDownloadDirectoryLocked}" FontSize="12" Opacity="0.6" />
+              </StackPanel>
+
+              <CheckBox IsChecked="{Binding Settings.CreateSenderSubfolders}" Content="Tạo thư mục con theo tên người gửi" />
+
+              <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
+                <TextBlock Text="File tôi gửi mở trong" VerticalAlignment="Center" Margin="0,0,12,8" Opacity="0.7" />
+                <ComboBox Grid.Column="1" ItemsSource="{Binding Settings.OfferLifetimeChoices}" SelectedItem="{Binding Settings.OfferLifetime}" MinWidth="140" Margin="0,0,0,8">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:SettingChoice">
+                      <TextBlock Text="{Binding Label}" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+
+                <TextBlock Grid.Row="1" Text="Chờ kết nối lại khi rớt mạng" VerticalAlignment="Center" Margin="0,0,12,0" Opacity="0.7" />
+                <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding Settings.ReconnectChoices}" SelectedItem="{Binding Settings.ReconnectWindow}"
+                          IsEnabled="{Binding !Settings.IsReconnectWindowLocked}" MinWidth="140">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:SettingChoice">
+                      <TextBlock Text="{Binding Label}" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+              </Grid>
+
+              <CheckBox IsChecked="{Binding Settings.AlwaysSnapshotBeforeSend}">
+                <TextBlock TextWrapping="Wrap" Text="Luôn sao chép tạm trước khi gửi (để sửa tiếp file gốc ngay; tốn thêm dung lượng)" />
+              </CheckBox>
+
+              <StackPanel Orientation="Horizontal" Spacing="12">
+                <Button Content="Lưu" Command="{Binding Settings.SaveCommand}" Classes="accent" />
+                <TextBlock Text="{Binding Settings.StatusText}" VerticalAlignment="Center" Opacity="0.8" />
+              </StackPanel>
+            </StackPanel>
           </Border>
 
           <Grid ColumnDefinitions="*,Auto">

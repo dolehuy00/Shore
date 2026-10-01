@@ -114,6 +114,14 @@ public sealed class DialogService(
         return [.. folders.Select(f => f.TryGetLocalPath()).OfType<string>()];
     }
 
+    /// <returns>The file ids picked, or null when cancelled.</returns>
+    public static async Task<IReadOnlyList<string>?> PickOfferFilesAsync(ReceivedOffer offer)
+    {
+        var viewModel = new PickOfferFilesViewModel(offer);
+        await ShowAsync(new PickOfferFilesWindow { DataContext = viewModel }, viewModel);
+        return viewModel.Selected;
+    }
+
     /// <returns>Index of the button pressed, or -1 if the window was closed.</returns>
     public static async Task<int> ChooseAsync(string title, string message, IReadOnlyList<string> choices)
     {

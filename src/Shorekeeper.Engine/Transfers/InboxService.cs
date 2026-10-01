@@ -8,6 +8,7 @@ using Shorekeeper.Core.Identity;
 using Shorekeeper.Core.Platform;
 using Shorekeeper.Core.Settings;
 using Shorekeeper.Core.Transfers;
+using Shorekeeper.Core.Trust;
 using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Settings;
 using Shorekeeper.Engine.Storage;
@@ -113,14 +114,17 @@ public sealed class InboxService(
 
     // ───────────── User actions ─────────────
 
-    /// <summary>Downloads (or retries) every file not received yet. Returns immediately.</summary>
-    public void Download(OfferKey key)
+    /// <summary>
+    /// Downloads (or retries) the files not received yet; <paramref name="fileIds"/> limits it to the files the
+    /// user picked ("Chọn file…"). Returns immediately.
+    /// </summary>
+    public void Download(OfferKey key, IReadOnlyCollection<string>? fileIds = null)
     {
         Item? item;
         lock (gate)
         {
             if (!items.TryGetValue(key, out item)
-                || item.State is not (InboxState.New or InboxState.Failed or InboxState.Cancelled)
+                || item.State is not (InboxState.New or InboxState.Partial or InboxState.Failed or InboxState.Cancelled)
                 || item.ExpiresAt <= timeProvider.GetUtcNow())
             {
                 return;
@@ -131,7 +135,8 @@ public sealed class InboxService(
             item.Cancellation = new CancellationTokenSource();
         }
 
-        _ = Task.Run(() => DownloadOfferAsync(item, item.Cancellation.Token));
+        HashSet<string>? selection = fileIds is null ? null : new HashSet<string>(fileIds, StringComparer.Ordinal);
+        _ = Task.Run(() => DownloadOfferAsync(item, selection, item.Cancellation.Token));
     }
 
     public void Cancel(OfferKey key)
@@ -168,7 +173,7 @@ public sealed class InboxService(
         OfferKey[] expired;
         lock (gate)
         {
-            expired = [.. items.Values.Where(i => (i.State is InboxState.New or InboxState.Failed or InboxState.Cancelled) && i.ExpiresAt <= now).Select(i => i.Key)];
+            expired = [.. items.Values.Where(i => (i.State is InboxState.New or InboxState.Partial or InboxState.Failed or InboxState.Cancelled) && i.ExpiresAt <= now).Select(i => i.Key)];
             foreach (OfferKey key in expired)
             {
                 items[key].State = InboxState.Expired;
@@ -204,6 +209,13 @@ public sealed class InboxService(
 
         await InsertAsync(item);
         logger.LogInformation("Offer {Offer} received from {Sender}: {Files} entries, {Bytes} bytes", key.OfferId, sender, files.Count, item.TotalBytes);
+
+        // "Tự nhận file" for this contact (docs/06-file-transfer.md §10).
+        if (trust.Get(sender) is { TrustLevel: TrustLevel.Trusted, AutoAcceptMaxBytes: { } limit } && item.TotalBytes <= limit)
+        {
+            Download(key);
+        }
+
         OfferArrived?.Invoke(this, item.ToSnapshot());
         Changed?.Invoke(this, key);
         return true;
@@ -228,7 +240,7 @@ public sealed class InboxService(
 
     // ───────────── Downloading ─────────────
 
-    private async Task DownloadOfferAsync(Item item, CancellationToken cancellationToken)
+    private async Task DownloadOfferAsync(Item item, HashSet<string>? selection, CancellationToken cancellationToken)
     {
         Changed?.Invoke(this, item.Key);
         await SaveOfferStateAsync(item.Key, InboxState.Downloading);
@@ -236,17 +248,19 @@ public sealed class InboxService(
         {
             string root = DestinationRoot(item.Key.SenderId);
             Directory.CreateDirectory(root);
-            EnsureFreeSpace(root, item.Files.Where(f => f.State != InboxFileState.Completed).Sum(f => f.Size));
+            List<FileItem> wanted = [.. item.Files.Where(f => f.State != InboxFileState.Completed && (selection is null || selection.Contains(f.FileId)))];
+            EnsureFreeSpace(root, wanted.Sum(f => f.Size));
             await SendReceiptAsync(item.Key, ReceiptStatus.Downloading);
 
-            foreach (FileItem dir in item.Files.Where(f => f.IsDirectory && f.State != InboxFileState.Completed))
+            // Folders of picked files are created on the way; empty folders only come with a full download.
+            foreach (FileItem dir in wanted.Where(f => f.IsDirectory))
             {
                 Directory.CreateDirectory(SafeCombine(root, dir.Segments));
                 await SetFileResultAsync(item, dir, InboxFileState.Completed, null, null);
             }
 
             await Parallel.ForEachAsync(
-                item.Files.Where(f => !f.IsDirectory && f.State != InboxFileState.Completed).ToList(),
+                wanted.Where(f => !f.IsDirectory).ToList(),
                 new ParallelOptions { MaxDegreeOfParallelism = ParallelFiles, CancellationToken = cancellationToken },
                 (file, ct) => new ValueTask(DownloadFileAsync(item, root, file, ct)));
         }
@@ -266,9 +280,12 @@ public sealed class InboxService(
         lock (gate)
         {
             int done = item.Files.Count(f => f.State == InboxFileState.Completed);
+            bool pickedAllArrived = selection is not null
+                && item.Files.Where(f => selection.Contains(f.FileId)).All(f => f.State == InboxFileState.Completed);
             final = item.State == InboxState.Withdrawn ? InboxState.Withdrawn
                 : done == item.Files.Count ? InboxState.Completed
                 : cancellationToken.IsCancellationRequested ? InboxState.Cancelled
+                : pickedAllArrived ? InboxState.Partial
                 : InboxState.Failed;
             if (final == InboxState.Failed && item.Error is null)
             {
@@ -286,7 +303,12 @@ public sealed class InboxService(
         }
 
         await SaveOfferStateAsync(item.Key, final);
-        await SendReceiptAsync(item.Key, final == InboxState.Completed ? ReceiptStatus.Completed : ReceiptStatus.Failed);
+        await SendReceiptAsync(item.Key, final switch
+        {
+            InboxState.Completed => ReceiptStatus.Completed,
+            InboxState.Partial => ReceiptStatus.Partial,
+            _ => ReceiptStatus.Failed,
+        });
         logger.LogInformation("Offer {Offer} from {Sender}: {State}", item.Key.OfferId, item.Key.SenderId, final);
     }
 
@@ -467,6 +489,7 @@ public sealed class InboxService(
         files = [];
         if (manifest.OfferId is not { Length: > 0 and <= 64 }
             || manifest.Files is not { Count: > 0 and <= OfferService.MaxEntries }
+            || manifest.Files.Count(f => !f.RelativePath.EndsWith('/')) > OfferService.MaxFiles
             || manifest.Note is { Length: > 500 })
         {
             return false;

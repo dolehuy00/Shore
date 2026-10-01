@@ -44,6 +44,19 @@ public sealed class TrustStoreTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Auto_accept_survives_a_restart_and_is_cleared_when_blocked()
+    {
+        TrustStore store = await LoadAsync();
+        await store.SetTrustedAsync(Mai, "Mai", "PC-QA-07", Ct);
+        await store.SetAutoAcceptAsync(Mai, 2L << 30, Ct);
+
+        Assert.Equal(2L << 30, (await LoadAsync()).Get(Mai)!.AutoAcceptMaxBytes);
+
+        await store.BlockAsync(Mai, "Mai", "PC-QA-07", Ct);
+        Assert.Null((await LoadAsync()).Get(Mai)!.AutoAcceptMaxBytes);
+    }
+
+    [Fact]
     public async Task Forget_returns_peer_to_unknown_and_drops_alias()
     {
         TrustStore store = await LoadAsync();

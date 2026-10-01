@@ -42,12 +42,14 @@ Mỗi milestone kết thúc bằng một bản **chạy được, demo được*
 - UX: kéo thả lên thẻ, Ctrl+click chọn nhiều, menu Gửi file…/Gửi thư mục…, popup góc màn hình khi có file đến, trang Hộp nhận / Đã gửi, badge số offer mới.
 - Đo trên loopback (một máy, cùng ổ đĩa): 4 GB trong 34,9 giây tính cả kiểm tra SHA-256 (~117 MB/s trung bình, ~176 MB/s lúc truyền). Kill máy gửi giữa chừng rồi bật lại: bên nhận tải tiếp và checksum khớp.
 
-### M3b (còn lại)
+### M3b ✅ (2026-10-01)
 
-- Windows toast thật (cần đăng ký COM activator cho app không đóng gói MSIX); hiện dùng popup góc màn hình.
-- `Ctrl+V` gửi file từ clipboard; "Chọn file…" để tải một phần offer; tự nhận theo từng liên hệ.
-- Màn hình chỉnh Cài đặt (thư mục nhận, thời hạn offer, luôn sao chép tạm, thời gian chờ kết nối lại); hiện chỉnh được qua `settings.json`.
-- Benchmark trên LAN 1 Gbps thật giữa hai máy; 10.000 file nhỏ.
+- Click chọn thẻ / Ctrl+click chọn nhiều; `Ctrl+V` gửi file đang copy cho người đã chọn.
+- "Chọn file…" tải một phần offer → trạng thái "Đã nhận x/y file", sau đó "Tải phần còn lại". Bên gửi thấy "đã nhận một phần" và offer vẫn mở (receipt `partial`).
+- Tự nhận file theo từng liên hệ (menu chuột phải, tối đa 2 GB); offer tự nhận không hiện popup.
+- Màn hình Cài đặt "Gửi & nhận": tên hiển thị (đổi là phát presence mới ngay), thư mục nhận, thư mục con theo người gửi, thời hạn offer, thời gian chờ kết nối lại, luôn sao chép tạm. Mục bị GPO khóa thì chỉ đọc.
+- Benchmark 10.000 file × 4 KB, cả hai đầu trên một máy: ~69 giây (~145 file/giây), giới hạn bởi việc tạo file của hệ điều hành/antivirus (đo riêng: 290–590 file/giây chỉ phía nhận). Kèm sửa: giới hạn 10.000 **file** (thư mục không tính), checksum long-poll (bỏ chờ 1 giây mỗi file nhỏ), lọc log từng request của ASP.NET Core (110.033 dòng → 22 dòng).
+- **Chưa làm:** benchmark LAN 1 Gbps giữa hai máy thật. Windows toast chuyển sang M6 (làm cùng package identity).
 
 **Xong khi:** gửi 20 GB đạt ≥ 90 MB/s và hash khớp; rút dây 20 giây rồi cắm lại thì tải tiếp; rút 2 phút thì báo Lỗi rõ ràng, không để lại file rác, và [Tải lại] thành công.
 
@@ -70,7 +72,7 @@ Mỗi milestone kết thúc bằng một bản **chạy được, demo được*
 
 ## M6 — Hoàn thiện
 
-- Tích hợp Explorer, cửa sổ Gửi nhanh + phím tắt.
+- Package identity (sparse MSIX) → Windows toast thật + menu "Gửi bằng Shorekeeper…" trong Explorer (Windows 11); cửa sổ Gửi nhanh + phím tắt.
 - AD mức 1–2 ([13](13-active-directory.md)); mức 3–4 nếu có AD CS.
 - Sao lưu/khôi phục danh tính.
 - Chuẩn bị port Linux/macOS.

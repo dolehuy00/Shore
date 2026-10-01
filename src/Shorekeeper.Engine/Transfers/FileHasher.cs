@@ -15,26 +15,40 @@ public sealed class FileHasher(SqliteDatabase database, TimeProvider timeProvide
 {
     private readonly ConcurrentDictionary<string, Task<string>> running = new();
 
-    /// <summary>Starts hashing if needed. Returns the hash when known, otherwise null (ask again later).</summary>
-    public async Task<string?> TryGetAsync(string path, long size, DateTimeOffset modifiedAt, CancellationToken cancellationToken)
+    /// <summary>
+    /// Starts hashing if needed and waits up to <paramref name="wait"/> for it. Returns the hash when known,
+    /// otherwise null (ask again later). Waiting avoids a poll round-trip for every small file.
+    /// </summary>
+    public async Task<string?> TryGetAsync(string path, long size, DateTimeOffset modifiedAt, TimeSpan wait, CancellationToken cancellationToken)
     {
         long modified = modifiedAt.ToUnixTimeMilliseconds();
         await using (SqliteConnection connection = await database.OpenAsync(cancellationToken))
         {
-            string? cached = await connection.QueryFirstOrDefaultAsync<string>(
-                """
-                UPDATE HashCache SET LastUsedAt = @now WHERE Path = @path AND Size = @size AND ModifiedAt = @modified
-                RETURNING Sha256;
-                """,
-                new { path, size, modified, now = timeProvider.GetUtcNow().ToUnixTimeMilliseconds() });
-            if (cached is not null)
+            var cached = await connection.QueryFirstOrDefaultAsync<(string Sha256, long LastUsedAt)?>(
+                "SELECT Sha256, LastUsedAt FROM HashCache WHERE Path = @path AND Size = @size AND ModifiedAt = @modified;",
+                new { path, size, modified });
+            if (cached is { } hit)
             {
-                return cached;
+                // Reads stay reads: "last used" only needs day precision for the 30-day clean-up.
+                long now = timeProvider.GetUtcNow().ToUnixTimeMilliseconds();
+                if (now - hit.LastUsedAt > TimeSpan.FromDays(1).TotalMilliseconds)
+                {
+                    await connection.ExecuteAsync(
+                        "UPDATE HashCache SET LastUsedAt = @now WHERE Path = @path AND Size = @size AND ModifiedAt = @modified;",
+                        new { path, size, modified, now });
+                }
+
+                return hit.Sha256;
             }
         }
 
         string key = $"{path}|{size}|{modified}";
         Task<string> task = running.GetOrAdd(key, _ => Task.Run(() => ComputeAsync(path, size, modified), CancellationToken.None));
+        if (!task.IsCompleted && wait > TimeSpan.Zero)
+        {
+            await Task.WhenAny(task, Task.Delay(wait, timeProvider, cancellationToken));
+        }
+
         if (!task.IsCompleted)
         {
             return null;
@@ -52,7 +66,7 @@ public sealed class FileHasher(SqliteDatabase database, TimeProvider timeProvide
 
     /// <summary>Starts hashing in the background without waiting.</summary>
     public void Start(string path, long size, DateTimeOffset modifiedAt) =>
-        _ = TryGetAsync(path, size, modifiedAt, CancellationToken.None);
+        _ = TryGetAsync(path, size, modifiedAt, TimeSpan.Zero, CancellationToken.None);
 
     private async Task<string> ComputeAsync(string path, long size, long modified)
     {

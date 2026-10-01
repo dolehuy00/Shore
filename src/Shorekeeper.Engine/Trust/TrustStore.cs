@@ -8,7 +8,8 @@ using Shorekeeper.Engine.Storage;
 namespace Shorekeeper.Engine.Trust;
 
 /// <param name="Alias">Name the user chose for this peer; shown instead of <paramref name="DisplayName"/> when set.</param>
-public sealed record PeerRecord(DeviceId DeviceId, string DisplayName, string HostName, string? Alias, TrustLevel TrustLevel)
+/// <param name="AutoAcceptMaxBytes">When set, offers from this contact up to this size download without asking.</param>
+public sealed record PeerRecord(DeviceId DeviceId, string DisplayName, string HostName, string? Alias, TrustLevel TrustLevel, long? AutoAcceptMaxBytes = null)
 {
     public string ShownName => string.IsNullOrWhiteSpace(Alias) ? DisplayName : Alias;
 }
@@ -36,7 +37,7 @@ public sealed class TrustStore(SqliteDatabase database, TimeProvider timeProvide
             "DELETE FROM PeerEndpoints WHERE COALESCE(LastSuccessAt, LastSeenAt, 0) < @cutoff;", new { cutoff });
 
         var rows = await connection.QueryAsync<PeerRow>(
-            "SELECT DeviceId AS Id, DisplayName, HostName, Alias, TrustLevel AS Level FROM Peers WHERE TrustLevel <> 0;");
+            "SELECT DeviceId AS Id, DisplayName, HostName, Alias, TrustLevel AS Level, AutoAcceptMaxBytes FROM Peers WHERE TrustLevel <> 0;");
         var targets = await connection.QueryAsync<string>("SELECT Target FROM ManualTargets ORDER BY Id;");
 
         lock (gate)
@@ -113,6 +114,25 @@ public sealed class TrustStore(SqliteDatabase database, TimeProvider timeProvide
             if (peers.TryGetValue(id, out PeerRecord? record))
             {
                 peers[id] = record with { Alias = alias };
+            }
+        }
+
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>"Tự nhận file": offers from this contact up to <paramref name="maxBytes"/> download without asking; null turns it off.</summary>
+    public async Task SetAutoAcceptAsync(DeviceId id, long? maxBytes, CancellationToken cancellationToken = default)
+    {
+        await using (SqliteConnection connection = await database.OpenAsync(cancellationToken))
+        {
+            await connection.ExecuteAsync("UPDATE Peers SET AutoAcceptMaxBytes = @maxBytes WHERE DeviceId = @Id;", new { maxBytes, Id = id.Value });
+        }
+
+        lock (gate)
+        {
+            if (peers.TryGetValue(id, out PeerRecord? record))
+            {
+                peers[id] = record with { AutoAcceptMaxBytes = maxBytes };
             }
         }
 
@@ -202,15 +222,16 @@ public sealed class TrustStore(SqliteDatabase database, TimeProvider timeProvide
                 VALUES (@Id, @displayName, @hostName, @level, @trustedAt)
                 ON CONFLICT (DeviceId) DO UPDATE SET
                   DisplayName = excluded.DisplayName, HostName = excluded.HostName,
-                  TrustLevel = excluded.TrustLevel, TrustedAt = excluded.TrustedAt;
+                  TrustLevel = excluded.TrustLevel, TrustedAt = excluded.TrustedAt,
+                  AutoAcceptMaxBytes = CASE WHEN excluded.TrustLevel = 1 THEN Peers.AutoAcceptMaxBytes END;
                 """,
                 new { Id = id.Value, displayName, hostName, level = (int)level, trustedAt = level == TrustLevel.Trusted ? now : (long?)null });
         }
 
         lock (gate)
         {
-            string? alias = peers.GetValueOrDefault(id)?.Alias;
-            peers[id] = new PeerRecord(id, displayName, hostName, alias, level);
+            PeerRecord? previous = peers.GetValueOrDefault(id);
+            peers[id] = new PeerRecord(id, displayName, hostName, previous?.Alias, level, level == TrustLevel.Trusted ? previous?.AutoAcceptMaxBytes : null);
         }
 
         Changed?.Invoke(this, EventArgs.Empty);
@@ -228,6 +249,8 @@ public sealed class TrustStore(SqliteDatabase database, TimeProvider timeProvide
 
         public long Level { get; init; }
 
-        public PeerRecord ToRecord() => new(DeviceId.Parse(Id), DisplayName, HostName ?? "", Alias, (TrustLevel)Level);
+        public long? AutoAcceptMaxBytes { get; init; }
+
+        public PeerRecord ToRecord() => new(DeviceId.Parse(Id), DisplayName, HostName ?? "", Alias, (TrustLevel)Level, AutoAcceptMaxBytes);
     }
 }

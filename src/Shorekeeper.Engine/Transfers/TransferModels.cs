@@ -21,6 +21,9 @@ public enum RecipientState
     Delivered,
     Downloading,
     Completed,
+
+    /// <summary>Took some of the files; may come back for the rest while the offer is open.</summary>
+    Partial,
     Failed,
     Declined,
 }
@@ -57,6 +60,9 @@ public enum InboxState
     New,
     Downloading,
     Completed,
+
+    /// <summary>The files the user picked arrived; the others can still be downloaded while the offer is open.</summary>
+    Partial,
 
     /// <summary>Some files failed (or the whole download did); can be retried while the offer is open.</summary>
     Failed,

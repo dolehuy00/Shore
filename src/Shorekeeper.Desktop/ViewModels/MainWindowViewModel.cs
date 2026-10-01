@@ -1,4 +1,5 @@
 using System.Reflection;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Shorekeeper.Core.Discovery;
 using Shorekeeper.Desktop.Views;
@@ -32,6 +33,9 @@ public sealed partial class NavItem(NavPage page, string title, string? mileston
     public partial int Badge { get; set; }
 
     public bool HasBadge => Badge > 0;
+
+    /// <summary>Used as the accessible name of the navigation item (screen readers).</summary>
+    public override string ToString() => HasBadge ? $"{Title} ({Badge})" : Title;
 }
 
 public sealed record StatusOption(MyStatus Status, string Label);
@@ -50,8 +54,15 @@ public sealed partial class MainWindowViewModel : ObservableObject
         SentViewModel sent,
         NetworkDiagnosticsViewModel diagnostics,
         BlockedPeersViewModel blocked,
+        SettingsViewModel settingsPage,
         DialogService dialogs)
     {
+        Settings = settingsPage;
+        settings.Changed += (_, current) => Dispatcher.UIThread.Post(() =>
+        {
+            DisplayName = current.DisplayName;
+            DownloadDirectory = current.DownloadDirectory;
+        });
         this.presence = presence;
         Neighborhood = neighborhood;
         Inbox = inbox;
@@ -91,13 +102,17 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public BlockedPeersViewModel Blocked { get; }
 
-    public string DisplayName { get; }
+    public SettingsViewModel Settings { get; }
+
+    [ObservableProperty]
+    public partial string DisplayName { get; set; }
 
     public string DeviceId { get; }
 
     public string DeviceIdShort { get; }
 
-    public string DownloadDirectory { get; }
+    [ObservableProperty]
+    public partial string DownloadDirectory { get; set; }
 
     public string DataDirectory { get; }
 

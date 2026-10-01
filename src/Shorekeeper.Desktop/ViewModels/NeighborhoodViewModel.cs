@@ -115,6 +115,43 @@ public sealed partial class NeighborhoodViewModel : ObservableObject
         await dialogs.SendAsync(paths, [.. targets.Where(t => t.IsTrusted).Select(t => (t.DeviceId, t.DisplayName))]);
     }
 
+    /// <summary>Ctrl+V: sends what is on the clipboard to the selected contacts.</summary>
+    /// <returns>False when no contact is selected.</returns>
+    public async Task<bool> SendToSelectedAsync(IReadOnlyList<string> paths)
+    {
+        PeerCardViewModel? first = Contacts.FirstOrDefault(c => c.IsSelected);
+        if (first is null)
+        {
+            return false;
+        }
+
+        await SendAsync(first, paths);
+        return true;
+    }
+
+    /// <summary>Plain click: this card becomes the only selected one; Ctrl+click adds or removes it.</summary>
+    public void Select(PeerCardViewModel card, bool toggle)
+    {
+        if (!card.IsTrusted)
+        {
+            return;
+        }
+
+        if (toggle)
+        {
+            card.IsSelected = !card.IsSelected;
+            return;
+        }
+
+        foreach (PeerCardViewModel other in Contacts)
+        {
+            other.IsSelected = other == card;
+        }
+    }
+
+    internal Task ToggleAutoAcceptAsync(PeerCardViewModel card) =>
+        trust.SetAutoAcceptAsync(card.DeviceId, card.IsAutoAccept ? null : PeerCardViewModel.AutoAcceptLimit);
+
     internal async Task SendFilesAsync(PeerCardViewModel card) => await SendAsync(card, await DialogService.PickFilesAsync());
 
     internal async Task SendFolderAsync(PeerCardViewModel card) => await SendAsync(card, await DialogService.PickFolderAsync());
@@ -167,6 +204,12 @@ public sealed partial class PeerCardViewModel(DeviceId deviceId, NeighborhoodVie
 
     public bool CanConnect => !IsTrusted && IsOnline;
 
+    /// <summary>Offers from a contact with "Tự nhận file" on download by themselves up to this size.</summary>
+    public const long AutoAcceptLimit = 2L * 1024 * 1024 * 1024;
+
+    [ObservableProperty]
+    public partial bool IsAutoAccept { get; set; }
+
     /// <summary>Picked with Ctrl+click; dropping files on any selected card sends to all of them.</summary>
     [ObservableProperty]
     public partial bool IsSelected { get; set; }
@@ -182,6 +225,7 @@ public sealed partial class PeerCardViewModel(DeviceId deviceId, NeighborhoodVie
         HostName = live?.HostName ?? record?.HostName ?? "";
         DisplayName = record?.ShownName ?? live?.DisplayName ?? "";
         IsTrusted = record?.TrustLevel == TrustLevel.Trusted;
+        IsAutoAccept = record?.AutoAcceptMaxBytes is not null;
         IsOnline = live is not null;
         IsBusy = live?.IsBusy == true;
         IsInactive = live is null || live.State == PeerState.Stale;
@@ -198,6 +242,9 @@ public sealed partial class PeerCardViewModel(DeviceId deviceId, NeighborhoodVie
 
     [RelayCommand]
     private Task SendFilesAsync() => owner.SendFilesAsync(this);
+
+    [RelayCommand]
+    private Task ToggleAutoAcceptAsync() => owner.ToggleAutoAcceptAsync(this);
 
     [RelayCommand]
     private Task SendFolderAsync() => owner.SendFolderAsync(this);

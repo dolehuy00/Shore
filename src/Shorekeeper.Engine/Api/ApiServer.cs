@@ -73,8 +73,11 @@ public sealed class ApiServer(
     {
         WebApplicationBuilder builder = WebApplication.CreateSlimBuilder(new WebApplicationOptions { ContentRootPath = AppContext.BaseDirectory });
         builder.WebHost.UseKestrelHttpsConfiguration();
+        // Forward to the app's logging, but not ASP.NET Core's per-request lines: a 10,000-file
+        // transfer would otherwise write 100,000+ log lines.
         builder.Logging.ClearProviders();
-        builder.Services.AddSingleton(loggerFactory);
+        builder.Logging.AddProvider(new ForwardingLoggerProvider(loggerFactory));
+        builder.Logging.AddFilter("Microsoft.AspNetCore", LogLevel.Warning);
         builder.WebHost.ConfigureKestrel(kestrel =>
         {
             kestrel.AddServerHeader = false;
@@ -107,5 +110,16 @@ public sealed class ApiServer(
             await webApp.DisposeAsync();
             throw;
         }
+    }
+}
+
+/// <summary>Hands the web host's loggers over to the app's logger factory.</summary>
+internal sealed class ForwardingLoggerProvider(ILoggerFactory target) : ILoggerProvider
+{
+    public ILogger CreateLogger(string categoryName) => target.CreateLogger(categoryName);
+
+    public void Dispose()
+    {
+        // The target factory belongs to the app.
     }
 }

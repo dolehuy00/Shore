@@ -98,6 +98,7 @@ internal static class Program
         builder.Services.AddSingleton<NeighborhoodViewModel>();
         builder.Services.AddSingleton<NetworkDiagnosticsViewModel>();
         builder.Services.AddSingleton<BlockedPeersViewModel>();
+        builder.Services.AddSingleton<SettingsViewModel>();
         builder.Services.AddSingleton<MainWindowViewModel>();
 
         return builder.Build();

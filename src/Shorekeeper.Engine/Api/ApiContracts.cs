@@ -36,6 +36,9 @@ public static class ReceiptStatus
 {
     public const string Downloading = "downloading";
     public const string Completed = "completed";
+
+    /// <summary>The recipient took only some files; the offer stays open for the rest.</summary>
+    public const string Partial = "partial";
     public const string Failed = "failed";
     public const string Declined = "declined";
 }

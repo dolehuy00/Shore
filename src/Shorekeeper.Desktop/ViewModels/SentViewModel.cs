@@ -95,6 +95,7 @@ public sealed partial class SentItemViewModel(string offerId, SentViewModel owne
         // Range retries can resend bytes, so cap below 100% until the recipient confirms.
         RecipientState.Downloading => $"đang tải {Math.Min(99, total == 0 ? 0 : 100.0 * recipient.BytesServed / total):0}%",
         RecipientState.Completed => "đã nhận",
+        RecipientState.Partial => "đã nhận một phần",
         RecipientState.Declined => "đã bỏ qua",
         _ => "lỗi (không tải được hoặc không nhận lời gửi)",
     };
