@@ -28,29 +28,28 @@
   "host": "PC-DEV-03",
   "os": "windows",
   "app": "0.1.0",
-  "proto": [1],
   "port": 47471,
   "addrs": ["10.1.1.23"],
-  "status": "available",
-  "caps": ["transfer", "groups"],
-  "groups": [{ "id": "01J8Z…", "name": "Build QA", "members": 6 }],
-  "bridges": ["10.1.1.50:47471"],
-  "seq": 1842
+  "status": "available"
 }
 ```
 
-| Trường | Ý nghĩa |
-|---|---|
-| `type` | `announce` \| `heartbeat` \| `reply` \| `bye` \| `probe` |
-| `id` | DeviceId |
-| `proto` | Các phiên bản HTTP API hỗ trợ |
-| `status` | `available` \| `busy` |
-| `caps` | `transfer`, `groups`, `bridge` |
-| `groups` | Nhóm mà máy này Host (tối đa 5) |
-| `bridges` | Bridge mà peer đang biết |
-| `seq` | Tăng dần; phát hiện gói cũ và peer khởi động lại |
+| Trường | Ý nghĩa | Có từ |
+|---|---|---|
+| `v` | Phiên bản định dạng gói; khác `1` thì bỏ qua | M1 |
+| `type` | `announce` \| `heartbeat` \| `reply` \| `bye` (`probe` từ M2) | M1 |
+| `id` | DeviceId (bắt buộc, sai định dạng thì bỏ gói) | M1 |
+| `name` | Tên hiển thị, tối đa 64 ký tự | M1 |
+| `host`, `os`, `app` | Tên máy, hệ điều hành, phiên bản app | M1 |
+| `port` | Cổng HTTPS API | M1 (API có từ M2) |
+| `addrs` | Các IPv4 của máy | M1 |
+| `status` | `available` \| `busy` | M1 |
+| `proto`, `caps` | Phiên bản API hỗ trợ, khả năng | M2 |
+| `groups` | Nhóm mà máy này Host (tối đa 5) | M5 |
+| `bridges` | Bridge mà peer đang biết | M4 |
 
-`heartbeat` chỉ mang `v`, `type`, `id`, `seq`, `status`, `h` (hash của phần đầy đủ). `h` đổi thì bên nhận gọi `GET /hello`.
+- Mọi gói (kể cả `heartbeat`) mang **đầy đủ** presence. Gói ~300 byte, nên không cần bản rút gọn.
+- Trường thiếu thì dùng giá trị mặc định; trường lạ thì bỏ qua. Nhờ vậy thêm trường ở milestone sau không làm hỏng peer cũ.
 
 > Presence công khai tên và nhóm. Đó là thông tin **ai trong LAN cũng thấy**, cần thiết để xin kết nối hoặc xin vào nhóm.
 

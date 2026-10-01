@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Shorekeeper.Core.Platform;
+using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Identity;
 using Shorekeeper.Engine.Settings;
 using Shorekeeper.Engine.Storage;
@@ -18,6 +19,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton(paths);
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<IPolicyProvider>(NullPolicyProvider.Instance);
+        services.TryAddSingleton<IFirewallInspector>(NullFirewallInspector.Instance);
 
         services.AddSingleton<SettingsStore>();
         services.AddSingleton<SettingsService>();
@@ -26,6 +28,20 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IdentityStore>();
         services.AddSingleton<ShorekeeperEngine>();
         services.AddHostedService<EngineHostedService>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers same-subnet discovery. Call after <see cref="AddShorekeeperEngine"/>:
+    /// hosted services start in registration order, so discovery runs once the engine is initialized.
+    /// </summary>
+    public static IServiceCollection AddMulticastDiscovery(this IServiceCollection services)
+    {
+        services.AddSingleton<PeerDirectory>();
+        services.AddSingleton<LocalPresence>();
+        services.AddSingleton<ILocalPresence>(sp => sp.GetRequiredService<LocalPresence>());
+        services.AddHostedService<MulticastDiscovery>();
 
         return services;
     }

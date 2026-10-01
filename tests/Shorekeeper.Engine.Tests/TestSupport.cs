@@ -32,6 +32,16 @@ internal sealed class TempAppFolder : IDisposable
     }
 }
 
+/// <summary>Clock that only moves when the test says so.</summary>
+internal sealed class ManualTimeProvider : TimeProvider
+{
+    private DateTimeOffset now = new(2026, 9, 23, 8, 0, 0, TimeSpan.Zero);
+
+    public override DateTimeOffset GetUtcNow() => now;
+
+    public void Advance(TimeSpan by) => now += by;
+}
+
 /// <summary>Reversible, non-secret "protection" so tests do not depend on DPAPI.</summary>
 internal sealed class XorSecretProtector : ISecretProtector
 {

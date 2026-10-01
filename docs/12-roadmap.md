@@ -12,7 +12,7 @@ Mỗi milestone kết thúc bằng một bản **chạy được, demo được*
 
 **Xong khi:** mở app thấy DeviceId của mình; đóng/mở lại vẫn giữ nguyên.
 
-## M1 — Thấy nhau (cùng subnet)
+## M1 — Thấy nhau (cùng subnet) ✅ (2026-10-01)
 
 - Multicast discovery: announce / heartbeat / reply / bye, nhiều interface, lọc adapter ảo.
 - `PeerDirectory`, trạng thái Online/Stale/Offline.

@@ -57,15 +57,15 @@
 | `heartbeat` | Định kỳ | Multicast |
 | `reply` | Nhận `announce` từ peer mới (delay ngẫu nhiên 0–500 ms) | Unicast về peer đó |
 | `bye` | Thoát app, chuyển Ẩn | Multicast |
-| `probe` | Subnet Probe / Manual / Known Endpoints | Unicast |
+| `probe` (từ M2) | Subnet Probe / Manual / Known Endpoints | Unicast |
 
 Định dạng gói xem [05 §2](05-protocol.md).
 
 ### 3.1 Nhiều card mạng (quan trọng trên Windows)
 
 1. Liệt kê interface `Up`, có IPv4, không phải loopback.
-2. **Loại mặc định** adapter ảo đã biết (Hyper-V vEthernet, WSL, VirtualBox, VMware, Docker). Người dùng ghi đè được.
-3. Mỗi interface hợp lệ có **một socket UDP riêng**, join multicast đúng interface, gửi bằng `IP_MULTICAST_IF` tương ứng.
+2. **Loại mặc định** adapter ảo đã biết (Hyper-V vEthernet, WSL, VirtualBox, VMware, Docker), tunnel, và địa chỉ 169.254.x.x. Cho phép người dùng ghi đè: làm sau, khi có nhu cầu thật.
+3. **Một socket UDP** bind `0.0.0.0:47470` (cho phép nhiều tiến trình dùng chung cổng), join multicast trên từng interface hợp lệ. Gửi multicast lần lượt qua từng interface bằng `IP_MULTICAST_IF`.
 4. Gói tin mang danh sách `addrs`. Bên nhận **ưu tiên địa chỉ nguồn của gói UDP**.
 5. Nghe `NetworkChange.NetworkAddressChanged` để dựng lại socket và gửi `announce` khi đổi mạng.
 6. Bỏ qua gói có `id` là của chính mình.
@@ -144,6 +144,8 @@ Cách client biết Bridge:
 
 - Mỗi peer có danh sách **địa chỉ ứng viên** (`source`, `lastSeen`, `lastSuccess`).
 - Sự kiện: `PeerDiscovered`, `PeerOnline`, `PeerUpdated`, `PeerStale`, `PeerOffline`.
+
+> **Hiện trạng M1:** chưa có xác minh TLS, liên hệ hay nhóm, nên chỉ có hai trạng thái **Online → Stale (16 giây) → xóa (30 giây)**. Mỗi peer giữ một địa chỉ (nguồn của gói gần nhất). Sự kiện gộp thành `PeerDirectory.Changed` với `Added` / `Updated` / `Removed`, và heartbeat không đổi gì thì không phát sự kiện.
 
 ## 11. Connector
 

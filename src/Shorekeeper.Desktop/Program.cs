@@ -86,7 +86,10 @@ internal static class Program
 
         builder.Services.AddSerilog();
         builder.Services.AddShorekeeperEngine(paths);
+        builder.Services.AddMulticastDiscovery();
         builder.Services.AddWindowsPlatform();
+        builder.Services.AddSingleton<NeighborhoodViewModel>();
+        builder.Services.AddSingleton<NetworkDiagnosticsViewModel>();
         builder.Services.AddSingleton<MainWindowViewModel>();
 
         return builder.Build();

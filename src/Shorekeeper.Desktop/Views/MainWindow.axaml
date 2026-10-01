@@ -18,6 +18,39 @@
       <Setter Property="TextWrapping" Value="Wrap" />
       <Setter Property="Margin" Value="0,0,0,10" />
     </Style>
+    <Style Selector="TextBlock.h2">
+      <Setter Property="FontSize" Value="20" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <!-- Status dots: green by default, amber when busy, gray when hidden/stale, red for errors. -->
+    <Style Selector="Ellipse.dot">
+      <Setter Property="Width" Value="10" />
+      <Setter Property="Height" Value="10" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Fill" Value="#22C55E" />
+    </Style>
+    <Style Selector="Ellipse.dot.busy">
+      <Setter Property="Fill" Value="#F59E0B" />
+    </Style>
+    <Style Selector="Ellipse.dot.muted">
+      <Setter Property="Fill" Value="#9CA3AF" />
+    </Style>
+    <Style Selector="Ellipse.dot.error">
+      <Setter Property="Fill" Value="#EF4444" />
+    </Style>
+
+    <Style Selector="Border.card">
+      <Setter Property="Width" Value="230" />
+      <Setter Property="Margin" Value="0,0,12,12" />
+      <Setter Property="Padding" Value="14,12" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="#33808080" />
+    </Style>
+    <Style Selector="Border.card.stale">
+      <Setter Property="Opacity" Value="0.55" />
+    </Style>
   </Window.Styles>
 
   <Grid RowDefinitions="Auto,*" ColumnDefinitions="200,*">
@@ -29,8 +62,15 @@
           <Image Source="/Assets/shorekeeper.png" Width="28" Height="28" />
           <TextBlock Text="Shorekeeper" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" />
         </StackPanel>
-        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-          <Ellipse Width="10" Height="10" Fill="#22C55E" VerticalAlignment="Center" />
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+          <Ellipse Classes="dot" Classes.busy="{Binding IsBusy}" Classes.muted="{Binding IsHidden}" />
+          <ComboBox ItemsSource="{Binding StatusOptions}" SelectedItem="{Binding SelectedStatus}" MinWidth="96">
+            <ComboBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:StatusOption">
+                <TextBlock Text="{Binding Label}" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
           <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" VerticalAlignment="Center" />
           <TextBlock Text="{Binding DeviceIdShort}" Opacity="0.55" FontFamily="Consolas,monospace" VerticalAlignment="Center" />
         </StackPanel>
@@ -53,35 +93,86 @@
 
     <!-- Content -->
     <ScrollViewer Grid.Row="1" Grid.Column="1">
-      <StackPanel Margin="28,24" Spacing="18" MaxWidth="760" HorizontalAlignment="Left">
+      <StackPanel Margin="28,24" Spacing="18">
 
-        <Border Padding="14,10" CornerRadius="8" Background="#1A808080">
+        <!-- Pages not built yet -->
+        <Border IsVisible="{Binding IsComingSoonVisible}" Padding="14,10" CornerRadius="8" Background="#1A808080" MaxWidth="760" HorizontalAlignment="Left">
           <TextBlock Text="{Binding ComingSoonText}" Opacity="0.8" TextWrapping="Wrap" />
         </Border>
 
-        <TextBlock Text="Thiết bị này" FontSize="20" FontWeight="SemiBold" />
+        <!-- Xóm -->
+        <StackPanel IsVisible="{Binding IsNeighborhoodVisible}" Spacing="14">
+          <TextBlock Classes="h2" Text="{Binding Neighborhood.Header}" />
 
-        <Border Padding="18,16,18,6" CornerRadius="8" BorderThickness="1" BorderBrush="#33808080">
-          <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto">
-            <TextBlock Classes="label" Text="Tên hiển thị" />
-            <SelectableTextBlock Classes="value" Grid.Column="1" Text="{Binding DisplayName}" />
+          <TextBlock IsVisible="{Binding Neighborhood.IsEmpty}" Opacity="0.65" TextWrapping="Wrap" MaxWidth="560" HorizontalAlignment="Left"
+                     Text="Chưa thấy ai trong mạng. Nếu máy khác đã mở Shorekeeper mà vẫn không thấy, xem Cài đặt → Mạng." />
 
-            <TextBlock Classes="label" Grid.Row="1" Text="DeviceId" />
-            <SelectableTextBlock Classes="value" Grid.Row="1" Grid.Column="1" Text="{Binding DeviceId}" FontFamily="Consolas,monospace" />
+          <ItemsControl ItemsSource="{Binding Neighborhood.Peers}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:PeerCardViewModel">
+                <Border Classes="card" Classes.stale="{Binding IsStale}">
+                  <StackPanel Spacing="4">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                      <Ellipse Classes="dot" Classes.busy="{Binding IsBusy}" Classes.muted="{Binding IsStale}" />
+                      <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" MaxWidth="180" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding Subtitle}" Opacity="0.65" FontSize="12" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{Binding StatusText}" Opacity="0.8" FontSize="12" />
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
 
-            <TextBlock Classes="label" Grid.Row="2" Text="Thư mục nhận" />
-            <SelectableTextBlock Classes="value" Grid.Row="2" Grid.Column="1" Text="{Binding DownloadDirectory}" />
+        <!-- Cài đặt -->
+        <StackPanel IsVisible="{Binding IsSettingsVisible}" Spacing="18" MaxWidth="760" HorizontalAlignment="Left">
+          <TextBlock Classes="h2" Text="Thiết bị này" />
 
-            <TextBlock Classes="label" Grid.Row="3" Text="Dữ liệu ứng dụng" />
-            <SelectableTextBlock Classes="value" Grid.Row="3" Grid.Column="1" Text="{Binding DataDirectory}" />
+          <Border Padding="18,16,18,6" CornerRadius="8" BorderThickness="1" BorderBrush="#33808080">
+            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto">
+              <TextBlock Classes="label" Text="Tên hiển thị" />
+              <SelectableTextBlock Classes="value" Grid.Column="1" Text="{Binding DisplayName}" />
 
-            <TextBlock Classes="label" Grid.Row="4" Text="Phiên bản" />
-            <SelectableTextBlock Classes="value" Grid.Row="4" Grid.Column="1" Text="{Binding AppVersion}" />
+              <TextBlock Classes="label" Grid.Row="1" Text="DeviceId" />
+              <SelectableTextBlock Classes="value" Grid.Row="1" Grid.Column="1" Text="{Binding DeviceId}" FontFamily="Consolas,monospace" />
+
+              <TextBlock Classes="label" Grid.Row="2" Text="Thư mục nhận" />
+              <SelectableTextBlock Classes="value" Grid.Row="2" Grid.Column="1" Text="{Binding DownloadDirectory}" />
+
+              <TextBlock Classes="label" Grid.Row="3" Text="Dữ liệu ứng dụng" />
+              <SelectableTextBlock Classes="value" Grid.Row="3" Grid.Column="1" Text="{Binding DataDirectory}" />
+
+              <TextBlock Classes="label" Grid.Row="4" Text="Phiên bản" />
+              <SelectableTextBlock Classes="value" Grid.Row="4" Grid.Column="1" Text="{Binding AppVersion}" />
+            </Grid>
+          </Border>
+
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Classes="h2" Text="Mạng" />
+            <Button Grid.Column="1" Content="Kiểm tra lại" Command="{Binding Diagnostics.RefreshCommand}" IsEnabled="{Binding !Diagnostics.IsRefreshing}" />
           </Grid>
-        </Border>
 
-        <TextBlock Opacity="0.6" TextWrapping="Wrap"
-                   Text="DeviceId được tạo từ khóa riêng của máy này và giữ nguyên qua các lần mở app. Đóng cửa sổ thì Shorekeeper vẫn chạy dưới khay hệ thống." />
+          <Border Padding="18,14" CornerRadius="8" BorderThickness="1" BorderBrush="#33808080">
+            <ItemsControl ItemsSource="{Binding Diagnostics.Items}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:DiagnosticItem">
+                  <Grid ColumnDefinitions="Auto,170,*" Margin="0,4">
+                    <Ellipse Classes="dot" Classes.muted="{Binding !IsOk}" Classes.busy="{Binding IsWarning}" Classes.error="{Binding IsError}"
+                             Margin="0,0,10,0" VerticalAlignment="Top" />
+                    <TextBlock Grid.Column="1" Text="{Binding Label}" Opacity="0.65" TextTrimming="CharacterEllipsis" Margin="0,0,12,0" />
+                    <SelectableTextBlock Grid.Column="2" Text="{Binding Value}" TextWrapping="Wrap" />
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </Border>
+        </StackPanel>
       </StackPanel>
     </ScrollViewer>
   </Grid>
