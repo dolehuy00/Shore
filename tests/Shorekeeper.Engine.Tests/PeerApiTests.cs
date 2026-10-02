@@ -47,7 +47,7 @@ public sealed class PeerApiTests : IAsyncLifetime
 
     [Theory]
     [InlineData("POST", "pairing/revoke")]
-    [InlineData("GET", "peers/known")] // not implemented yet: must still be refused, not 404
+    [InlineData("GET", "peers/known")] // PEX: contacts only
     [InlineData("GET", "anything")]
     public async Task Unknown_peer_is_refused_everything_else(string method, string path)
     {

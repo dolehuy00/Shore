@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.NetworkInformation;
 using Shorekeeper.Engine.Discovery;
 
@@ -17,5 +18,16 @@ public class LocalInterfacesTests
         string name, string description, NetworkInterfaceType type, bool multicast, string? expectedReason)
     {
         Assert.Equal(expectedReason, LocalInterfaces.GetExclusionReason(name, description, type, multicast));
+    }
+
+    [Theory]
+    [InlineData("10.1.1.200", true)]
+    [InlineData("10.1.5.20", false)]
+    [InlineData("192.168.1.5", false)]
+    public void Address_in_a_local_subnet_is_on_link(string address, bool expected)
+    {
+        LocalInterface[] interfaces = [new("Ethernet", "NIC", IPAddress.Parse("10.1.1.23"), 24, null)];
+
+        Assert.Equal(expected, LocalInterfaces.IsOnLink(IPAddress.Parse(address), interfaces));
     }
 }

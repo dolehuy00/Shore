@@ -55,9 +55,19 @@ Mỗi milestone kết thúc bằng một bản **chạy được, demo được*
 
 ## M4 — Khác subnet tự động & triển khai
 
-- PEX (chỉ Trusted); Bridge (registry + SSE); Subnet Probe.
+### M4a ✅ (2026-10-01)
+
+- **PEX** (chỉ Trusted): liên hệ kể cho nhau peer mình nghe trực tiếp; peer học được chỉ hiện sau khi trả lời probe.
+- **Giữ kết nối khác subnet:** peer ngoài subnet đang nghe trực tiếp được probe mỗi 5 giây, nên hai bên không rớt khỏi danh sách sau 30 giây.
+- **Bridge:** registry trong RAM, khóa theo chứng chỉ người gọi, lease 60 giây; client long-poll (thay SSE, xem ADR-010), tối đa 3 Bridge. Client biết Bridge qua `caps: ["bridge"]`, PEX và địa chỉ cấu hình (GPO `BridgeAddresses` / Cài đặt). Thẻ hiện "qua cầu nối".
+- **Subnet Probe:** dải CIDR (GPO `ProbeSubnets` / Cài đặt), tối đa /22, 100 gói/giây, 10 phút một lần.
+- Cài đặt "Máy ở mạng khác" (bật cầu nối, địa chỉ cầu nối, dải IP; GPO `AllowBridge` / `EnableBridge` khóa được), Chẩn đoán hiện trạng thái cầu nối.
+- Test trên loopback: PEX, Bridge end-to-end (đăng ký → thấy nhau → rời là biến mất), registry (version, lease, long-poll), quét dải IP.
+
+### M4b
+
 - Installer WiX, rule firewall, ADMX/ADML, Authenticode.
-- Lab 2 subnet.
+- Lab 2 subnet (máy thật).
 
 **Xong khi:** 2 subnet thấy nhau sau một lần Kết nối bắc cầu, hoặc ngay lập tức nếu có Bridge.
 

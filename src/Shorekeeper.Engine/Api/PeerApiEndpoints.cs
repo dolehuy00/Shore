@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Shorekeeper.Core.Identity;
+using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Transfers;
 using Shorekeeper.Engine.Trust;
 
@@ -22,6 +23,8 @@ internal static class PeerApiEndpoints
         var trust = services.GetRequiredService<TrustStore>();
         var offers = services.GetRequiredService<OfferService>();
         var inbox = services.GetRequiredService<InboxService>();
+        var pex = services.GetRequiredService<PexService>();
+        var bridge = services.GetRequiredService<BridgeRegistry>();
 
         RouteGroupBuilder api = app.MapGroup(PeerClient.ApiBasePath.TrimEnd('/'));
 
@@ -60,6 +63,40 @@ internal static class PeerApiEndpoints
                 return Results.NoContent();
             })
             .RequireTrustedPeer();
+
+        // PEX: only contacts may read who we hear (docs/03-discovery-presence.md §5).
+        api.MapGet("/peers/known", (HttpContext context) => pex.GetKnown(context.GetCaller()))
+            .RequireTrustedPeer();
+
+        // ───────────── Bridge (docs/05-protocol.md §4.6): public presence only, so any peer ─────────────
+
+        api.MapPost("/bridge/register", (HttpContext context, BridgeRegistration body) =>
+            {
+                var (result, response) = bridge.Register(context.GetCaller(), context.Connection.RemoteIpAddress!, body);
+                return result switch
+                {
+                    BridgeRegisterResult.Registered => Results.Ok(response),
+                    BridgeRegisterResult.Disabled => ApiResults.Problem(StatusCodes.Status404NotFound, ApiErrorCodes.NotFound),
+                    BridgeRegisterResult.Full => ApiResults.Problem(StatusCodes.Status503ServiceUnavailable, ApiErrorCodes.Busy),
+                    _ => ApiResults.Problem(StatusCodes.Status400BadRequest, ApiErrorCodes.InvalidRequest),
+                };
+            })
+            .AllowAnyPeer();
+
+        api.MapDelete("/bridge/register", (HttpContext context) =>
+            {
+                bridge.Unregister(context.GetCaller());
+                return Results.NoContent();
+            })
+            .AllowAnyPeer();
+
+        api.MapGet("/bridge/peers", async (long? since, int? wait, CancellationToken cancellationToken) =>
+                await bridge.GetPeersAsync(
+                        since ?? 0, TimeSpan.FromSeconds(Math.Clamp(wait ?? 0, 0, (int)BridgeRegistry.MaxWait.TotalSeconds)), cancellationToken)
+                    is { } response
+                    ? Results.Ok(response)
+                    : ApiResults.Problem(StatusCodes.Status404NotFound, ApiErrorCodes.NotFound))
+            .AllowAnyPeer();
 
         // ───────────── Sending files (docs/05-protocol.md §4.2, §4.3) ─────────────
 

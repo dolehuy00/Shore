@@ -56,7 +56,10 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    /// <summary>Registers the HTTPS peer API (mutual TLS), the client for calling peers, and connecting.</summary>
+    /// <summary>
+    /// Registers the HTTPS peer API (mutual TLS), the client for calling peers, connecting,
+    /// and what runs over the API to see other subnets: PEX and the Bridge role.
+    /// </summary>
     public static IServiceCollection AddPeerApi(this IServiceCollection services)
     {
         services.TryAddSingleton(new ApiServerOptions());
@@ -65,17 +68,25 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<PeerClient>();
         services.AddSingleton<PairingService>();
 
+        services.AddSingleton<LocalPresence>();
+        services.AddSingleton<ILocalPresence>(sp => sp.GetRequiredService<LocalPresence>());
+        services.AddSingleton<ProbeHints>();
+        services.AddSingleton<BridgeRegistry>();
+        services.AddSingleton<BridgeClient>();
+        services.AddHostedService(sp => sp.GetRequiredService<BridgeClient>());
+        services.AddSingleton<PexService>();
+        services.AddHostedService(sp => sp.GetRequiredService<PexService>());
+
         return services;
     }
 
-    /// <summary>Registers UDP discovery: multicast in the subnet, unicast probes beyond it.</summary>
+    /// <summary>Registers UDP discovery: multicast in the subnet, unicast probes beyond it, Subnet Probe.</summary>
     public static IServiceCollection AddMulticastDiscovery(this IServiceCollection services)
     {
-        services.AddSingleton<LocalPresence>();
-        services.AddSingleton<ILocalPresence>(sp => sp.GetRequiredService<LocalPresence>());
         services.AddSingleton<IProbeTargetSource, ProbeTargets>();
         services.AddSingleton<ManualPeerFinder>();
         services.AddHostedService<MulticastDiscovery>();
+        services.AddHostedService<SubnetScanner>();
 
         return services;
     }

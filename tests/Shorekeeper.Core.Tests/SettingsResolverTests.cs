@@ -93,6 +93,40 @@ public class SettingsResolverTests
         Assert.Equal(EffectiveSettings.DefaultApiPort, settings.ApiPort);
     }
 
+    [Fact]
+    public void Bridge_follows_the_user_unless_policy_decides()
+    {
+        var user = new ShorekeeperSettings { EnableBridge = true };
+
+        Assert.True(Resolve(user).BridgeEnabled);
+        Assert.False(Resolve(user, new FakePolicy { [PolicyNames.AllowBridge] = 0 }).BridgeEnabled);
+        Assert.True(Resolve(new ShorekeeperSettings(), new FakePolicy { [PolicyNames.EnableBridge] = 1 }).BridgeEnabled);
+        // EnableBridge wins over AllowBridge: IT picked this machine as the bridge.
+        EffectiveSettings forced = Resolve(new ShorekeeperSettings(), new FakePolicy { [PolicyNames.EnableBridge] = 1, [PolicyNames.AllowBridge] = 0 });
+        Assert.True(forced.BridgeEnabled);
+        Assert.True(forced.IsLocked(nameof(ShorekeeperSettings.EnableBridge)));
+    }
+
+    [Fact]
+    public void Address_lists_from_policy_replace_the_user_lists()
+    {
+        var user = new ShorekeeperSettings { BridgeAddresses = ["PC-A"], ProbeSubnets = ["10.1.5.0/24"] };
+
+        Assert.Equal(["PC-A"], Resolve(user).BridgeAddresses);
+        Assert.Equal(["10.1.5.0/24"], Resolve(user).ProbeSubnets);
+
+        string[] policyBridges = ["PC-BUILD-01"], policySubnets = ["10.2.0.0/23"];
+        EffectiveSettings settings = Resolve(user, new FakePolicy
+        {
+            [PolicyNames.BridgeAddresses] = policyBridges,
+            [PolicyNames.ProbeSubnets] = policySubnets,
+        });
+        Assert.Equal(["PC-BUILD-01"], settings.BridgeAddresses);
+        Assert.Equal(["10.2.0.0/23"], settings.ProbeSubnets);
+        Assert.True(settings.IsLocked(nameof(ShorekeeperSettings.BridgeAddresses)));
+        Assert.True(settings.IsLocked(nameof(ShorekeeperSettings.ProbeSubnets)));
+    }
+
     private static EffectiveSettings Resolve(ShorekeeperSettings user, IPolicyProvider? policy = null) =>
         SettingsResolver.Resolve(user, policy ?? NullPolicyProvider.Instance, DefaultName, DefaultDownloads);
 

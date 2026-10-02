@@ -48,6 +48,28 @@ public static class LocalInterfaces
 
     public static IReadOnlyList<LocalInterface> GetUsable() => [.. GetAll().Where(i => i.IsUsable)];
 
+    /// <summary>True when <paramref name="address"/> is in the subnet of one of <paramref name="interfaces"/>, i.e. multicast reaches it.</summary>
+    public static bool IsOnLink(IPAddress address, IReadOnlyList<LocalInterface> interfaces)
+    {
+        uint target = ToUInt32(address);
+        foreach (LocalInterface nic in interfaces)
+        {
+            uint mask = nic.PrefixLength == 0 ? 0 : uint.MaxValue << (32 - nic.PrefixLength);
+            if ((ToUInt32(nic.Address) & mask) == (target & mask))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static uint ToUInt32(IPAddress address)
+    {
+        byte[] bytes = address.MapToIPv4().GetAddressBytes();
+        return ((uint)bytes[0] << 24) | ((uint)bytes[1] << 16) | ((uint)bytes[2] << 8) | bytes[3];
+    }
+
     internal static string? GetExclusionReason(string name, string description, NetworkInterfaceType type, bool supportsMulticast)
     {
         if (type == NetworkInterfaceType.Tunnel)

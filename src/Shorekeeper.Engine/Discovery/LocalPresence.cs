@@ -19,12 +19,14 @@ public sealed class LocalPresence : ILocalPresence
 {
     private readonly LocalDevice device;
     private readonly ApiServer api;
+    private readonly SettingsService settings;
     private MyStatus status = MyStatus.Online;
 
     public LocalPresence(LocalDevice device, ApiServer api, SettingsService settings)
     {
         this.device = device;
         this.api = api;
+        this.settings = settings;
         // A new display name is announced right away instead of with the next heartbeat.
         settings.Changed += (_, _) => Changed?.Invoke(this, EventArgs.Empty);
     }
@@ -55,5 +57,6 @@ public sealed class LocalPresence : ILocalPresence
         // The port actually bound, which differs from the setting when a second Windows session runs Shorekeeper.
         Port = api.Port,
         Status = status == MyStatus.Busy ? PresenceStatus.Busy : PresenceStatus.Available,
+        Capabilities = settings.Current.BridgeEnabled ? [PresenceCapabilities.Bridge] : [],
     };
 }

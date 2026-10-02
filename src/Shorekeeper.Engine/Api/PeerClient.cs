@@ -46,12 +46,30 @@ public sealed class PeerClient(
     /// <summary>Sends a request to a peer, trying its current address first, then addresses that worked before.</summary>
     /// <param name="timeout">Per attempt, until the response headers arrive; long-polls pass more than the server's wait.</param>
     /// <param name="completion">Use <see cref="HttpCompletionOption.ResponseHeadersRead"/> to stream large bodies.</param>
-    public async Task<HttpResponseMessage> SendAsync(
+    public Task<HttpResponseMessage> SendAsync(
         DeviceId peer,
         Func<Uri, HttpRequestMessage> createRequest,
         TimeSpan timeout,
         CancellationToken cancellationToken,
-        HttpCompletionOption completion = HttpCompletionOption.ResponseContentRead)
+        HttpCompletionOption completion = HttpCompletionOption.ResponseContentRead) =>
+        SendAsync(peer, GetEndpointsAsync(peer, cancellationToken), createRequest, timeout, completion, cancellationToken);
+
+    /// <summary>Sends a request to <paramref name="peer"/> at <paramref name="endpoint"/> only, e.g. a Bridge given by address.</summary>
+    public Task<HttpResponseMessage> SendAsync(
+        DeviceId peer,
+        IPEndPoint endpoint,
+        Func<Uri, HttpRequestMessage> createRequest,
+        TimeSpan timeout,
+        CancellationToken cancellationToken) =>
+        SendAsync(peer, new[] { endpoint }.ToAsyncEnumerable(), createRequest, timeout, HttpCompletionOption.ResponseContentRead, cancellationToken);
+
+    private async Task<HttpResponseMessage> SendAsync(
+        DeviceId peer,
+        IAsyncEnumerable<IPEndPoint> endpoints,
+        Func<Uri, HttpRequestMessage> createRequest,
+        TimeSpan timeout,
+        HttpCompletionOption completion,
+        CancellationToken cancellationToken)
     {
         // No overall timeout: file bodies stream for as long as they need; each attempt has its own timeout.
         HttpClient client = clients.GetOrAdd(peer, id =>
@@ -59,7 +77,7 @@ public sealed class PeerClient(
 
         Exception? lastError = null;
         bool any = false;
-        await foreach (IPEndPoint endpoint in GetEndpointsAsync(peer, cancellationToken))
+        await foreach (IPEndPoint endpoint in endpoints)
         {
             any = true;
             using var attempt = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);

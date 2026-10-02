@@ -73,7 +73,7 @@
 ## 4. Nguồn 2 — Known Endpoints (ghi nhớ)
 
 - Mọi kết nối mTLS thành công tới một peer thì lưu `(DeviceId, địa chỉ, cổng, lastSuccess)` vào bảng `PeerEndpoints`.
-- Mỗi 5 giây gửi `probe` UDP unicast tới địa chỉ đã biết của **liên hệ tin cậy** và tới các **máy nhập tay** (tối đa 200 địa chỉ). `probe` mang đầy đủ presence nên bên nhận cũng thấy mình, và bên nhận trả `reply` về đúng địa chỉ nguồn. Chu kỳ ngắn giữ peer khác subnet ở trạng thái Online, không bị chuyển Stale.
+- Mỗi 5 giây gửi `probe` UDP unicast tới địa chỉ đã biết của **liên hệ tin cậy**, tới các **máy nhập tay**, tới **mọi peer khác subnet đang nghe trực tiếp** (để hai bên giữ nhau Online, vì multicast không ra khỏi subnet) và tới gợi ý từ PEX (tối đa 500 địa chỉ). `probe` mang đầy đủ presence nên bên nhận cũng thấy mình, và bên nhận trả `reply` về đúng địa chỉ nguồn. Chu kỳ ngắn giữ peer khác subnet ở trạng thái Online, không bị chuyển Stale.
 - Nếu probe UDP bị chặn: thử `GET /api/v1/hello` qua TCP (timeout 2 giây).
 - Địa chỉ không thành công quá 14 ngày thì bị xóa.
 
@@ -86,6 +86,8 @@
 - Peer học được qua PEX chỉ chuyển Online sau khi **xác minh trực tiếp** (probe UDP hoặc handshake TLS).
 - Chỉ chia sẻ peer mình thấy trực tiếp, không lan bắc cầu nhiều bước. Tối đa 500 mục mỗi lần.
 - PEX trả lời **chỉ cho Trusted** (`403` với peer khác), tránh lộ danh bạ cho máy lạ.
+
+> **Hiện trạng M4a:** mỗi 10 giây chọn tối đa 3 liên hệ đang online chưa hỏi trong 5 phút. Mỗi mục trả về có `deviceId`, `name`, `address`, `discoveryPort` (cổng UDP nghe thấy peer đó). Bên hỏi probe địa chỉ đó trong 1 phút; peer trả lời thì hiện trong "Xóm" và từ đó được giữ bằng probe định kỳ (§4). Vì PEX chỉ đi theo cạnh tin cậy, sau một lần Kết nối giữa A (subnet 1) và D (subnet 2): A thấy cả subnet 2, D thấy cả subnet 1, và những ai đã kết nối với A hoặc D cũng thấy theo. Muốn **mọi người** thấy nhau thì dùng Bridge.
 
 ## 6. Nguồn 4 — Group Host
 
@@ -101,13 +103,19 @@ Bất kỳ client nào cũng bật được vai trò Bridge (Cài đặt → "L�
 sequenceDiagram
     participant P as Client
     participant B as Client có bật Bridge
-    P->>B: POST /api/v1/bridge/register {presence, addrs}
+    P->>B: POST /api/v1/bridge/register {name, host, os, app, status, port}
     B-->>P: 200 {leaseSeconds: 60, observedAddr}
-    loop mỗi 20 giây
-        P->>B: POST /api/v1/bridge/register (renew)
+    P->>B: GET /api/v1/bridge/peers?since=0 → toàn bộ registry + version
+    loop
+        P->>B: GET /api/v1/bridge/peers?since=version&wait=20 (long-poll, có thay đổi thì trả ngay)
+        P->>B: POST /api/v1/bridge/register (renew mỗi 20 giây)
     end
-    P->>B: GET /api/v1/bridge/peers/stream (SSE: snapshot / upsert / remove)
 ```
+
+- DeviceId của bản đăng ký lấy từ **chứng chỉ TLS** của người gọi, nên không ai đăng ký thay người khác được. `observedAddr` là địa chỉ Bridge thấy người gọi; máy khác sẽ dùng địa chỉ này.
+- Long-poll thay cho SSE (giống long-poll kết nối và checksum): một kiểu request duy nhất, dễ đi qua proxy/antivirus, không cần giữ trạng thái stream. Thay đổi gộp lô 1 giây. Người đọc tụt quá 5 phút (hoặc Bridge vừa khởi động lại) thì nhận lại toàn bộ (`full: true`).
+- Peer học qua Bridge hiện ngay (Bridge đã xác minh chứng chỉ) với nhãn "qua cầu nối"; ngưỡng Stale/xóa là 60/90 giây. Gói presence của chính peer đó (multicast/probe) luôn được ưu tiên hơn.
+- Đóng app hoặc chuyển Ẩn thì client gọi `DELETE /bridge/register`, máy khác thấy biến mất ngay thay vì chờ hết lease.
 
 Cách client biết Bridge:
 
@@ -122,7 +130,7 @@ Cách client biết Bridge:
 
 ## 8. Nguồn 6 — Subnet Probe
 
-- IT cấu hình CIDR (vd `10.1.5.0/24`). Gửi `probe` UDP tới từng IP, ≤ 100 gói/giây, mỗi dải tối đa /22.
+- IT cấu hình CIDR (vd `10.1.5.0/24`) qua GPO `ProbeSubnets`, hoặc người dùng nhập trong Cài đặt. Gửi `probe` UDP tới từng IP, ≤ 100 gói/giây, mỗi dải tối đa /22. Bỏ địa chỉ network/broadcast; bit host thừa được bỏ qua (`10.1.5.7/24` = `10.1.5.0/24`).
 - Chạy lúc khởi động và mỗi 10 phút. Tắt mặc định (để tránh bị IDS cảnh báo).
 
 ## 9. Nguồn 7 — Manual
@@ -145,6 +153,8 @@ Cách client biết Bridge:
 - Mỗi peer có danh sách **địa chỉ ứng viên** (`source`, `lastSeen`, `lastSuccess`).
 - Sự kiện: `PeerDiscovered`, `PeerOnline`, `PeerUpdated`, `PeerStale`, `PeerOffline`.
 
+> **Hiện trạng M4a:** mỗi peer có `Source` = **Direct** (nghe gói của chính nó: multicast, probe, reply) hoặc **Bridge** (chỉ biết qua registry). Direct: Online → Stale 16 giây → xóa 30 giây; Bridge: 60 / 90 giây. Peer Direct còn tươi thì thông tin từ Bridge không ghi đè. Peer Direct nhớ cổng UDP nguồn để probe ngược lại.
+>
 > **Hiện trạng M1:** chưa có xác minh TLS, liên hệ hay nhóm, nên chỉ có hai trạng thái **Online → Stale (16 giây) → xóa (30 giây)**. Mỗi peer giữ một địa chỉ (nguồn của gói gần nhất). Sự kiện gộp thành `PeerDirectory.Changed` với `Added` / `Updated` / `Removed`, và heartbeat không đổi gì thì không phát sự kiện.
 
 ## 11. Connector

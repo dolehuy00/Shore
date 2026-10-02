@@ -9,17 +9,27 @@ namespace Shorekeeper.Engine.Discovery;
 /// <summary>Addresses to probe by unicast, so peers outside the multicast reach stay visible.</summary>
 public interface IProbeTargetSource
 {
+    /// <summary>Probed every few seconds.</summary>
     Task<IReadOnlyList<IPEndPoint>> GetTargetsAsync(CancellationToken cancellationToken);
+
+    /// <summary>Probed once each, at most <paramref name="max"/> per second (Subnet Probe).</summary>
+    IReadOnlyList<IPEndPoint> TakeScanBatch(int max);
 }
 
 /// <summary>
-/// Contacts' last known addresses plus machines the user added by host name or IP
-/// (docs/03-discovery-presence.md §4, §7). All peers use the same UDP discovery port.
+/// Unicast probe targets (docs/03-discovery-presence.md §4, §5, §8, §9): contacts' last known addresses,
+/// machines the user added by host name or IP, peers outside our subnets that we already hear
+/// (so both sides keep seeing each other), and hints from PEX.
 /// </summary>
-public sealed class ProbeTargets(TrustStore trust, SettingsService settings, TimeProvider timeProvider, ILogger<ProbeTargets> logger)
-    : IProbeTargetSource
+public sealed class ProbeTargets(
+    TrustStore trust,
+    PeerDirectory directory,
+    ProbeHints hints,
+    SettingsService settings,
+    TimeProvider timeProvider,
+    ILogger<ProbeTargets> logger) : IProbeTargetSource
 {
-    private const int MaxTargets = 200;
+    private const int MaxTargets = 500;
     private static readonly TimeSpan ResolveEvery = TimeSpan.FromMinutes(1);
 
     private readonly Dictionary<string, (IPAddress[] Addresses, DateTimeOffset ResolvedAt)> resolved = new(StringComparer.OrdinalIgnoreCase);
@@ -33,8 +43,18 @@ public sealed class ProbeTargets(TrustStore trust, SettingsService settings, Tim
         }
 
         int port = settings.Current.DiscoveryPort;
-        return [.. addresses.Distinct().Take(MaxTargets).Select(a => new IPEndPoint(a, port))];
+        IEnumerable<IPEndPoint> targets = addresses.Select(a => new IPEndPoint(a, port));
+
+        // Multicast does not leave the subnet: answer peers beyond it ourselves, or they drop us after 30 seconds.
+        IReadOnlyList<LocalInterface> interfaces = LocalInterfaces.GetUsable();
+        targets = targets.Concat(directory.Snapshot()
+            .Where(p => p is { Source: PeerSource.Direct, DiscoveryPort: > 0 } && !LocalInterfaces.IsOnLink(p.Address, interfaces))
+            .Select(p => new IPEndPoint(p.Address, p.DiscoveryPort)));
+
+        return [.. targets.Concat(hints.GetActive()).Distinct().Take(MaxTargets)];
     }
+
+    public IReadOnlyList<IPEndPoint> TakeScanBatch(int max) => hints.Dequeue(max);
 
     private async Task<IPAddress[]> ResolveAsync(string host, CancellationToken cancellationToken)
     {

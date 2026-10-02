@@ -43,6 +43,30 @@ public static class ReceiptStatus
     public const string Declined = "declined";
 }
 
+/// <summary>Response of <c>GET /api/v1/peers/known</c> (PEX): peers the answering device hears itself, and Bridges it knows.</summary>
+public sealed record KnownPeersResponse(IReadOnlyList<KnownPeer> Peers, IReadOnlyList<KnownBridge> Bridges);
+
+/// <param name="DiscoveryPort">UDP port to probe the peer on.</param>
+public sealed record KnownPeer(string DeviceId, string Name, string Address, int DiscoveryPort);
+
+/// <param name="Port">HTTPS API port of the Bridge.</param>
+public sealed record KnownBridge(string DeviceId, string Address, int Port);
+
+/// <summary>Body of <c>POST /api/v1/bridge/register</c>: the caller's public presence. The DeviceId comes from its TLS certificate.</summary>
+public sealed record BridgeRegistration(string Name, string Host, string Os, string App, string Status, int Port);
+
+/// <param name="ObservedAddr">Address the Bridge sees the caller at; this is what other peers will use.</param>
+public sealed record BridgeRegistered(int LeaseSeconds, string ObservedAddr);
+
+/// <summary>
+/// Response of <c>GET /api/v1/bridge/peers?since=</c>. <paramref name="Full"/>: <paramref name="Peers"/> is the whole
+/// registry; otherwise only what changed after <c>since</c>, plus DeviceIds that left.
+/// </summary>
+public sealed record BridgePeersResponse(long Version, bool Full, IReadOnlyList<BridgePeer> Peers, IReadOnlyList<string> Removed);
+
+/// <param name="Port">HTTPS API port.</param>
+public sealed record BridgePeer(string DeviceId, string Name, string Host, string Os, string App, string Status, string Address, int Port);
+
 /// <summary>Stable error codes in problem+json responses (docs/05-protocol.md §3).</summary>
 public static class ApiErrorCodes
 {

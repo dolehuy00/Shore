@@ -69,6 +69,7 @@ public static class PresenceCodec
             App = decoded.App ?? "",
             Addresses = decoded.Addresses ?? [],
             Status = decoded.Status ?? PresenceStatus.Available,
+            Capabilities = decoded.Capabilities ?? [],
         };
         return true;
     }

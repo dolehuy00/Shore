@@ -34,7 +34,7 @@ Không bắt buộc. Nên bật khi có nhiều subnet và muốn mọi người
 
 - Registry presence **trong RAM**: DeviceId, tên, `addrs`, `observedAddr`, status, nhóm Host. Lease 60 giây, client renew mỗi 20 giây.
 - Chỉ chứa thông tin **vốn đã công khai** qua presence. Bridge **không cấp quyền gì**: máy lạ thấy nhau qua Bridge vẫn phải Kết nối mới gửi file được.
-- Đẩy thay đổi qua SSE, gộp lô mỗi 1 giây.
+- Client long-poll thay đổi (`GET /bridge/peers?since=`), gộp lô mỗi 1 giây.
 - Client biết Bridge qua multicast (`caps: ["bridge"]`), PEX (`bridges`), GPO `BridgeAddresses`, hoặc DNS SRV.
 - Có thể có nhiều Bridge. Client đăng ký tối đa 3. Bridge tắt thì client vẫn còn Known Endpoints + PEX.
 
@@ -42,5 +42,5 @@ Không bắt buộc. Nên bật khi có nhiều subnet và muốn mọi người
 
 - Máy hay bật, dây LAN, mạng Domain/Private.
 - Tùy chọn "**Làm cầu nối cho mạng**" (bị khóa nếu GPO `AllowBridge = 0`).
-- Tải: 300 client ≈ 15 request/giây + 300 kết nối SSE nhàn rỗi.
+- Tải: 300 client ≈ 15 request/giây (renew) + 300 long-poll đang chờ.
 - Client ở trạng thái **Ẩn** không đăng ký Bridge.

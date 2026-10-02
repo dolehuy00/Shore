@@ -337,6 +337,40 @@
             </StackPanel>
           </Border>
 
+          <TextBlock Classes="h2" Text="Máy ở mạng khác" />
+          <Border Padding="18,16" CornerRadius="8" BorderThickness="1" BorderBrush="#33808080">
+            <StackPanel Spacing="12">
+              <TextBlock TextWrapping="Wrap" Opacity="0.7"
+                         Text="Máy cùng mạng tự thấy nhau. Máy ở subnet/VLAN khác thấy nhau khi bạn đã kết nối với một máy bên đó, khi có máy làm cầu nối, hoặc khi dò dải IP." />
+
+              <StackPanel Spacing="4">
+                <CheckBox IsChecked="{Binding Settings.EnableBridge}" IsEnabled="{Binding !Settings.IsBridgeLocked}">
+                  <TextBlock TextWrapping="Wrap" Text="Làm cầu nối cho mạng: máy ở mọi subnet đăng ký qua máy này để thấy nhau (nên bật trên máy hay mở)" />
+                </CheckBox>
+                <TextBlock Text="Do quản trị viên đặt" IsVisible="{Binding Settings.IsBridgeLocked}" FontSize="12" Opacity="0.6" />
+              </StackPanel>
+
+              <StackPanel Spacing="4">
+                <TextBlock Text="Cầu nối đã biết: tên máy hoặc IP, mỗi dòng một máy" Opacity="0.7" />
+                <TextBox Text="{Binding Settings.BridgeAddresses}" AcceptsReturn="True" MinHeight="56" PlaceholderText="PC-BUILD-01"
+                         IsReadOnly="{Binding Settings.IsBridgeAddressesLocked}" FontFamily="Consolas,monospace" />
+                <TextBlock Text="Do quản trị viên đặt" IsVisible="{Binding Settings.IsBridgeAddressesLocked}" FontSize="12" Opacity="0.6" />
+              </StackPanel>
+
+              <StackPanel Spacing="4">
+                <TextBlock Text="Dò dải IP: mỗi dòng một dải, tối đa /22 (1.024 địa chỉ), quét 10 phút một lần" Opacity="0.7" />
+                <TextBox Text="{Binding Settings.ProbeSubnets}" AcceptsReturn="True" MinHeight="56" PlaceholderText="10.1.5.0/24"
+                         IsReadOnly="{Binding Settings.IsProbeSubnetsLocked}" FontFamily="Consolas,monospace" />
+                <TextBlock Text="Do quản trị viên đặt" IsVisible="{Binding Settings.IsProbeSubnetsLocked}" FontSize="12" Opacity="0.6" />
+              </StackPanel>
+
+              <StackPanel Orientation="Horizontal" Spacing="12">
+                <Button Content="Lưu" Command="{Binding Settings.SaveNetworkCommand}" Classes="accent" />
+                <TextBlock Text="{Binding Settings.NetworkStatusText}" VerticalAlignment="Center" TextWrapping="Wrap" Opacity="0.8" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
           <Grid ColumnDefinitions="*,Auto">
             <TextBlock Classes="h2" Text="Mạng" />
             <Button Grid.Column="1" Content="Kiểm tra lại" Command="{Binding Diagnostics.RefreshCommand}" IsEnabled="{Binding !Diagnostics.IsRefreshing}" />

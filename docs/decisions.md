@@ -115,3 +115,18 @@ Mỗi mục: **Bối cảnh → Quyết định → Hệ quả**. Trạng thái:
 **Quyết định:** Giữ khóa thiết bị cho mTLS. Nếu có AD CS, thêm bước attestation: ký `{deviceId, nonce}` bằng cert người dùng do AD CS cấp và xác minh chain tới Root CA công ty. Chi tiết ở [13](13-active-directory.md).
 
 **Hệ quả:** ✅ Bỏ được bước so mã; chặn được máy ngoài domain. ❌ Cần IT cấu hình AD CS template + auto-enrollment.
+
+---
+
+## ADR-010 — Bridge dùng long-poll thay cho SSE
+
+**Trạng thái:** Chấp nhận (M4a)
+
+**Bối cảnh:** Thiết kế ban đầu đẩy thay đổi registry của Bridge qua SSE. App đã có long-poll ở hai chỗ (quyết định kết nối, checksum) và mọi request đi qua cùng một `PeerClient` (mTLS, thử nhiều địa chỉ, timeout từng lần).
+
+**Quyết định:** `GET /bridge/peers?since=<version>&wait=<giây>`: có thay đổi sau `since` thì trả ngay (gộp lô 1 giây), không thì chờ tối đa 25 giây. Phiên bản bắt đầu từ thời điểm Bridge khởi động, nên client giữ version cũ sau khi Bridge khởi động lại sẽ nhận lại toàn bộ. Bản ghi xóa được nhớ 5 phút; tụt xa hơn cũng nhận toàn bộ.
+
+**Hệ quả:**
+- ✅ Một kiểu request, không cần parser SSE hay giữ stream; đứt kết nối thì request sau tự đồng bộ lại.
+- ✅ Client dùng chính vòng long-poll để làm mới các peer học từ Bridge, nên không cần heartbeat riêng.
+- ❌ Mỗi client mở lại request khoảng 25 giây một lần (300 client ≈ 12 request/giây), không đáng kể.

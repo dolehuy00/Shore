@@ -44,9 +44,10 @@
 | `port` | Cổng HTTPS API | M1 (API có từ M2) |
 | `addrs` | Các IPv4 của máy | M1 |
 | `status` | `available` \| `busy` | M1 |
-| `proto`, `caps` | Phiên bản API hỗ trợ, khả năng | M2 |
+| `caps` | Khả năng: `bridge` khi máy đang làm cầu nối | M4 |
+| `proto` | Phiên bản API hỗ trợ | (dự kiến) |
 | `groups` | Nhóm mà máy này Host (tối đa 5) | M5 |
-| `bridges` | Bridge mà peer đang biết | M4 |
+| `bridges` | Bridge mà peer đang biết | (bỏ: PEX đã mang danh sách Bridge, gói UDP giữ gọn) |
 
 - Mọi gói (kể cả `heartbeat`) mang **đầy đủ** presence. Gói ~300 byte, nên không cần bản rút gọn.
 - Trường thiếu thì dùng giá trị mặc định; trường lạ thì bỏ qua. Nhờ vậy thêm trường ở milestone sau không làm hỏng peer cũ.
@@ -89,7 +90,7 @@
 | GET | `/pairing/{id}/decision` | Any (chỉ người xin) | Long-poll tối đa 25 giây → `{ status: pending \| accepted \| declined \| expired \| cancelled }` |
 | DELETE | `/pairing/{id}` | Any (chỉ người xin) | Người xin hủy |
 | POST | `/pairing/revoke` | Trusted | Ngắt kết nối: bên nhận quên người gọi |
-| GET | `/peers/known` | Trusted | PEX |
+| GET | `/peers/known` | Trusted | PEX → `{ peers: [{ deviceId, name, address, discoveryPort }], bridges: [{ deviceId, address, port }] }`. Chỉ peer mình nghe trực tiếp, không gồm người gọi |
 
 ### 4.2 Gửi file — endpoint trên **máy người nhận** (Hộp nhận)
 
@@ -145,11 +146,11 @@
 
 | Method | Path | Quyền | Mô tả |
 |---|---|---|---|
-| POST | `/bridge/register` | Any | Đăng ký/gia hạn → `{ leaseSeconds, observedAddr }` |
+| POST | `/bridge/register` | Any | `{ name, host, os, app, status, port }` → `{ leaseSeconds: 60, observedAddr }`. DeviceId lấy từ chứng chỉ TLS. Renew mỗi 20 giây |
 | DELETE | `/bridge/register` | Any | Hủy đăng ký |
-| GET | `/bridge/peers/stream` | Any | SSE: `snapshot`, `upsert`, `remove` (chỉ presence công khai) |
+| GET | `/bridge/peers?since=&wait=` | Any | Long-poll tối đa 25 giây → `{ version, full, peers: [{ deviceId, name, host, os, app, status, address, port }], removed: [deviceId] }`. `since=0` hoặc quá cũ → `full: true` |
 
-Bridge chỉ trả thông tin **vốn đã công khai** qua presence (tên, địa chỉ, nhóm), nên `Any` là đủ.
+Bridge chỉ trả thông tin **vốn đã công khai** qua presence (tên, địa chỉ, nhóm), nên `Any` là đủ. Máy không bật Bridge trả `404 not_found`; đầy (2.000 máy) trả `503 busy`.
 
 ## 5. Timeout & giới hạn
 

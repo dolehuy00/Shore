@@ -58,6 +58,33 @@ public static class SettingsResolver
             locked.Add(nameof(ShorekeeperSettings.ApiPort));
         }
 
+        // EnableBridge pins the role either way; otherwise AllowBridge = 0 forbids it.
+        bool bridgeEnabled = user.EnableBridge;
+        if (policy.GetBoolean(PolicyNames.EnableBridge) is { } forcedBridge)
+        {
+            bridgeEnabled = forcedBridge;
+            locked.Add(nameof(ShorekeeperSettings.EnableBridge));
+        }
+        else if (policy.GetBoolean(PolicyNames.AllowBridge) == false)
+        {
+            bridgeEnabled = false;
+            locked.Add(nameof(ShorekeeperSettings.EnableBridge));
+        }
+
+        IReadOnlyList<string> bridgeAddresses = user.BridgeAddresses ?? [];
+        if (policy.GetStringList(PolicyNames.BridgeAddresses) is { } policyBridges)
+        {
+            bridgeAddresses = policyBridges;
+            locked.Add(nameof(ShorekeeperSettings.BridgeAddresses));
+        }
+
+        IReadOnlyList<string> probeSubnets = user.ProbeSubnets ?? [];
+        if (policy.GetStringList(PolicyNames.ProbeSubnets) is { } policySubnets)
+        {
+            probeSubnets = policySubnets;
+            locked.Add(nameof(ShorekeeperSettings.ProbeSubnets));
+        }
+
         return new EffectiveSettings
         {
             DisplayName = NonEmpty(user.DisplayName)?.Trim() ?? defaultDisplayName,
@@ -68,6 +95,9 @@ public static class SettingsResolver
             AlwaysSnapshotBeforeSend = user.AlwaysSnapshotBeforeSend,
             DiscoveryPort = discoveryPort,
             ApiPort = apiPort,
+            BridgeEnabled = bridgeEnabled,
+            BridgeAddresses = bridgeAddresses,
+            ProbeSubnets = probeSubnets,
             LockedSettings = locked,
         };
     }

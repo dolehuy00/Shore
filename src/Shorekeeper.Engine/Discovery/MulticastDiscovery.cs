@@ -21,6 +21,9 @@ public sealed class MulticastDiscovery : BackgroundService
     public static readonly TimeSpan HeartbeatInterval = TimeSpan.FromSeconds(5);
     public static readonly TimeSpan ProbeInterval = TimeSpan.FromSeconds(5);
 
+    /// <summary>Subnet Probe rate (docs/03-discovery-presence.md §8), so scans do not look like an attack to an IDS.</summary>
+    public const int MaxScanProbesPerSecond = 100;
+
     private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1);
     private static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(10);
     private const int SioUdpConnReset = unchecked((int)0x9800000C);
@@ -32,6 +35,7 @@ public sealed class MulticastDiscovery : BackgroundService
     private readonly IPAddress bindAddress;
     private readonly Func<IReadOnlyList<LocalInterface>> getInterfaces;
     private readonly IProbeTargetSource probeTargets;
+    private readonly TaskCompletionSource listening = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     private int port;
     private volatile bool networkChanged;
@@ -65,6 +69,12 @@ public sealed class MulticastDiscovery : BackgroundService
         this.getInterfaces = getInterfaces;
         this.probeTargets = probeTargets;
     }
+
+    /// <summary>
+    /// Completes once the socket is bound. ExecuteAsync runs in the background (.NET 10), so tests wait for this
+    /// before starting the next peer; otherwise its announce may come before we listen.
+    /// </summary>
+    internal Task Listening => listening.Task;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -104,6 +114,7 @@ public sealed class MulticastDiscovery : BackgroundService
     {
         IReadOnlyList<LocalInterface> interfaces = getInterfaces();
         using Socket socket = OpenSocket(interfaces);
+        listening.TrySetResult();
         string[] addresses = [.. interfaces.Select(i => i.Address.ToString())];
         logger.LogInformation("Discovery listening on port {Port}, interfaces: {Interfaces}", port, string.Join(", ", addresses));
         if (interfaces.Count == 0)
@@ -140,8 +151,13 @@ public sealed class MulticastDiscovery : BackgroundService
 
                 if (!hidden && DateTimeOffset.UtcNow >= nextProbe)
                 {
-                    await SendProbesAsync(socket, addresses, stoppingToken);
+                    await SendProbesAsync(socket, addresses, await probeTargets.GetTargetsAsync(stoppingToken), stoppingToken);
                     nextProbe = DateTimeOffset.UtcNow + ProbeInterval;
+                }
+
+                if (!hidden)
+                {
+                    await SendProbesAsync(socket, addresses, probeTargets.TakeScanBatch(MaxScanProbesPerSecond), stoppingToken);
                 }
             }
             while (!networkChanged && await timer.WaitForNextTickAsync(stoppingToken));
@@ -234,7 +250,7 @@ public sealed class MulticastDiscovery : BackgroundService
                 continue;
             }
 
-            directory.Observe(packet, source.Address);
+            directory.Observe(packet, source.Address, source.Port);
             if (packet.Type is PresencePacketTypes.Announce or PresencePacketTypes.Probe)
             {
                 _ = ReplyAsync(socket, source, addresses, cancellationToken);
@@ -266,9 +282,8 @@ public sealed class MulticastDiscovery : BackgroundService
         }
     }
 
-    private async Task SendProbesAsync(Socket socket, string[] addresses, CancellationToken cancellationToken)
+    private async Task SendProbesAsync(Socket socket, string[] addresses, IReadOnlyList<IPEndPoint> targets, CancellationToken cancellationToken)
     {
-        IReadOnlyList<IPEndPoint> targets = await probeTargets.GetTargetsAsync(cancellationToken);
         if (targets.Count == 0)
         {
             return;

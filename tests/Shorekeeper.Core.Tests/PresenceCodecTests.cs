@@ -21,6 +21,7 @@ public class PresenceCodecTests
             Port = 47471,
             Addresses = ["10.1.1.23", "192.168.1.5"],
             Status = PresenceStatus.Busy,
+            Capabilities = [PresenceCapabilities.Bridge],
         };
 
         byte[] data = PresenceCodec.Encode(packet);
@@ -29,7 +30,8 @@ public class PresenceCodecTests
         Assert.True(PresenceCodec.TryDecode(data, out PresencePacket? decoded));
         Assert.Equal(packet.Name, decoded.Name);
         Assert.Equal(packet.Addresses, decoded.Addresses);
-        Assert.Equal(packet with { Addresses = decoded.Addresses }, decoded);
+        Assert.Equal(packet.Capabilities, decoded.Capabilities);
+        Assert.Equal(packet with { Addresses = decoded.Addresses, Capabilities = decoded.Capabilities }, decoded);
     }
 
     [Fact]
@@ -50,6 +52,7 @@ public class PresenceCodecTests
         Assert.Equal("", decoded.Name);
         Assert.Equal("", decoded.Host);
         Assert.Empty(decoded.Addresses);
+        Assert.Empty(decoded.Capabilities);
         Assert.Equal(PresenceStatus.Available, decoded.Status);
     }
 

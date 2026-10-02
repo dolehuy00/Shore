@@ -45,11 +45,13 @@ internal sealed class TestNode : IAsyncDisposable
     /// <summary>Scratch folder for files a test sends.</summary>
     public string WorkDirectory => System.IO.Directory.CreateDirectory(Path.Combine(folder.Root, "work")).FullName;
 
-    public static async Task<TestNode> StartAsync(string name)
+    /// <param name="settings">Extra settings.json properties, e.g. <c>"enableBridge": true</c>.</param>
+    public static async Task<TestNode> StartAsync(string name, string? settings = null)
     {
         var folder = new TempAppFolder();
         // A private port per node so tests never collide with a running Shorekeeper.
-        File.WriteAllText(folder.Paths.SettingsFile, $$"""{ "displayName": "{{name}}", "apiPort": {{FreePort.Tcp()}} }""");
+        string extra = settings is null ? "" : ", " + settings;
+        File.WriteAllText(folder.Paths.SettingsFile, $$"""{ "displayName": "{{name}}", "apiPort": {{FreePort.Tcp()}}{{extra}} }""");
 
         HostApplicationBuilder builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings { DisableDefaults = true });
         builder.Services.AddLogging();

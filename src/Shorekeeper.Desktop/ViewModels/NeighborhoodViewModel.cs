@@ -229,7 +229,9 @@ public sealed partial class PeerCardViewModel(DeviceId deviceId, NeighborhoodVie
         IsOnline = live is not null;
         IsBusy = live?.IsBusy == true;
         IsInactive = live is null || live.State == PeerState.Stale;
-        Subtitle = live is null ? HostName : $"{HostName} · {live.Address}";
+        Subtitle = live is null ? HostName
+            : live.Source == PeerSource.Bridge ? $"{HostName} · {live.Address} · qua cầu nối"
+            : $"{HostName} · {live.Address}";
         StatusText = live is null ? "Offline"
             : live.State == PeerState.Stale ? "Mất tín hiệu…"
             : IsBusy ? "Bận"

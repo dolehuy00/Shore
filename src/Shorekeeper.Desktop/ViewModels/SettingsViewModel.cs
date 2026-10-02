@@ -2,13 +2,14 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Shorekeeper.Core.Settings;
 using Shorekeeper.Desktop.Views;
+using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Settings;
 
 namespace Shorekeeper.Desktop.ViewModels;
 
 public sealed record SettingChoice(int Value, string Label);
 
-/// <summary>"Cài đặt → Gửi & nhận" (docs/10-ux.md §9). Settings locked by IT policy are read-only.</summary>
+/// <summary>"Cài đặt → Gửi & nhận" and "Máy ở mạng khác" (docs/10-ux.md §9). Settings locked by IT policy are read-only.</summary>
 public sealed partial class SettingsViewModel : ObservableObject
 {
     private readonly SettingsService settings;
@@ -17,6 +18,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     {
         this.settings = settings;
         Load(settings.Current);
+        LoadNetwork(settings.Current);
     }
 
     public IReadOnlyList<SettingChoice> OfferLifetimeChoices { get; } =
@@ -56,6 +58,29 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     public partial string? StatusText { get; set; }
 
+    [ObservableProperty]
+    public partial bool EnableBridge { get; set; }
+
+    /// <summary>One host name or IP per line.</summary>
+    [ObservableProperty]
+    public partial string BridgeAddresses { get; set; } = "";
+
+    /// <summary>One CIDR range per line.</summary>
+    [ObservableProperty]
+    public partial string ProbeSubnets { get; set; } = "";
+
+    [ObservableProperty]
+    public partial bool IsBridgeLocked { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsBridgeAddressesLocked { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsProbeSubnetsLocked { get; set; }
+
+    [ObservableProperty]
+    public partial string? NetworkStatusText { get; set; }
+
     [RelayCommand]
     private async Task PickDownloadDirectoryAsync()
     {
@@ -89,6 +114,43 @@ public sealed partial class SettingsViewModel : ObservableObject
             ? "Đã lưu. Quản trị viên giới hạn thời hạn mở offer ngắn hơn lựa chọn của bạn."
             : "Đã lưu.";
     }
+
+    [RelayCommand]
+    private void SaveNetwork()
+    {
+        string[] subnets = Lines(ProbeSubnets);
+        foreach (string subnet in subnets)
+        {
+            if (SubnetScanner.ParseRange(subnet, out string? error) is null)
+            {
+                NetworkStatusText = error;
+                return;
+            }
+        }
+
+        EffectiveSettings saved = settings.Update(current => current with
+        {
+            EnableBridge = IsBridgeLocked ? current.EnableBridge : EnableBridge,
+            BridgeAddresses = IsBridgeAddressesLocked ? current.BridgeAddresses : Lines(BridgeAddresses),
+            ProbeSubnets = IsProbeSubnetsLocked ? current.ProbeSubnets : subnets,
+        });
+        LoadNetwork(saved);
+        NetworkStatusText = "Đã lưu.";
+    }
+
+    private void LoadNetwork(EffectiveSettings current)
+    {
+        EnableBridge = current.BridgeEnabled;
+        BridgeAddresses = string.Join(Environment.NewLine, current.BridgeAddresses);
+        ProbeSubnets = string.Join(Environment.NewLine, current.ProbeSubnets);
+        IsBridgeLocked = current.IsLocked(nameof(ShorekeeperSettings.EnableBridge));
+        IsBridgeAddressesLocked = current.IsLocked(nameof(ShorekeeperSettings.BridgeAddresses));
+        IsProbeSubnetsLocked = current.IsLocked(nameof(ShorekeeperSettings.ProbeSubnets));
+    }
+
+    /// <summary>Non-empty lines; commas and semicolons separate too, as people paste lists.</summary>
+    private static string[] Lines(string text) =>
+        text.Split(['\r', '\n', ',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
     private void Load(EffectiveSettings current)
     {

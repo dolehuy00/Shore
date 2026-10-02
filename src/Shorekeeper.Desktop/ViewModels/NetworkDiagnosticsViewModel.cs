@@ -26,8 +26,13 @@ public sealed record DiagnosticItem(string Label, string Value, DiagnosticLevel 
 }
 
 /// <summary>"Cài đặt → Mạng": explains why peers may not be visible (docs/10-ux.md §8).</summary>
-public sealed partial class NetworkDiagnosticsViewModel(IFirewallInspector firewall, PeerDirectory directory, SettingsService settings, ApiServer api)
-    : ObservableObject
+public sealed partial class NetworkDiagnosticsViewModel(
+    IFirewallInspector firewall,
+    PeerDirectory directory,
+    SettingsService settings,
+    ApiServer api,
+    BridgeRegistry bridgeRegistry,
+    BridgeClient bridges) : ObservableObject
 {
     public ObservableCollection<DiagnosticItem> Items { get; } = [];
 
@@ -48,17 +53,47 @@ public sealed partial class NetworkDiagnosticsViewModel(IFirewallInspector firew
             AddInterfaces(interfaces);
             AddFirewall(firewallStatus);
 
-            int seen = directory.Snapshot().Count;
+            int seen = directory.Snapshot().Count(p => p.Source == PeerSource.Direct);
             Items.Add(seen > 0
-                ? new DiagnosticItem("Multicast", $"Đang thấy {seen} máy · UDP {settings.Current.DiscoveryPort}", DiagnosticLevel.Ok)
-                : new DiagnosticItem("Multicast", $"Chưa nhận được tín hiệu từ máy nào · UDP {settings.Current.DiscoveryPort}", DiagnosticLevel.Info));
+                ? new DiagnosticItem("Multicast / probe", $"Đang thấy trực tiếp {seen} máy · UDP {settings.Current.DiscoveryPort}", DiagnosticLevel.Ok)
+                : new DiagnosticItem("Multicast / probe", $"Chưa nhận được tín hiệu từ máy nào · UDP {settings.Current.DiscoveryPort}", DiagnosticLevel.Info));
             Items.Add(api.Port > 0
                 ? new DiagnosticItem("HTTPS (kết nối)", $"Đang nghe TCP {api.Port}", DiagnosticLevel.Ok)
                 : new DiagnosticItem("HTTPS (kết nối)", "Không mở được cổng: máy khác sẽ không kết nối được tới bạn", DiagnosticLevel.Error));
+            AddBridges();
         }
         finally
         {
             IsRefreshing = false;
+        }
+    }
+
+    private void AddBridges()
+    {
+        if (bridgeRegistry.IsEnabled)
+        {
+            Items.Add(new DiagnosticItem("Làm cầu nối", $"Đang bật · {bridgeRegistry.Count} máy đăng ký", DiagnosticLevel.Ok));
+        }
+
+        IReadOnlyList<BridgeStatus> statuses = bridges.GetStatus();
+        foreach (BridgeStatus bridge in statuses)
+        {
+            Items.Add(bridge switch
+            {
+                { IsConnected: true } => new DiagnosticItem("Cầu nối", $"{bridge.Name} ({bridge.Address}) · thấy {bridge.PeerCount} máy", DiagnosticLevel.Ok),
+                { Error: { } error } => new DiagnosticItem("Cầu nối", $"{bridge.Name} ({bridge.Address}): {error}", DiagnosticLevel.Warning),
+                _ => new DiagnosticItem("Cầu nối", $"{bridge.Name} ({bridge.Address}) · đang kết nối…", DiagnosticLevel.Info),
+            });
+        }
+
+        if (statuses.Count == 0 && !bridgeRegistry.IsEnabled)
+        {
+            Items.Add(new DiagnosticItem("Cầu nối", "Chưa có. Máy ở subnet khác chỉ thấy nhau qua người đã kết nối.", DiagnosticLevel.Info));
+        }
+
+        if (settings.Current.ProbeSubnets.Count > 0)
+        {
+            Items.Add(new DiagnosticItem("Dò dải IP", string.Join(", ", settings.Current.ProbeSubnets), DiagnosticLevel.Info));
         }
     }
 

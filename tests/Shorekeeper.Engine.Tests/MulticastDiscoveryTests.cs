@@ -99,7 +99,25 @@ public sealed class MulticastDiscoveryTests : IAsyncDisposable
         Assert.Equal("A", b.Directory.Snapshot().Single().DisplayName);
     }
 
-    private async Task<TestPeer> StartPeer(string name, int? peerPort = null, bool multicast = true, IPEndPoint[]? probe = null)
+    [Fact]
+    public async Task Peer_in_a_scanned_range_is_found()
+    {
+        int otherPort = FreePort.Udp();
+        while (otherPort == port)
+        {
+            otherPort = FreePort.Udp();
+        }
+        TestPeer a = await StartPeer("A");
+        TestPeer b = await StartPeer("B", otherPort, multicast: false, scan: [new IPEndPoint(IPAddress.Loopback, port)]);
+
+        await WaitUntil(() => a.Directory.Snapshot().Count == 1 && b.Directory.Snapshot().Count == 1, SeeEachOtherWithin);
+
+        // The UDP source port is remembered so the peer can be probed back.
+        Assert.Equal(otherPort, a.Directory.Snapshot().Single().DiscoveryPort);
+    }
+
+    private async Task<TestPeer> StartPeer(
+        string name, int? peerPort = null, bool multicast = true, IPEndPoint[]? probe = null, IPEndPoint[]? scan = null)
     {
         var presence = new FakePresence(name);
         var directory = new PeerDirectory(TimeProvider.System);
@@ -108,13 +126,16 @@ public sealed class MulticastDiscoveryTests : IAsyncDisposable
             directory,
             NullLogger<MulticastDiscovery>.Instance,
             () => peerPort ?? port,
-            IPAddress.Loopback,
+            // Own address per peer, like separate machines: unicast to a port shared on one address
+            // reaches only one of the sockets, so replies would get lost.
+            new IPAddress([127, 0, 0, (byte)(peers.Count + 1)]),
             () => multicast ? [new LocalInterface("Loopback", "test", IPAddress.Loopback, 8, null)] : [],
-            new FixedProbeTargets(probe ?? []));
+            new FixedProbeTargets(probe ?? [], scan ?? []));
 
         var peer = new TestPeer(presence, directory, discovery);
         peers.Add(peer);
         await discovery.StartAsync(TestContext.Current.CancellationToken);
+        await discovery.Listening.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         return peer;
     }
 
@@ -130,9 +151,14 @@ public sealed class MulticastDiscoveryTests : IAsyncDisposable
         }
     }
 
-    private sealed class FixedProbeTargets(IReadOnlyList<IPEndPoint> targets) : IProbeTargetSource
+    private sealed class FixedProbeTargets(IReadOnlyList<IPEndPoint> targets, IReadOnlyList<IPEndPoint> scan) : IProbeTargetSource
     {
+        private int scanned;
+
         public Task<IReadOnlyList<IPEndPoint>> GetTargetsAsync(CancellationToken cancellationToken) => Task.FromResult(targets);
+
+        /// <summary>The scan list goes out once, like a real scan.</summary>
+        public IReadOnlyList<IPEndPoint> TakeScanBatch(int max) => Interlocked.Exchange(ref scanned, 1) == 0 ? scan : [];
     }
 
     private sealed record TestPeer(FakePresence Presence, PeerDirectory Directory, MulticastDiscovery Discovery);

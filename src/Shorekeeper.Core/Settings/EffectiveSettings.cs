@@ -29,6 +29,12 @@ public sealed record EffectiveSettings
 
     public int ApiPort { get; init; } = DefaultApiPort;
 
+    public bool BridgeEnabled { get; init; }
+
+    public IReadOnlyList<string> BridgeAddresses { get; init; } = [];
+
+    public IReadOnlyList<string> ProbeSubnets { get; init; } = [];
+
     /// <summary>
     /// Names of <see cref="ShorekeeperSettings"/> properties that are locked by policy.
     /// The UI shows these as read-only ("Do quản trị viên đặt").

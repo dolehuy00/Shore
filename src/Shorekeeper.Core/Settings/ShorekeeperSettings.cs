@@ -22,4 +22,13 @@ public sealed record ShorekeeperSettings
     public int? DiscoveryPort { get; init; }
 
     public int? ApiPort { get; init; }
+
+    /// <summary>"Làm cầu nối cho mạng": relay presence so other subnets see each other.</summary>
+    public bool EnableBridge { get; init; }
+
+    /// <summary>Bridges to register with: "host" or "host:port" (HTTPS API port).</summary>
+    public IReadOnlyList<string>? BridgeAddresses { get; init; }
+
+    /// <summary>IPv4 ranges in CIDR notation (at most /22 each) probed for peers.</summary>
+    public IReadOnlyList<string>? ProbeSubnets { get; init; }
 }

@@ -104,6 +104,74 @@ public sealed class PeerDirectoryTests
         Assert.Equal("PC-QA-07", changes[0].Peer.DisplayName);
     }
 
+    [Fact]
+    public void Relayed_presence_does_not_replace_a_peer_heard_directly()
+    {
+        directory.Observe(Packet("Mai"), Source, 47470);
+        directory.ObserveRelayed(Packet("Mai qua cầu nối"), IPAddress.Parse("10.9.9.9"));
+
+        PeerInfo peer = Assert.Single(directory.Snapshot());
+        Assert.Equal(PeerSource.Direct, peer.Source);
+        Assert.Equal(Source, peer.Address);
+        Assert.Equal(47470, peer.DiscoveryPort);
+    }
+
+    [Fact]
+    public void Relayed_presence_takes_over_once_direct_packets_stop()
+    {
+        directory.Observe(Packet("Mai"), Source, 47470);
+        time.Advance(PeerDirectory.StaleAfter);
+        directory.Sweep();
+
+        directory.ObserveRelayed(Packet("Mai"), Source);
+
+        PeerInfo peer = Assert.Single(directory.Snapshot());
+        Assert.Equal(PeerSource.Bridge, peer.Source);
+        Assert.Equal(PeerState.Online, peer.State);
+    }
+
+    [Fact]
+    public void Relayed_peer_is_kept_longer_than_one_heard_directly()
+    {
+        directory.ObserveRelayed(Packet("Mai"), Source);
+
+        time.Advance(PeerDirectory.RemoveAfter);
+        directory.Sweep();
+        Assert.Equal(PeerState.Online, Assert.Single(directory.Snapshot()).State);
+
+        time.Advance(PeerDirectory.RelayedStaleAfter - PeerDirectory.RemoveAfter);
+        directory.Sweep();
+        Assert.Equal(PeerState.Stale, Assert.Single(directory.Snapshot()).State);
+
+        time.Advance(PeerDirectory.RelayedRemoveAfter - PeerDirectory.RelayedStaleAfter);
+        directory.Sweep();
+        Assert.Empty(directory.Snapshot());
+    }
+
+    [Fact]
+    public void Bridge_dropping_a_peer_keeps_it_when_heard_directly()
+    {
+        DeviceId id = DeviceId.Parse(Packet("Mai").Id);
+        directory.Observe(Packet("Mai"), Source, 47470);
+
+        directory.RemoveRelayed(id);
+        Assert.Single(directory.Snapshot());
+
+        time.Advance(PeerDirectory.StaleAfter);
+        directory.Sweep();
+        directory.ObserveRelayed(Packet("Mai"), Source);
+        directory.RemoveRelayed(id);
+        Assert.Empty(directory.Snapshot());
+    }
+
+    [Fact]
+    public void Bridge_capability_is_recorded()
+    {
+        directory.Observe(Packet("Mai") with { Capabilities = [PresenceCapabilities.Bridge] }, Source);
+
+        Assert.True(Assert.Single(directory.Snapshot()).IsBridge);
+    }
+
     private static PresencePacket Packet(string name) => new()
     {
         Type = PresencePacketTypes.Heartbeat,

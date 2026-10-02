@@ -39,6 +39,10 @@ public sealed record PresencePacket
 
     [JsonPropertyName("status")]
     public string Status { get; init; } = PresenceStatus.Available;
+
+    /// <summary>Roles this device offers to others, see <see cref="PresenceCapabilities"/>.</summary>
+    [JsonPropertyName("caps")]
+    public IReadOnlyList<string> Capabilities { get; init; } = [];
 }
 
 public static class PresencePacketTypes
@@ -52,6 +56,12 @@ public static class PresencePacketTypes
     public const string Probe = "probe";
 
     public static bool IsKnown(string type) => type is Announce or Heartbeat or Reply or Bye or Probe;
+}
+
+public static class PresenceCapabilities
+{
+    /// <summary>The device relays presence for other subnets (docs/08-host-roles.md §4).</summary>
+    public const string Bridge = "bridge";
 }
 
 public static class PresenceStatus
