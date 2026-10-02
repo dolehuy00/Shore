@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Group Policy template for Shorekeeper (docs/11-windows-deployment.md §4). Copy this file to
+  C:\Windows\PolicyDefinitions (or the domain's central store) and the .adml files to the matching
+  language folders (en-US, vi-VN). Values go to Software\Policies\Shorekeeper; machine policy wins over user policy.
+-->
+<policyDefinitions xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   revision="1.0"
+                   schemaVersion="1.0"
+                   xmlns="http://schemas.microsoft.com/GroupPolicy/2006/07/PolicyDefinitions">
+  <policyNamespaces>
+    <target prefix="shorekeeper" namespace="Shorekeeper.Policies" />
+  </policyNamespaces>
+  <resources minRequiredRevision="1.0" />
+  <supportedOn>
+    <definitions>
+      <definition name="SUPPORTED_Shorekeeper_0_1" displayName="$(string.SUPPORTED_Shorekeeper_0_1)" />
+    </definitions>
+  </supportedOn>
+  <categories>
+    <category name="Shorekeeper" displayName="$(string.Shorekeeper)" />
+    <category name="Transfers" displayName="$(string.Transfers)">
+      <parentCategory ref="Shorekeeper" />
+    </category>
+    <category name="Network" displayName="$(string.Network)">
+      <parentCategory ref="Shorekeeper" />
+    </category>
+  </categories>
+  <policies>
+    <!-- Transfers -->
+    <policy name="DownloadDirectory" class="Both" key="Software\Policies\Shorekeeper"
+            displayName="$(string.DownloadDirectory)" explainText="$(string.DownloadDirectory_Help)"
+            presentation="$(presentation.DownloadDirectory)">
+      <parentCategory ref="Transfers" />
+      <supportedOn ref="SUPPORTED_Shorekeeper_0_1" />
+      <elements>
+        <text id="DownloadDirectory" valueName="DownloadDirectory" expandable="true" required="true" />
+      </elements>
+    </policy>
+
+    <policy name="MaxOfferLifetimeHours" class="Both" key="Software\Policies\Shorekeeper"
+            displayName="$(string.MaxOfferLifetimeHours)" explainText="$(string.MaxOfferLifetimeHours_Help)"
+            presentation="$(presentation.MaxOfferLifetimeHours)">
+      <parentCategory ref="Transfers" />
+      <supportedOn ref="SUPPORTED_Shorekeeper_0_1" />
+      <elements>
+        <decimal id="MaxOfferLifetimeHours" valueName="MaxOfferLifetimeHours" minValue="1" maxValue="720" required="true" />
+      </elements>
+    </policy>
+
+    <policy name="ReconnectWindowSeconds" class="Both" key="Software\Policies\Shorekeeper"
+            displayName="$(string.ReconnectWindowSeconds)" explainText="$(string.ReconnectWindowSeconds_Help)"
+            presentation="$(presentation.ReconnectWindowSeconds)">
+      <parentCategory ref="Transfers" />
+      <supportedOn ref="SUPPORTED_Shorekeeper_0_1" />
+      <elements>
+        <decimal id="ReconnectWindowSeconds" valueName="ReconnectWindowSeconds" minValue="15" maxValue="300" required="true" />
+      </elements>
+    </policy>
+
+    <policy name="ApplyMarkOfTheWeb" class="Both" key="Software\Policies\Shorekeeper" valueName="ApplyMarkOfTheWeb"
+            displayName="$(string.ApplyMarkOfTheWeb)" explainText="$(string.ApplyMarkOfTheWeb_Help)">
+      <parentCategory ref="Transfers" />
+      <supportedOn ref="SUPPORTED_Shorekeeper_0_1" />
+      <enabledValue><decimal value="1" /></enabledValue>
+      <disabledValue><decimal value="0" /></disabledValue>
+    </policy>
+
+    <!-- Network -->
+    <policy name="AllowBridge" class="Both" key="Software\Policies\Shorekeeper" valueName="AllowBridge"
+            displayName="$(string.AllowBridge)" explainText="$(string.AllowBridge_Help)">
+      <parentCategory ref="Network" />
+      <supportedOn ref="SUPPORTED_Shorekeeper_0_1" />
+      <enabledValue><decimal value="1" /></enabledValue>
+      <disabledValue><decimal value="0" /></disabledValue>
+    </policy>
+
+    <policy name="EnableBridge" class="Both" key="Software\Policies\Shorekeeper" valueName="EnableBridge"
+            displayName="$(string.EnableBridge)" explainText="$(string.EnableBridge_Help)">
+      <parentCategory ref="Network" />
+      <supportedOn ref="SUPPORTED_Shorekeeper_0_1" />
+      <enabledValue><decimal value="1" /></enabledValue>
+      <disabledValue><decimal value="0" /></disabledValue>
+    </policy>
+
+    <policy name="BridgeAddresses" class="Both" key="Software\Policies\Shorekeeper"
+            displayName="$(string.BridgeAddresses)" explainText="$(string.BridgeAddresses_Help)"
+            presentation="$(presentation.BridgeAddresses)">
+      <parentCategory ref="Network" />
+      <supportedOn ref="SUPPORTED_Shorekeeper_0_1" />
+      <elements>
+        <multiText id="BridgeAddresses" valueName="BridgeAddresses" required="true" />
+      </elements>
+    </policy>
+
+    <policy name="ProbeSubnets" class="Both" key="Software\Policies\Shorekeeper"
+            displayName="$(string.ProbeSubnets)" explainText="$(string.ProbeSubnets_Help)"
+            presentation="$(presentation.ProbeSubnets)">
+      <parentCategory ref="Network" />
+      <supportedOn ref="SUPPORTED_Shorekeeper_0_1" />
+      <elements>
+        <multiText id="ProbeSubnets" valueName="ProbeSubnets" required="true" />
+      </elements>
+    </policy>
+
+    <policy name="Ports" class="Both" key="Software\Policies\Shorekeeper"
+            displayName="$(string.Ports)" explainText="$(string.Ports_Help)"
+            presentation="$(presentation.Ports)">
+      <parentCategory ref="Network" />
+      <supportedOn ref="SUPPORTED_Shorekeeper_0_1" />
+      <elements>
+        <decimal id="DiscoveryPort" valueName="DiscoveryPort" minValue="1024" maxValue="65535" required="true" />
+        <decimal id="ApiPort" valueName="ApiPort" minValue="1024" maxValue="65535" required="true" />
+      </elements>
+    </policy>
+  </policies>
+</policyDefinitions>

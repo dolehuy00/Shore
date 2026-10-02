@@ -68,9 +68,9 @@ Mỗi mục: **Bối cảnh → Quyết định → Hệ quả**. Trạng thái:
 
 **Trạng thái:** Chấp nhận
 
-**Quyết định:** Một MSI per-machine có tham số, tạo rule firewall, phân phối bằng GPO/Intune. Có bản per-user dự phòng.
+**Quyết định:** Một MSI per-machine có tham số, tạo rule firewall, phân phối bằng GPO/Intune. Không có bản per-user (M4b). Dùng **WiX v5**: v6 không thêm gì cần cho gói này (upgrade code không bắt buộc, WixUI không custom action, thay đổi Burn) nhưng kèm Open Source Maintenance Fee và bước chấp nhận EULA khi build. Chưa ký Authenticode (chưa có chứng chỉ).
 
-**Hệ quả:** ✅ Hợp môi trường doanh nghiệp. ❌ Không tự cập nhật, cập nhật qua kênh IT.
+**Hệ quả:** ✅ Hợp môi trường doanh nghiệp. ✅ Ai build từ mã nguồn cũng không vướng điều khoản phí. ❌ Không tự cập nhật, cập nhật qua kênh IT. ❌ Máy không có quyền admin thì không cài được. ❌ Chưa ký nên SmartScreen cảnh báo.
 
 ---
 

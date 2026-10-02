@@ -1,0 +1,19 @@
+<Project Sdk="WixToolset.Sdk/5.0.2">
+
+  <!-- Built by deploy/build-msi.ps1, which publishes the app first (docs/11-windows-deployment.md §2). -->
+  <PropertyGroup>
+    <OutputName>Shorekeeper-$(Version)-x64</OutputName>
+    <InstallerPlatform>x64</InstallerPlatform>
+    <AppPublishDir Condition="'$(AppPublishDir)' == ''">$(MSBuildThisFileDirectory)..\..\artifacts\publish\win-x64\</AppPublishDir>
+    <DefineConstants>ProductVersion=$(Version);AppPublishDir=$(AppPublishDir)</DefineConstants>
+    <!-- ICE60: SQLite's e_sqlite3.dll has a version resource without a language. Giving it one by hand
+         only trades this for WIX1101; the file is replaced as a whole on upgrade, so it does not matter. -->
+    <SuppressIces>ICE60</SuppressIces>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WixToolset.Firewall.wixext" />
+    <PackageReference Include="WixToolset.Util.wixext" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<policyDefinitionResources xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                           revision="1.0"
+                           schemaVersion="1.0"
+                           xmlns="http://schemas.microsoft.com/GroupPolicy/2006/07/PolicyDefinitions">
+  <displayName>Shorekeeper</displayName>
+  <description>Policies for Shorekeeper, peer-to-peer file sending in the local network.</description>
+  <resources>
+    <stringTable>
+      <string id="SUPPORTED_Shorekeeper_0_1">Shorekeeper 0.1 or later</string>
+      <string id="Shorekeeper">Shorekeeper</string>
+      <string id="Transfers">Sending and receiving</string>
+      <string id="Network">Network</string>
+
+      <string id="DownloadDirectory">Folder for received files</string>
+      <string id="DownloadDirectory_Help">Where received files are saved. Environment variables such as %USERPROFILE% are expanded for each user.
+
+If enabled, users cannot change the folder.
+If disabled or not configured, users choose the folder (default: Downloads\Shorekeeper).</string>
+
+      <string id="MaxOfferLifetimeHours">Maximum time a sent offer stays open</string>
+      <string id="MaxOfferLifetimeHours_Help">Upper limit, in hours, for how long recipients can download files after they are sent. Users can still choose a shorter time.
+
+If disabled or not configured, users choose up to 30 days (default: 24 hours).</string>
+
+      <string id="ReconnectWindowSeconds">Reconnect window</string>
+      <string id="ReconnectWindowSeconds_Help">How long, in seconds, a download keeps retrying after the connection drops before it fails (15 to 300).
+
+If enabled, users cannot change it. If disabled or not configured, the default is 60 seconds.</string>
+
+      <string id="ApplyMarkOfTheWeb">Mark received files as coming from another computer</string>
+      <string id="ApplyMarkOfTheWeb_Help">Adds the "Mark of the Web" to received files, so Windows SmartScreen and Office Protected View treat them like downloads.
+
+If enabled or not configured, files are marked (recommended).
+If disabled, files are not marked.</string>
+
+      <string id="AllowBridge">Allow users to turn on the bridge role</string>
+      <string id="AllowBridge_Help">The bridge role lets a computer relay presence between subnets, so people in different subnets see each other.
+
+If disabled, users cannot turn the bridge role on.
+If enabled or not configured, users may turn it on in Settings.</string>
+
+      <string id="EnableBridge">Make this computer a bridge</string>
+      <string id="EnableBridge_Help">Fixes the bridge role on this computer, regardless of the user's choice and of "Allow users to turn on the bridge role".
+
+If enabled, the bridge role is always on. If disabled, it is always off.
+If not configured, the user decides (if allowed).
+
+Choose computers that are usually on and connected by cable.</string>
+
+      <string id="BridgeAddresses">Known bridges</string>
+      <string id="BridgeAddresses_Help">Bridges every client registers with, one per line: a host name or IP address, optionally followed by ":port" (HTTPS port, default 47471).
+
+If enabled, users cannot change the list.</string>
+
+      <string id="ProbeSubnets">Subnets to probe</string>
+      <string id="ProbeSubnets_Help">IPv4 ranges in CIDR notation, one per line (for example 10.1.5.0/24). Each address is probed at start-up and every 10 minutes, at most 100 packets per second. Each range may be at most /22 (1,024 addresses); larger ranges are ignored.
+
+Leave this off unless needed: an intrusion detection system may report the probes.</string>
+
+      <string id="Ports">Network ports</string>
+      <string id="Ports_Help">UDP port for discovery and TCP port for the HTTPS API. All computers must use the same discovery port to see each other.
+
+If disabled or not configured, the defaults are UDP 47470 and TCP 47471. The firewall rules created by the installer allow the program on any port, so they keep working.</string>
+    </stringTable>
+    <presentationTable>
+      <presentation id="DownloadDirectory">
+        <textBox refId="DownloadDirectory">
+          <label>Folder:</label>
+          <defaultValue>%USERPROFILE%\Downloads\Shorekeeper</defaultValue>
+        </textBox>
+      </presentation>
+      <presentation id="MaxOfferLifetimeHours">
+        <decimalTextBox refId="MaxOfferLifetimeHours" defaultValue="24">Hours:</decimalTextBox>
+      </presentation>
+      <presentation id="ReconnectWindowSeconds">
+        <decimalTextBox refId="ReconnectWindowSeconds" defaultValue="60">Seconds:</decimalTextBox>
+      </presentation>
+      <presentation id="BridgeAddresses">
+        <multiTextBox refId="BridgeAddresses">Bridges (one per line):</multiTextBox>
+      </presentation>
+      <presentation id="ProbeSubnets">
+        <multiTextBox refId="ProbeSubnets">Ranges (one per line):</multiTextBox>
+      </presentation>
+      <presentation id="Ports">
+        <decimalTextBox refId="DiscoveryPort" defaultValue="47470">Discovery (UDP):</decimalTextBox>
+        <decimalTextBox refId="ApiPort" defaultValue="47471">HTTPS API (TCP):</decimalTextBox>
+      </presentation>
+    </presentationTable>
+  </resources>
+</policyDefinitionResources>

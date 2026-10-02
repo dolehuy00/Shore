@@ -17,6 +17,10 @@
     <PackageVersion Include="Dapper" Version="2.1.89" />
     <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="10.0.12" />
 
+    <!-- Installer (WiX v5, see docs/decisions.md ADR-006) -->
+    <PackageVersion Include="WixToolset.Firewall.wixext" Version="5.0.2" />
+    <PackageVersion Include="WixToolset.Util.wixext" Version="5.0.2" />
+
     <!-- Tests -->
     <PackageVersion Include="xunit.v3" Version="4.0.1" />
   </ItemGroup>

@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<policyDefinitionResources xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                           revision="1.0"
+                           schemaVersion="1.0"
+                           xmlns="http://schemas.microsoft.com/GroupPolicy/2006/07/PolicyDefinitions">
+  <displayName>Shorekeeper</displayName>
+  <description>Chính sách cho Shorekeeper, ứng dụng gửi file ngang hàng trong mạng LAN.</description>
+  <resources>
+    <stringTable>
+      <string id="SUPPORTED_Shorekeeper_0_1">Shorekeeper 0.1 trở lên</string>
+      <string id="Shorekeeper">Shorekeeper</string>
+      <string id="Transfers">Gửi và nhận</string>
+      <string id="Network">Mạng</string>
+
+      <string id="DownloadDirectory">Thư mục nhận file</string>
+      <string id="DownloadDirectory_Help">Nơi lưu file nhận được. Biến môi trường như %USERPROFILE% được thay theo từng người dùng.
+
+Bật: người dùng không đổi được thư mục.
+Tắt hoặc không cấu hình: người dùng tự chọn (mặc định Downloads\Shorekeeper).</string>
+
+      <string id="MaxOfferLifetimeHours">Thời hạn mở tối đa của file đã gửi</string>
+      <string id="MaxOfferLifetimeHours_Help">Giới hạn trên (giờ) cho khoảng thời gian người nhận còn tải được file sau khi gửi. Người dùng vẫn chọn được thời hạn ngắn hơn.
+
+Tắt hoặc không cấu hình: người dùng chọn tối đa 30 ngày (mặc định 24 giờ).</string>
+
+      <string id="ReconnectWindowSeconds">Thời gian chờ kết nối lại</string>
+      <string id="ReconnectWindowSeconds_Help">Số giây một lượt tải tiếp tục thử lại khi rớt mạng trước khi báo lỗi (15 đến 300).
+
+Bật: người dùng không đổi được. Tắt hoặc không cấu hình: mặc định 60 giây.</string>
+
+      <string id="ApplyMarkOfTheWeb">Đánh dấu file nhận được là đến từ máy khác</string>
+      <string id="ApplyMarkOfTheWeb_Help">Gắn "Mark of the Web" cho file nhận được, để Windows SmartScreen và chế độ Protected View của Office xử lý như file tải từ Internet.
+
+Bật hoặc không cấu hình: có đánh dấu (khuyến nghị).
+Tắt: không đánh dấu.</string>
+
+      <string id="AllowBridge">Cho phép người dùng bật vai trò cầu nối</string>
+      <string id="AllowBridge_Help">Vai trò cầu nối giúp một máy chuyển tiếp presence giữa các subnet, để người ở các subnet khác nhau thấy nhau.
+
+Tắt: người dùng không bật được vai trò cầu nối.
+Bật hoặc không cấu hình: người dùng tự bật trong Cài đặt.</string>
+
+      <string id="EnableBridge">Chỉ định máy này làm cầu nối</string>
+      <string id="EnableBridge_Help">Cố định vai trò cầu nối trên máy này, bất kể lựa chọn của người dùng và chính sách "Cho phép người dùng bật vai trò cầu nối".
+
+Bật: luôn làm cầu nối. Tắt: không bao giờ làm cầu nối.
+Không cấu hình: người dùng tự quyết (nếu được phép).
+
+Nên chọn máy hay bật và cắm dây mạng.</string>
+
+      <string id="BridgeAddresses">Cầu nối đã biết</string>
+      <string id="BridgeAddresses_Help">Các cầu nối mà mọi máy sẽ đăng ký, mỗi dòng một máy: tên máy hoặc địa chỉ IP, có thể kèm ":cổng" (cổng HTTPS, mặc định 47471).
+
+Bật: người dùng không đổi được danh sách.</string>
+
+      <string id="ProbeSubnets">Dải IP cần dò</string>
+      <string id="ProbeSubnets_Help">Các dải IPv4 dạng CIDR, mỗi dòng một dải (vd 10.1.5.0/24). Mỗi địa chỉ được dò khi khởi động và 10 phút một lần, tối đa 100 gói/giây. Mỗi dải tối đa /22 (1.024 địa chỉ); dải rộng hơn bị bỏ qua.
+
+Chỉ bật khi cần: hệ thống phát hiện xâm nhập (IDS) có thể cảnh báo các gói dò.</string>
+
+      <string id="Ports">Cổng mạng</string>
+      <string id="Ports_Help">Cổng UDP để tìm nhau và cổng TCP cho API HTTPS. Mọi máy phải dùng cùng một cổng UDP mới thấy nhau.
+
+Tắt hoặc không cấu hình: mặc định UDP 47470 và TCP 47471. Rule firewall do bộ cài tạo cho phép chương trình trên mọi cổng, nên vẫn hoạt động khi đổi cổng.</string>
+    </stringTable>
+    <presentationTable>
+      <presentation id="DownloadDirectory">
+        <textBox refId="DownloadDirectory">
+          <label>Thư mục:</label>
+          <defaultValue>%USERPROFILE%\Downloads\Shorekeeper</defaultValue>
+        </textBox>
+      </presentation>
+      <presentation id="MaxOfferLifetimeHours">
+        <decimalTextBox refId="MaxOfferLifetimeHours" defaultValue="24">Số giờ:</decimalTextBox>
+      </presentation>
+      <presentation id="ReconnectWindowSeconds">
+        <decimalTextBox refId="ReconnectWindowSeconds" defaultValue="60">Số giây:</decimalTextBox>
+      </presentation>
+      <presentation id="BridgeAddresses">
+        <multiTextBox refId="BridgeAddresses">Cầu nối (mỗi dòng một máy):</multiTextBox>
+      </presentation>
+      <presentation id="ProbeSubnets">
+        <multiTextBox refId="ProbeSubnets">Dải IP (mỗi dòng một dải):</multiTextBox>
+      </presentation>
+      <presentation id="Ports">
+        <decimalTextBox refId="DiscoveryPort" defaultValue="47470">Tìm nhau (UDP):</decimalTextBox>
+        <decimalTextBox refId="ApiPort" defaultValue="47471">API HTTPS (TCP):</decimalTextBox>
+      </presentation>
+    </presentationTable>
+  </resources>
+</policyDefinitionResources>

@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Per-machine MSI (docs/11-windows-deployment.md §2). The app itself runs per user and keeps its data
+  in %LOCALAPPDATA%\Shorekeeper, so nothing here touches user data and uninstalling leaves it in place.
+
+  msiexec /i Shorekeeper-x.y.z-x64.msi /qn AUTOSTART=1 FIREWALL_RULES=1 DOWNLOAD_DIR="D:\Nhan" BRIDGE_ADDRESSES="PC-BUILD-01"
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:fire="http://wixtoolset.org/schemas/v4/wxs/firewall"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+
+  <Package Name="Shorekeeper"
+           Manufacturer="Shorekeeper"
+           Version="$(ProductVersion)"
+           UpgradeCode="4D171F29-5352-48D3-B227-1575A2BBE622"
+           Scope="perMachine">
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Shorekeeper is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- Command-line options. They are not remembered: pass them again when upgrading. -->
+    <Property Id="AUTOSTART" Value="1" Secure="yes" />
+    <Property Id="FIREWALL_RULES" Value="1" Secure="yes" />
+    <Property Id="DOWNLOAD_DIR" Secure="yes" />
+    <Property Id="BRIDGE_ADDRESSES" Secure="yes" />
+
+    <Property Id="ARPNOMODIFY" Value="1" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="Shorekeeper" />
+    </StandardDirectory>
+
+    <!-- Running copies (one per signed-in user) hold their files open: close them for upgrades and uninstall. -->
+    <util:CloseApplication Id="CloseShorekeeper" Target="Shorekeeper.exe" TerminateProcess="1" RebootPrompt="no" />
+
+    <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
+      <Component Id="MainExecutable">
+        <File Id="ShorekeeperExe" Source="$(AppPublishDir)Shorekeeper.exe" KeyPath="yes">
+          <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuFolder" Name="Shorekeeper" WorkingDirectory="INSTALLFOLDER" Advertise="yes" />
+        </File>
+      </Component>
+
+      <!-- Everything else the self-contained publish produced (runtime, Avalonia, SQLite…). -->
+      <Files Include="$(AppPublishDir)**">
+        <Exclude Files="$(AppPublishDir)Shorekeeper.exe" />
+      </Files>
+    </ComponentGroup>
+
+    <!--
+      Inbound rule bound to the program rather than to ports, so a second Windows session (dynamic API port)
+      and ports changed by policy keep working. Domain and Private networks only, never Public (§3).
+    -->
+    <Component Id="FirewallRule" Directory="INSTALLFOLDER" Condition="FIREWALL_RULES = 1">
+      <RegistryValue Root="HKLM" Key="Software\Shorekeeper\Installer" Name="FirewallRule" Type="integer" Value="1" KeyPath="yes" />
+      <fire:FirewallException Id="ShorekeeperDomain"
+                              Name="Shorekeeper (Domain)"
+                              Description="Shorekeeper: discovery (UDP) and file transfer (HTTPS) in the local network."
+                              Program="[#ShorekeeperExe]"
+                              Profile="domain"
+                              Scope="any" />
+      <fire:FirewallException Id="ShorekeeperPrivate"
+                              Name="Shorekeeper (Private)"
+                              Description="Shorekeeper: discovery (UDP) and file transfer (HTTPS) in the local network."
+                              Program="[#ShorekeeperExe]"
+                              Profile="private"
+                              Scope="any" />
+    </Component>
+
+    <!-- Starts minimized to the tray for everyone who signs in on this PC; users can turn it off in Task Manager. -->
+    <Component Id="AutoStart" Directory="INSTALLFOLDER" Condition="AUTOSTART = 1">
+      <RegistryValue Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\Run" Name="Shorekeeper"
+                     Type="string" Value="&quot;[INSTALLFOLDER]Shorekeeper.exe&quot; --background" KeyPath="yes" />
+    </Component>
+
+    <!-- Same effect as the matching Group Policy (the setting is locked for users); removed on uninstall. -->
+    <Component Id="DownloadDirectoryPolicy" Directory="INSTALLFOLDER" Condition="DOWNLOAD_DIR">
+      <RegistryValue Root="HKLM" Key="Software\Policies\Shorekeeper" Name="DownloadDirectory"
+                     Type="string" Value="[DOWNLOAD_DIR]" KeyPath="yes" />
+    </Component>
+
+    <Component Id="BridgeAddressesPolicy" Directory="INSTALLFOLDER" Condition="BRIDGE_ADDRESSES">
+      <!-- Several bridges are separated by ";" -->
+      <RegistryValue Root="HKLM" Key="Software\Policies\Shorekeeper" Name="BridgeAddresses"
+                     Type="string" Value="[BRIDGE_ADDRESSES]" KeyPath="yes" />
+    </Component>
+
+    <Feature Id="Main" Title="Shorekeeper">
+      <ComponentGroupRef Id="AppFiles" />
+      <ComponentRef Id="FirewallRule" />
+      <ComponentRef Id="AutoStart" />
+      <ComponentRef Id="DownloadDirectoryPolicy" />
+      <ComponentRef Id="BridgeAddressesPolicy" />
+    </Feature>
+  </Package>
+</Wix>

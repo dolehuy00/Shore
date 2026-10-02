@@ -64,10 +64,11 @@ Mỗi milestone kết thúc bằng một bản **chạy được, demo được*
 - Cài đặt "Máy ở mạng khác" (bật cầu nối, địa chỉ cầu nối, dải IP; GPO `AllowBridge` / `EnableBridge` khóa được), Chẩn đoán hiện trạng thái cầu nối.
 - Test trên loopback: PEX, Bridge end-to-end (đăng ký → thấy nhau → rời là biến mất), registry (version, lease, long-poll), quét dải IP.
 
-### M4b
+### M4b ✅ (2026-10-02)
 
-- Installer WiX, rule firewall, ADMX/ADML, Authenticode.
-- Lab 2 subnet (máy thật).
+- MSI per-machine bằng WiX v5 (`deploy/build-msi.ps1`): app self-contained, shortcut Start menu, rule firewall theo chương trình (Domain + Private), tự khởi động xuống tray, tham số `AUTOSTART` / `FIREWALL_RULES` / `DOWNLOAD_DIR` / `BRIDGE_ADDRESSES`, đóng app đang chạy khi nâng cấp/gỡ.
+- ADMX + ADML (en-US, vi-VN) cho 10 chính sách app đang đọc.
+- **Chưa làm:** Authenticode (chưa có chứng chỉ, xem [11 §7](11-windows-deployment.md)); lab 2 subnet trên máy thật; cài thử MSI trên máy sạch.
 
 **Xong khi:** 2 subnet thấy nhau sau một lần Kết nối bắc cầu, hoặc ngay lập tức nếu có Bridge.
 

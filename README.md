@@ -25,6 +25,12 @@ dotnet run --project src/Shorekeeper.Desktop
 
 Thêm `-- --background` để khởi động thẳng xuống khay hệ thống.
 
+Bộ cài MSI (per-machine, cần admin để cài) và template GPO: xem [docs/11-windows-deployment.md](docs/11-windows-deployment.md).
+
+```bash
+powershell -ExecutionPolicy Bypass -File deploy/build-msi.ps1
+```
+
 ## Cấu trúc
 
 | Project | Vai trò |
@@ -34,6 +40,8 @@ Thêm `-- --background` để khởi động thẳng xuống khay hệ thống.
 | `src/Shorekeeper.Platform.Windows` | DPAPI, đọc GPO từ registry |
 | `src/Shorekeeper.Desktop` | App Avalonia: cửa sổ chính, khay hệ thống, chỉ chạy một instance |
 | `tests/*` | xUnit v3 |
+| `deploy/msi` | Bộ cài WiX v5 (không nằm trong solution) |
+| `deploy/admx` | Template Group Policy (ADMX/ADML) |
 
 ## Dữ liệu trên máy
 
