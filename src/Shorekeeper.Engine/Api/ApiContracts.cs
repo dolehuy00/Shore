@@ -24,8 +24,10 @@ public static class PairingStatus
 public sealed record OfferFileEntry(string FileId, string RelativePath, long Size, DateTimeOffset? ModifiedAt);
 
 /// <summary>Body of <c>POST /api/v1/inbox/offers</c>: what the sender offers; no data yet.</summary>
+/// <param name="GroupId">Set when sent to fellow group members rather than contacts (docs/04-identity-security.md §4.2).</param>
 public sealed record OfferManifest(
-    string OfferId, DateTimeOffset CreatedAt, DateTimeOffset ExpiresAt, string? Note, long TotalSize, IReadOnlyList<OfferFileEntry> Files);
+    string OfferId, DateTimeOffset CreatedAt, DateTimeOffset ExpiresAt, string? Note, long TotalSize, IReadOnlyList<OfferFileEntry> Files,
+    string? GroupId = null);
 
 public sealed record FileHashResponse(string Sha256);
 
@@ -66,6 +68,30 @@ public sealed record BridgePeersResponse(long Version, bool Full, IReadOnlyList<
 
 /// <param name="Port">HTTPS API port.</param>
 public sealed record BridgePeer(string DeviceId, string Name, string Host, string Os, string App, string Status, string Address, int Port);
+
+/// <summary>Body of <c>POST /api/v1/groups/{groupId}/join-requests</c>, sent to the Host. Name and host are shown to the Host.</summary>
+public sealed record GroupJoinRequestBody(string Name, string Host, string? Note);
+
+/// <summary>Response of a join request: <see cref="GroupStatus.Pending"/> or, when the Host had invited us, <see cref="GroupStatus.Member"/>.</summary>
+public sealed record GroupJoinResponse(string Status);
+
+/// <summary>
+/// Response of <c>GET /api/v1/groups/{groupId}/state?since=&amp;wait=</c>, long-polled by members and by peers waiting to be approved.
+/// Members get the member list; addresses are where the Host sees each member right now (empty when offline).
+/// </summary>
+public sealed record GroupStateResponse(string Status, long Version, string Name, IReadOnlyList<GroupMemberEntry> Members);
+
+public sealed record GroupMemberEntry(string DeviceId, string Name, bool IsHost, string? Address, int DiscoveryPort);
+
+public static class GroupStatus
+{
+    public const string Member = "member";
+    public const string Pending = "pending";
+    public const string Declined = "declined";
+}
+
+/// <summary>Body of <c>POST /api/v1/groups/invitations</c>: a Host invites the callee into one of its groups.</summary>
+public sealed record GroupInvitationBody(string GroupId, string GroupName, string HostName);
 
 /// <summary>Stable error codes in problem+json responses (docs/05-protocol.md §3).</summary>
 public static class ApiErrorCodes

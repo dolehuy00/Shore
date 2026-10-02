@@ -43,7 +43,19 @@ public sealed record PresencePacket
     /// <summary>Roles this device offers to others, see <see cref="PresenceCapabilities"/>.</summary>
     [JsonPropertyName("caps")]
     public IReadOnlyList<string> Capabilities { get; init; } = [];
+
+    /// <summary>Groups this device hosts, so others can ask to join (docs/07-groups.md §2). At most <see cref="MaxGroups"/>.</summary>
+    [JsonPropertyName("groups")]
+    public IReadOnlyList<PresenceGroup> Groups { get; init; } = [];
+
+    public const int MaxGroups = 5;
 }
+
+/// <param name="Members">Number of members, host included.</param>
+public sealed record PresenceGroup(
+    [property: JsonPropertyName("id")] string Id,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("n")] int Members);
 
 public static class PresencePacketTypes
 {

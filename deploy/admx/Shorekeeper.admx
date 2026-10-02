@@ -67,6 +67,14 @@
       <disabledValue><decimal value="0" /></disabledValue>
     </policy>
 
+    <policy name="DisableGroups" class="Both" key="Software\Policies\Shorekeeper" valueName="DisableGroups"
+            displayName="$(string.DisableGroups)" explainText="$(string.DisableGroups_Help)">
+      <parentCategory ref="Transfers" />
+      <supportedOn ref="SUPPORTED_Shorekeeper_0_1" />
+      <enabledValue><decimal value="1" /></enabledValue>
+      <disabledValue><decimal value="0" /></disabledValue>
+    </policy>
+
     <!-- Network -->
     <policy name="AllowBridge" class="Both" key="Software\Policies\Shorekeeper" valueName="AllowBridge"
             displayName="$(string.AllowBridge)" explainText="$(string.AllowBridge_Help)">

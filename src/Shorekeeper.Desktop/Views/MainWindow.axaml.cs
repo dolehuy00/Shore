@@ -10,11 +10,14 @@ namespace Shorekeeper.Desktop.Views;
 
 public partial class MainWindow : Window
 {
+    /// <summary>The card currently lit up under the dragged files.</summary>
+    private IFileDropTarget? highlighted;
+
     public MainWindow()
     {
         InitializeComponent();
 
-        // Dropping files on a contact's card sends them (docs/10-ux.md §2).
+        // Dropping files on a person's or a group's card sends them (docs/10-ux.md §2, §6).
         AddHandler(DragDrop.DragOverEvent, OnDragOver);
         AddHandler(DragDrop.DragLeaveEvent, OnDragLeave);
         AddHandler(DragDrop.DropEvent, OnDrop);
@@ -28,31 +31,30 @@ public partial class MainWindow : Window
     private static PeerCardViewModel? CardAt(object? source) =>
         (source as Visual)?.GetSelfAndVisualAncestors().OfType<Control>().Select(c => c.DataContext).OfType<PeerCardViewModel>().FirstOrDefault();
 
+    private static IFileDropTarget? DropTargetAt(object? source) =>
+        (source as Visual)?.GetSelfAndVisualAncestors().OfType<Control>().Select(c => c.DataContext).OfType<IFileDropTarget>().FirstOrDefault();
+
     private void OnDragOver(object? sender, DragEventArgs e)
     {
-        PeerCardViewModel? card = CardAt(e.Source);
-        ClearDropTargets(except: card);
-        bool canDrop = card is { IsTrusted: true } && e.DataTransfer.Contains(DataFormat.File);
+        IFileDropTarget? target = DropTargetAt(e.Source);
+        bool canDrop = target is { CanDrop: true } && e.DataTransfer.Contains(DataFormat.File);
+        Highlight(canDrop ? target : null);
         e.DragEffects = canDrop ? DragDropEffects.Copy : DragDropEffects.None;
-        if (card is not null)
-        {
-            card.IsDropTarget = canDrop;
-        }
     }
 
-    private void OnDragLeave(object? sender, DragEventArgs e) => ClearDropTargets(except: null);
+    private void OnDragLeave(object? sender, DragEventArgs e) => Highlight(null);
 
     private async void OnDrop(object? sender, DragEventArgs e)
     {
-        PeerCardViewModel? card = CardAt(e.Source);
-        ClearDropTargets(except: null);
-        if (card is not { IsTrusted: true } || Neighborhood is not { } neighborhood)
+        IFileDropTarget? target = DropTargetAt(e.Source);
+        Highlight(null);
+        if (target is not { CanDrop: true })
         {
             return;
         }
 
         string[] paths = [.. (e.DataTransfer.TryGetFiles() ?? []).Select(f => f.TryGetLocalPath()).OfType<string>()];
-        await neighborhood.SendAsync(card, paths);
+        await target.DropAsync(paths);
     }
 
     private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
@@ -83,14 +85,17 @@ public partial class MainWindow : Window
         }
     }
 
-    private void ClearDropTargets(PeerCardViewModel? except)
+    private void Highlight(IFileDropTarget? target)
     {
-        foreach (PeerCardViewModel card in Neighborhood?.Contacts ?? [])
+        if (highlighted is not null && highlighted != target)
         {
-            if (card != except)
-            {
-                card.IsDropTarget = false;
-            }
+            highlighted.IsDropTarget = false;
+        }
+
+        highlighted = target;
+        if (target is not null)
+        {
+            target.IsDropTarget = true;
         }
     }
 }

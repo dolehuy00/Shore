@@ -1,3 +1,4 @@
+using System.Globalization;
 using Shorekeeper.Core.Discovery;
 using TextEncoding = System.Text.Encoding;
 
@@ -31,7 +32,41 @@ public class PresenceCodecTests
         Assert.Equal(packet.Name, decoded.Name);
         Assert.Equal(packet.Addresses, decoded.Addresses);
         Assert.Equal(packet.Capabilities, decoded.Capabilities);
-        Assert.Equal(packet with { Addresses = decoded.Addresses, Capabilities = decoded.Capabilities }, decoded);
+        Assert.Equal(packet with { Addresses = decoded.Addresses, Capabilities = decoded.Capabilities, Groups = decoded.Groups }, decoded);
+    }
+
+    [Fact]
+    public void Hosted_groups_round_trip_and_invalid_ones_are_dropped()
+    {
+        string group = new('a', 32);
+        byte[] data = Packet($$"""
+            {"v":1,"type":"heartbeat","id":"{{ValidId}}","groups":[
+              {"id":"{{group}}","name":"Build QA","n":6},
+              {"id":"not-a-group","name":"X","n":1},
+              {"id":"{{group}}","name":"","n":1}]}
+            """);
+
+        Assert.True(PresenceCodec.TryDecode(data, out PresencePacket? decoded));
+        Assert.Equal([new PresenceGroup(group, "Build QA", 6)], decoded.Groups);
+    }
+
+    [Fact]
+    public void Groups_that_do_not_fit_in_a_packet_are_left_out()
+    {
+        string longName = new('ạ', PresenceCodec.MaxGroupNameLength);
+        var packet = new PresencePacket
+        {
+            Type = PresencePacketTypes.Heartbeat,
+            Id = ValidId,
+            Groups = [.. Enumerable.Range(0, PresencePacket.MaxGroups).Select(i => new PresenceGroup(i.ToString("x32", CultureInfo.InvariantCulture), longName, i))],
+        };
+
+        byte[] data = PresenceCodec.Encode(packet);
+
+        Assert.True(data.Length <= PresenceCodec.MaxPacketSize);
+        Assert.True(PresenceCodec.TryDecode(data, out PresencePacket? decoded));
+        Assert.InRange(decoded.Groups.Count, 1, PresencePacket.MaxGroups - 1);
+        Assert.Equal(packet.Groups.Take(decoded.Groups.Count), decoded.Groups);
     }
 
     [Fact]
@@ -53,6 +88,7 @@ public class PresenceCodecTests
         Assert.Equal("", decoded.Host);
         Assert.Empty(decoded.Addresses);
         Assert.Empty(decoded.Capabilities);
+        Assert.Empty(decoded.Groups);
         Assert.Equal(PresenceStatus.Available, decoded.Status);
     }
 

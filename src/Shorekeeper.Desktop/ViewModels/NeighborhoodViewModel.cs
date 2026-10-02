@@ -7,6 +7,7 @@ using Shorekeeper.Core.Identity;
 using Shorekeeper.Core.Trust;
 using Shorekeeper.Desktop.Views;
 using Shorekeeper.Engine.Discovery;
+using Shorekeeper.Engine.Groups;
 using Shorekeeper.Engine.Trust;
 
 namespace Shorekeeper.Desktop.ViewModels;
@@ -19,19 +20,22 @@ public sealed partial class NeighborhoodViewModel : ObservableObject
 {
     private readonly PeerDirectory directory;
     private readonly TrustStore trust;
+    private readonly GroupStore groups;
     private readonly PairingService pairing;
     private readonly DialogService dialogs;
     private readonly Dictionary<DeviceId, PeerCardViewModel> cards = [];
 
-    public NeighborhoodViewModel(PeerDirectory directory, TrustStore trust, PairingService pairing, DialogService dialogs)
+    public NeighborhoodViewModel(PeerDirectory directory, TrustStore trust, GroupStore groups, PairingService pairing, DialogService dialogs)
     {
         this.directory = directory;
         this.trust = trust;
+        this.groups = groups;
         this.pairing = pairing;
         this.dialogs = dialogs;
 
         directory.Changed += (_, _) => Dispatcher.UIThread.Post(Refresh);
         trust.Changed += (_, _) => Dispatcher.UIThread.Post(Refresh);
+        groups.Changed += (_, _) => Dispatcher.UIThread.Post(Refresh);
         Refresh();
     }
 
@@ -53,13 +57,14 @@ public sealed partial class NeighborhoodViewModel : ObservableObject
     private void Refresh()
     {
         Dictionary<DeviceId, PeerInfo> live = directory.Snapshot().ToDictionary(p => p.DeviceId);
+        Group[] joined = [.. groups.GetAll().Where(g => g.Role != GroupRole.Pending)];
 
         var contacts = trust.GetAll(TrustLevel.Trusted)
-            .Select(record => Card(record.DeviceId).Update(record, live.GetValueOrDefault(record.DeviceId)))
+            .Select(record => Card(record.DeviceId).Update(record, live.GetValueOrDefault(record.DeviceId), null))
             .ToList();
         var others = live.Values
             .Where(peer => trust.GetLevel(peer.DeviceId) == TrustLevel.Unknown)
-            .Select(peer => Card(peer.DeviceId).Update(null, peer))
+            .Select(peer => Card(peer.DeviceId).Update(null, peer, joined.FirstOrDefault(g => g.Contains(peer.DeviceId))))
             .ToList();
 
         Sync(Contacts, contacts);
@@ -100,7 +105,8 @@ public sealed partial class NeighborhoodViewModel : ObservableObject
 
     /// <summary>
     /// Sends to the card, or to every selected card when it is part of a Ctrl+click selection
-    /// (docs/10-ux.md §2). Only contacts can receive files.
+    /// (docs/10-ux.md §2). Contacts can receive files, and so can fellow group members (one at a time,
+    /// as the offer belongs to the group they share).
     /// </summary>
     public async Task SendAsync(PeerCardViewModel card, IReadOnlyList<string> paths)
     {
@@ -110,6 +116,12 @@ public sealed partial class NeighborhoodViewModel : ObservableObject
         foreach (PeerCardViewModel selected in Contacts.Where(c => c.IsSelected))
         {
             selected.IsSelected = false;
+        }
+
+        if (!card.IsTrusted && card.SharedGroupId is { } groupId)
+        {
+            await dialogs.SendAsync(paths, [(card.DeviceId, card.DisplayName)], groupId);
+            return;
         }
 
         await dialogs.SendAsync(paths, [.. targets.Where(t => t.IsTrusted).Select(t => (t.DeviceId, t.DisplayName))]);
@@ -172,7 +184,7 @@ public sealed partial class NeighborhoodViewModel : ObservableObject
     internal Task BlockAsync(PeerCardViewModel card) => trust.BlockAsync(card.DeviceId, card.DisplayName, card.HostName);
 }
 
-public sealed partial class PeerCardViewModel(DeviceId deviceId, NeighborhoodViewModel owner) : ObservableObject
+public sealed partial class PeerCardViewModel(DeviceId deviceId, NeighborhoodViewModel owner) : ObservableObject, IFileDropTarget
 {
     public DeviceId DeviceId { get; } = deviceId;
 
@@ -195,8 +207,24 @@ public sealed partial class PeerCardViewModel(DeviceId deviceId, NeighborhoodVie
     public partial bool IsInactive { get; set; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanConnect))]
+    [NotifyPropertyChangedFor(nameof(CanConnect), nameof(CanSend), nameof(CanDrop))]
     public partial bool IsTrusted { get; set; }
+
+    /// <summary>A group we are both in, for peers that are not contacts: they can still receive files.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanSend), nameof(CanDrop), nameof(HasGroup))]
+    public partial string? SharedGroupId { get; set; }
+
+    [ObservableProperty]
+    public partial string GroupText { get; set; } = "";
+
+    public bool HasGroup => !IsTrusted && SharedGroupId is not null;
+
+    public bool CanSend => IsTrusted || SharedGroupId is not null;
+
+    public bool CanDrop => CanSend;
+
+    public Task DropAsync(IReadOnlyList<string> paths) => owner.SendAsync(this, paths);
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanConnect))]
@@ -220,8 +248,11 @@ public sealed partial class PeerCardViewModel(DeviceId deviceId, NeighborhoodVie
 
     /// <param name="record">Set for contacts.</param>
     /// <param name="live">Set while the peer is visible on the network.</param>
-    public PeerCardViewModel Update(PeerRecord? record, PeerInfo? live)
+    /// <param name="sharedGroup">A group we are both in (looked up for peers that are not contacts).</param>
+    public PeerCardViewModel Update(PeerRecord? record, PeerInfo? live, Group? sharedGroup)
     {
+        SharedGroupId = sharedGroup?.Id;
+        GroupText = sharedGroup is null ? "" : $"Cùng nhóm {sharedGroup.Name}";
         HostName = live?.HostName ?? record?.HostName ?? "";
         DisplayName = record?.ShownName ?? live?.DisplayName ?? "";
         IsTrusted = record?.TrustLevel == TrustLevel.Trusted;

@@ -67,7 +67,7 @@ Template nằm ở `deploy/admx/`: `Shorekeeper.admx` + `en-US\Shorekeeper.adml`
 | `ProbeSubnets` | multi-string | Dải CIDR để quét | ✅ |
 | `DiscoveryPort` / `ApiPort` | dword | Đổi cổng (đồng bộ toàn mạng); một mục "Cổng mạng" trong ADMX | ✅ |
 | `MaxOfferSizeGB` | dword | | Chưa làm, chưa có trong ADMX |
-| `DisableGroups` | dword | | Chưa làm (M5) |
+| `DisableGroups` | dword | `1` = tắt nhóm (không tạo/vào, chỉ nhận file từ liên hệ) | ✅ |
 | `AllowedSubnets` | multi-string | Chỉ giao tiếp trong các dải này | Chưa làm |
 | `AuditLog` | dword | | Chưa làm |
 

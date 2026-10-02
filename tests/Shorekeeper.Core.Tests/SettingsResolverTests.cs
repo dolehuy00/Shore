@@ -127,6 +127,13 @@ public class SettingsResolverTests
         Assert.True(settings.IsLocked(nameof(ShorekeeperSettings.ProbeSubnets)));
     }
 
+    [Fact]
+    public void Groups_are_on_unless_policy_disables_them()
+    {
+        Assert.True(Resolve(new ShorekeeperSettings()).GroupsEnabled);
+        Assert.False(Resolve(new ShorekeeperSettings(), new FakePolicy { [PolicyNames.DisableGroups] = 1 }).GroupsEnabled);
+    }
+
     private static EffectiveSettings Resolve(ShorekeeperSettings user, IPolicyProvider? policy = null) =>
         SettingsResolver.Resolve(user, policy ?? NullPolicyProvider.Instance, DefaultName, DefaultDownloads);
 

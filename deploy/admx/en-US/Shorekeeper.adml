@@ -35,6 +35,12 @@ If enabled, users cannot change it. If disabled or not configured, the default i
 If enabled or not configured, files are marked (recommended).
 If disabled, files are not marked.</string>
 
+      <string id="DisableGroups">Turn off groups</string>
+      <string id="DisableGroups_Help">Groups let people send files to fellow members without connecting one by one.
+
+If enabled, users cannot create, join or be invited into groups, this computer does not host groups, and it accepts files only from contacts.
+If disabled or not configured, groups are available.</string>
+
       <string id="AllowBridge">Allow users to turn on the bridge role</string>
       <string id="AllowBridge_Help">The bridge role lets a computer relay presence between subnets, so people in different subnets see each other.
 

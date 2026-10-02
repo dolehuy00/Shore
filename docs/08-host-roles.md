@@ -20,8 +20,8 @@ Vai trò Người gửi và Group Host **tự động** theo hành động của
 
 ## 3. Group Host
 
-- Chạy trong Engine (`GroupHostService`) khi máy có ít nhất một nhóm do mình tạo.
-- Mỗi thành viên giữ 1 kết nối SSE. 100 thành viên ≈ 100 kết nối nhàn rỗi, không đáng kể.
+- Chạy trong Engine (`GroupService`, phía Host) khi máy có ít nhất một nhóm do mình tạo.
+- Mỗi thành viên giữ 1 long-poll (trả lời tối đa 20 giây một lần). 100 thành viên ≈ 5 request/giây, không đáng kể.
 - Host offline thì thành viên vẫn gửi file cho nhau theo danh sách đã cache ([07 §4](07-groups.md)).
 
 ## 4. Bridge

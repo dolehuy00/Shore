@@ -196,6 +196,78 @@ public sealed partial class ChoiceViewModel(string title, string message, IReadO
 
 public sealed record ChoiceButton(string Text, int Index);
 
+public sealed partial class PickablePeer(DeviceId deviceId, string name, string detail, bool isChecked) : ObservableObject
+{
+    public DeviceId DeviceId { get; } = deviceId;
+
+    public string Name { get; } = name;
+
+    public string Detail { get; } = detail;
+
+    [ObservableProperty]
+    public partial bool IsChecked { get; set; } = isChecked;
+}
+
+/// <summary>Ticks people: recipients when sending to a group, people to invite into one (docs/10-ux.md §6).</summary>
+public sealed partial class PickPeopleViewModel : DialogViewModel
+{
+    public PickPeopleViewModel(string title, string confirmText, string emptyText, IReadOnlyList<PickablePeer> people)
+    {
+        Title = title;
+        ConfirmText = confirmText;
+        EmptyText = emptyText;
+        People = people;
+        foreach (PickablePeer person in People)
+        {
+            person.PropertyChanged += (_, _) => OnPropertyChanged(nameof(SummaryText));
+        }
+    }
+
+    public string Title { get; }
+
+    public string ConfirmText { get; }
+
+    public string EmptyText { get; }
+
+    public IReadOnlyList<PickablePeer> People { get; }
+
+    public bool IsEmpty => People.Count == 0;
+
+    public string SummaryText => $"Đã chọn {People.Count(p => p.IsChecked)}/{People.Count} người";
+
+    /// <summary>Set when the user confirms with at least one person.</summary>
+    public IReadOnlyList<PickablePeer>? Selected { get; private set; }
+
+    [RelayCommand]
+    private void SelectAll() => SetAll(true);
+
+    [RelayCommand]
+    private void SelectNone() => SetAll(false);
+
+    [RelayCommand]
+    private void Confirm()
+    {
+        PickablePeer[] picked = [.. People.Where(p => p.IsChecked)];
+        if (picked.Length > 0)
+        {
+            Selected = picked;
+        }
+
+        RequestClose();
+    }
+
+    [RelayCommand]
+    private void Cancel() => RequestClose();
+
+    private void SetAll(bool value)
+    {
+        foreach (PickablePeer person in People)
+        {
+            person.IsChecked = value;
+        }
+    }
+}
+
 public sealed partial class PickableFile(string fileId, string path, long size) : ObservableObject
 {
     public string FileId { get; } = fileId;

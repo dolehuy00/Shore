@@ -35,6 +35,9 @@ public sealed record EffectiveSettings
 
     public IReadOnlyList<string> ProbeSubnets { get; init; } = [];
 
+    /// <summary>False when IT turned groups off (policy <c>DisableGroups</c>).</summary>
+    public bool GroupsEnabled { get; init; } = true;
+
     /// <summary>
     /// Names of <see cref="ShorekeeperSettings"/> properties that are locked by policy.
     /// The UI shows these as read-only ("Do quản trị viên đặt").

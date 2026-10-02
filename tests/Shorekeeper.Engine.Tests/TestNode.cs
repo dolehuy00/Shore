@@ -6,6 +6,7 @@ using Shorekeeper.Core.Identity;
 using Shorekeeper.Core.Platform;
 using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Discovery;
+using Shorekeeper.Engine.Groups;
 using Shorekeeper.Engine.Hosting;
 using Shorekeeper.Engine.Transfers;
 using Shorekeeper.Engine.Trust;
@@ -39,6 +40,10 @@ internal sealed class TestNode : IAsyncDisposable
     public OfferService Offers => Get<OfferService>();
 
     public InboxService Inbox => Get<InboxService>();
+
+    public GroupService Groups => Get<GroupService>();
+
+    public GroupStore GroupStore => Get<GroupStore>();
 
     public string DownloadDirectory => folder.Paths.DefaultDownloadDirectory;
 

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Shorekeeper.Core.Identity;
 using Shorekeeper.Core.Trust;
+using Shorekeeper.Engine.Groups;
 using Shorekeeper.Engine.Identity;
 using Shorekeeper.Engine.Trust;
 
@@ -14,6 +15,9 @@ public enum RequiredAccess
 
     /// <summary>Peers the user has connected with.</summary>
     Trusted,
+
+    /// <summary>Contacts, or peers in a group with us; the handler checks the specific group (docs/04-identity-security.md §4.2).</summary>
+    TrustedOrGroupMember,
 }
 
 /// <summary>Endpoint metadata declaring who may call it. Endpoints without it are refused (default deny).</summary>
@@ -31,6 +35,10 @@ public static class PeerAccess
         where TBuilder : IEndpointConventionBuilder =>
         builder.WithMetadata(new AccessRequirement(RequiredAccess.Trusted));
 
+    public static TBuilder RequireTrustedOrGroupMember<TBuilder>(this TBuilder builder)
+        where TBuilder : IEndpointConventionBuilder =>
+        builder.WithMetadata(new AccessRequirement(RequiredAccess.TrustedOrGroupMember));
+
     /// <summary>DeviceId of the peer making the request, taken from its TLS client certificate.</summary>
     public static DeviceId GetCaller(this HttpContext context) => (DeviceId)context.Items[CallerKey]!;
 
@@ -39,7 +47,7 @@ public static class PeerAccess
     /// (docs/04-identity-security.md §3). Blocked peers and unknown endpoints get the same answer as
     /// untrusted peers so nothing is revealed.
     /// </summary>
-    public static IApplicationBuilder UsePeerAccess(this IApplicationBuilder app, TrustStore trust) =>
+    public static IApplicationBuilder UsePeerAccess(this IApplicationBuilder app, TrustStore trust, GroupStore groups) =>
         app.Use(async (HttpContext context, RequestDelegate next) =>
         {
             if (context.Connection.ClientCertificate is not { } certificate)
@@ -57,6 +65,7 @@ public static class PeerAccess
             {
                 RequiredAccess.AnyPeer => true,
                 RequiredAccess.Trusted => level == TrustLevel.Trusted,
+                RequiredAccess.TrustedOrGroupMember => level == TrustLevel.Trusted || groups.SharesGroup(caller),
                 _ => false,
             };
 

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Shorekeeper.Engine.Groups;
 using Shorekeeper.Engine.Identity;
 using Shorekeeper.Engine.Settings;
 using Shorekeeper.Engine.Storage;
@@ -16,6 +17,7 @@ public sealed class ShorekeeperEngine(
     MigrationRunner migrations,
     IdentityStore identityStore,
     TrustStore trustStore,
+    GroupStore groupStore,
     ILogger<ShorekeeperEngine> logger) : IDisposable
 {
     private DeviceIdentity? identity;
@@ -35,6 +37,7 @@ public sealed class ShorekeeperEngine(
         settings.Load();
         await migrations.MigrateAsync(cancellationToken);
         await trustStore.LoadAsync(cancellationToken);
+        await groupStore.LoadAsync(cancellationToken);
         identity = identityStore.LoadOrCreate();
 
         logger.LogInformation(

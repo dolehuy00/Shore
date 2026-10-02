@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Shorekeeper.Core.Identity;
 using Shorekeeper.Engine.Discovery;
+using Shorekeeper.Engine.Groups;
 using Shorekeeper.Engine.Transfers;
 using Shorekeeper.Engine.Trust;
 
@@ -25,6 +26,8 @@ internal static class PeerApiEndpoints
         var inbox = services.GetRequiredService<InboxService>();
         var pex = services.GetRequiredService<PexService>();
         var bridge = services.GetRequiredService<BridgeRegistry>();
+        var groupStore = services.GetRequiredService<GroupStore>();
+        var groups = services.GetRequiredService<GroupService>();
 
         RouteGroupBuilder api = app.MapGroup(PeerClient.ApiBasePath.TrimEnd('/'));
 
@@ -100,31 +103,77 @@ internal static class PeerApiEndpoints
 
         // ───────────── Sending files (docs/05-protocol.md §4.2, §4.3) ─────────────
 
-        // Recipient side: a contact offers us files.
+        // Recipient side: a contact, or a fellow member of the offer's group, offers us files.
         api.MapPost("/inbox/offers", async (HttpContext context, OfferManifest manifest) =>
-                await inbox.HandleOfferAsync(context.GetCaller(), manifest)
-                    ? Results.Accepted()
-                    : ApiResults.Problem(StatusCodes.Status400BadRequest, ApiErrorCodes.InvalidRequest))
-            .RequireTrustedPeer();
+                !groupStore.CanExchangeFiles(context.GetCaller(), manifest.GroupId)
+                    ? ApiResults.Problem(StatusCodes.Status403Forbidden, ApiErrorCodes.NotTrusted)
+                    : await inbox.HandleOfferAsync(context.GetCaller(), manifest)
+                        ? Results.Accepted()
+                        : ApiResults.Problem(StatusCodes.Status400BadRequest, ApiErrorCodes.InvalidRequest))
+            .RequireTrustedOrGroupMember();
 
         api.MapPost("/inbox/offers/{offerId}/withdrawn", async (HttpContext context, string offerId) =>
             {
                 await inbox.HandleWithdrawnAsync(context.GetCaller(), offerId);
                 return Results.NoContent();
             })
-            .RequireTrustedPeer();
+            .RequireTrustedOrGroupMember();
 
-        // Sender side: recipients pull the data. Each handler also checks the caller is a recipient.
+        // Sender side: recipients pull the data. Each handler also checks the caller is a recipient
+        // and still a contact or member of the offer's group.
         api.MapGet("/offers/{offerId}/files/{fileId}", (HttpContext context, string offerId, string fileId) =>
                 offers.ServeFile(context.GetCaller(), offerId, fileId))
-            .RequireTrustedPeer();
+            .RequireTrustedOrGroupMember();
 
         api.MapGet("/offers/{offerId}/files/{fileId}/hash", (HttpContext context, string offerId, string fileId, CancellationToken cancellationToken) =>
                 offers.GetHashAsync(context.GetCaller(), offerId, fileId, cancellationToken))
-            .RequireTrustedPeer();
+            .RequireTrustedOrGroupMember();
 
         api.MapPost("/offers/{offerId}/receipts", (HttpContext context, string offerId, OfferReceipt receipt) =>
                 offers.HandleReceiptAsync(context.GetCaller(), offerId, receipt))
-            .RequireTrustedPeer();
+            .RequireTrustedOrGroupMember();
+
+        // ───────────── Groups (docs/05-protocol.md §4.4): handlers decide, unknown peers may only ask ─────────────
+
+        // On the Host: someone asks to join (or accepts our invitation).
+        api.MapPost("/groups/{groupId}/join-requests", async (HttpContext context, string groupId, GroupJoinRequestBody body) =>
+                await groups.HandleJoinRequestAsync(context.GetCaller(), groupId, body) switch
+                {
+                    JoinRequestResult.Pending => Results.Json(new GroupJoinResponse(GroupStatus.Pending), statusCode: StatusCodes.Status202Accepted),
+                    JoinRequestResult.Member => Results.Ok(new GroupJoinResponse(GroupStatus.Member)),
+                    JoinRequestResult.RateLimited => ApiResults.Problem(StatusCodes.Status429TooManyRequests, ApiErrorCodes.RateLimited),
+                    JoinRequestResult.Full => ApiResults.Problem(StatusCodes.Status503ServiceUnavailable, ApiErrorCodes.Busy),
+                    JoinRequestResult.NotFound => ApiResults.Problem(StatusCodes.Status404NotFound, ApiErrorCodes.NotFound),
+                    _ => ApiResults.Problem(StatusCodes.Status400BadRequest, ApiErrorCodes.InvalidRequest),
+                })
+            .AllowAnyPeer();
+
+        // On the Host: members long-poll the member list; requesters the decision. Anyone else: 404.
+        api.MapGet("/groups/{groupId}/state", async (HttpContext context, string groupId, long? since, int? wait, CancellationToken cancellationToken) =>
+                await groups.GetStateAsync(
+                        context.GetCaller(), groupId, since ?? 0,
+                        TimeSpan.FromSeconds(Math.Clamp(wait ?? 0, 0, (int)GroupService.MaxWait.TotalSeconds)), cancellationToken)
+                    is { } state
+                    ? Results.Ok(state)
+                    : ApiResults.Problem(StatusCodes.Status404NotFound, ApiErrorCodes.NotFound))
+            .AllowAnyPeer();
+
+        api.MapPost("/groups/{groupId}/leave", async (HttpContext context, string groupId) =>
+            {
+                await groups.HandleLeaveAsync(context.GetCaller(), groupId);
+                return Results.NoContent();
+            })
+            .AllowAnyPeer();
+
+        // On the invitee: a Host invites us; the user decides.
+        api.MapPost("/groups/invitations", (HttpContext context, GroupInvitationBody body) =>
+                groups.HandleInvitation(context.GetCaller(), body) switch
+                {
+                    JoinRequestResult.Pending or JoinRequestResult.Member => Results.Accepted(),
+                    JoinRequestResult.RateLimited => ApiResults.Problem(StatusCodes.Status429TooManyRequests, ApiErrorCodes.RateLimited),
+                    JoinRequestResult.NotFound => ApiResults.Problem(StatusCodes.Status404NotFound, ApiErrorCodes.NotFound),
+                    _ => ApiResults.Problem(StatusCodes.Status400BadRequest, ApiErrorCodes.InvalidRequest),
+                })
+            .AllowAnyPeer();
     }
 }

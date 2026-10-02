@@ -46,7 +46,7 @@
 | `status` | `available` \| `busy` | M1 |
 | `caps` | Khả năng: `bridge` khi máy đang làm cầu nối | M4 |
 | `proto` | Phiên bản API hỗ trợ | (dự kiến) |
-| `groups` | Nhóm mà máy này Host (tối đa 5) | M5 |
+| `groups` | Nhóm mà máy này Host (tối đa 5): `[{ id, name, n }]`, `n` = số thành viên | M5 |
 | `bridges` | Bridge mà peer đang biết | (bỏ: PEX đã mang danh sách Bridge, gói UDP giữ gọn) |
 
 - Mọi gói (kể cả `heartbeat`) mang **đầy đủ** presence. Gói ~300 byte, nên không cần bản rút gọn.
@@ -126,21 +126,21 @@
 
 ### 4.4 Nhóm — endpoint trên **Host**
 
-| Method | Path | Quyền | Mô tả |
-|---|---|---|---|
-| POST | `/groups/{groupId}/join-requests` | Any (rate limit) | Xin vào |
-| POST | `/groups/{groupId}/join` | Người được mời | Chấp nhận lời mời `{ invitationId }` |
-| POST | `/groups/{groupId}/leave` | GroupMember | Rời nhóm |
-| GET | `/groups/{groupId}/members` | GroupMember | Snapshot thành viên (+ địa chỉ, online) |
-| GET | `/groups/{groupId}/events` | GroupMember | SSE: `member-joined`, `member-left`, `member-online`, `member-offline`, `group-renamed`, `group-closed` |
-
-### 4.5 Nhóm — endpoint trên **máy thành viên / người xin**
+Quyền `Any` ở middleware; handler tự quyết theo DeviceId người gọi. Ai không liên quan đều nhận `404`, không biết thêm gì.
 
 | Method | Path | Quyền | Mô tả |
 |---|---|---|---|
-| POST | `/groups/invitations` | Any (rate limit) | Host mời máy này; người dùng đồng ý hoặc không |
-| POST | `/groups/{groupId}/joined` | Host của nhóm | Host báo đã duyệt, kèm snapshot thành viên |
-| POST | `/groups/{groupId}/join-declined` | Host của nhóm | Host từ chối |
+| POST | `/groups/{groupId}/join-requests` | Any (rate limit) | `{ name, host, note }` → `202 { status: "pending" }`, hoặc `200 { status: "member" }` nếu đã được mời / đã là thành viên. `429` khi gửi nhiều hoặc bị từ chối 3 lần trong 24 giờ, `503` khi nhóm đủ 100 người |
+| GET | `/groups/{groupId}/state?since=&wait=` | Thành viên / người đang xin | Long-poll tối đa 25 giây → `{ status, version, name, members: [{ deviceId, name, isHost, address, discoveryPort }] }`. `status`: `member` (kèm danh sách, chờ đến khi `version` khác `since`), `pending` (chờ quyết định), `declined`. Người khác, người bị loại, nhóm đã đóng: `404` |
+| POST | `/groups/{groupId}/leave` | Any | Rời nhóm, hoặc rút yêu cầu đang chờ |
+
+### 4.5 Nhóm — endpoint trên **người được mời**
+
+| Method | Path | Quyền | Mô tả |
+|---|---|---|---|
+| POST | `/groups/invitations` | Any (rate limit) | `{ groupId, groupName, hostName }` → `202`. Người gọi là Host. Đồng ý = gửi `join-requests`, Host cho vào ngay |
+
+Endpoint gửi file (§4.2, §4.3) dùng quyền **Trusted hoặc cùng nhóm**: middleware cho qua khi người gọi là Trusted hoặc có chung ít nhất một nhóm, handler kiểm tra đúng nhóm của offer (`groupId`).
 
 ### 4.6 Bridge (khi bật)
 

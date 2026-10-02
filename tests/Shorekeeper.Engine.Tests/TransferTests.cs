@@ -177,7 +177,7 @@ public sealed class TransferTests : IAsyncLifetime
         PreparedOffer prepared = OfferService.Prepare([source]);
         Assert.True(Assert.Single(prepared.LockedFiles).IsLocked);
 
-        string offerId = await a.Offers.CreateAsync(prepared, [b.Id], null, snapshotLocked: true, Ct);
+        string offerId = await a.Offers.CreateAsync(prepared, [b.Id], null, snapshotLocked: true, groupId: null, Ct);
         ReceivedOffer done = await DownloadAsync(b, await WaitForOfferAsync(b, offerId));
 
         Assert.Equal(InboxState.Completed, done.State);
@@ -191,7 +191,7 @@ public sealed class TransferTests : IAsyncLifetime
         string normal = WriteFile(a, "readme.txt", "ok"u8.ToArray());
         await using var writer = new FileStream(locked, FileMode.Open, FileAccess.Write, FileShare.ReadWrite);
 
-        string offerId = await a.Offers.CreateAsync(OfferService.Prepare([locked, normal]), [b.Id], null, snapshotLocked: false, Ct);
+        string offerId = await a.Offers.CreateAsync(OfferService.Prepare([locked, normal]), [b.Id], null, snapshotLocked: false, groupId: null, Ct);
         ReceivedOffer offer = await WaitForOfferAsync(b, offerId);
 
         Assert.Equal("readme.txt", Assert.Single(offer.Files).RelativePath);
@@ -276,7 +276,7 @@ public sealed class TransferTests : IAsyncLifetime
     }
 
     private static Task<string> SendAsync(TestNode sender, string[] paths, DeviceId recipient, string? note = null) =>
-        sender.Offers.CreateAsync(OfferService.Prepare(paths), [recipient], note, snapshotLocked: false, Ct);
+        sender.Offers.CreateAsync(OfferService.Prepare(paths), [recipient], note, snapshotLocked: false, groupId: null, Ct);
 
     private static async Task<ReceivedOffer> WaitForOfferAsync(TestNode recipient, string offerId)
     {

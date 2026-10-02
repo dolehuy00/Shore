@@ -72,7 +72,16 @@ Mỗi milestone kết thúc bằng một bản **chạy được, demo được*
 
 **Xong khi:** 2 subnet thấy nhau sau một lần Kết nối bắc cầu, hoặc ngay lập tức nếu có Bridge.
 
-## M5 — Nhóm
+## M5 — Nhóm ✅ (2026-10-02)
+
+- `GroupStore` (nhóm, thành viên, yêu cầu; kiểm tra "cùng nhóm") + `GroupService` (Host: tạo, đổi tên, đóng, duyệt/từ chối, loại, mời; thành viên: xin vào, rời, long-poll danh sách — ADR-011).
+- Quyền "Trusted hoặc cùng nhóm" cho offer có `groupId`; người bị loại mất quyền ngay khi danh sách cập nhật.
+- Nhóm quảng bá trong presence (`groups`), "Nhóm trong mạng" → [Xin vào]; địa chỉ thành viên → probe, nên thấy nhau khác subnet.
+- UI trang Nhóm: tạo, thẻ nhóm (thành viên online, yêu cầu chờ duyệt, Gửi file cho nhóm, Mời…, Đổi tên, Đóng, Rời), lời mời, thông báo; popup yêu cầu vào nhóm / lời mời; kéo file vào nhóm → chọn người nhận; thẻ "Xóm" của người cùng nhóm gửi được file; badge.
+- GPO `DisableGroups` (+ ADMX).
+- **Chưa làm:** menu "Mời vào nhóm…" trên thẻ người (đang mời từ trang Nhóm); thử với nhóm 6 máy thật.
+
+Kế hoạch ban đầu:
 
 - `GroupHostService` / `GroupMemberService`, SSE.
 - Tạo nhóm, hiện trong mạng, xin vào → duyệt, Host mời → đồng ý, rời / loại / đóng.

@@ -16,9 +16,16 @@ public static class PresenceCodec
     private const int HeaderLength = 6;
     private static ReadOnlySpan<byte> Magic => "SKP1"u8;
 
+    /// <summary>Encodes the packet; hosted groups that do not fit are left out, last first.</summary>
     public static byte[] Encode(PresencePacket packet)
     {
         byte[] json = JsonSerializer.SerializeToUtf8Bytes(packet, PresenceJsonContext.Default.PresencePacket);
+        while (HeaderLength + json.Length > MaxPacketSize && packet.Groups.Count > 0)
+        {
+            packet = packet with { Groups = [.. packet.Groups.Take(packet.Groups.Count - 1)] };
+            json = JsonSerializer.SerializeToUtf8Bytes(packet, PresenceJsonContext.Default.PresencePacket);
+        }
+
         if (HeaderLength + json.Length > MaxPacketSize)
         {
             throw new InvalidOperationException($"Presence packet is {HeaderLength + json.Length} bytes; the limit is {MaxPacketSize}.");
@@ -70,9 +77,18 @@ public static class PresenceCodec
             Addresses = decoded.Addresses ?? [],
             Status = decoded.Status ?? PresenceStatus.Available,
             Capabilities = decoded.Capabilities ?? [],
+            Groups = [.. (decoded.Groups ?? []).Where(IsValid).Take(PresencePacket.MaxGroups)],
         };
         return true;
     }
+
+    /// <summary>A group id is 32 lowercase hex characters; names are shown, so they are bounded.</summary>
+    public static bool IsValidGroupId(string? id) => id is { Length: 32 } && id.All(char.IsAsciiHexDigitLower);
+
+    private static bool IsValid(PresenceGroup? group) =>
+        group is not null && IsValidGroupId(group.Id) && group.Name is { Length: > 0 and <= MaxGroupNameLength } && group.Members >= 0;
+
+    public const int MaxGroupNameLength = 40;
 }
 
 [JsonSourceGenerationOptions(DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault)]

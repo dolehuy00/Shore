@@ -128,7 +128,8 @@ CREATE TABLE Groups (
   HostDeviceId TEXT NOT NULL,
   IsHostedByMe INTEGER NOT NULL,
   CreatedAt    INTEGER NOT NULL,
-  JoinedAt     INTEGER NOT NULL
+  JoinedAt     INTEGER NOT NULL,
+  State        TEXT NOT NULL DEFAULT 'member'   -- 0003: member | pending (đã xin, chờ Host duyệt)
 );
 
 -- Host: nguồn sự thật. Thành viên: bản cache (dùng khi Host offline)
@@ -140,9 +141,10 @@ CREATE TABLE GroupMembers (
 
 CREATE TABLE GroupJoinRequests (       -- chỉ ở Host
   GroupId TEXT NOT NULL, DeviceId TEXT NOT NULL, Note TEXT,
-  State TEXT NOT NULL,                  -- pending|approved|declined
+  State TEXT NOT NULL,                  -- pending | invited (Host đã mời = duyệt trước) | declined
   DeclinedCount INTEGER NOT NULL DEFAULT 0,
-  RequestedAt INTEGER NOT NULL,
+  RequestedAt INTEGER NOT NULL,         -- với declined: lúc từ chối, tính khóa 24 giờ
+  DisplayName TEXT, HostName TEXT,      -- 0003: để Host biết ai xin
   PRIMARY KEY (GroupId, DeviceId)
 );
 

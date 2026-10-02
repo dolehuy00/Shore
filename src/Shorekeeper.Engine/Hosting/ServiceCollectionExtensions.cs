@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Shorekeeper.Core.Platform;
 using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Discovery;
+using Shorekeeper.Engine.Groups;
 using Shorekeeper.Engine.Identity;
 using Shorekeeper.Engine.Settings;
 using Shorekeeper.Engine.Storage;
@@ -35,6 +36,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<MigrationRunner>();
         services.AddSingleton<IdentityStore>();
         services.AddSingleton<TrustStore>();
+        services.AddSingleton<GroupStore>();
         services.AddSingleton<PeerDirectory>();
         services.AddSingleton<LocalDevice>();
         services.AddSingleton<ShorekeeperEngine>();
@@ -58,7 +60,7 @@ public static class ServiceCollectionExtensions
 
     /// <summary>
     /// Registers the HTTPS peer API (mutual TLS), the client for calling peers, connecting,
-    /// and what runs over the API to see other subnets: PEX and the Bridge role.
+    /// what runs over the API to see other subnets (PEX, the Bridge role), and groups.
     /// </summary>
     public static IServiceCollection AddPeerApi(this IServiceCollection services)
     {
@@ -76,6 +78,8 @@ public static class ServiceCollectionExtensions
         services.AddHostedService(sp => sp.GetRequiredService<BridgeClient>());
         services.AddSingleton<PexService>();
         services.AddHostedService(sp => sp.GetRequiredService<PexService>());
+        services.AddSingleton<GroupService>();
+        services.AddHostedService(sp => sp.GetRequiredService<GroupService>());
 
         return services;
     }

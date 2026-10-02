@@ -1,0 +1,43 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Shorekeeper.Desktop.ViewModels"
+        x:Class="Shorekeeper.Desktop.Views.PickPeopleWindow"
+        x:DataType="vm:PickPeopleViewModel"
+        Title="{Binding Title}"
+        Icon="/Assets/shorekeeper.png"
+        Width="460" Height="460" MinHeight="280"
+        WindowStartupLocation="CenterOwner">
+  <Grid RowDefinitions="Auto,*,Auto" Margin="20">
+    <StackPanel Spacing="6" Margin="0,0,0,10">
+      <TextBlock Text="{Binding Title}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
+      <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding !IsEmpty}">
+        <Button Content="Chọn tất cả" Command="{Binding SelectAllCommand}" />
+        <Button Content="Bỏ chọn tất cả" Command="{Binding SelectNoneCommand}" />
+      </StackPanel>
+    </StackPanel>
+
+    <TextBlock Grid.Row="1" Text="{Binding EmptyText}" IsVisible="{Binding IsEmpty}" Opacity="0.7" TextWrapping="Wrap" />
+    <ScrollViewer Grid.Row="1" IsVisible="{Binding !IsEmpty}">
+      <ItemsControl ItemsSource="{Binding People}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:PickablePeer">
+            <CheckBox IsChecked="{Binding IsChecked}" Margin="0,2">
+              <TextBlock>
+                <Run Text="{Binding Name}" FontWeight="SemiBold" />
+                <Run Text="{Binding Detail}" Foreground="Gray" />
+              </TextBlock>
+            </CheckBox>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+
+    <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Margin="0,12,0,0">
+      <TextBlock Text="{Binding SummaryText}" VerticalAlignment="Center" Opacity="0.75" IsVisible="{Binding !IsEmpty}" />
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+        <Button Content="Hủy" Command="{Binding CancelCommand}" IsCancel="True" />
+        <Button Content="{Binding ConfirmText}" Command="{Binding ConfirmCommand}" Classes="accent" IsDefault="True" IsEnabled="{Binding !IsEmpty}" />
+      </StackPanel>
+    </Grid>
+  </Grid>
+</Window>

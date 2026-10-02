@@ -23,6 +23,7 @@ public enum PeerSource
 
 /// <param name="Address">Address the last packet came from; the most reliable way to reach the peer.</param>
 /// <param name="DiscoveryPort">UDP port the peer's packets come from; 0 when not heard directly.</param>
+/// <param name="HostedGroups">Groups the peer hosts and announces; null when none.</param>
 public sealed record PeerInfo(
     DeviceId DeviceId,
     string DisplayName,
@@ -36,7 +37,8 @@ public sealed record PeerInfo(
     DateTimeOffset LastSeen,
     PeerSource Source = PeerSource.Direct,
     int DiscoveryPort = 0,
-    bool IsBridge = false);
+    bool IsBridge = false,
+    IReadOnlyList<PresenceGroup>? HostedGroups = null);
 
 public enum PeerChangeKind
 {
@@ -177,19 +179,25 @@ public sealed class PeerDirectory(TimeProvider timeProvider)
         timeProvider.GetUtcNow(),
         source,
         discoveryPort,
-        packet.Capabilities.Contains(PresenceCapabilities.Bridge));
+        packet.Capabilities.Contains(PresenceCapabilities.Bridge),
+        packet.Groups.Count > 0 ? packet.Groups : null);
 
     /// <summary>Stores the observation; returns the change to raise outside the lock, or null if nothing visible changed.</summary>
     private PeerChange? Store(PeerInfo observed)
     {
         PeerChange? change = !peers.TryGetValue(observed.DeviceId, out PeerInfo? existing)
             ? new PeerChange(PeerChangeKind.Added, observed)
-            : existing with { LastSeen = observed.LastSeen } != observed
+            : !SameExceptLastSeen(existing, observed)
                 ? new PeerChange(PeerChangeKind.Updated, observed)
                 : null;
         peers[observed.DeviceId] = observed;
         return change;
     }
+
+    /// <summary>Records compare lists by reference, and every packet decodes a new list of groups.</summary>
+    private static bool SameExceptLastSeen(PeerInfo a, PeerInfo b) =>
+        a with { LastSeen = b.LastSeen, HostedGroups = b.HostedGroups } == b
+        && (a.HostedGroups ?? []).SequenceEqual(b.HostedGroups ?? []);
 
     private void Raise(PeerChange? change)
     {

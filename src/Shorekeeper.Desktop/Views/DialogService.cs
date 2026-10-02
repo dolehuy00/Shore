@@ -31,10 +31,10 @@ public sealed class DialogService(
     public event EventHandler? InboxRequested;
 
     /// <summary>
-    /// Sends files/folders to contacts (docs/06-file-transfer.md §6). Files another program is writing
-    /// can only go as a temporary copy, so the user is asked first.
+    /// Sends files/folders to contacts, or to members of <paramref name="groupId"/> (docs/06-file-transfer.md §6).
+    /// Files another program is writing can only go as a temporary copy, so the user is asked first.
     /// </summary>
-    public async Task SendAsync(IReadOnlyList<string> paths, IReadOnlyList<(DeviceId Id, string Name)> recipients)
+    public async Task SendAsync(IReadOnlyList<string> paths, IReadOnlyList<(DeviceId Id, string Name)> recipients, string? groupId = null)
     {
         if (paths.Count == 0 || recipients.Count == 0)
         {
@@ -76,7 +76,7 @@ public sealed class DialogService(
 
         try
         {
-            await offers.CreateAsync(prepared, [.. recipients.Select(r => r.Id)], null, snapshotLocked, CancellationToken.None);
+            await offers.CreateAsync(prepared, [.. recipients.Select(r => r.Id)], null, snapshotLocked, groupId, CancellationToken.None);
         }
         catch (IOException ex)
         {
@@ -120,6 +120,27 @@ public sealed class DialogService(
         var viewModel = new PickOfferFilesViewModel(offer);
         await ShowAsync(new PickOfferFilesWindow { DataContext = viewModel }, viewModel);
         return viewModel.Selected;
+    }
+
+    /// <returns>The people ticked, or null when cancelled.</returns>
+    public static async Task<IReadOnlyList<PickablePeer>?> PickPeopleAsync(string title, string confirmText, string emptyText, IReadOnlyList<PickablePeer> people)
+    {
+        var viewModel = new PickPeopleViewModel(title, confirmText, emptyText, people);
+        await ShowAsync(new PickPeopleWindow { DataContext = viewModel }, viewModel);
+        return viewModel.Selected;
+    }
+
+    /// <summary>
+    /// A question that does not block the main window, shown even when the app sits in the tray
+    /// (join requests, invitations). <paramref name="onChoice"/> gets the button index, or -1 when closed.
+    /// </summary>
+    public static void ShowPopup(string title, string message, IReadOnlyList<string> choices, Action<int> onChoice)
+    {
+        var viewModel = new ChoiceViewModel(title, message, choices);
+        var window = new ChoiceWindow { DataContext = viewModel, Topmost = true, WindowStartupLocation = WindowStartupLocation.CenterScreen };
+        viewModel.CloseRequested += (_, _) => window.Close();
+        window.Closed += (_, _) => onChoice(viewModel.Choice);
+        window.Show();
     }
 
     /// <returns>Index of the button pressed, or -1 if the window was closed.</returns>

@@ -55,8 +55,10 @@ public sealed partial class MainWindowViewModel : ObservableObject
         NetworkDiagnosticsViewModel diagnostics,
         BlockedPeersViewModel blocked,
         SettingsViewModel settingsPage,
+        GroupsViewModel groups,
         DialogService dialogs)
     {
+        Groups = groups;
         Settings = settingsPage;
         settings.Changed += (_, current) => Dispatcher.UIThread.Post(() =>
         {
@@ -88,6 +90,14 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 NavItems[1].Badge = inbox.NewCount;
             }
         };
+        NavItems[3].Badge = groups.AttentionCount;
+        groups.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(GroupsViewModel.AttentionCount))
+            {
+                NavItems[3].Badge = groups.AttentionCount;
+            }
+        };
         dialogs.OfferSent += (_, _) => SelectedNavItem = NavItems[2];
         dialogs.InboxRequested += (_, _) => SelectedNavItem = NavItems[1];
     }
@@ -103,6 +113,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public BlockedPeersViewModel Blocked { get; }
 
     public SettingsViewModel Settings { get; }
+
+    public GroupsViewModel Groups { get; }
 
     [ObservableProperty]
     public partial string DisplayName { get; set; }
@@ -123,7 +135,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         new(NavPage.Neighborhood, "Xóm"),
         new(NavPage.Inbox, "Hộp nhận"),
         new(NavPage.Sent, "Đã gửi"),
-        new(NavPage.Groups, "Nhóm", "M5"),
+        new(NavPage.Groups, "Nhóm"),
         new(NavPage.Settings, "Cài đặt"),
     ];
 
@@ -136,7 +148,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ComingSoonText), nameof(IsComingSoonVisible), nameof(IsNeighborhoodVisible),
-        nameof(IsInboxVisible), nameof(IsSentVisible), nameof(IsSettingsVisible))]
+        nameof(IsInboxVisible), nameof(IsSentVisible), nameof(IsGroupsVisible), nameof(IsSettingsVisible))]
     public partial NavItem SelectedNavItem { get; set; }
 
     [ObservableProperty]
@@ -152,6 +164,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public bool IsInboxVisible => SelectedNavItem.Page == NavPage.Inbox;
 
     public bool IsSentVisible => SelectedNavItem.Page == NavPage.Sent;
+
+    public bool IsGroupsVisible => SelectedNavItem.Page == NavPage.Groups;
 
     public bool IsSettingsVisible => SelectedNavItem.Page == NavPage.Settings;
 

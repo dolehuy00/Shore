@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Server.Kestrel.Https;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Shorekeeper.Engine.Groups;
 using Shorekeeper.Engine.Settings;
 using Shorekeeper.Engine.Trust;
 
@@ -97,7 +98,7 @@ public sealed class ApiServer(
         });
 
         WebApplication webApp = builder.Build();
-        webApp.UsePeerAccess(services.GetRequiredService<TrustStore>());
+        webApp.UsePeerAccess(services.GetRequiredService<TrustStore>(), services.GetRequiredService<GroupStore>());
         PeerApiEndpoints.Map(webApp, services);
 
         try

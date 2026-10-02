@@ -130,3 +130,21 @@ Mỗi mục: **Bối cảnh → Quyết định → Hệ quả**. Trạng thái:
 - ✅ Một kiểu request, không cần parser SSE hay giữ stream; đứt kết nối thì request sau tự đồng bộ lại.
 - ✅ Client dùng chính vòng long-poll để làm mới các peer học từ Bridge, nên không cần heartbeat riêng.
 - ❌ Mỗi client mở lại request khoảng 25 giây một lần (300 client ≈ 12 request/giây), không đáng kể.
+
+---
+
+## ADR-011 — Nhóm: thành viên long-poll Host, lời mời là duyệt trước
+
+**Trạng thái:** Chấp nhận (M5)
+
+**Bối cảnh:** Thiết kế ban đầu: Host đẩy sự kiện qua SSE và gọi ngược tới người xin (`/joined`, `/join-declined`) hoặc người được mời (`/join`). Như vậy Host phải gọi được tới từng thành viên, phải tự thử lại khi họ offline, và thêm 4 endpoint cùng logic SSE.
+
+**Quyết định:**
+- Thành viên và người đang xin **cùng một endpoint** `GET /groups/{id}/state?since=&wait=` (long-poll như Bridge, ADR-010). Kết quả: danh sách (thành viên), `pending`, `declined`, hoặc `404` (không liên quan / bị loại / nhóm đóng).
+- Lời mời = Host ghi sẵn yêu cầu `invited` (duyệt trước) rồi báo người được mời. Đồng ý = gửi yêu cầu vào nhóm như thường; Host thấy `invited` thì cho vào ngay.
+- Phiên bản danh sách bắt đầu từ thời điểm Host khởi động, nên thành viên giữ version cũ sau khi Host khởi động lại sẽ nhận lại danh sách.
+
+**Hệ quả:**
+- ✅ Chỉ cần thành viên gọi được tới Host (giống mọi thứ khác: người nhận tải từ người gửi). Người xin offline lúc được duyệt vẫn biết khi mở lại app.
+- ✅ 3 endpoint trên Host + 1 trên người được mời, không có SSE.
+- ❌ Đổi trạng thái online của thành viên không đẩy ngay; thành viên lấy địa chỉ mới ở lần poll kế tiếp (≤ 20 giây). Online/offline trên UI lấy từ discovery của chính mình nên không bị ảnh hưởng.

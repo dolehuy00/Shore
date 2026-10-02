@@ -7,6 +7,7 @@ using Microsoft.Net.Http.Headers;
 using Shorekeeper.Core.Identity;
 using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Discovery;
+using Shorekeeper.Engine.Groups;
 using Shorekeeper.Engine.Settings;
 using Shorekeeper.Engine.Storage;
 
@@ -21,6 +22,7 @@ public sealed class OfferService(
     SqliteDatabase database,
     PeerClient client,
     PeerDirectory directory,
+    GroupStore groups,
     FileHasher hasher,
     SettingsService settings,
     AppPaths paths,
@@ -55,7 +57,7 @@ public sealed class OfferService(
         long since = (timeProvider.GetUtcNow() - HistoryRetention).ToUnixTimeMilliseconds();
         await using SqliteConnection connection = await database.OpenAsync(cancellationToken);
         var offerRows = await connection.QueryAsync<OfferRow>(
-            "SELECT OfferId, Note, TotalBytes, State, CreatedAt, ExpiresAt FROM Offers WHERE CreatedAt >= @since;", new { since });
+            "SELECT OfferId, GroupId, Note, TotalBytes, State, CreatedAt, ExpiresAt FROM Offers WHERE CreatedAt >= @since;", new { since });
         var fileRows = (await connection.QueryAsync<OfferFileRow>(
             "SELECT OfferId, FileId, RelativePath, Size, ModifiedAt, SourcePath, SnapshotPath, Changed FROM OfferFiles;")).ToLookup(f => f.OfferId);
         var recipientRows = (await connection.QueryAsync<RecipientRow>(
@@ -67,6 +69,7 @@ public sealed class OfferService(
             {
                 var offer = new Offer(row.OfferId, FromMs(row.CreatedAt), FromMs(row.ExpiresAt), row.Note, Enum.Parse<OfferState>(row.State, true))
                 {
+                    GroupId = row.GroupId,
                     Files = [.. fileRows[row.OfferId].Select(f => f.ToFile())],
                 };
                 foreach (RecipientRow r in recipientRows[row.OfferId])
@@ -217,8 +220,9 @@ public sealed class OfferService(
 
     /// <summary>Creates the offer and starts delivering it.</summary>
     /// <param name="snapshotLocked">Send locked files as a temporary copy; otherwise they are left out.</param>
+    /// <param name="groupId">Sent to members of this group, who need not be contacts (docs/07-groups.md §1).</param>
     public async Task<string> CreateAsync(
-        PreparedOffer prepared, IReadOnlyList<DeviceId> recipients, string? note, bool snapshotLocked, CancellationToken cancellationToken)
+        PreparedOffer prepared, IReadOnlyList<DeviceId> recipients, string? note, bool snapshotLocked, string? groupId, CancellationToken cancellationToken)
     {
         if (recipients.Count == 0)
         {
@@ -226,7 +230,10 @@ public sealed class OfferService(
         }
 
         DateTimeOffset now = timeProvider.GetUtcNow();
-        var offer = new Offer(Guid.NewGuid().ToString("N"), now, now + settings.Current.OfferLifetime, string.IsNullOrWhiteSpace(note) ? null : note.Trim(), OfferState.Open);
+        var offer = new Offer(Guid.NewGuid().ToString("N"), now, now + settings.Current.OfferLifetime, string.IsNullOrWhiteSpace(note) ? null : note.Trim(), OfferState.Open)
+        {
+            GroupId = groupId,
+        };
         bool snapshotAll = settings.Current.AlwaysSnapshotBeforeSend;
 
         foreach (PreparedFile file in prepared.Files)
@@ -349,7 +356,8 @@ public sealed class OfferService(
         {
             var manifest = new OfferManifest(
                 offer.Id, offer.CreatedAt, offer.ExpiresAt, offer.Note, offer.TotalBytes,
-                [.. offer.Files.Select(f => new OfferFileEntry(f.FileId, f.RelativePath, f.Size, f.IsDirectory ? null : f.ModifiedAt))]);
+                [.. offer.Files.Select(f => new OfferFileEntry(f.FileId, f.RelativePath, f.Size, f.IsDirectory ? null : f.ModifiedAt))],
+                offer.GroupId);
             using HttpResponseMessage response = await client.SendAsync(
                 recipient,
                 b => new HttpRequestMessage(HttpMethod.Post, new Uri(b, "inbox/offers")) { Content = JsonContent.Create(manifest) },
@@ -482,6 +490,12 @@ public sealed class OfferService(
                 return (ApiResults.Problem(StatusCodes.Status403Forbidden, ApiErrorCodes.NotRecipient), null);
             }
 
+            // Still a contact, or still in the group the offer was sent to (removed members lose access).
+            if (!groups.CanExchangeFiles(caller, offer.GroupId))
+            {
+                return (ApiResults.Problem(StatusCodes.Status403Forbidden, ApiErrorCodes.NotTrusted), null);
+            }
+
             if (offer.State != OfferState.Open || offer.ExpiresAt <= timeProvider.GetUtcNow())
             {
                 return (ApiResults.Problem(StatusCodes.Status410Gone, ApiErrorCodes.OfferClosed), null);
@@ -602,8 +616,8 @@ public sealed class OfferService(
         await using SqliteConnection connection = await database.OpenAsync(cancellationToken);
         await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken);
         await connection.ExecuteAsync(
-            "INSERT INTO Offers (OfferId, Note, TotalBytes, State, CreatedAt, ExpiresAt) VALUES (@Id, @Note, @TotalBytes, 'open', @createdAt, @expiresAt);",
-            new { offer.Id, offer.Note, offer.TotalBytes, createdAt = offer.CreatedAt.ToUnixTimeMilliseconds(), expiresAt = offer.ExpiresAt.ToUnixTimeMilliseconds() },
+            "INSERT INTO Offers (OfferId, GroupId, Note, TotalBytes, State, CreatedAt, ExpiresAt) VALUES (@Id, @GroupId, @Note, @TotalBytes, 'open', @createdAt, @expiresAt);",
+            new { offer.Id, offer.GroupId, offer.Note, offer.TotalBytes, createdAt = offer.CreatedAt.ToUnixTimeMilliseconds(), expiresAt = offer.ExpiresAt.ToUnixTimeMilliseconds() },
             transaction);
         await connection.ExecuteAsync(
             """
@@ -676,6 +690,8 @@ public sealed class OfferService(
 
         public string? Note { get; } = note;
 
+        public string? GroupId { get; init; }
+
         public OfferState State { get; set; } = state;
 
         public List<OfferFile> Files { get; init; } = [];
@@ -709,6 +725,8 @@ public sealed class OfferService(
     private sealed class OfferRow
     {
         public string OfferId { get; init; } = "";
+
+        public string? GroupId { get; init; }
 
         public string? Note { get; init; }
 

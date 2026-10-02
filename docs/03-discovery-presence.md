@@ -91,9 +91,9 @@
 
 ## 6. Nguồn 4 — Group Host
 
-- Thành viên nhóm giữ kết nối event stream tới Host ([07](07-groups.md)). Host gửi danh sách thành viên kèm **địa chỉ và trạng thái online**.
-- Vì vậy vào chung một nhóm là thấy được nhau, **kể cả khác subnet**, và gửi file cho nhau được.
-- Peer học từ Host được gắn nhãn `via = group:<groupId>`.
+- Thành viên nhóm long-poll Host ([07 §4](07-groups.md)). Host trả danh sách thành viên kèm **địa chỉ** mà nó đang thấy.
+- Địa chỉ thành viên mình chưa nghe trực tiếp được probe (như PEX); trả lời là hiện, và được giữ bằng probe định kỳ (§4). Vì vậy vào chung một nhóm là thấy được nhau, **kể cả khác subnet**, và gửi file cho nhau được.
+- Trên thẻ peer hiện nhãn *"Cùng nhóm <tên>"*.
 
 ## 7. Nguồn 5 — Bridge
 

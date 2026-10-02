@@ -67,6 +67,11 @@
       <Setter Property="BorderBrush" Value="#33808080" />
       <Setter Property="Margin" Value="0,0,0,10" />
     </Style>
+    <Style Selector="Border.panel.droptarget">
+      <Setter Property="BorderBrush" Value="#22C55E" />
+      <Setter Property="BorderThickness" Value="2" />
+      <Setter Property="Background" Value="#1A22C55E" />
+    </Style>
     <Style Selector="TextBlock.error">
       <Setter Property="Foreground" Value="#EF4444" />
     </Style>
@@ -92,8 +97,8 @@
               Background="Transparent" DragDrop.AllowDrop="True">
         <Border.ContextMenu>
           <ContextMenu>
-            <MenuItem Header="Gửi file…" Command="{Binding SendFilesCommand}" IsVisible="{Binding IsTrusted}" />
-            <MenuItem Header="Gửi thư mục…" Command="{Binding SendFolderCommand}" IsVisible="{Binding IsTrusted}" />
+            <MenuItem Header="Gửi file…" Command="{Binding SendFilesCommand}" IsVisible="{Binding CanSend}" />
+            <MenuItem Header="Gửi thư mục…" Command="{Binding SendFolderCommand}" IsVisible="{Binding CanSend}" />
             <MenuItem Header="Tự nhận file (tối đa 2 GB)" Command="{Binding ToggleAutoAcceptCommand}" IsVisible="{Binding IsTrusted}"
                       ToggleType="CheckBox" IsChecked="{Binding IsAutoAccept, Mode=OneWay}" />
             <MenuItem Header="Kết nối" Command="{Binding ConnectCommand}" IsVisible="{Binding CanConnect}" />
@@ -109,6 +114,7 @@
           </StackPanel>
           <TextBlock Text="{Binding Subtitle}" Opacity="0.65" FontSize="12" TextTrimming="CharacterEllipsis" />
           <TextBlock Text="{Binding StatusText}" Opacity="0.8" FontSize="12" />
+          <TextBlock Text="{Binding GroupText}" IsVisible="{Binding HasGroup}" FontSize="12" Foreground="#3B82F6" TextTrimming="CharacterEllipsis" />
           <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding CanConnect}" Margin="0,4,0,0">
             <Border Classes="tag" VerticalAlignment="Center">
               <TextBlock Text="Chưa kết nối" FontSize="11" />
@@ -205,7 +211,7 @@
           </StackPanel>
 
           <TextBlock Opacity="0.55" FontSize="12" TextWrapping="Wrap"
-                     Text="Kéo file hoặc thư mục vào một người đã kết nối để gửi, hoặc click chọn người rồi nhấn Ctrl+V để gửi file đã copy. Ctrl+click để chọn nhiều người. Chuột phải để gửi file, tự nhận file, đặt tên gợi nhớ, ngắt kết nối hoặc chặn." />
+                     Text="Kéo file hoặc thư mục vào một người đã kết nối (hoặc cùng nhóm) để gửi, hoặc click chọn người rồi nhấn Ctrl+V để gửi file đã copy. Ctrl+click để chọn nhiều người. Chuột phải để gửi file, tự nhận file, đặt tên gợi nhớ, ngắt kết nối hoặc chặn." />
         </StackPanel>
 
         <!-- Hộp nhận -->
@@ -260,6 +266,136 @@
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
+        </StackPanel>
+
+        <!-- Nhóm -->
+        <StackPanel IsVisible="{Binding IsGroupsVisible}" Spacing="14" MaxWidth="860" HorizontalAlignment="Stretch">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Classes="h2" Text="Nhóm" />
+            <Button Grid.Column="1" Content="+ Tạo nhóm" Command="{Binding Groups.CreateCommand}" IsVisible="{Binding Groups.IsEnabled}" />
+          </Grid>
+
+          <TextBlock IsVisible="{Binding !Groups.IsEnabled}" Opacity="0.7" Text="Quản trị viên đã tắt tính năng nhóm trên máy này." />
+
+          <!-- What happened lately -->
+          <ItemsControl ItemsSource="{Binding Groups.Notices}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:NoticeViewModel">
+                <Border Classes="panel" Background="#143B82F6">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Text="{Binding Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                    <Button Grid.Column="1" Content="✕" Command="{Binding DismissCommand}" Padding="8,2" Background="Transparent" />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+
+          <ItemsControl ItemsSource="{Binding Groups.Invitations}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:InvitationViewModel">
+                <Border Classes="panel">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Text="{Binding Text}" TextWrapping="Wrap" VerticalAlignment="Center" FontWeight="SemiBold" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                      <Button Content="Đồng ý" Command="{Binding AcceptCommand}" Classes="accent" />
+                      <Button Content="Từ chối" Command="{Binding DeclineCommand}" />
+                    </StackPanel>
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+
+          <TextBlock Text="Nhóm của tôi" FontWeight="SemiBold" Opacity="0.7" IsVisible="{Binding Groups.HasMyGroups}" />
+          <TextBlock IsVisible="{Binding !Groups.HasMyGroups}" Opacity="0.65" TextWrapping="Wrap"
+                     Text="Bạn chưa ở trong nhóm nào. Tạo nhóm, hoặc xin vào một nhóm trong mạng: thành viên cùng nhóm gửi file cho nhau được mà không cần Kết nối từng người." />
+          <ItemsControl ItemsSource="{Binding Groups.MyGroups}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:GroupCardViewModel">
+                <Border Classes="panel" Classes.droptarget="{Binding IsDropTarget}" Background="Transparent" DragDrop.AllowDrop="True">
+                  <StackPanel Spacing="8">
+                    <Grid ColumnDefinitions="*,Auto">
+                      <StackPanel Spacing="2">
+                        <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Subtitle}" Opacity="0.65" FontSize="12" />
+                      </StackPanel>
+                      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
+                        <Button Content="Gửi file cho nhóm" Command="{Binding SendFilesCommand}" Classes="accent" IsVisible="{Binding CanDrop}" />
+                        <Button Content="Mời…" Command="{Binding InviteCommand}" IsVisible="{Binding IsHost}" />
+                        <Button Content="⋯">
+                          <Button.Flyout>
+                            <MenuFlyout>
+                              <MenuItem Header="Gửi thư mục cho nhóm…" Command="{Binding SendFolderCommand}" IsVisible="{Binding CanDrop}" />
+                              <MenuItem Header="Đổi tên nhóm…" Command="{Binding RenameCommand}" IsVisible="{Binding IsHost}" />
+                              <MenuItem Header="Đóng nhóm…" Command="{Binding CloseCommand}" IsVisible="{Binding IsHost}" />
+                              <MenuItem Header="{Binding LeaveText}" Command="{Binding LeaveCommand}" IsVisible="{Binding CanLeave}" />
+                            </MenuFlyout>
+                          </Button.Flyout>
+                        </Button>
+                      </StackPanel>
+                    </Grid>
+
+                    <TextBlock Text="{Binding StatusText}" IsVisible="{Binding HasStatus}" Opacity="0.8" FontSize="12" TextWrapping="Wrap" />
+
+                    <ItemsControl ItemsSource="{Binding Members}">
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                          <WrapPanel />
+                        </ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:MemberViewModel">
+                          <Border Padding="8,3" Margin="0,0,6,6" CornerRadius="12" Background="#14808080">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                              <Ellipse Classes="dot" Classes.muted="{Binding !IsOnline}" Width="8" Height="8" />
+                              <TextBlock Text="{Binding Label}" FontSize="12" VerticalAlignment="Center" />
+                              <Button Content="✕" Command="{Binding RemoveCommand}" IsVisible="{Binding CanRemove}" ToolTip.Tip="Loại khỏi nhóm"
+                                      Padding="4,0" FontSize="10" Background="Transparent" VerticalAlignment="Center" />
+                            </StackPanel>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <ItemsControl ItemsSource="{Binding Requests}" IsVisible="{Binding HasRequests}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:JoinRequestViewModel">
+                          <Grid ColumnDefinitions="*,Auto" Margin="0,2">
+                            <TextBlock Text="{Binding Text}" TextWrapping="Wrap" VerticalAlignment="Center" FontSize="12" />
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" IsVisible="{Binding !IsInvited}">
+                              <Button Content="Duyệt" Command="{Binding ApproveCommand}" Padding="10,3" />
+                              <Button Content="Từ chối" Command="{Binding DeclineCommand}" Padding="10,3" />
+                            </StackPanel>
+                          </Grid>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+
+          <TextBlock Text="Nhóm trong mạng" FontWeight="SemiBold" Opacity="0.7" IsVisible="{Binding Groups.HasNetworkGroups}" />
+          <ItemsControl ItemsSource="{Binding Groups.NetworkGroups}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:NetworkGroupViewModel">
+                <Border Classes="panel">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Spacing="2">
+                      <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Text="{Binding Detail}" Opacity="0.65" FontSize="12" />
+                    </StackPanel>
+                    <Button Grid.Column="1" Content="Xin vào" Command="{Binding JoinCommand}" VerticalAlignment="Center" />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+
+          <TextBlock Opacity="0.55" FontSize="12" TextWrapping="Wrap"
+                     Text="Kéo file vào một nhóm để gửi cho các thành viên (chọn được từng người). Thành viên vẫn gửi file cho nhau được khi Host offline." />
         </StackPanel>
 
         <!-- Cài đặt -->

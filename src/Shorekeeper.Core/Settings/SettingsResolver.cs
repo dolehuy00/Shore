@@ -98,6 +98,7 @@ public static class SettingsResolver
             BridgeEnabled = bridgeEnabled,
             BridgeAddresses = bridgeAddresses,
             ProbeSubnets = probeSubnets,
+            GroupsEnabled = policy.GetBoolean(PolicyNames.DisableGroups) != true,
             LockedSettings = locked,
         };
     }

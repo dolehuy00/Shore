@@ -35,6 +35,12 @@ Bật: người dùng không đổi được. Tắt hoặc không cấu hình: m
 Bật hoặc không cấu hình: có đánh dấu (khuyến nghị).
 Tắt: không đánh dấu.</string>
 
+      <string id="DisableGroups">Tắt tính năng nhóm</string>
+      <string id="DisableGroups_Help">Nhóm cho phép gửi file cho thành viên cùng nhóm mà không cần Kết nối từng người.
+
+Bật: người dùng không tạo, không vào và không được mời vào nhóm; máy này không làm Host nhóm và chỉ nhận file từ người đã kết nối.
+Tắt hoặc không cấu hình: dùng được nhóm.</string>
+
       <string id="AllowBridge">Cho phép người dùng bật vai trò cầu nối</string>
       <string id="AllowBridge_Help">Vai trò cầu nối giúp một máy chuyển tiếp presence giữa các subnet, để người ở các subnet khác nhau thấy nhau.
 
