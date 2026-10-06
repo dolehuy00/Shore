@@ -92,8 +92,17 @@ Kế hoạch ban đầu:
 
 ## M6 — Hoàn thiện
 
-- Package identity (sparse MSIX) → Windows toast thật + menu "Gửi bằng Shorekeeper…" trong Explorer (Windows 11); cửa sổ Gửi nhanh + phím tắt.
-- AD mức 1–2 ([13](13-active-directory.md)); mức 3–4 nếu có AD CS.
+### M6a ✅ (2026-10-05)
+
+- Windows toast không cần package identity (ADR-012): file gửi đến [Tải] [Bỏ qua] [Xem], xin vào nhóm [Duyệt] [Từ chối], lời mời [Đồng ý] [Từ chối]; toast bị tắt thì dùng cửa sổ nhỏ như cũ.
+- Cửa sổ **Gửi nhanh**: phím tắt `Ctrl+Alt+S` (tắt được trong Cài đặt), menu tray; thả/chọn file, chọn liên hệ + người cùng nhóm (gửi gần đây ở trên), một offer cho mỗi nhóm.
+- Menu chuột phải **"Gửi bằng Shorekeeper…"** (verb cổ điển do MSI ghi, file + thư mục), `--send`; app đang chạy gom các mục vào một cửa sổ.
+- Interface `INotifier`, `IGlobalHotkey` trong Core (cho bản Linux/macOS sau này).
+- **Chưa làm:** menu cấp 1 trên Windows 11 (cần ký số); thử trên máy thật: toast, menu Explorer sau khi cài MSI, chọn 100+ file.
+
+### M6b
+
+- AD mức 1 ([13](13-active-directory.md)): tên thật, phòng ban, ảnh. Mức 2 đã có (MSI + ADMX, M4b). Mức 3–4 nếu có AD CS.
 - Sao lưu/khôi phục danh tính.
 - Chuẩn bị port Linux/macOS.
 

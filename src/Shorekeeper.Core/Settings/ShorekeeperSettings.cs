@@ -19,6 +19,9 @@ public sealed record ShorekeeperSettings
 
     public bool AlwaysSnapshotBeforeSend { get; init; }
 
+    /// <summary>Ctrl+Alt+S opens "Gửi nhanh" from anywhere (on by default).</summary>
+    public bool? QuickSendHotkey { get; init; }
+
     public int? DiscoveryPort { get; init; }
 
     public int? ApiPort { get; init; }

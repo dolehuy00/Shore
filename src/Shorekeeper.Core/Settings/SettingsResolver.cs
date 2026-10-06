@@ -93,6 +93,7 @@ public static class SettingsResolver
             OfferLifetime = offerLifetime,
             ReconnectWindow = reconnectWindow,
             AlwaysSnapshotBeforeSend = user.AlwaysSnapshotBeforeSend,
+            QuickSendHotkey = user.QuickSendHotkey ?? true,
             DiscoveryPort = discoveryPort,
             ApiPort = apiPort,
             BridgeEnabled = bridgeEnabled,

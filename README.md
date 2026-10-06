@@ -23,7 +23,7 @@ dotnet test --solution Shorekeeper.sln
 dotnet run --project src/Shorekeeper.Desktop
 ```
 
-Thêm `-- --background` để khởi động thẳng xuống khay hệ thống.
+Thêm `-- --background` để khởi động thẳng xuống khay hệ thống, hoặc `-- --send <file>…` để mở cửa sổ Gửi nhanh với các file đó (menu "Gửi bằng Shorekeeper…" của Explorer gọi như vậy).
 
 Bộ cài MSI (per-machine, cần admin để cài) và template GPO: xem [docs/11-windows-deployment.md](docs/11-windows-deployment.md).
 
@@ -37,7 +37,7 @@ powershell -ExecutionPolicy Bypass -File deploy/build-msi.ps1
 |---|---|
 | `src/Shorekeeper.Core` | Domain, DeviceId, cấu hình, interface platform. Không I/O mạng, không phụ thuộc Windows |
 | `src/Shorekeeper.Engine` | Khóa định danh, SQLite + migration, cấu hình, hosting (sau này: discovery, API, gửi/nhận, nhóm) |
-| `src/Shorekeeper.Platform.Windows` | DPAPI, đọc GPO từ registry |
+| `src/Shorekeeper.Platform.Windows` | DPAPI, đọc GPO từ registry, firewall, Mark of the Web, toast, phím tắt toàn cục |
 | `src/Shorekeeper.Desktop` | App Avalonia: cửa sổ chính, khay hệ thống, chỉ chạy một instance |
 | `tests/*` | xUnit v3 |
 | `deploy/msi` | Bộ cài WiX v5 (không nằm trong solution) |

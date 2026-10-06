@@ -33,6 +33,17 @@ public sealed class SettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public void Quick_send_hotkey_turned_off_is_remembered()
+    {
+        // Files written before the setting existed leave it to the default.
+        File.WriteAllText(folder.Paths.SettingsFile, """{ "DisplayName": "Mai" }""");
+        Assert.Null(CreateStore().Load().QuickSendHotkey);
+
+        CreateStore().Save(new ShorekeeperSettings { QuickSendHotkey = false });
+        Assert.False(CreateStore().Load().QuickSendHotkey);
+    }
+
+    [Fact]
     public void Corrupt_file_is_backed_up_and_defaults_are_used()
     {
         File.WriteAllText(folder.Paths.SettingsFile, "{ not json");

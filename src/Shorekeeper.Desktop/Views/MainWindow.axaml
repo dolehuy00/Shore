@@ -466,6 +466,12 @@
                 <TextBlock TextWrapping="Wrap" Text="Luôn sao chép tạm trước khi gửi (để sửa tiếp file gốc ngay; tốn thêm dung lượng)" />
               </CheckBox>
 
+              <StackPanel Spacing="4">
+                <CheckBox IsChecked="{Binding Settings.QuickSendHotkey}" Content="{Binding Settings.HotkeyText}" />
+                <TextBlock Text="{Binding Settings.HotkeyWarning}" IsVisible="{Binding Settings.HotkeyWarning, Converter={x:Static ObjectConverters.IsNotNull}}"
+                           TextWrapping="Wrap" FontSize="12" Foreground="#C77C00" />
+              </StackPanel>
+
               <StackPanel Orientation="Horizontal" Spacing="12">
                 <Button Content="Lưu" Command="{Binding Settings.SaveCommand}" Classes="accent" />
                 <TextBlock Text="{Binding Settings.StatusText}" VerticalAlignment="Center" Opacity="0.8" />

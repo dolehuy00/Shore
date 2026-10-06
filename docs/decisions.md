@@ -148,3 +148,25 @@ Mỗi mục: **Bối cảnh → Quyết định → Hệ quả**. Trạng thái:
 - ✅ Chỉ cần thành viên gọi được tới Host (giống mọi thứ khác: người nhận tải từ người gửi). Người xin offline lúc được duyệt vẫn biết khi mở lại app.
 - ✅ 3 endpoint trên Host + 1 trên người được mời, không có SSE.
 - ❌ Đổi trạng thái online của thành viên không đẩy ngay; thành viên lấy địa chỉ mới ở lần poll kế tiếp (≤ 20 giây). Online/offline trên UI lấy từ discovery của chính mình nên không bị ảnh hưởng.
+
+---
+
+## ADR-012 — Toast và menu Explorer không cần package identity
+
+**Trạng thái:** Chấp nhận (M6a)
+
+**Bối cảnh:** Kế hoạch ban đầu dùng sparse MSIX để có package identity, từ đó có toast "chuẩn" và menu cấp 1 trên Windows 11 (`IExplorerCommand`). Sparse package chỉ đăng ký được khi có chữ ký từ chứng chỉ máy tin cậy; dự án chưa ký số (11 §7). Cài cert tự ký vào máy người dùng thì đổi một lỗ hổng lấy một tính năng.
+
+**Quyết định:**
+- Toast: đăng ký app id `Shorekeeper` (tên + icon) dưới `HKCU\Software\Classes\AppUserModelId`, gửi toast bằng WinRT (`ToastNotificationManager`, TFM `net10.0-windows10.0.19041.0`). Nút bấm về qua sự kiện `Activated` khi app đang chạy; không đăng ký COM activator. Không hiện được toast (bị tắt, lỗi) → cửa sổ nhỏ như cũ.
+- Explorer: verb cổ điển `HKLM\Software\Classes\{*,Directory}\shell\Shorekeeper.Send` (do MSI ghi, `MultiSelectModel=Player`) → `Shorekeeper.exe --send "<path>"`. Mỗi mục một tiến trình; tiến trình phụ chuyển đường dẫn cho bản đang chạy qua named pipe, bản đang chạy gom vào một cửa sổ Gửi nhanh.
+- MSI dùng codepage 65001 để ghi được chữ tiếng Việt vào registry.
+
+**Hệ quả:**
+- ✅ Không cần chứng chỉ; chạy cả khi `dotnet run`.
+- ✅ Chạy trên Windows 10 và 11 như nhau.
+- ❌ Windows 11: menu nằm trong "Show more options".
+- ❌ Bấm toast sau khi đã thoát app không làm gì; vì vậy app xóa toast của mình khi thoát.
+- ❌ Chọn nhiều file trong Explorer → nhiều tiến trình khởi động ngắn (mỗi tiến trình vài trăm ms trước khi chuyển cho bản đang chạy).
+- ❌ Bản projection WinRT làm app nặng thêm ~25 MB (trước nén).
+- Khi có chữ ký số: thêm sparse MSIX cho menu mới của Windows 11, giữ verb cổ điển cho Windows 10.

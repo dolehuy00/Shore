@@ -19,6 +19,7 @@ public class SettingsResolverTests
         Assert.Equal(TimeSpan.FromSeconds(60), settings.ReconnectWindow);
         Assert.Equal(47470, settings.DiscoveryPort);
         Assert.Equal(47471, settings.ApiPort);
+        Assert.True(settings.QuickSendHotkey);
         Assert.Empty(settings.LockedSettings);
     }
 
@@ -31,8 +32,10 @@ public class SettingsResolverTests
             DownloadDirectory = @"D:\Nhan",
             OfferLifetimeHours = 6,
             ReconnectWindowSeconds = 120,
+            QuickSendHotkey = false,
         });
 
+        Assert.False(settings.QuickSendHotkey);
         Assert.Equal("Lê Huy", settings.DisplayName);
         Assert.Equal(@"D:\Nhan", settings.DownloadDirectory);
         Assert.Equal(TimeSpan.FromHours(6), settings.OfferLifetime);

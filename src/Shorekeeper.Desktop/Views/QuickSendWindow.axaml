@@ -1,0 +1,63 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Shorekeeper.Desktop.ViewModels"
+        x:Class="Shorekeeper.Desktop.Views.QuickSendWindow"
+        x:DataType="vm:QuickSendViewModel"
+        Title="Gửi nhanh"
+        Icon="/Assets/shorekeeper.png"
+        Width="480" Height="580" MinHeight="420"
+        Topmost="True"
+        WindowStartupLocation="CenterScreen"
+        DragDrop.AllowDrop="True">
+  <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" Margin="20">
+    <TextBlock Text="Gửi nhanh" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,10" />
+
+    <!-- Files: dropped anywhere on the window, or picked. -->
+    <Border Grid.Row="1" Padding="12" CornerRadius="8" BorderThickness="1" BorderBrush="#55808080" Background="#0C808080">
+      <StackPanel Spacing="8">
+        <TextBlock Text="{Binding PathsHeader}" FontWeight="SemiBold" />
+        <ScrollViewer MaxHeight="96" IsVisible="{Binding HasPaths}">
+          <ItemsControl ItemsSource="{Binding Paths}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="x:String">
+                <TextBlock Text="{Binding}" TextTrimming="PathSegmentEllipsis" FontSize="12" Opacity="0.8" ToolTip.Tip="{Binding}" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <Button Content="Thêm file…" Click="OnAddFiles" />
+          <Button Content="Thêm thư mục…" Click="OnAddFolder" />
+          <Button Content="Xóa hết" Command="{Binding ClearCommand}" IsVisible="{Binding HasPaths}" />
+        </StackPanel>
+      </StackPanel>
+    </Border>
+
+    <TextBox Grid.Row="2" Text="{Binding Search}" PlaceholderText="Tìm người…" Margin="0,14,0,8" IsVisible="{Binding !HasNobody}" />
+
+    <TextBlock Grid.Row="3" IsVisible="{Binding HasNobody}" Opacity="0.7" TextWrapping="Wrap" Margin="0,14,0,0"
+               Text="Chưa có ai để gửi. Hãy Kết nối với một người (hoặc vào cùng nhóm) trong cửa sổ chính trước." />
+    <ScrollViewer Grid.Row="3" IsVisible="{Binding !HasNobody}">
+      <ItemsControl ItemsSource="{Binding People}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:QuickSendPerson">
+            <CheckBox IsChecked="{Binding IsChecked}" Margin="0,2">
+              <TextBlock>
+                <Run Text="{Binding Name}" FontWeight="SemiBold" />
+                <Run Text="{Binding Detail}" Foreground="Gray" />
+              </TextBlock>
+            </CheckBox>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+
+    <Grid Grid.Row="4" ColumnDefinitions="*,Auto" Margin="0,12,0,0">
+      <TextBlock Text="{Binding SummaryText}" VerticalAlignment="Center" Opacity="0.75" />
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+        <Button Content="Hủy" Command="{Binding CancelCommand}" IsCancel="True" />
+        <Button Content="Gửi" Command="{Binding SendCommand}" Classes="accent" IsDefault="True" IsEnabled="{Binding CanSend}" />
+      </StackPanel>
+    </Grid>
+  </Grid>
+</Window>

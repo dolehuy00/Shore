@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
     <RootNamespace>Shorekeeper.Desktop</RootNamespace>
     <AssemblyName>Shorekeeper</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
@@ -12,6 +12,8 @@
 
   <ItemGroup>
     <AvaloniaResource Include="Assets\**" />
+    <!-- Windows toasts show the app icon from a file next to the exe. -->
+    <None Update="Assets\shorekeeper.png" Link="shorekeeper.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

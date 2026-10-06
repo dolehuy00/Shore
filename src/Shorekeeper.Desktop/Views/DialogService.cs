@@ -4,6 +4,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Shorekeeper.Core.Identity;
+using Shorekeeper.Core.Platform;
 using Shorekeeper.Desktop.ViewModels;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Settings;
@@ -18,7 +19,8 @@ public sealed class DialogService(
     ManualPeerFinder finder,
     OfferService offers,
     InboxService inbox,
-    SettingsService settings)
+    SettingsService settings,
+    INotifier notifier)
 {
     private static readonly TimeSpan OfferPopupLifetime = TimeSpan.FromSeconds(20);
 
@@ -27,16 +29,21 @@ public sealed class DialogService(
     /// <summary>An offer was created; the main window shows the "Đã gửi" page.</summary>
     public event EventHandler? OfferSent;
 
-    /// <summary>The user pressed "Xem" on the incoming-offer popup.</summary>
-    public event EventHandler? InboxRequested;
+    /// <summary>The user pressed "Xem" on a popup or clicked a toast: the main window shows that page.</summary>
+    public event EventHandler<NavPage>? PageRequested;
+
+    /// <summary>Sends files/folders to contacts, or to members of <paramref name="groupId"/> (docs/06-file-transfer.md §6).</summary>
+    public Task SendAsync(IReadOnlyList<string> paths, IReadOnlyList<(DeviceId Id, string Name)> recipients, string? groupId = null) =>
+        SendAsync(paths, [new OfferBatch([.. recipients.Select(r => r.Id)], groupId)]);
 
     /// <summary>
-    /// Sends files/folders to contacts, or to members of <paramref name="groupId"/> (docs/06-file-transfer.md §6).
+    /// One selection sent as one offer per batch: contacts together, fellow group members per group they share.
     /// Files another program is writing can only go as a temporary copy, so the user is asked first.
     /// </summary>
-    public async Task SendAsync(IReadOnlyList<string> paths, IReadOnlyList<(DeviceId Id, string Name)> recipients, string? groupId = null)
+    public async Task SendAsync(IReadOnlyList<string> paths, IReadOnlyList<OfferBatch> batches)
     {
-        if (paths.Count == 0 || recipients.Count == 0)
+        batches = [.. batches.Where(b => b.Recipients.Count > 0)];
+        if (paths.Count == 0 || batches.Count == 0)
         {
             return;
         }
@@ -76,7 +83,10 @@ public sealed class DialogService(
 
         try
         {
-            await offers.CreateAsync(prepared, [.. recipients.Select(r => r.Id)], null, snapshotLocked, groupId, CancellationToken.None);
+            foreach (OfferBatch batch in batches)
+            {
+                await offers.CreateAsync(prepared, batch.Recipients, null, snapshotLocked, batch.GroupId, CancellationToken.None);
+            }
         }
         catch (IOException ex)
         {
@@ -92,9 +102,10 @@ public sealed class DialogService(
         OfferSent?.Invoke(this, EventArgs.Empty);
     }
 
-    public static async Task<IReadOnlyList<string>> PickFilesAsync()
+    /// <param name="owner">The window asking; the main window when null.</param>
+    public static async Task<IReadOnlyList<string>> PickFilesAsync(Window? owner = null)
     {
-        if (MainWindow is not { } window)
+        if ((owner ?? MainWindow) is not { } window)
         {
             return [];
         }
@@ -103,9 +114,9 @@ public sealed class DialogService(
         return [.. files.Select(f => f.TryGetLocalPath()).OfType<string>()];
     }
 
-    public static async Task<IReadOnlyList<string>> PickFolderAsync()
+    public static async Task<IReadOnlyList<string>> PickFolderAsync(Window? owner = null)
     {
-        if (MainWindow is not { } window)
+        if ((owner ?? MainWindow) is not { } window)
         {
             return [];
         }
@@ -131,10 +142,40 @@ public sealed class DialogService(
     }
 
     /// <summary>
-    /// A question that does not block the main window, shown even when the app sits in the tray
-    /// (join requests, invitations). <paramref name="onChoice"/> gets the button index, or -1 when closed.
+    /// A question that blocks nothing, asked even when the app sits in the tray (join requests, invitations):
+    /// a Windows toast, or a popup with an extra "Để sau" when toasts are off. <paramref name="onAction"/> gets the
+    /// index in <paramref name="actions"/>, on the UI thread; clicking the toast itself opens <paramref name="page"/>.
     /// </summary>
-    public static void ShowPopup(string title, string message, IReadOnlyList<string> choices, Action<int> onChoice)
+    public void Ask(string title, IReadOnlyList<string> lines, IReadOnlyList<string> actions, NavPage page, Action<int> onAction)
+    {
+        bool toasted = notifier.TryShow(title, lines, actions, choice => Dispatcher.UIThread.Post(() =>
+        {
+            if (choice < 0)
+            {
+                PageRequested?.Invoke(this, page);
+            }
+            else
+            {
+                onAction(choice);
+            }
+        }));
+        if (!toasted)
+        {
+            ShowPopup(title, string.Join("\n\n", lines), [.. actions, "Để sau"], choice =>
+            {
+                if (choice >= 0 && choice < actions.Count)
+                {
+                    onAction(choice);
+                }
+            });
+        }
+    }
+
+    /// <summary>
+    /// A question that does not block the main window, shown even when the app sits in the tray.
+    /// <paramref name="onChoice"/> gets the button index, or -1 when closed.
+    /// </summary>
+    private static void ShowPopup(string title, string message, IReadOnlyList<string> choices, Action<int> onChoice)
     {
         var viewModel = new ChoiceViewModel(title, message, choices);
         var window = new ChoiceWindow { DataContext = viewModel, Topmost = true, WindowStartupLocation = WindowStartupLocation.CenterScreen };
@@ -151,11 +192,35 @@ public sealed class DialogService(
         return viewModel.Choice;
     }
 
-    /// <summary>Small popup in the corner of the screen: "Huy gửi cho bạn …" [Tải] [Bỏ qua] [Xem].</summary>
+    /// <summary>
+    /// "Huy gửi cho bạn …" [Tải] [Bỏ qua] [Xem] (docs/10-ux.md §4): a Windows toast, or a small popup in the corner
+    /// of the screen when toasts are off.
+    /// </summary>
     public void ShowIncomingOffer(ReceivedOffer offer, string senderName)
     {
         var key = new OfferKey(offer.SenderId, offer.OfferId);
-        var viewModel = new IncomingOfferViewModel(offer, senderName, () => inbox.Download(key), () => inbox.DeclineAsync(key), () => InboxRequested?.Invoke(this, EventArgs.Empty));
+        var viewModel = new IncomingOfferViewModel(offer, senderName, () => inbox.Download(key), () => inbox.DeclineAsync(key), () => PageRequested?.Invoke(this, NavPage.Inbox));
+        string[] lines = viewModel.Note is { } note ? [viewModel.Summary, note] : [viewModel.Summary];
+        bool toasted = notifier.TryShow(viewModel.Title, lines, ["Tải", "Bỏ qua", "Xem"], choice => Dispatcher.UIThread.Post(() =>
+        {
+            switch (choice)
+            {
+                case 0:
+                    viewModel.DownloadCommand.Execute(null);
+                    break;
+                case 1:
+                    viewModel.DeclineCommand.Execute(null);
+                    break;
+                default:
+                    viewModel.ShowCommand.Execute(null);
+                    break;
+            }
+        }));
+        if (toasted)
+        {
+            return;
+        }
+
         var window = new IncomingOfferWindow { DataContext = viewModel, Topmost = true, ShowActivated = false };
         viewModel.CloseRequested += (_, _) => window.Close();
         window.Opened += (_, _) =>
@@ -253,3 +318,6 @@ public sealed class DialogService(
         await closed.Task;
     }
 }
+
+/// <summary>Recipients of one offer; <see cref="GroupId"/> is set when they get it as fellow members of that group.</summary>
+public sealed record OfferBatch(IReadOnlyList<DeviceId> Recipients, string? GroupId);

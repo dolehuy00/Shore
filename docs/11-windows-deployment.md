@@ -28,6 +28,8 @@ msiexec /i Shorekeeper-0.1.0-x64.msi /qn AUTOSTART=1 BRIDGE_ADDRESSES="PC-BUILD-
 - App chạy theo từng người dùng, dữ liệu ở `%LOCALAPPDATA%\Shorekeeper` ([09](09-data-storage.md)). Gỡ cài đặt không xóa dữ liệu này.
 - Nâng cấp / gỡ: Shorekeeper đang chạy (của mọi người dùng trên máy) bị đóng để thay file. Lượt tải đang dở phải tải lại (ADR-007).
 - Shortcut trong Start menu cho mọi người dùng.
+- Menu chuột phải **"Gửi bằng Shorekeeper…"** cho file và thư mục, cho mọi người dùng (Windows 11: trong "Show more options"; ADR-012). Gỡ cài đặt thì menu mất theo.
+- Toast: app tự đăng ký tên + icon dưới `HKCU\Software\Classes\AppUserModelId\Shorekeeper` lần đầu cần hiện thông báo. Người dùng tắt/bật trong Settings → System → Notifications.
 
 ### 2.1 Build
 

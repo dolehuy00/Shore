@@ -18,13 +18,17 @@ internal static class Program
     /// <summary>Start minimized to the tray (used by the "start with Windows" entry).</summary>
     public const string BackgroundArgument = "--background";
 
+    /// <summary>Followed by the files and folders to send (Explorer's "Gửi bằng Shorekeeper…").</summary>
+    public const string SendArgument = "--send";
+
     [STAThread]
     public static int Main(string[] args)
     {
         using SingleInstance instance = SingleInstance.Acquire();
         if (!instance.IsPrimary)
         {
-            // Already running in this session: bring it to the front (and later hand over files to send).
+            // Already running in this session: bring it to the front, or hand over files to send.
+            ForegroundRights.GrantToOtherProcesses();
             return instance.TrySignalPrimary(args.Length == 0 ? ["--activate"] : args) ? 0 : 1;
         }
 
@@ -53,6 +57,7 @@ internal static class Program
 
             App.Services = host.Services;
             App.StartInBackground = args.Contains(BackgroundArgument, StringComparer.OrdinalIgnoreCase);
+            App.StartupSendPaths = SendPaths(args);
             BuildAvaloniaApp().StartWithClassicDesktopLifetime(args, Avalonia.Controls.ShutdownMode.OnExplicitShutdown);
 
             host.StopAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
@@ -68,6 +73,13 @@ internal static class Program
         {
             Log.CloseAndFlush();
         }
+    }
+
+    /// <returns>The paths after <see cref="SendArgument"/>, or null when it is not there.</returns>
+    public static IReadOnlyList<string>? SendPaths(IReadOnlyList<string> args)
+    {
+        int index = args.ToList().FindIndex(a => a.Equals(SendArgument, StringComparison.OrdinalIgnoreCase));
+        return index < 0 ? null : [.. args.Skip(index + 1)];
     }
 
     // Also used by the Avalonia previewer.
@@ -92,6 +104,7 @@ internal static class Program
         builder.Services.AddMulticastDiscovery();
         builder.Services.AddWindowsPlatform();
         builder.Services.AddSingleton<DialogService>();
+        builder.Services.AddSingleton<QuickSendService>();
         builder.Services.AddSingleton<PeerNames>();
         builder.Services.AddSingleton<InboxViewModel>();
         builder.Services.AddSingleton<SentViewModel>();

@@ -39,7 +39,8 @@ internal sealed class SingleInstance : IDisposable
         try
         {
             using var client = new NamedPipeClientStream(".", pipeName, PipeDirection.Out, PipeOptions.CurrentUserOnly);
-            client.Connect(TimeSpan.FromSeconds(3));
+            // Explorer starts one process per selected file, and they take turns on the pipe.
+            client.Connect(TimeSpan.FromSeconds(10));
             using var writer = new StreamWriter(client);
             writer.Write(string.Join('\n', args));
             return true;

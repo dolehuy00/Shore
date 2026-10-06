@@ -13,7 +13,8 @@
            Manufacturer="Shorekeeper"
            Version="$(ProductVersion)"
            UpgradeCode="4D171F29-5352-48D3-B227-1575A2BBE622"
-           Scope="perMachine">
+           Scope="perMachine"
+           Codepage="65001">
 
     <MajorUpgrade DowngradeErrorMessage="A newer version of Shorekeeper is already installed." />
     <MediaTemplate EmbedCab="yes" />
@@ -84,12 +85,33 @@
                      Type="string" Value="[BRIDGE_ADDRESSES]" KeyPath="yes" />
     </Component>
 
+    <!--
+      Explorer: right-click a file or folder → "Gửi bằng Shorekeeper…" (Windows 11: under "Show more options";
+      the new menu needs package identity, see docs/decisions.md ADR-012). Explorer starts the exe once per
+      selected item; the running app gathers them in one "Gửi nhanh" window.
+    -->
+    <Component Id="ExplorerMenu" Directory="INSTALLFOLDER">
+      <RegistryKey Root="HKLM" Key="Software\Classes\*\shell\Shorekeeper.Send">
+        <RegistryValue Name="MUIVerb" Type="string" Value="Gửi bằng Shorekeeper…" KeyPath="yes" />
+        <RegistryValue Name="Icon" Type="string" Value="[INSTALLFOLDER]Shorekeeper.exe" />
+        <RegistryValue Name="MultiSelectModel" Type="string" Value="Player" />
+        <RegistryValue Key="command" Type="string" Value="&quot;[INSTALLFOLDER]Shorekeeper.exe&quot; --send &quot;%1&quot;" />
+      </RegistryKey>
+      <RegistryKey Root="HKLM" Key="Software\Classes\Directory\shell\Shorekeeper.Send">
+        <RegistryValue Name="MUIVerb" Type="string" Value="Gửi bằng Shorekeeper…" />
+        <RegistryValue Name="Icon" Type="string" Value="[INSTALLFOLDER]Shorekeeper.exe" />
+        <RegistryValue Name="MultiSelectModel" Type="string" Value="Player" />
+        <RegistryValue Key="command" Type="string" Value="&quot;[INSTALLFOLDER]Shorekeeper.exe&quot; --send &quot;%1&quot;" />
+      </RegistryKey>
+    </Component>
+
     <Feature Id="Main" Title="Shorekeeper">
       <ComponentGroupRef Id="AppFiles" />
       <ComponentRef Id="FirewallRule" />
       <ComponentRef Id="AutoStart" />
       <ComponentRef Id="DownloadDirectoryPolicy" />
       <ComponentRef Id="BridgeAddressesPolicy" />
+      <ComponentRef Id="ExplorerMenu" />
     </Feature>
   </Package>
 </Wix>

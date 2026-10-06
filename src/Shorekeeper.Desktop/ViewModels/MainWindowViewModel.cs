@@ -99,7 +99,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             }
         };
         dialogs.OfferSent += (_, _) => SelectedNavItem = NavItems[2];
-        dialogs.InboxRequested += (_, _) => SelectedNavItem = NavItems[1];
+        dialogs.PageRequested += (_, page) => SelectedNavItem = NavItems.First(i => i.Page == page);
     }
 
     public NeighborhoodViewModel Neighborhood { get; }

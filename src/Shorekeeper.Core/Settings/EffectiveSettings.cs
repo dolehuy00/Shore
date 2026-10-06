@@ -25,6 +25,8 @@ public sealed record EffectiveSettings
 
     public bool AlwaysSnapshotBeforeSend { get; init; }
 
+    public bool QuickSendHotkey { get; init; } = true;
+
     public int DiscoveryPort { get; init; } = DefaultDiscoveryPort;
 
     public int ApiPort { get; init; } = DefaultApiPort;

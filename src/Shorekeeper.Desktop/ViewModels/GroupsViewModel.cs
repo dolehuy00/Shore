@@ -264,11 +264,12 @@ public sealed partial class GroupsViewModel : ObservableObject
             return;
         }
 
-        string note = request.Note is null ? "" : $"\n\n\"{request.Note}\"";
-        DialogService.ShowPopup(
+        string message = $"{request.Name} ({request.Host}) xin vào nhóm {group.Name}.";
+        dialogs.Ask(
             $"{request.Name} xin vào nhóm",
-            $"{request.Name} ({request.Host}) xin vào nhóm {group.Name}.{note}",
-            ["Duyệt", "Từ chối", "Để sau"],
+            request.Note is null ? [message] : [message, $"\"{request.Note}\""],
+            ["Duyệt", "Từ chối"],
+            NavPage.Groups,
             choice =>
             {
                 if (choice == 0)
@@ -289,10 +290,11 @@ public sealed partial class GroupsViewModel : ObservableObject
             return;
         }
 
-        DialogService.ShowPopup(
+        dialogs.Ask(
             "Lời mời vào nhóm",
-            $"{invitation.HostName} mời bạn vào nhóm {invitation.GroupName}.",
-            ["Đồng ý", "Từ chối", "Để sau"],
+            [$"{invitation.HostName} mời bạn vào nhóm {invitation.GroupName}."],
+            ["Đồng ý", "Từ chối"],
+            NavPage.Groups,
             choice =>
             {
                 if (choice == 0)

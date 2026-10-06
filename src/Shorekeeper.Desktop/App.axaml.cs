@@ -19,12 +19,16 @@ public partial class App : Application
     private static readonly Uri IconUri = new("avares://Shorekeeper/Assets/shorekeeper.png");
 
     private MainWindow? mainWindow;
+    private QuickSendService? quickSend;
     private bool isExiting;
 
     /// <summary>Set by <see cref="Program"/> before Avalonia starts. Null in the designer.</summary>
     public static IServiceProvider? Services { get; set; }
 
     public static bool StartInBackground { get; set; }
+
+    /// <summary>Started by Explorer's "Gửi bằng Shorekeeper…": open "Gửi nhanh" instead of the main window.</summary>
+    public static IReadOnlyList<string>? StartupSendPaths { get; set; }
 
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
 
@@ -58,9 +62,16 @@ public partial class App : Application
                     dialogs.ShowIncomingOffer(offer, names.Of(offer.SenderId));
                 }
             });
-            dialogs.InboxRequested += (_, _) => ShowMainWindow();
+            dialogs.PageRequested += (_, _) => ShowMainWindow();
 
-            if (!StartInBackground)
+            quickSend = Services.GetRequiredService<QuickSendService>();
+            quickSend.Start();
+
+            if (StartupSendPaths is { } paths)
+            {
+                quickSend.Open(paths);
+            }
+            else if (!StartInBackground)
             {
                 mainWindow.Show();
             }
@@ -69,9 +80,24 @@ public partial class App : Application
         base.OnFrameworkInitializationCompleted();
     }
 
-    /// <summary>Called on a background thread when the user launches Shorekeeper again.</summary>
+    /// <summary>Called on a background thread when the user launches Shorekeeper again, or Explorer hands over files.</summary>
     internal static void OnActivatedByAnotherLaunch(string[] args) =>
-        Dispatcher.UIThread.Post(() => (Current as App)?.ShowMainWindow());
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (Current is not App app)
+            {
+                return;
+            }
+
+            if (Program.SendPaths(args) is { } paths)
+            {
+                app.quickSend?.Open(paths);
+            }
+            else
+            {
+                app.ShowMainWindow();
+            }
+        });
 
     public void ShowMainWindow()
     {
@@ -94,6 +120,9 @@ public partial class App : Application
         var openItem = new NativeMenuItem("Mở Shorekeeper");
         openItem.Click += (_, _) => ShowMainWindow();
 
+        var quickSendItem = new NativeMenuItem("Gửi nhanh…");
+        quickSendItem.Click += (_, _) => quickSend?.Open([]);
+
         var exitItem = new NativeMenuItem("Thoát");
         exitItem.Click += (_, _) =>
         {
@@ -105,7 +134,7 @@ public partial class App : Application
         {
             Icon = new WindowIcon(AssetLoader.Open(IconUri)),
             ToolTipText = "Shorekeeper",
-            Menu = [openItem, new NativeMenuItemSeparator(), exitItem],
+            Menu = [openItem, quickSendItem, new NativeMenuItemSeparator(), exitItem],
         };
         trayIcon.Clicked += (_, _) => ShowMainWindow();
 

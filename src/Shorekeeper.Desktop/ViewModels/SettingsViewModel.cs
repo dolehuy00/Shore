@@ -1,3 +1,4 @@
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Shorekeeper.Core.Settings;
@@ -13,10 +14,13 @@ public sealed record SettingChoice(int Value, string Label);
 public sealed partial class SettingsViewModel : ObservableObject
 {
     private readonly SettingsService settings;
+    private readonly QuickSendService quickSend;
 
-    public SettingsViewModel(SettingsService settings)
+    public SettingsViewModel(SettingsService settings, QuickSendService quickSend)
     {
         this.settings = settings;
+        this.quickSend = quickSend;
+        quickSend.HotkeyChanged += (_, _) => Dispatcher.UIThread.Post(() => OnPropertyChanged(nameof(HotkeyWarning)));
         Load(settings.Current);
         LoadNetwork(settings.Current);
     }
@@ -48,6 +52,16 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     [ObservableProperty]
     public partial bool AlwaysSnapshotBeforeSend { get; set; }
+
+    [ObservableProperty]
+    public partial bool QuickSendHotkey { get; set; }
+
+    public string HotkeyText => $"Phím tắt {quickSend.HotkeyText} mở cửa sổ Gửi nhanh";
+
+    /// <summary>Null unless the shortcut is on but another program already took it.</summary>
+    public string? HotkeyWarning => quickSend.IsHotkeyTaken
+        ? $"{quickSend.HotkeyText} đang được ứng dụng khác dùng nên chưa bật được. Vẫn mở Gửi nhanh được từ icon ở khay hệ thống."
+        : null;
 
     [ObservableProperty]
     public partial bool IsDownloadDirectoryLocked { get; set; }
@@ -108,6 +122,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             OfferLifetimeHours = OfferLifetime.Value,
             ReconnectWindowSeconds = IsReconnectWindowLocked ? current.ReconnectWindowSeconds : ReconnectWindow.Value,
             AlwaysSnapshotBeforeSend = AlwaysSnapshotBeforeSend,
+            QuickSendHotkey = QuickSendHotkey,
         });
         Load(saved);
         StatusText = saved.OfferLifetime < TimeSpan.FromHours(OfferLifetime.Value)
@@ -158,6 +173,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         DownloadDirectory = current.DownloadDirectory;
         CreateSenderSubfolders = current.CreateSenderSubfolders;
         AlwaysSnapshotBeforeSend = current.AlwaysSnapshotBeforeSend;
+        QuickSendHotkey = current.QuickSendHotkey;
         OfferLifetime = Closest(OfferLifetimeChoices, settings.User.OfferLifetimeHours ?? (int)current.OfferLifetime.TotalHours);
         ReconnectWindow = Closest(ReconnectChoices, (int)current.ReconnectWindow.TotalSeconds);
         IsDownloadDirectoryLocked = current.IsLocked(nameof(ShorekeeperSettings.DownloadDirectory));
