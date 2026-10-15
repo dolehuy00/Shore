@@ -9,11 +9,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Kestrel for the peer HTTPS API. -->
-    <FrameworkReference Include="Microsoft.AspNetCore.App" />
-  </ItemGroup>
-
-  <ItemGroup>
+    <!-- No ASP.NET Core: the engine also runs where it is not available (Android). Kestrel lives in Shorekeeper.Engine.Kestrel. -->
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
     <PackageReference Include="Microsoft.Data.Sqlite" />
     <PackageReference Include="Dapper" />
   </ItemGroup>

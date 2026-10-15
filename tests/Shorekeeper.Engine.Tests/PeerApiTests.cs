@@ -101,6 +101,26 @@ public sealed class PeerApiTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Oversized_bodies_are_refused()
+    {
+        await b.Trust.SetTrustedAsync(a.Id, "A", "HOST-A", Ct);
+
+        // Both servers answer 413 and close at once, so the client often sees the connection drop while still sending.
+        Exception? error = await Record.ExceptionAsync(async () =>
+        {
+            using HttpResponseMessage response = await a.Client.SendAsync(
+                b.Id,
+                u => new HttpRequestMessage(HttpMethod.Post, new Uri(u, "inbox/offers")) { Content = new ByteArrayContent(new byte[MiniHttpServer.MaxBodyBytes + 1]) },
+                TimeSpan.FromSeconds(10),
+                Ct);
+            Assert.Equal(HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
+        });
+
+        Assert.True(error is null or PeerUnreachableException, error?.ToString());
+        Assert.Empty(b.Inbox.GetOffers());
+    }
+
+    [Fact]
     public async Task Client_refuses_a_server_with_another_identity()
     {
         await using TestNode c = await TestNode.StartAsync("C");

@@ -11,7 +11,7 @@
 | Trạng thái | Draft v0.3 |
 | Nền tảng giai đoạn 1 | Windows 10/11 (x64) |
 | Nền tảng tương lai | Linux, macOS |
-| Công nghệ chính | .NET 10, Avalonia UI, ASP.NET Core Kestrel (nhúng), SQLite |
+| Công nghệ chính | .NET 10, Avalonia UI, HTTPS nhúng (Kestrel trên desktop, `MiniHttpServer` trên Android), SQLite |
 | Cập nhật lần cuối | 2026-09-23 |
 
 ## Mục lục

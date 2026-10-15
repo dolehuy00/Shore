@@ -266,6 +266,52 @@ public sealed class TransferTests : IAsyncLifetime
             }, TimeSpan.FromSeconds(10), Ct);
     }
 
+    [Fact]
+    public async Task Range_beyond_the_end_is_refused()
+    {
+        string offerId = await SendAsync(a, [WriteFile(a, "small.bin", [1, 2, 3])], b.Id);
+        await WaitForOfferAsync(b, offerId);
+
+        using HttpResponseMessage response = await b.Client.SendAsync(
+            a.Id,
+            u => new HttpRequestMessage(HttpMethod.Get, new Uri(u, $"offers/{offerId}/files/f0")) { Headers = { Range = new RangeHeaderValue(10, null) } },
+            TimeSpan.FromSeconds(10),
+            Ct);
+
+        Assert.Equal(HttpStatusCode.RequestedRangeNotSatisfiable, response.StatusCode);
+    }
+
+    /// <summary>Compares the HTTP servers (SHOREKEEPER_TEST_SERVER); run on request: -method "*Throughput*".</summary>
+    [Fact(Explicit = true)]
+    public async Task Throughput_over_loopback()
+    {
+        string path = Path.Combine(a.WorkDirectory, "big.bin");
+        await using (FileStream file = File.Create(path))
+        {
+            file.SetLength(1024L * 1024 * 1024);
+        }
+
+        string offerId = await SendAsync(a, [path], b.Id);
+        await WaitForOfferAsync(b, offerId);
+
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        using HttpResponseMessage response = await b.Client.SendAsync(
+            a.Id, u => new HttpRequestMessage(HttpMethod.Get, new Uri(u, $"offers/{offerId}/files/f0")), TimeSpan.FromSeconds(10), Ct,
+            HttpCompletionOption.ResponseHeadersRead);
+        await using Stream body = await response.Content.ReadAsStreamAsync(Ct);
+        byte[] buffer = new byte[1024 * 1024];
+        long total = 0;
+        int read;
+        while ((read = await body.ReadAsync(buffer, Ct)) > 0)
+        {
+            total += read;
+        }
+
+        string server = TestNode.UseKestrel ? "Kestrel" : "MiniHttpServer";
+        TestContext.Current.TestOutputHelper?.WriteLine($"{server}: {total / 1048576.0 / watch.Elapsed.TotalSeconds:F0} MB/s");
+        Assert.Equal(1024L * 1024 * 1024, total);
+    }
+
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     private static string WriteFile(TestNode node, string name, byte[] content)

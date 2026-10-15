@@ -114,6 +114,18 @@ Mỗi mục là một app thử nhỏ, không phải code sản phẩm:
 
 **Xong khi:** toàn bộ test Engine pass với cả hai host; app desktop chạy như M6b.
 
+**Kết quả (2026-10-15, ✅ xong, ADR-015):**
+
+- `Shorekeeper.Engine` không còn tham chiếu ASP.NET Core. Route + quyền hạn nằm ở `PeerApi` (`PeerRequest` → `PeerResponse`), dùng chung cho hai server:
+  - `MiniHttpServer` (trong Engine): HTTP/1.1 trên `SslStream`, keep-alive, body `Content-Length` hoặc chunked (≤ 4 MB), một `Range` + `If-Range` cho file, tối đa 256 kết nối, timeout handshake/header/keep-alive. Mặc định của `AddPeerApi()`.
+  - `Shorekeeper.Engine.Kestrel` (`AddKestrelPeerApi()`): Kestrel chỉ chuyển request sang `PeerApi`. Desktop vẫn dùng Kestrel.
+- Test Engine chạy cả hai server (`SHOREKEEPER_TEST_SERVER=kestrel`): 129 test pass cả hai; MiniHttp còn pass trên Linux (WSL). Thêm test Range quá cuối file (416), body quá lớn (413 / đóng kết nối).
+- Tốc độ tải 1 GB qua TLS trên loopback (`Throughput_over_loopback`, chạy khi gọi riêng): MiniHttp 325–354 MB/s, Kestrel 247–276 MB/s.
+- Bộ test với MiniHttp chạy ~25 giây thay vì ~2 phút: Kestrel chờ các long-poll của nhóm khi dừng.
+- Sửa một test nhóm hay chập chờn (thông báo "đã vào nhóm" đến muộn).
+- **Dời sang A2/A3:** `IFileSource` / `IDownloadTarget`. Hiện chỉ có một cách hiện thực (đường dẫn); thiết kế interface khi có `content://` và MediaStore thật.
+- Còn mở: desktop có chuyển hẳn sang MiniHttp (bỏ Kestrel, app nhẹ hơn) không.
+
 ### A2 — App Android tối thiểu
 
 Thấy nhau, Kết nối (mã 6 số), Hộp nhận: tải về Downloads, tải tiếp khi rớt mạng. App ở foreground.

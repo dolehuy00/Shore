@@ -200,3 +200,21 @@ Mỗi mục: **Bối cảnh → Quyết định → Hệ quả**. Trạng thái:
 **Quyết định:** `OwnerOnlyFolderProtector` không mã hóa; thư mục dữ liệu được tạo với quyền `700`, giống `~/.ssh`. Thay bằng libsecret / Keychain khi làm bản Linux/macOS thật.
 
 **Hệ quả:** ✅ Build và chạy được ngay, test được trên WSL. ❌ Root hoặc bản sao lưu toàn ổ đĩa đọc được khóa; chấp nhận cho giai đoạn chuẩn bị.
+
+---
+
+## ADR-015 — Server HTTPS riêng cho peer API (MiniHttpServer)
+
+**Trạng thái:** Chấp nhận (A1)
+
+**Bối cảnh:** Kestrel / ASP.NET Core không chạy trên Android ([14](14-android.md) R1), mà Engine phải dùng chung cho desktop và Android. API của Shorekeeper nhỏ (19 route, JSON, `Range`, long-poll) và chỉ chính app gọi.
+
+**Quyết định:**
+- Route và kiểm tra quyền chuyển từ minimal API + middleware sang `PeerApi` (không phụ thuộc server). Handler nhận `PeerRequest`, trả `PeerResponse` (JSON, problem, rỗng, file).
+- `MiniHttpServer`: HTTP/1.1 tối giản trên `SslStream` (mTLS bắt buộc), đủ cho những gì `PeerClient` gửi. Là server mặc định của Engine.
+- Kestrel giữ ở project riêng `Shorekeeper.Engine.Kestrel`, chỉ chuyển request sang `PeerApi`; test chạy với cả hai.
+
+**Hệ quả:**
+- ✅ Engine chạy được trên Android; một bộ route + quyền cho mọi nền tảng.
+- ✅ Nhanh hơn Kestrel trên loopback, dừng nhanh (không chờ long-poll).
+- ❌ Tự giữ phần phân tích HTTP: chỉ HTTP/1.1, một range, không nén. Đủ cho client của chính mình; không dùng cho trình duyệt.

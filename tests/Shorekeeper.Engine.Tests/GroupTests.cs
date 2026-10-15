@@ -155,7 +155,8 @@ public sealed class GroupTests : IAsyncLifetime
         await host.Groups.RemoveMemberAsync(group.Id, tuan.Id);
 
         await WaitUntil(() => tuan.GroupStore.Get(group.Id) is null);
-        Assert.Contains("không còn", Assert.Single(notices).Message, StringComparison.Ordinal);
+        // "Bạn đã vào nhóm" may still arrive late from the setup; exactly one removal notice is what matters.
+        Assert.Single(notices, n => n.Message.Contains("không còn", StringComparison.Ordinal));
         await WaitUntil(() => !mai.GroupStore.IsMember(group.Id, tuan.Id));
         Assert.False(mai.GroupStore.CanExchangeFiles(tuan.Id, group.Id));
     }

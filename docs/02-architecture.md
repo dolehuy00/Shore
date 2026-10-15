@@ -2,7 +2,7 @@
 
 ## 1. Nguyên tắc
 
-1. **Không có server.** Mọi máy chạy cùng một app, vừa là client vừa là server (Kestrel nhúng).
+1. **Không có server.** Mọi máy chạy cùng một app, vừa là client vừa là server (HTTPS nhúng: Kestrel trên desktop, `MiniHttpServer` trên Android, ADR-015).
 2. **Vai trò theo hành động, không theo máy.** Người gửi phục vụ file của mình; người tạo nhóm làm **Host** quản lý thành viên. Bất kỳ client nào cũng có thể bật thêm vai trò **Bridge** (xem [08](08-host-roles.md)).
 3. **Người gửi sở hữu, người nhận tự quyết.** Gửi là copy. Người nhận kéo dữ liệu về và giữ vĩnh viễn.
 4. **Mặc định từ chối.** Peer chưa tin cậy chỉ được xin phép ([04 §3](04-identity-security.md)).
@@ -29,7 +29,7 @@
 │  │                      ▼                                                │  │
 │  │             PeerDirectory ──► Connector (chọn địa chỉ, mTLS)          │  │
 │  │                                                                       │  │
-│  │  Api (Kestrel, mTLS) ─► AccessPolicy (Any/Member/Trusted/Recipient)   │  │
+│  │  Api (mTLS) ─► PeerApi: route + quyền (Any/Member/Trusted/Recipient)  │  │
 │  │  Pairing · Offers (gửi) · Inbox + Downloader (nhận) · Groups · Bridge │  │
 │  │  Storage (SQLite) · EventBus                                          │  │
 │  └───────────────────────────────────────────────────────────────────────┘  │
@@ -46,7 +46,8 @@ Shorekeeper/
 ├── docs/
 ├── src/
 │   ├── Shorekeeper.Core/              ← domain, DTO giao thức, crypto, interface. Không I/O mạng.
-│   ├── Shorekeeper.Engine/            ← discovery, API, transfers, groups, bridge, storage
+│   ├── Shorekeeper.Engine/            ← discovery, API (PeerApi, MiniHttpServer), transfers, groups, bridge, storage
+│   ├── Shorekeeper.Engine.Kestrel/    ← peer API trên Kestrel (desktop)
 │   ├── Shorekeeper.Platform.Windows/  ← DPAPI, firewall, MOTW, toast, auto-start, AD
 │   └── Shorekeeper.Desktop/           ← Avalonia app (MVVM), composition root
 ├── tests/
@@ -64,7 +65,7 @@ Desktop ──► Engine ──► Core ◄── Platform.Windows
 ```
 
 - `Core` không tham chiếu ASP.NET Core và không tham chiếu Windows.
-- `Engine` tham chiếu `Microsoft.AspNetCore.App` để nhúng Kestrel.
+- `Engine` không tham chiếu ASP.NET Core (để chạy được trên Android); chỉ `Engine.Kestrel` tham chiếu `Microsoft.AspNetCore.App`.
 - Engine có thể chạy headless (không UI) cho integration test và cho chế độ `--headless` sau này.
 
 ## 4. Công nghệ
@@ -74,7 +75,7 @@ Desktop ──► Engine ──► Core ◄── Platform.Windows
 | Runtime | **.NET 10 (LTS)** | LTS hiện hành, chạy Win/Linux/Mac |
 | UI | **Avalonia 12** + CommunityToolkit.Mvvm | Cross-platform, XAML quen thuộc (ADR-002) |
 | Hosting | Generic Host | DI, config, logging, BackgroundService |
-| HTTP server | Kestrel nhúng, Minimal APIs | mTLS, streaming hiệu quả |
+| HTTP server | `PeerApi` + Kestrel nhúng (desktop) hoặc `MiniHttpServer` (Android) | mTLS, streaming hiệu quả; Kestrel không chạy trên Android (ADR-015) |
 | HTTP client | `HttpClient` + `SocketsHttpHandler` | Kiểm tra cert tùy biến, pool kết nối |
 | Serialize | System.Text.Json + source generator | Nhanh, hợp trimming |
 | DB | SQLite (`Microsoft.Data.Sqlite`) + Dapper | Nhẹ, 1 file |

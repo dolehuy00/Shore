@@ -19,6 +19,8 @@ dotnet build Shorekeeper.sln
 dotnet test --solution Shorekeeper.sln
 ```
 
+Test Engine mặc định chạy với `MiniHttpServer`; đặt biến môi trường `SHOREKEEPER_TEST_SERVER=kestrel` để chạy lại với Kestrel.
+
 ```bash
 dotnet run --project src/Shorekeeper.Desktop
 ```
@@ -42,7 +44,8 @@ powershell -ExecutionPolicy Bypass -File deploy/build-msi.ps1
 | Project | Vai trò |
 |---|---|
 | `src/Shorekeeper.Core` | Domain, DeviceId, cấu hình, interface platform. Không I/O mạng, không phụ thuộc Windows |
-| `src/Shorekeeper.Engine` | Khóa định danh, SQLite + migration, cấu hình, hosting (sau này: discovery, API, gửi/nhận, nhóm) |
+| `src/Shorekeeper.Engine` | Khóa định danh, SQLite + migration, cấu hình, discovery, peer API (`PeerApi` + `MiniHttpServer`), gửi/nhận, nhóm. Không phụ thuộc ASP.NET Core |
+| `src/Shorekeeper.Engine.Kestrel` | Peer API trên Kestrel cho desktop |
 | `src/Shorekeeper.Platform.Windows` | DPAPI, đọc GPO từ registry, firewall, Mark of the Web, toast, phím tắt toàn cục, Active Directory |
 | `src/Shorekeeper.Desktop` | App Avalonia: cửa sổ chính, khay hệ thống, chỉ chạy một instance |
 | `tests/*` | xUnit v3 |

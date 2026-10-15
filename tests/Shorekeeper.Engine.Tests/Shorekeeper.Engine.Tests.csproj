@@ -7,6 +7,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Shorekeeper.Engine\Shorekeeper.Engine.csproj" />
+    <ProjectReference Include="..\..\src\Shorekeeper.Engine.Kestrel\Shorekeeper.Engine.Kestrel.csproj" />
   </ItemGroup>
 
   <ItemGroup>

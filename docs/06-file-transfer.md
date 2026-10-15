@@ -106,7 +106,7 @@ Rớt Wi-Fi vài giây, rút cắm dây, đổi mạng, hay máy bên kia lag…
   - Tùy chọn "**Luôn sao chép tạm trước khi gửi**" trong Cài đặt: người gửi sửa tiếp file gốc thoải mái.
   - Snapshot nằm ở `%LOCALAPPDATA%\Shorekeeper\snapshots\{offerId}\`, bị xóa khi offer đóng.
 - **Hash:** tính SHA-256 **một lần** cho mỗi file trong nền, ngay khi có người bắt đầu tải (cache theo path + size + mtime), dùng chung cho mọi người nhận.
-- Kestrel phục vụ với `enableRangeProcessing: true`, buffer 1 MiB, `FileOptions.SequentialScan`.
+- Server phục vụ file với `Range` + `If-Range` (Kestrel: `enableRangeProcessing`; `MiniHttpServer`: một range), đọc với buffer 1 MiB, `FileOptions.SequentialScan`.
 
 ## 7. Người nhận: ghi file
 

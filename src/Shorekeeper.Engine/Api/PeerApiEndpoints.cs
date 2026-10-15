@@ -1,8 +1,5 @@
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Routing;
+using System.Net;
 using Microsoft.Extensions.DependencyInjection;
-using Shorekeeper.Core.Identity;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Groups;
 using Shorekeeper.Engine.Identity;
@@ -11,13 +8,10 @@ using Shorekeeper.Engine.Trust;
 
 namespace Shorekeeper.Engine.Api;
 
-/// <summary>
-/// HTTP endpoints of the peer API (docs/05-protocol.md §4). Every endpoint must declare
-/// <see cref="PeerAccess.AllowAnyPeer"/> or <see cref="PeerAccess.RequireTrustedPeer"/>; anything else is refused.
-/// </summary>
-internal static class PeerApiEndpoints
+/// <summary>Routes of the peer API (docs/05-protocol.md §4). Every route declares who may call it.</summary>
+public static class PeerApiEndpoints
 {
-    public static void Map(IEndpointRouteBuilder app, IServiceProvider services)
+    public static PeerApi Create(IServiceProvider services)
     {
         var device = services.GetRequiredService<LocalDevice>();
         var server = services.GetRequiredService<ApiServer>();
@@ -30,161 +24,166 @@ internal static class PeerApiEndpoints
         var groupStore = services.GetRequiredService<GroupStore>();
         var groups = services.GetRequiredService<GroupService>();
         var profile = services.GetRequiredService<DirectoryProfileService>();
+        var api = new PeerApi(trust, groupStore);
 
-        RouteGroupBuilder api = app.MapGroup(PeerClient.ApiBasePath.TrimEnd('/'));
-
-        api.MapGet("/hello", () => new HelloResponse(
-                device.DeviceId.Value, device.DisplayName, LocalDevice.HostName, LocalDevice.Os, LocalDevice.AppVersion, [1], server.Port,
-                profile.Department, profile.AvatarTag))
-            .AllowAnyPeer();
+        api.Map("GET", "/hello", RequiredAccess.AnyPeer, _ => PeerResponse.Json(new HelloResponse(
+            device.DeviceId.Value, device.DisplayName, LocalDevice.HostName, LocalDevice.Os, LocalDevice.AppVersion, [1], server.Port,
+            profile.Department, profile.AvatarTag)));
 
         // The picture from the company directory, public like the name (docs/13-active-directory.md §2).
-        api.MapGet("/hello/avatar", () => profile.Avatar is { } photo
-                ? Results.File(photo, AvatarContentType(photo))
-                : ApiResults.Problem(StatusCodes.Status404NotFound, ApiErrorCodes.NotFound))
-            .AllowAnyPeer();
+        api.Map("GET", "/hello/avatar", RequiredAccess.AnyPeer, _ => profile.Avatar is { } photo
+            ? PeerResponse.File(new MemoryStream(photo, writable: false), AvatarContentType(photo))
+            : NotFound());
 
-        api.MapPost("/pairing/request", (HttpContext context, PairingRequestBody body) =>
+        api.Map("POST", "/pairing/request", RequiredAccess.AnyPeer, async request =>
+        {
+            if (await request.ReadJsonAsync<PairingRequestBody>() is not { } body)
             {
-                var (result, response) = pairing.HandleRequest(context.GetCaller(), context.Connection.RemoteIpAddress!, body);
-                return result switch
-                {
-                    IncomingRequestResult.Accepted => Results.Json(response, statusCode: StatusCodes.Status202Accepted),
-                    IncomingRequestResult.RateLimited => ApiResults.Problem(StatusCodes.Status429TooManyRequests, ApiErrorCodes.RateLimited),
-                    _ => ApiResults.Problem(StatusCodes.Status400BadRequest, ApiErrorCodes.InvalidRequest),
-                };
-            })
-            .AllowAnyPeer();
+                return Invalid();
+            }
+
+            var (result, response) = pairing.HandleRequest(request.Caller, request.RemoteAddress, body);
+            return result switch
+            {
+                IncomingRequestResult.Accepted => PeerResponse.Json(response, HttpStatusCode.Accepted),
+                IncomingRequestResult.RateLimited => PeerResponse.Problem(HttpStatusCode.TooManyRequests, ApiErrorCodes.RateLimited),
+                _ => Invalid(),
+            };
+        });
 
         // Only the requester itself gets an answer; anyone else sees "expired".
-        api.MapGet("/pairing/{id}/decision", async (HttpContext context, string id, CancellationToken cancellationToken) =>
-                new PairingDecisionResponse(await pairing.WaitDecisionAsync(context.GetCaller(), id, PairingService.DecisionWait, cancellationToken)))
-            .AllowAnyPeer();
+        api.Map("GET", "/pairing/{id}/decision", RequiredAccess.AnyPeer, async request =>
+            PeerResponse.Json(new PairingDecisionResponse(
+                await pairing.WaitDecisionAsync(request.Caller, request.Route("id"), PairingService.DecisionWait, request.Aborted))));
 
-        api.MapDelete("/pairing/{id}", (HttpContext context, string id) =>
-            {
-                pairing.CancelByRequester(context.GetCaller(), id);
-                return Results.NoContent();
-            })
-            .AllowAnyPeer();
+        api.Map("DELETE", "/pairing/{id}", RequiredAccess.AnyPeer, request =>
+        {
+            pairing.CancelByRequester(request.Caller, request.Route("id"));
+            return NoContent();
+        });
 
-        api.MapPost("/pairing/revoke", async (HttpContext context) =>
-            {
-                DeviceId caller = context.GetCaller();
-                await trust.ForgetAsync(caller);
-                return Results.NoContent();
-            })
-            .RequireTrustedPeer();
+        api.Map("POST", "/pairing/revoke", RequiredAccess.Trusted, async request =>
+        {
+            await trust.ForgetAsync(request.Caller);
+            return NoContent();
+        });
 
         // PEX: only contacts may read who we hear (docs/03-discovery-presence.md §5).
-        api.MapGet("/peers/known", (HttpContext context) => pex.GetKnown(context.GetCaller()))
-            .RequireTrustedPeer();
+        api.Map("GET", "/peers/known", RequiredAccess.Trusted, request => PeerResponse.Json(pex.GetKnown(request.Caller)));
 
         // ───────────── Bridge (docs/05-protocol.md §4.6): public presence only, so any peer ─────────────
 
-        api.MapPost("/bridge/register", (HttpContext context, BridgeRegistration body) =>
+        api.Map("POST", "/bridge/register", RequiredAccess.AnyPeer, async request =>
+        {
+            if (await request.ReadJsonAsync<BridgeRegistration>() is not { } body)
             {
-                var (result, response) = bridge.Register(context.GetCaller(), context.Connection.RemoteIpAddress!, body);
-                return result switch
-                {
-                    BridgeRegisterResult.Registered => Results.Ok(response),
-                    BridgeRegisterResult.Disabled => ApiResults.Problem(StatusCodes.Status404NotFound, ApiErrorCodes.NotFound),
-                    BridgeRegisterResult.Full => ApiResults.Problem(StatusCodes.Status503ServiceUnavailable, ApiErrorCodes.Busy),
-                    _ => ApiResults.Problem(StatusCodes.Status400BadRequest, ApiErrorCodes.InvalidRequest),
-                };
-            })
-            .AllowAnyPeer();
+                return Invalid();
+            }
 
-        api.MapDelete("/bridge/register", (HttpContext context) =>
+            var (result, response) = bridge.Register(request.Caller, request.RemoteAddress, body);
+            return result switch
             {
-                bridge.Unregister(context.GetCaller());
-                return Results.NoContent();
-            })
-            .AllowAnyPeer();
+                BridgeRegisterResult.Registered => PeerResponse.Json(response),
+                BridgeRegisterResult.Disabled => NotFound(),
+                BridgeRegisterResult.Full => Busy(),
+                _ => Invalid(),
+            };
+        });
 
-        api.MapGet("/bridge/peers", async (long? since, int? wait, CancellationToken cancellationToken) =>
-                await bridge.GetPeersAsync(
-                        since ?? 0, TimeSpan.FromSeconds(Math.Clamp(wait ?? 0, 0, (int)BridgeRegistry.MaxWait.TotalSeconds)), cancellationToken)
-                    is { } response
-                    ? Results.Ok(response)
-                    : ApiResults.Problem(StatusCodes.Status404NotFound, ApiErrorCodes.NotFound))
-            .AllowAnyPeer();
+        api.Map("DELETE", "/bridge/register", RequiredAccess.AnyPeer, request =>
+        {
+            bridge.Unregister(request.Caller);
+            return NoContent();
+        });
+
+        api.Map("GET", "/bridge/peers", RequiredAccess.AnyPeer, async request =>
+            await bridge.GetPeersAsync(
+                    request.QueryInt64("since") ?? 0, Wait(request, BridgeRegistry.MaxWait), request.Aborted)
+                is { } response
+                ? PeerResponse.Json(response)
+                : NotFound());
 
         // ───────────── Sending files (docs/05-protocol.md §4.2, §4.3) ─────────────
 
         // Recipient side: a contact, or a fellow member of the offer's group, offers us files.
-        api.MapPost("/inbox/offers", async (HttpContext context, OfferManifest manifest) =>
-                !groupStore.CanExchangeFiles(context.GetCaller(), manifest.GroupId)
-                    ? ApiResults.Problem(StatusCodes.Status403Forbidden, ApiErrorCodes.NotTrusted)
-                    : await inbox.HandleOfferAsync(context.GetCaller(), manifest)
-                        ? Results.Accepted()
-                        : ApiResults.Problem(StatusCodes.Status400BadRequest, ApiErrorCodes.InvalidRequest))
-            .RequireTrustedOrGroupMember();
+        api.Map("POST", "/inbox/offers", RequiredAccess.TrustedOrGroupMember, async request =>
+            await request.ReadJsonAsync<OfferManifest>() is not { } manifest ? Invalid()
+            : !groupStore.CanExchangeFiles(request.Caller, manifest.GroupId) ? PeerResponse.Problem(HttpStatusCode.Forbidden, ApiErrorCodes.NotTrusted)
+            : await inbox.HandleOfferAsync(request.Caller, manifest) ? PeerResponse.Empty(HttpStatusCode.Accepted)
+            : Invalid());
 
-        api.MapPost("/inbox/offers/{offerId}/withdrawn", async (HttpContext context, string offerId) =>
-            {
-                await inbox.HandleWithdrawnAsync(context.GetCaller(), offerId);
-                return Results.NoContent();
-            })
-            .RequireTrustedOrGroupMember();
+        api.Map("POST", "/inbox/offers/{offerId}/withdrawn", RequiredAccess.TrustedOrGroupMember, async request =>
+        {
+            await inbox.HandleWithdrawnAsync(request.Caller, request.Route("offerId"));
+            return NoContent();
+        });
 
         // Sender side: recipients pull the data. Each handler also checks the caller is a recipient
         // and still a contact or member of the offer's group.
-        api.MapGet("/offers/{offerId}/files/{fileId}", (HttpContext context, string offerId, string fileId) =>
-                offers.ServeFile(context.GetCaller(), offerId, fileId))
-            .RequireTrustedOrGroupMember();
+        api.Map("GET", "/offers/{offerId}/files/{fileId}", RequiredAccess.TrustedOrGroupMember, request =>
+            offers.ServeFile(request.Caller, request.Route("offerId"), request.Route("fileId")));
 
-        api.MapGet("/offers/{offerId}/files/{fileId}/hash", (HttpContext context, string offerId, string fileId, CancellationToken cancellationToken) =>
-                offers.GetHashAsync(context.GetCaller(), offerId, fileId, cancellationToken))
-            .RequireTrustedOrGroupMember();
+        api.Map("GET", "/offers/{offerId}/files/{fileId}/hash", RequiredAccess.TrustedOrGroupMember, request =>
+            offers.GetHashAsync(request.Caller, request.Route("offerId"), request.Route("fileId"), request.Aborted));
 
-        api.MapPost("/offers/{offerId}/receipts", (HttpContext context, string offerId, OfferReceipt receipt) =>
-                offers.HandleReceiptAsync(context.GetCaller(), offerId, receipt))
-            .RequireTrustedOrGroupMember();
+        api.Map("POST", "/offers/{offerId}/receipts", RequiredAccess.TrustedOrGroupMember, async request =>
+            await request.ReadJsonAsync<OfferReceipt>() is { } receipt
+                ? await offers.HandleReceiptAsync(request.Caller, request.Route("offerId"), receipt)
+                : Invalid());
 
         // ───────────── Groups (docs/05-protocol.md §4.4): handlers decide, unknown peers may only ask ─────────────
 
         // On the Host: someone asks to join (or accepts our invitation).
-        api.MapPost("/groups/{groupId}/join-requests", async (HttpContext context, string groupId, GroupJoinRequestBody body) =>
-                await groups.HandleJoinRequestAsync(context.GetCaller(), groupId, body) switch
-                {
-                    JoinRequestResult.Pending => Results.Json(new GroupJoinResponse(GroupStatus.Pending), statusCode: StatusCodes.Status202Accepted),
-                    JoinRequestResult.Member => Results.Ok(new GroupJoinResponse(GroupStatus.Member)),
-                    JoinRequestResult.RateLimited => ApiResults.Problem(StatusCodes.Status429TooManyRequests, ApiErrorCodes.RateLimited),
-                    JoinRequestResult.Full => ApiResults.Problem(StatusCodes.Status503ServiceUnavailable, ApiErrorCodes.Busy),
-                    JoinRequestResult.NotFound => ApiResults.Problem(StatusCodes.Status404NotFound, ApiErrorCodes.NotFound),
-                    _ => ApiResults.Problem(StatusCodes.Status400BadRequest, ApiErrorCodes.InvalidRequest),
-                })
-            .AllowAnyPeer();
+        api.Map("POST", "/groups/{groupId}/join-requests", RequiredAccess.AnyPeer, async request =>
+            await request.ReadJsonAsync<GroupJoinRequestBody>() is not { } body ? Invalid()
+            : await groups.HandleJoinRequestAsync(request.Caller, request.Route("groupId"), body) switch
+            {
+                JoinRequestResult.Pending => PeerResponse.Json(new GroupJoinResponse(GroupStatus.Pending), HttpStatusCode.Accepted),
+                JoinRequestResult.Member => PeerResponse.Json(new GroupJoinResponse(GroupStatus.Member)),
+                JoinRequestResult.RateLimited => PeerResponse.Problem(HttpStatusCode.TooManyRequests, ApiErrorCodes.RateLimited),
+                JoinRequestResult.Full => Busy(),
+                JoinRequestResult.NotFound => NotFound(),
+                _ => Invalid(),
+            });
 
         // On the Host: members long-poll the member list; requesters the decision. Anyone else: 404.
-        api.MapGet("/groups/{groupId}/state", async (HttpContext context, string groupId, long? since, int? wait, CancellationToken cancellationToken) =>
-                await groups.GetStateAsync(
-                        context.GetCaller(), groupId, since ?? 0,
-                        TimeSpan.FromSeconds(Math.Clamp(wait ?? 0, 0, (int)GroupService.MaxWait.TotalSeconds)), cancellationToken)
-                    is { } state
-                    ? Results.Ok(state)
-                    : ApiResults.Problem(StatusCodes.Status404NotFound, ApiErrorCodes.NotFound))
-            .AllowAnyPeer();
+        api.Map("GET", "/groups/{groupId}/state", RequiredAccess.AnyPeer, async request =>
+            await groups.GetStateAsync(
+                    request.Caller, request.Route("groupId"), request.QueryInt64("since") ?? 0, Wait(request, GroupService.MaxWait), request.Aborted)
+                is { } state
+                ? PeerResponse.Json(state)
+                : NotFound());
 
-        api.MapPost("/groups/{groupId}/leave", async (HttpContext context, string groupId) =>
-            {
-                await groups.HandleLeaveAsync(context.GetCaller(), groupId);
-                return Results.NoContent();
-            })
-            .AllowAnyPeer();
+        api.Map("POST", "/groups/{groupId}/leave", RequiredAccess.AnyPeer, async request =>
+        {
+            await groups.HandleLeaveAsync(request.Caller, request.Route("groupId"));
+            return NoContent();
+        });
 
         // On the invitee: a Host invites us; the user decides.
-        api.MapPost("/groups/invitations", (HttpContext context, GroupInvitationBody body) =>
-                groups.HandleInvitation(context.GetCaller(), body) switch
-                {
-                    JoinRequestResult.Pending or JoinRequestResult.Member => Results.Accepted(),
-                    JoinRequestResult.RateLimited => ApiResults.Problem(StatusCodes.Status429TooManyRequests, ApiErrorCodes.RateLimited),
-                    JoinRequestResult.NotFound => ApiResults.Problem(StatusCodes.Status404NotFound, ApiErrorCodes.NotFound),
-                    _ => ApiResults.Problem(StatusCodes.Status400BadRequest, ApiErrorCodes.InvalidRequest),
-                })
-            .AllowAnyPeer();
+        api.Map("POST", "/groups/invitations", RequiredAccess.AnyPeer, async request =>
+            await request.ReadJsonAsync<GroupInvitationBody>() is not { } body ? Invalid()
+            : groups.HandleInvitation(request.Caller, body) switch
+            {
+                JoinRequestResult.Pending or JoinRequestResult.Member => PeerResponse.Empty(HttpStatusCode.Accepted),
+                JoinRequestResult.RateLimited => PeerResponse.Problem(HttpStatusCode.TooManyRequests, ApiErrorCodes.RateLimited),
+                JoinRequestResult.NotFound => NotFound(),
+                _ => Invalid(),
+            });
+
+        return api;
     }
+
+    private static TimeSpan Wait(PeerRequest request, TimeSpan max) =>
+        TimeSpan.FromSeconds(Math.Clamp(request.QueryInt64("wait") ?? 0, 0, (long)max.TotalSeconds));
+
+    private static PeerResponse NoContent() => PeerResponse.Empty(HttpStatusCode.NoContent);
+
+    private static PeerResponse NotFound() => PeerResponse.Problem(HttpStatusCode.NotFound, ApiErrorCodes.NotFound);
+
+    private static PeerResponse Busy() => PeerResponse.Problem(HttpStatusCode.ServiceUnavailable, ApiErrorCodes.Busy);
+
+    private static PeerResponse Invalid() => PeerResponse.Problem(HttpStatusCode.BadRequest, ApiErrorCodes.InvalidRequest);
 
     /// <summary>Directory pictures are JPEG, sometimes PNG.</summary>
     private static string AvatarContentType(byte[] photo) =>

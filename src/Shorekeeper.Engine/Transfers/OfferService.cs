@@ -1,9 +1,8 @@
+using System.Net;
 using System.Net.Http.Json;
 using Dapper;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
-using Microsoft.Net.Http.Headers;
 using Shorekeeper.Core.Identity;
 using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Discovery;
@@ -386,9 +385,9 @@ public sealed class OfferService(
 
     // ───────────── Serving (called by the API) ─────────────
 
-    internal IResult ServeFile(DeviceId caller, string offerId, string fileId)
+    internal PeerResponse ServeFile(DeviceId caller, string offerId, string fileId)
     {
-        (IResult? error, (Offer, OfferFile, Recipient)? found) = Find(caller, offerId, fileId);
+        (PeerResponse? error, (Offer, OfferFile, Recipient)? found) = Find(caller, offerId, fileId);
         if (error is not null)
         {
             return error;
@@ -398,13 +397,13 @@ public sealed class OfferService(
         if (!IsUnchanged(file))
         {
             MarkChanged(offer, file);
-            return ApiResults.Problem(StatusCodes.Status412PreconditionFailed, ApiErrorCodes.SourceChanged);
+            return PeerResponse.Problem(HttpStatusCode.PreconditionFailed, ApiErrorCodes.SourceChanged);
         }
 
         if (Interlocked.Increment(ref activeStreams) > MaxConcurrentStreams)
         {
             Interlocked.Decrement(ref activeStreams);
-            return ApiResults.Problem(StatusCodes.Status503ServiceUnavailable, ApiErrorCodes.Busy);
+            return PeerResponse.Problem(HttpStatusCode.ServiceUnavailable, ApiErrorCodes.Busy);
         }
 
         FileStream stream;
@@ -416,7 +415,7 @@ public sealed class OfferService(
         catch (IOException)
         {
             Interlocked.Decrement(ref activeStreams);
-            return ApiResults.Problem(StatusCodes.Status503ServiceUnavailable, ApiErrorCodes.Busy);
+            return PeerResponse.Problem(HttpStatusCode.ServiceUnavailable, ApiErrorCodes.Busy);
         }
 
         hasher.Start(file.ServePath, file.Size, file.ModifiedAt);
@@ -430,12 +429,12 @@ public sealed class OfferService(
             Interlocked.Add(ref recipient.BytesServed, read);
             ReportProgress(offerId);
         }, () => Interlocked.Decrement(ref activeStreams));
-        return Results.File(counting, "application/octet-stream", lastModified: file.ModifiedAt, entityTag: ETagFor(file), enableRangeProcessing: true);
+        return PeerResponse.File(counting, "application/octet-stream", file.ModifiedAt, ETagFor(file));
     }
 
-    internal async Task<IResult> GetHashAsync(DeviceId caller, string offerId, string fileId, CancellationToken cancellationToken)
+    internal async Task<PeerResponse> GetHashAsync(DeviceId caller, string offerId, string fileId, CancellationToken cancellationToken)
     {
-        (IResult? error, (Offer, OfferFile, Recipient)? found) = Find(caller, offerId, fileId);
+        (PeerResponse? error, (Offer, OfferFile, Recipient)? found) = Find(caller, offerId, fileId);
         if (error is not null)
         {
             return error;
@@ -445,14 +444,14 @@ public sealed class OfferService(
         if (!IsUnchanged(file))
         {
             MarkChanged(offer, file);
-            return ApiResults.Problem(StatusCodes.Status412PreconditionFailed, ApiErrorCodes.SourceChanged);
+            return PeerResponse.Problem(HttpStatusCode.PreconditionFailed, ApiErrorCodes.SourceChanged);
         }
 
         string? hash = await hasher.TryGetAsync(file.ServePath, file.Size, file.ModifiedAt, HashWait, cancellationToken);
-        return hash is null ? Results.Accepted() : Results.Ok(new FileHashResponse(hash));
+        return hash is null ? PeerResponse.Empty(HttpStatusCode.Accepted) : PeerResponse.Json(new FileHashResponse(hash));
     }
 
-    internal async Task<IResult> HandleReceiptAsync(DeviceId caller, string offerId, OfferReceipt receipt)
+    internal async Task<PeerResponse> HandleReceiptAsync(DeviceId caller, string offerId, OfferReceipt receipt)
     {
         RecipientState? state = receipt.Status switch
         {
@@ -468,42 +467,42 @@ public sealed class OfferService(
         {
             if (state is null || !offers.TryGetValue(offerId, out Offer? offer) || !offer.Recipients.ContainsKey(caller))
             {
-                return ApiResults.Problem(StatusCodes.Status404NotFound, ApiErrorCodes.NotFound);
+                return PeerResponse.Problem(HttpStatusCode.NotFound, ApiErrorCodes.NotFound);
             }
         }
 
         await SetRecipientStateAsync(offerId, caller, state.Value);
-        return Results.NoContent();
+        return PeerResponse.Empty(HttpStatusCode.NoContent);
     }
 
-    private (IResult? Error, (Offer, OfferFile, Recipient)? Found) Find(DeviceId caller, string offerId, string fileId)
+    private (PeerResponse? Error, (Offer, OfferFile, Recipient)? Found) Find(DeviceId caller, string offerId, string fileId)
     {
         lock (gate)
         {
             if (!offers.TryGetValue(offerId, out Offer? offer))
             {
-                return (ApiResults.Problem(StatusCodes.Status404NotFound, ApiErrorCodes.NotFound), null);
+                return (PeerResponse.Problem(HttpStatusCode.NotFound, ApiErrorCodes.NotFound), null);
             }
 
             if (!offer.Recipients.TryGetValue(caller, out Recipient? recipient))
             {
-                return (ApiResults.Problem(StatusCodes.Status403Forbidden, ApiErrorCodes.NotRecipient), null);
+                return (PeerResponse.Problem(HttpStatusCode.Forbidden, ApiErrorCodes.NotRecipient), null);
             }
 
             // Still a contact, or still in the group the offer was sent to (removed members lose access).
             if (!groups.CanExchangeFiles(caller, offer.GroupId))
             {
-                return (ApiResults.Problem(StatusCodes.Status403Forbidden, ApiErrorCodes.NotTrusted), null);
+                return (PeerResponse.Problem(HttpStatusCode.Forbidden, ApiErrorCodes.NotTrusted), null);
             }
 
             if (offer.State != OfferState.Open || offer.ExpiresAt <= timeProvider.GetUtcNow())
             {
-                return (ApiResults.Problem(StatusCodes.Status410Gone, ApiErrorCodes.OfferClosed), null);
+                return (PeerResponse.Problem(HttpStatusCode.Gone, ApiErrorCodes.OfferClosed), null);
             }
 
             OfferFile? file = offer.Files.FirstOrDefault(f => f.FileId == fileId && !f.IsDirectory);
             return file is null
-                ? (ApiResults.Problem(StatusCodes.Status404NotFound, ApiErrorCodes.NotFound), null)
+                ? (PeerResponse.Problem(HttpStatusCode.NotFound, ApiErrorCodes.NotFound), null)
                 : (null, (offer, file, recipient));
         }
     }
@@ -530,8 +529,8 @@ public sealed class OfferService(
         return info.Exists && info.Length == file.Size && ToMsPrecision(info.LastWriteTimeUtc) == file.ModifiedAt;
     }
 
-    private static EntityTagHeaderValue ETagFor(OfferFile file) =>
-        new($"\"{file.Size:x}-{file.ModifiedAt.ToUnixTimeMilliseconds():x}\"");
+    private static string ETagFor(OfferFile file) =>
+        $"\"{file.Size:x}-{file.ModifiedAt.ToUnixTimeMilliseconds():x}\"";
 
     private async Task<OfferFile> SnapshotAsync(string offerId, OfferFile file, CancellationToken cancellationToken)
     {

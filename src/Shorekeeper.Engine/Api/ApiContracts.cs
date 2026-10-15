@@ -105,4 +105,5 @@ public static class ApiErrorCodes
     public const string OfferClosed = "offer_closed";
     public const string SourceChanged = "source_changed";
     public const string Busy = "busy";
+    public const string Internal = "internal_error";
 }

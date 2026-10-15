@@ -63,13 +63,14 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Registers the HTTPS peer API (mutual TLS), the client for calling peers, connecting,
+    /// Registers the HTTPS peer API (mutual TLS, served by <see cref="MiniHttpServer"/> unless another
+    /// <see cref="ApiServer"/> replaces it), the client for calling peers, connecting,
     /// what runs over the API to see other subnets (PEX, the Bridge role), and groups.
     /// </summary>
     public static IServiceCollection AddPeerApi(this IServiceCollection services)
     {
         services.TryAddSingleton(new ApiServerOptions());
-        services.AddSingleton<ApiServer>();
+        services.AddSingleton<ApiServer, MiniHttpServer>();
         services.AddHostedService(sp => sp.GetRequiredService<ApiServer>());
         services.AddSingleton<PeerClient>();
         services.AddSingleton<PairingService>();

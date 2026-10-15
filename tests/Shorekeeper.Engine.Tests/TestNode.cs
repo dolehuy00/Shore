@@ -8,6 +8,7 @@ using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Groups;
 using Shorekeeper.Engine.Hosting;
+using Shorekeeper.Engine.Kestrel;
 using Shorekeeper.Engine.Transfers;
 using Shorekeeper.Engine.Trust;
 
@@ -50,6 +51,13 @@ internal sealed class TestNode : IAsyncDisposable
     /// <summary>Scratch folder for files a test sends.</summary>
     public string WorkDirectory => System.IO.Directory.CreateDirectory(Path.Combine(folder.Root, "work")).FullName;
 
+    /// <summary>
+    /// The suite runs once per HTTP server (docs/14-android.md §4 A1): set SHOREKEEPER_TEST_SERVER=kestrel to test
+    /// the desktop's Kestrel host; otherwise MiniHttpServer.
+    /// </summary>
+    public static bool UseKestrel { get; } =
+        string.Equals(Environment.GetEnvironmentVariable("SHOREKEEPER_TEST_SERVER"), "kestrel", StringComparison.OrdinalIgnoreCase);
+
     /// <param name="settings">Extra settings.json properties, e.g. <c>"enableBridge": true</c>.</param>
     /// <param name="directory">The company directory this node's user is in.</param>
     public static async Task<TestNode> StartAsync(string name, string? settings = null, IDirectoryInfo? directory = null)
@@ -71,6 +79,10 @@ internal sealed class TestNode : IAsyncDisposable
         builder.Services.AddShorekeeperEngine(folder.Paths);
         builder.Services.AddTransfers();
         builder.Services.AddPeerApi();
+        if (UseKestrel)
+        {
+            builder.Services.AddKestrelPeerApi();
+        }
 
         IHost host = builder.Build();
         await host.StartAsync(TestContext.Current.CancellationToken);

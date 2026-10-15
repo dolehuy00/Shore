@@ -10,6 +10,7 @@ using Shorekeeper.Desktop.ViewModels;
 using Shorekeeper.Desktop.Views;
 using Shorekeeper.Engine;
 using Shorekeeper.Engine.Hosting;
+using Shorekeeper.Engine.Kestrel;
 #if WINDOWS
 using Shorekeeper.Platform.Windows;
 #else
@@ -116,6 +117,7 @@ internal static class Program
         builder.Services.AddShorekeeperEngine(paths);
         builder.Services.AddTransfers();
         builder.Services.AddPeerApi();
+        builder.Services.AddKestrelPeerApi();
         builder.Services.AddMulticastDiscovery();
 #if WINDOWS
         builder.Services.AddWindowsPlatform();

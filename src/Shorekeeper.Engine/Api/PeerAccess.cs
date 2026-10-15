@@ -1,9 +1,6 @@
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
-using Shorekeeper.Core.Identity;
+using System.Net;
 using Shorekeeper.Core.Trust;
 using Shorekeeper.Engine.Groups;
-using Shorekeeper.Engine.Identity;
 using Shorekeeper.Engine.Trust;
 
 namespace Shorekeeper.Engine.Api;
@@ -20,67 +17,80 @@ public enum RequiredAccess
     TrustedOrGroupMember,
 }
 
-/// <summary>Endpoint metadata declaring who may call it. Endpoints without it are refused (default deny).</summary>
-public sealed record AccessRequirement(RequiredAccess Level);
-
-public static class PeerAccess
+/// <summary>
+/// The peer API without an HTTP server: routes, who may call each one, and the handlers (docs/05-protocol.md §4).
+/// Every route declares a <see cref="RequiredAccess"/>; requests matching no route are refused like untrusted ones.
+/// </summary>
+public sealed class PeerApi(TrustStore trust, GroupStore groups)
 {
-    private const string CallerKey = "Shorekeeper.Caller";
+    private readonly List<PeerRoute> routes = [];
 
-    public static TBuilder AllowAnyPeer<TBuilder>(this TBuilder builder)
-        where TBuilder : IEndpointConventionBuilder =>
-        builder.WithMetadata(new AccessRequirement(RequiredAccess.AnyPeer));
+    public void Map(string method, string template, RequiredAccess access, Func<PeerRequest, Task<PeerResponse>> handler) =>
+        routes.Add(new PeerRoute(method, template.Trim('/').Split('/'), access, handler));
 
-    public static TBuilder RequireTrustedPeer<TBuilder>(this TBuilder builder)
-        where TBuilder : IEndpointConventionBuilder =>
-        builder.WithMetadata(new AccessRequirement(RequiredAccess.Trusted));
-
-    public static TBuilder RequireTrustedOrGroupMember<TBuilder>(this TBuilder builder)
-        where TBuilder : IEndpointConventionBuilder =>
-        builder.WithMetadata(new AccessRequirement(RequiredAccess.TrustedOrGroupMember));
-
-    /// <summary>DeviceId of the peer making the request, taken from its TLS client certificate.</summary>
-    public static DeviceId GetCaller(this HttpContext context) => (DeviceId)context.Items[CallerKey]!;
+    public void Map(string method, string template, RequiredAccess access, Func<PeerRequest, PeerResponse> handler) =>
+        Map(method, template, access, request => Task.FromResult(handler(request)));
 
     /// <summary>
-    /// Identifies the caller from its client certificate and enforces <see cref="AccessRequirement"/>
-    /// (docs/04-identity-security.md §3). Blocked peers and unknown endpoints get the same answer as
-    /// untrusted peers so nothing is revealed.
+    /// Finds the route and enforces its access level (docs/04-identity-security.md §3). Blocked peers, unknown
+    /// routes and peers without the right relationship all get the same answer, so nothing is revealed.
     /// </summary>
-    public static IApplicationBuilder UsePeerAccess(this IApplicationBuilder app, TrustStore trust, GroupStore groups) =>
-        app.Use(async (HttpContext context, RequestDelegate next) =>
+    public Task<PeerResponse> HandleAsync(PeerRequest request)
+    {
+        string[] segments = request.Path.Trim('/').Split('/');
+        foreach (PeerRoute route in routes)
         {
-            if (context.Connection.ClientCertificate is not { } certificate)
+            if (route.Method == request.Method && route.TryMatch(segments, out Dictionary<string, string> values))
             {
-                await ApiResults.Problem(StatusCodes.Status401Unauthorized, ApiErrorCodes.NotTrusted).ExecuteAsync(context);
-                return;
+                if (!IsAllowed(request, route.Access))
+                {
+                    break;
+                }
+
+                request.RouteValues = values;
+                return route.Handler(request);
+            }
+        }
+
+        return Task.FromResult(PeerResponse.Problem(HttpStatusCode.Forbidden, ApiErrorCodes.NotTrusted));
+    }
+
+    private bool IsAllowed(PeerRequest request, RequiredAccess access)
+    {
+        TrustLevel level = trust.GetLevel(request.Caller);
+        return level != TrustLevel.Blocked && access switch
+        {
+            RequiredAccess.AnyPeer => true,
+            RequiredAccess.Trusted => level == TrustLevel.Trusted,
+            RequiredAccess.TrustedOrGroupMember => level == TrustLevel.Trusted || groups.SharesGroup(request.Caller),
+            _ => false,
+        };
+    }
+
+    private sealed record PeerRoute(string Method, string[] Segments, RequiredAccess Access, Func<PeerRequest, Task<PeerResponse>> Handler)
+    {
+        public bool TryMatch(string[] path, out Dictionary<string, string> values)
+        {
+            values = [];
+            if (path.Length != Segments.Length)
+            {
+                return false;
             }
 
-            DeviceId caller = DeviceIdentity.FromCertificate(certificate);
-            context.Items[CallerKey] = caller;
-
-            AccessRequirement? requirement = context.GetEndpoint()?.Metadata.GetMetadata<AccessRequirement>();
-            TrustLevel level = trust.GetLevel(caller);
-            bool allowed = level != TrustLevel.Blocked && requirement?.Level switch
+            for (int i = 0; i < path.Length; i++)
             {
-                RequiredAccess.AnyPeer => true,
-                RequiredAccess.Trusted => level == TrustLevel.Trusted,
-                RequiredAccess.TrustedOrGroupMember => level == TrustLevel.Trusted || groups.SharesGroup(caller),
-                _ => false,
-            };
-
-            if (!allowed)
-            {
-                await ApiResults.Problem(StatusCodes.Status403Forbidden, ApiErrorCodes.NotTrusted).ExecuteAsync(context);
-                return;
+                string segment = Segments[i];
+                if (segment.StartsWith('{'))
+                {
+                    values[segment[1..^1]] = Uri.UnescapeDataString(path[i]);
+                }
+                else if (!string.Equals(segment, path[i], StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
             }
 
-            await next(context);
-        });
-}
-
-public static class ApiResults
-{
-    public static IResult Problem(int status, string code) =>
-        Results.Problem(statusCode: status, title: code, extensions: new Dictionary<string, object?> { ["code"] = code });
+            return true;
+        }
+    }
 }
