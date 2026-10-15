@@ -174,6 +174,15 @@ Thông báo có file đến (Tải / Bỏ qua), foreground service khi truyền,
 
 Nhóm (thành viên), sao lưu/khôi phục danh tính (đổi điện thoại), chẩn đoán mạng (gợi ý khi Wi-Fi cách ly client, R7), tiếng Việt + tiếng Anh.
 
+Chia làm A5a (Android) và A5b (tiếng Anh cho cả desktop lẫn Android, chuỗi tách ra resource) — quyết định 2026-10-15.
+
+**A5a — kết quả (2026-10-15, ✅ xong):**
+
+- Tab **Nhóm** (điện thoại chỉ làm thành viên, không làm Host): nhóm của mình (thành viên, online, Host offline), "Nhóm trong mạng" → [Xin vào], lời mời [Đồng ý] [Từ chối], [Gửi file cho nhóm…] (mọi thành viên khác, offer mang `groupId`), [Rời nhóm] / [Hủy yêu cầu], thông báo gần đây. Màn hình chọn người khi Chia sẻ có thêm người cùng nhóm; mỗi nhóm một offer, như cửa sổ Gửi nhanh của desktop.
+- Tab **Cài đặt**: đổi tên hiển thị, "Luôn nhận file" (chuyển từ đầu màn hình), **sao lưu** danh tính vào `Download/Shorekeeper` và **khôi phục** (chọn file `content://`, mật khẩu, xem tóm tắt, app tự khởi động lại để engine áp dụng — ADR-013), **mạng**: địa chỉ của điện thoại, cổng, số máy đang thấy, gợi ý khi Wi-Fi cách ly thiết bị, **thêm máy bằng địa chỉ** (dùng lại `ManualPeerFinder`, rồi Kết nối).
+- Thử thật với desktop bản dev: desktop tạo nhóm "Thử A5" → điện thoại [Xin vào] → desktop duyệt → điện thoại gửi 6 ảnh cho nhóm → desktop tải xong, 6/6 khớp SHA-256 (desktop thêm " (1)" vì trùng tên ảnh đã nhận trước đó). Sao lưu tạo được file `.skbackup`; mở lại file đó với mật khẩu hiện đúng tóm tắt (DeviceId, liên hệ, nhóm).
+- Chưa kiểm chứng trên máy thật: bấm khôi phục đến bước khởi động lại, thêm máy bằng địa chỉ.
+
 ### A6 — Phát hành
 
 APK ký bằng keystore riêng (miễn phí, không cần mua chứng chỉ như Authenticode), phát hành trên GitHub Releases. Play Store tùy chọn (phí đăng ký một lần, phải khai báo lý do dùng foreground service và quyền mạng LAN).

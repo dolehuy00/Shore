@@ -11,15 +11,17 @@ using Shorekeeper.Core.Trust;
 using Shorekeeper.Desktop.ViewModels;
 using Shorekeeper.Engine;
 using Shorekeeper.Engine.Discovery;
+using Shorekeeper.Engine.Groups;
+using Shorekeeper.Engine.Settings;
 using Shorekeeper.Engine.Transfers;
 using Shorekeeper.Engine.Trust;
 
 namespace Shorekeeper.Android.ViewModels;
 
 /// <summary>
-/// The phone's one screen (docs/14-android.md, A2–A3): "Xóm" (contacts and who is online, Kết nối, Gửi file),
-/// "Hộp nhận" (download into Download/Shorekeeper) and "Đã gửi". Connect requests and the recipients of a share
-/// show as overlays.
+/// The phone's one screen (docs/14-android.md, A2–A5): "Xóm" (contacts and who is online, Kết nối, Gửi file),
+/// "Hộp nhận" (download into Download/Shorekeeper), "Đã gửi", "Nhóm" and "Cài đặt". Connect requests and the
+/// recipients of a share show as overlays.
 /// </summary>
 public sealed partial class MainViewModel : ObservableObject
 {
@@ -29,6 +31,8 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly InboxService inbox;
     private readonly OfferService offers;
     private readonly IExternalFileSource external;
+    private readonly GroupStore groups;
+    private readonly SettingsService settings;
     private readonly LocalDevice device;
     private readonly AppPaths paths;
     private readonly DispatcherTimer progressTimer;
@@ -41,8 +45,13 @@ public sealed partial class MainViewModel : ObservableObject
         inbox = services.GetRequiredService<InboxService>();
         offers = services.GetRequiredService<OfferService>();
         external = services.GetRequiredService<IExternalFileSource>();
+        groups = services.GetRequiredService<GroupStore>();
+        settings = services.GetRequiredService<SettingsService>();
         device = services.GetRequiredService<LocalDevice>();
         paths = services.GetRequiredService<AppPaths>();
+        Groups = new GroupsTabViewModel(services, this);
+        Settings = new SettingsTabViewModel(services, this);
+        settings.Changed += (_, _) => Dispatcher.UIThread.Post(() => OnPropertyChanged(nameof(Title)));
 
         directory.Changed += (_, _) => Dispatcher.UIThread.Post(RefreshPeers);
         trust.Changed += (_, _) => Dispatcher.UIThread.Post(RefreshPeers);
@@ -73,6 +82,10 @@ public sealed partial class MainViewModel : ObservableObject
 
     public string Subtitle => $"{LocalDevice.HostName} · {device.DeviceId.ShortForm} · nhận vào {paths.DefaultDownloadDirectory}";
 
+    public GroupsTabViewModel Groups { get; }
+
+    public SettingsTabViewModel Settings { get; }
+
     public ObservableCollection<PeerItemViewModel> Peers { get; } = [];
 
     public ObservableCollection<OfferItemViewModel> Offers { get; } = [];
@@ -81,7 +94,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     public bool HasNoSent => Sent.Count == 0;
 
-    /// <summary>0 Xóm, 1 Hộp nhận, 2 Đã gửi.</summary>
+    /// <summary>0 Xóm, 1 Hộp nhận, 2 Đã gửi, 3 Nhóm, 4 Cài đặt.</summary>
     [ObservableProperty]
     public partial int SelectedTab { get; set; }
 
@@ -90,22 +103,6 @@ public sealed partial class MainViewModel : ObservableObject
     public partial ShareViewModel? Share { get; set; }
 
     public bool HasShare => Share is not null;
-
-    /// <summary>"Luôn nhận file": keeps a foreground service so PCs reach the phone with the screen off.</summary>
-    public bool AlwaysReceive
-    {
-        get => BackgroundTransfers.AlwaysReceive;
-        set
-        {
-            BackgroundTransfers.AlwaysReceive = value;
-            OnPropertyChanged();
-            if (value)
-            {
-                BatteryOptimization.RequestExemption(global::Android.App.Application.Context);
-                Notice = "Máy OPPO, Xiaomi, Vivo… còn có trình tiết kiệm pin riêng: vào Cài đặt → Pin → Shorekeeper và cho phép hoạt động nền, nếu không hệ thống vẫn có thể tắt app.";
-            }
-        }
-    }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasNotice))]
@@ -132,18 +129,18 @@ public sealed partial class MainViewModel : ObservableObject
     internal string NameOf(DeviceId id) =>
         trust.Get(id)?.ShownName ?? directory.Snapshot().FirstOrDefault(p => p.DeviceId == id)?.DisplayName ?? id.ShortForm;
 
-    internal async Task ConnectAsync(PeerItemViewModel peer)
+    internal async Task ConnectAsync(DeviceId peer, string name)
     {
-        var outgoing = new OutgoingPairingViewModel(peer.Name, this);
+        var outgoing = new OutgoingPairingViewModel(name, this);
         Outgoing = outgoing;
         PairingOutcome outcome;
         try
         {
-            outcome = await pairing.RequestAsync(peer.DeviceId, null, pending => Dispatcher.UIThread.Post(() => outgoing.Code = Format(pending.Code)), outgoing.Cancellation.Token);
+            outcome = await pairing.RequestAsync(peer, null, pending => Dispatcher.UIThread.Post(() => outgoing.Code = Format(pending.Code)), outgoing.Cancellation.Token);
         }
         catch (Exception ex) when (ex is Engine.Api.PeerUnreachableException or Engine.Api.PeerApiException or HttpRequestException)
         {
-            outgoing.Finish($"Không liên lạc được với {peer.Name}.");
+            outgoing.Finish($"Không liên lạc được với {name}.");
             return;
         }
         catch (OperationCanceledException)
@@ -154,8 +151,8 @@ public sealed partial class MainViewModel : ObservableObject
 
         outgoing.Finish(outcome switch
         {
-            PairingOutcome.Accepted => $"Đã kết nối với {peer.Name}.",
-            PairingOutcome.Declined => $"{peer.Name} đã từ chối.",
+            PairingOutcome.Accepted => $"Đã kết nối với {name}.",
+            PairingOutcome.Declined => $"{name} đã từ chối.",
             PairingOutcome.Expired => "Yêu cầu đã hết hạn.",
             _ => "Đã hủy.",
         });
@@ -175,23 +172,38 @@ public sealed partial class MainViewModel : ObservableObject
         Incoming = null;
     }
 
-    /// <summary>Items from the share sheet: ask whom to send them to.</summary>
+    /// <summary>Items from the share sheet: ask whom to send them to — contacts, and fellow group members through their group.</summary>
     public void ShowShare(IReadOnlyList<string> locations)
     {
-        PickablePerson[] contacts =
+        IReadOnlyList<PeerInfo> live = directory.Snapshot();
+        List<PickablePerson> people =
         [
             .. trust.GetAll(TrustLevel.Trusted)
-                .Select(record => new PickablePerson(record.DeviceId, record.ShownName, Detail(directory.Snapshot().FirstOrDefault(p => p.DeviceId == record.DeviceId), record.HostName)))
-                .OrderBy(p => p.Detail.EndsWith("offline", StringComparison.Ordinal))
-                .ThenBy(p => p.Name, StringComparer.CurrentCultureIgnoreCase),
+                .Select(record => new PickablePerson(record.DeviceId, record.ShownName, Detail(live.FirstOrDefault(p => p.DeviceId == record.DeviceId), record.HostName), null)),
         ];
-        Share = new ShareViewModel(locations, contacts, this);
+        if (settings.Current.GroupsEnabled)
+        {
+            foreach (Group group in groups.GetAll().Where(g => g.Role != GroupRole.Pending))
+            {
+                foreach (GroupMember member in group.Members.Where(m => m.DeviceId != device.DeviceId
+                    && trust.GetLevel(m.DeviceId) == TrustLevel.Unknown && people.TrueForAll(p => p.DeviceId != m.DeviceId)))
+                {
+                    PeerInfo? peer = live.FirstOrDefault(p => p.DeviceId == member.DeviceId);
+                    people.Add(new PickablePerson(member.DeviceId, peer?.DisplayName ?? member.Name, $"{Detail(peer, member.Name)} · nhóm {group.Name}", group.Id));
+                }
+            }
+        }
+
+        Share = new ShareViewModel(locations, [.. people.OrderBy(p => p.Detail.Contains("offline", StringComparison.Ordinal)).ThenBy(p => p.Name, StringComparer.CurrentCultureIgnoreCase)], this);
     }
 
     internal void CloseShare() => Share = null;
 
-    /// <summary>Sends files picked in the app or shared from another app; locations may be paths or content:// URIs.</summary>
-    internal async Task<string?> SendAsync(IReadOnlyList<string> locations, IReadOnlyList<DeviceId> recipients)
+    /// <summary>
+    /// Sends files picked in the app or shared from another app; locations may be paths or content:// URIs.
+    /// One offer for contacts, one per group for fellow members who are not contacts (docs/07-groups.md §4).
+    /// </summary>
+    internal async Task<string?> SendAsync(IReadOnlyList<string> locations, IReadOnlyList<(DeviceId Id, string? GroupId)> recipients)
     {
         PreparedOffer prepared;
         try
@@ -208,7 +220,11 @@ public sealed partial class MainViewModel : ObservableObject
             return "Không đọc được file nào trong số đã chọn.";
         }
 
-        await offers.CreateAsync(prepared, recipients, null, snapshotLocked: false, groupId: null, CancellationToken.None);
+        foreach (var batch in recipients.GroupBy(r => r.GroupId))
+        {
+            await offers.CreateAsync(prepared, [.. batch.Select(r => r.Id)], null, snapshotLocked: false, groupId: batch.Key, CancellationToken.None);
+        }
+
         SelectedTab = 2;
         return prepared.Unreadable.Count > 0 ? $"{prepared.Unreadable.Count} mục không đọc được đã bị bỏ qua." : null;
     }
@@ -292,10 +308,10 @@ public sealed partial class PeerItemViewModel(DeviceId deviceId, string name, st
     /// <summary>Contacts receive files; the picker is opened by the view (it needs the window).</summary>
     public bool CanSend { get; } = isTrusted;
 
-    internal Task<string?> SendAsync(IReadOnlyList<string> locations) => owner.SendAsync(locations, [DeviceId]);
+    internal Task<string?> SendAsync(IReadOnlyList<string> locations) => owner.SendAsync(locations, [(DeviceId, null)]);
 
     [RelayCommand]
-    private Task ConnectAsync() => owner.ConnectAsync(this);
+    private Task ConnectAsync() => owner.ConnectAsync(DeviceId, Name);
 }
 
 public sealed partial class OfferItemViewModel(ReceivedOffer offer, string senderName, MainViewModel owner)
@@ -421,9 +437,12 @@ public sealed partial class SentItemViewModel(SentOffer offer, MainViewModel own
     };
 }
 
-public sealed partial class PickablePerson(DeviceId deviceId, string name, string detail) : ObservableObject
+/// <param name="groupId">Null for contacts; for fellow members, the group the offer goes through.</param>
+public sealed partial class PickablePerson(DeviceId deviceId, string name, string detail, string? groupId) : ObservableObject
 {
     public DeviceId DeviceId { get; } = deviceId;
+
+    public string? GroupId { get; } = groupId;
 
     public string Name { get; } = name;
 
@@ -472,7 +491,7 @@ public sealed partial class ShareViewModel : ObservableObject
     private async Task SendAsync()
     {
         IsSending = true;
-        Error = await owner.SendAsync(locations, [.. People.Where(p => p.IsChecked).Select(p => p.DeviceId)]);
+        Error = await owner.SendAsync(locations, [.. People.Where(p => p.IsChecked).Select(p => (p.DeviceId, p.GroupId))]);
         IsSending = false;
         if (Error is null)
         {

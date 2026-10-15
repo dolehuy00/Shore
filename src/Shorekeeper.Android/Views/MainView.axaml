@@ -14,6 +14,15 @@
     <Style Selector="Border.overlay">
       <Setter Property="Background" Value="#99000000" />
     </Style>
+    <!-- Five tabs must fit across a phone. -->
+    <Style Selector="TabItem">
+      <Setter Property="FontSize" Value="17" />
+      <Setter Property="Padding" Value="8,0" />
+    </Style>
+    <Style Selector="TextBlock.h3">
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Margin" Value="0,12,0,4" />
+    </Style>
   </UserControl.Styles>
 
   <Panel>
@@ -28,7 +37,6 @@
           <TextBlock Text="{Binding Title}" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center" />
         </StackPanel>
         <TextBlock Text="{Binding Subtitle}" FontSize="12" Opacity="0.6" TextWrapping="Wrap" />
-        <ToggleSwitch IsChecked="{Binding AlwaysReceive}" OnContent="Luôn nhận file (kể cả khi tắt màn hình)" OffContent="Luôn nhận file (kể cả khi tắt màn hình)" />
       </StackPanel>
 
       <!-- Short messages, e.g. "2 mục không đọc được đã bị bỏ qua". -->
@@ -111,6 +119,122 @@
               </ItemsControl>
             </ScrollViewer>
           </Panel>
+        </TabItem>
+        <TabItem Header="Nhóm">
+          <ScrollViewer DataContext="{Binding Groups}" x:DataType="vm:GroupsTabViewModel">
+            <StackPanel Spacing="4" Margin="0,0,14,24">
+              <TextBlock Text="Quản trị viên đã tắt tính năng nhóm." IsVisible="{Binding !IsEnabled}" Opacity="0.65" Margin="4,12" />
+
+              <ItemsControl ItemsSource="{Binding Invitations}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:InvitationItemViewModel">
+                    <Border Classes="card" Background="#1A3B82F6">
+                      <StackPanel Spacing="6">
+                        <TextBlock Text="{Binding Text}" TextWrapping="Wrap" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                          <Button Content="Đồng ý" Command="{Binding AcceptCommand}" Classes="accent" />
+                          <Button Content="Từ chối" Command="{Binding DeclineCommand}" />
+                        </StackPanel>
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+
+              <TextBlock Classes="h3" Text="Nhóm của bạn" />
+              <TextBlock Text="Chưa ở nhóm nào. Xin vào một nhóm bên dưới, hoặc nhờ Host mời bạn." IsVisible="{Binding !HasMyGroups}" Opacity="0.65" TextWrapping="Wrap" />
+              <ItemsControl ItemsSource="{Binding MyGroups}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:GroupItemViewModel">
+                    <Border Classes="card">
+                      <StackPanel Spacing="4">
+                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding Detail}" FontSize="12" Opacity="0.7" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding Members}" FontSize="12" TextWrapping="Wrap" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                          <Button Content="Gửi file cho nhóm…" Click="OnSendToGroup" IsVisible="{Binding CanSend}" Classes="accent" />
+                          <Button Content="{Binding LeaveText}" Command="{Binding LeaveCommand}" IsVisible="{Binding CanLeave}" />
+                        </StackPanel>
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+
+              <TextBlock Classes="h3" Text="Nhóm trong mạng" IsVisible="{Binding HasNetworkGroups}" />
+              <ItemsControl ItemsSource="{Binding NetworkGroups}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:NetworkGroupItemViewModel">
+                    <Border Classes="card">
+                      <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel>
+                          <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                          <TextBlock Text="{Binding Detail}" FontSize="12" Opacity="0.7" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Content="Xin vào" Command="{Binding JoinCommand}" VerticalAlignment="Center" />
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+
+              <TextBlock Classes="h3" Text="Gần đây" IsVisible="{Binding HasNotices}" />
+              <ItemsControl ItemsSource="{Binding Notices}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="x:String">
+                    <TextBlock Text="{Binding}" FontSize="12" Opacity="0.75" TextWrapping="Wrap" Margin="0,2" />
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </ScrollViewer>
+        </TabItem>
+
+        <TabItem Header="Cài đặt">
+          <ScrollViewer DataContext="{Binding Settings}" x:DataType="vm:SettingsTabViewModel">
+            <StackPanel Spacing="6" Margin="0,0,14,24">
+              <TextBlock Classes="h3" Text="Tên hiển thị" />
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBox Text="{Binding DisplayName}" Margin="0,0,8,0" />
+                <Button Grid.Column="1" Content="Lưu" Command="{Binding SaveNameCommand}" />
+              </Grid>
+
+              <TextBlock Classes="h3" Text="Chạy nền" />
+              <ToggleSwitch IsChecked="{Binding AlwaysReceive}" OnContent="Luôn nhận file (kể cả khi tắt màn hình)" OffContent="Luôn nhận file (kể cả khi tắt màn hình)" />
+              <TextBlock Text="Giữ một thông báo thường trực để máy tính gửi được file bất cứ lúc nào. Tốn pin hơn một chút."
+                         FontSize="12" Opacity="0.7" TextWrapping="Wrap" />
+
+              <TextBlock Classes="h3" Text="Sao lưu danh tính" />
+              <TextBlock Text="Giữ DeviceId, liên hệ và nhóm khi đổi điện thoại: không phải Kết nối lại với ai."
+                         FontSize="12" Opacity="0.7" TextWrapping="Wrap" />
+              <TextBox Text="{Binding BackupPassword}" PasswordChar="•" PlaceholderText="Mật khẩu (ít nhất 8 ký tự)" />
+              <TextBox Text="{Binding BackupPasswordAgain}" PasswordChar="•" PlaceholderText="Nhập lại mật khẩu" />
+              <Button Content="Sao lưu vào Download/Shorekeeper" Command="{Binding BackupCommand}" />
+
+              <TextBlock Classes="h3" Text="Khôi phục" />
+              <TextBox Text="{Binding RestorePassword}" PasswordChar="•" PlaceholderText="Mật khẩu của bản sao lưu" />
+              <Button Content="Chọn file sao lưu…" Click="OnPickBackup" />
+              <TextBlock Text="{Binding BackupStatus}" IsVisible="{Binding HasBackupStatus}" TextWrapping="Wrap" />
+              <Border Classes="card" IsVisible="{Binding CanConfirmRestore}" Background="#1AF59E0B">
+                <StackPanel Spacing="8">
+                  <TextBlock Text="{Binding RestoreSummary}" TextWrapping="Wrap" />
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Content="Khôi phục và khởi động lại" Command="{Binding ConfirmRestoreCommand}" Classes="accent" />
+                    <Button Content="Hủy" Command="{Binding CancelRestoreCommand}" />
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+
+              <TextBlock Classes="h3" Text="Mạng" />
+              <TextBlock Text="{Binding NetworkText}" FontSize="13" TextWrapping="Wrap" />
+              <TextBlock Classes="h3" Text="Thêm máy bằng địa chỉ" />
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBox Text="{Binding AddAddress}" PlaceholderText="Tên máy hoặc IP, vd 192.168.1.20" Margin="0,0,8,0" />
+                <Button Grid.Column="1" Content="Tìm" Command="{Binding AddCommand}" />
+              </Grid>
+              <TextBlock Text="{Binding AddStatus}" IsVisible="{Binding HasAddStatus}" TextWrapping="Wrap" />
+            </StackPanel>
+          </ScrollViewer>
         </TabItem>
       </TabControl>
     </DockPanel>

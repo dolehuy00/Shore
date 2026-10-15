@@ -1,0 +1,243 @@
+using System.Globalization;
+using System.Security.Cryptography;
+using Avalonia.Threading;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.DependencyInjection;
+using Shorekeeper.Android.Platform;
+using Shorekeeper.Core.Discovery;
+using Shorekeeper.Core.Platform;
+using Shorekeeper.Engine;
+using Shorekeeper.Engine.Api;
+using Shorekeeper.Engine.Discovery;
+using Shorekeeper.Engine.Identity;
+using Shorekeeper.Engine.Settings;
+
+namespace Shorekeeper.Android.ViewModels;
+
+/// <summary>
+/// "Cài đặt" on the phone (docs/14-android.md, A5): name, "Luôn nhận file", identity backup and restore (to move to
+/// a new phone without connecting again, ADR-013), and what the network looks like from here, with "add by address"
+/// for Wi-Fi that hides devices from each other (R7).
+/// </summary>
+public sealed partial class SettingsTabViewModel : ObservableObject
+{
+    private readonly SettingsService settings;
+    private readonly IdentityBackup backup;
+    private readonly IExternalFileSource external;
+    private readonly ManualPeerFinder finder;
+    private readonly PeerDirectory directory;
+    private readonly ApiServer api;
+    private readonly LocalDevice device;
+    private readonly AppPaths paths;
+    private readonly MainViewModel main;
+    private OpenedBackup? opened;
+
+    public SettingsTabViewModel(IServiceProvider services, MainViewModel main)
+    {
+        settings = services.GetRequiredService<SettingsService>();
+        backup = services.GetRequiredService<IdentityBackup>();
+        external = services.GetRequiredService<IExternalFileSource>();
+        finder = services.GetRequiredService<ManualPeerFinder>();
+        directory = services.GetRequiredService<PeerDirectory>();
+        api = services.GetRequiredService<ApiServer>();
+        device = services.GetRequiredService<LocalDevice>();
+        paths = services.GetRequiredService<AppPaths>();
+        this.main = main;
+        DisplayName = settings.Current.DisplayName;
+        directory.Changed += (_, _) => Dispatcher.UIThread.Post(() => OnPropertyChanged(nameof(NetworkText)));
+    }
+
+    [ObservableProperty]
+    public partial string DisplayName { get; set; }
+
+    /// <summary>"Luôn nhận file": keeps a foreground service so PCs reach the phone with the screen off.</summary>
+    public bool AlwaysReceive
+    {
+        get => BackgroundTransfers.AlwaysReceive;
+        set
+        {
+            BackgroundTransfers.AlwaysReceive = value;
+            OnPropertyChanged();
+            if (value)
+            {
+                BatteryOptimization.RequestExemption(global::Android.App.Application.Context);
+                main.Notice = "Máy OPPO, Xiaomi, Vivo… còn có trình tiết kiệm pin riêng: vào Cài đặt → Pin → Shorekeeper và cho phép hoạt động nền, nếu không hệ thống vẫn có thể tắt app.";
+            }
+        }
+    }
+
+    // ───────────── Backup ─────────────
+
+    [ObservableProperty]
+    public partial string BackupPassword { get; set; } = "";
+
+    [ObservableProperty]
+    public partial string BackupPasswordAgain { get; set; } = "";
+
+    [ObservableProperty]
+    public partial string RestorePassword { get; set; } = "";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasBackupStatus))]
+    public partial string? BackupStatus { get; set; }
+
+    public bool HasBackupStatus => BackupStatus is not null;
+
+    /// <summary>Set once a backup is opened: what restoring it would do.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanConfirmRestore))]
+    public partial string? RestoreSummary { get; set; }
+
+    public bool CanConfirmRestore => RestoreSummary is not null;
+
+    // ───────────── Network ─────────────
+
+    public string NetworkText
+    {
+        get
+        {
+            IReadOnlyList<LocalInterface> interfaces = LocalInterfaces.GetUsable();
+            int heard = directory.Snapshot().Count(p => p.Source == PeerSource.Direct);
+            string addresses = interfaces.Count == 0 ? "không có (chưa vào Wi-Fi?)" : string.Join(", ", interfaces.Select(i => i.Address));
+            string hint = heard == 0
+                ? "\nChưa thấy máy nào. Nếu máy tính đã mở Shorekeeper cùng Wi-Fi mà vẫn không thấy, Wi-Fi có thể đang cách ly các thiết bị (mạng khách, mạng công ty): thử thêm máy bằng địa chỉ bên dưới, hoặc dùng điểm phát Wi-Fi của điện thoại."
+                : "";
+            return $"Địa chỉ của điện thoại: {addresses}\nCổng HTTPS: {api.Port}\nĐang thấy trực tiếp: {heard} máy{hint}";
+        }
+    }
+
+    [ObservableProperty]
+    public partial string AddAddress { get; set; } = "";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasAddStatus))]
+    public partial string? AddStatus { get; set; }
+
+    public bool HasAddStatus => AddStatus is not null;
+
+    [RelayCommand]
+    private void SaveName()
+    {
+        if (string.IsNullOrWhiteSpace(DisplayName))
+        {
+            main.Notice = "Tên hiển thị không được để trống.";
+            return;
+        }
+
+        DisplayName = settings.Update(s => s with { DisplayName = DisplayName.Trim() }).DisplayName;
+        main.Notice = "Đã lưu tên.";
+    }
+
+    /// <summary>Writes the .skbackup into the download folder, where the Files app finds it.</summary>
+    [RelayCommand]
+    private async Task BackupAsync()
+    {
+        if (BackupPassword.Length < IdentityBackup.MinPasswordLength)
+        {
+            BackupStatus = $"Mật khẩu phải có ít nhất {IdentityBackup.MinPasswordLength} ký tự.";
+            return;
+        }
+
+        if (BackupPassword != BackupPasswordAgain)
+        {
+            BackupStatus = "Hai lần nhập mật khẩu không khớp.";
+            return;
+        }
+
+        string path = Path.Combine(paths.DefaultDownloadDirectory,
+            $"Shorekeeper-{device.DeviceId.ShortForm}-{DateTime.Now.ToString("yyyyMMdd", CultureInfo.InvariantCulture)}{IdentityBackup.FileExtension}");
+        try
+        {
+            Directory.CreateDirectory(paths.DefaultDownloadDirectory);
+            string password = BackupPassword;
+            await Task.Run(() => backup.ExportAsync(path, password, device.DisplayName));
+            BackupStatus = $"Đã sao lưu vào {path}. Cất file và mật khẩu ở nơi an toàn: ai có cả hai có thể giả làm máy này.";
+            BackupPassword = BackupPasswordAgain = "";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            BackupStatus = $"Không ghi được file: {ex.Message}";
+        }
+    }
+
+    /// <summary>Called with the file picked by the view (a content:// URI or a path).</summary>
+    internal async Task OpenBackupAsync(string location)
+    {
+        opened = null;
+        RestoreSummary = null;
+        try
+        {
+            string password = RestorePassword;
+            opened = await Task.Run(async () =>
+            {
+                byte[] content;
+                if (external.Owns(location))
+                {
+                    await using Stream stream = external.OpenRead(location);
+                    using var buffer = new MemoryStream();
+                    await stream.CopyToAsync(buffer);
+                    content = buffer.ToArray();
+                }
+                else
+                {
+                    content = await File.ReadAllBytesAsync(location);
+                }
+
+                return IdentityBackup.Open(content, password);
+            });
+        }
+        catch (CryptographicException)
+        {
+            BackupStatus = "Sai mật khẩu, hoặc file đã bị thay đổi.";
+            return;
+        }
+        catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
+        {
+            BackupStatus = "Không đọc được: file này không phải bản sao lưu Shorekeeper, hoặc đã hỏng.";
+            return;
+        }
+
+        BackupSummary summary = opened.Summary;
+        BackupStatus = null;
+        RestoreSummary = $"Danh tính {summary.DeviceId.ShortForm} ({summary.DisplayName}, sao lưu lúc {summary.CreatedAt.ToLocalTime():HH:mm dd/MM/yyyy}) "
+            + $"với {summary.Contacts} liên hệ và {summary.Groups} nhóm. Danh tính hiện tại ({device.DeviceId.ShortForm}) cùng liên hệ và nhóm sẽ bị thay; "
+            + "app sẽ khởi động lại. Đừng chạy cùng một danh tính trên hai máy cùng lúc.";
+    }
+
+    [RelayCommand]
+    private void ConfirmRestore()
+    {
+        if (opened is null)
+        {
+            return;
+        }
+
+        backup.StageRestore(opened);
+        AppRestart.Restart(global::Android.App.Application.Context);
+    }
+
+    [RelayCommand]
+    private void CancelRestore()
+    {
+        opened = null;
+        RestoreSummary = null;
+    }
+
+    /// <summary>"Thêm máy": asks an address who it is, then connects; the address is kept so the phone finds it again.</summary>
+    [RelayCommand]
+    private async Task AddAsync(CancellationToken cancellationToken)
+    {
+        AddStatus = "Đang tìm…";
+        FindResult result = await finder.FindAsync(AddAddress, cancellationToken);
+        if (result.Peer is not { } peer)
+        {
+            AddStatus = result.Error;
+            return;
+        }
+
+        AddStatus = $"Tìm thấy {peer.Name} ({peer.Host}).";
+        await finder.SaveAsync(AddAddress, cancellationToken);
+        await main.ConnectAsync(peer.DeviceId, peer.Name);
+    }
+}
