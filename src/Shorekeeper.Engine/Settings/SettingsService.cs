@@ -19,7 +19,8 @@ public sealed class SettingsService(AppPaths paths, SettingsStore store, IPolicy
 
     public EffectiveSettings Current => current ?? throw NotLoaded();
 
-    public static string DefaultDisplayName => $"{Environment.UserName} · {Environment.MachineName}";
+    /// <summary>"user · PC" until the user picks a name; Android sets the phone's name (there is no user name).</summary>
+    public static string DefaultDisplayName { get; set; } = $"{Environment.UserName} · {Environment.MachineName}";
 
     public void Load()
     {

@@ -11,7 +11,8 @@ public sealed class LocalDevice(ShorekeeperEngine engine, SettingsService settin
     public static readonly string AppVersion =
         typeof(LocalDevice).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0] ?? "0.0.0";
 
-    public static string Os => OperatingSystem.IsWindows() ? "windows" : OperatingSystem.IsMacOS() ? "macos" : "linux";
+    public static string Os =>
+        OperatingSystem.IsWindows() ? "windows" : OperatingSystem.IsAndroid() ? "android" : OperatingSystem.IsMacOS() ? "macos" : "linux";
 
     public DeviceId DeviceId => engine.Identity.DeviceId;
 
@@ -19,5 +20,6 @@ public sealed class LocalDevice(ShorekeeperEngine engine, SettingsService settin
         ? settings.Current.DisplayName[..PresenceCodec.MaxNameLength]
         : settings.Current.DisplayName;
 
-    public static string HostName => Environment.MachineName;
+    /// <summary>The computer's name; Android sets the phone's name instead (its machine name is "localhost").</summary>
+    public static string HostName { get; set; } = Environment.MachineName;
 }

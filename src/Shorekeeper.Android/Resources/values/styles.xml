@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <!-- Avalonia's activity is an AppCompatActivity, so it needs an AppCompat theme (docs/14-android.md, A0). -->
+  <style name="ShorekeeperTheme" parent="@style/Theme.AppCompat.DayNight.NoActionBar" />
+</resources>

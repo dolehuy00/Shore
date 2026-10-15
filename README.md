@@ -46,6 +46,7 @@ powershell -ExecutionPolicy Bypass -File deploy/build-msi.ps1
 | `src/Shorekeeper.Core` | Domain, DeviceId, cấu hình, interface platform. Không I/O mạng, không phụ thuộc Windows |
 | `src/Shorekeeper.Engine` | Khóa định danh, SQLite + migration, cấu hình, discovery, peer API (`PeerApi` + `MiniHttpServer`), gửi/nhận, nhóm. Không phụ thuộc ASP.NET Core |
 | `src/Shorekeeper.Engine.Kestrel` | Peer API trên Kestrel cho desktop |
+| `src/Shorekeeper.Android` | App Android (Avalonia.Android), không nằm trong solution: cần workload `android` (`dotnet build src/Shorekeeper.Android -c Release`) |
 | `src/Shorekeeper.Platform.Windows` | DPAPI, đọc GPO từ registry, firewall, Mark of the Web, toast, phím tắt toàn cục, Active Directory |
 | `src/Shorekeeper.Desktop` | App Avalonia: cửa sổ chính, khay hệ thống, chỉ chạy một instance |
 | `tests/*` | xUnit v3 |

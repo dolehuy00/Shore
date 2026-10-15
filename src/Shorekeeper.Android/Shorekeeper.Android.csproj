@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The Android app (docs/14-android.md). Not in Shorekeeper.sln: it needs the .NET "android" workload.
+      dotnet build src/Shorekeeper.Android -c Release
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-android</TargetFramework>
+    <SupportedOSPlatformVersion>29</SupportedOSPlatformVersion>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Shorekeeper.Android</RootNamespace>
+    <ApplicationId>dev.shorekeeper.app</ApplicationId>
+    <ApplicationTitle>Shorekeeper</ApplicationTitle>
+    <ApplicationVersion>1</ApplicationVersion>
+    <ApplicationDisplayVersion>0.1.0</ApplicationDisplayVersion>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Shorekeeper.Engine\Shorekeeper.Engine.csproj" />
+    <!-- Same wording for sizes and file lists as the desktop. -->
+    <Compile Include="..\Shorekeeper.Desktop\ViewModels\TransferText.cs" Link="ViewModels\TransferText.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Android" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+  </ItemGroup>
+
+</Project>

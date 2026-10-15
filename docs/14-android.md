@@ -38,8 +38,8 @@ Shorekeeper.Engine               (bỏ ASP.NET Core) discovery, trust, offer, in
    └── Api/PeerApiHandlers       handler thuần: (caller, request) → kết quả; quyền hạn kiểm tra ở đây
 Shorekeeper.Engine.Kestrel       (desktop) host Kestrel gọi PeerApiHandlers   ← code hiện tại chuyển sang đây
 Shorekeeper.Engine.MiniHttp      (Android, dùng được cả desktop) HTTP/1.1 tối giản trên SslStream
-Shorekeeper.Platform.Android     Keystore, MulticastLock, thông báo, content:// URI, MediaStore, foreground service
-Shorekeeper.Android              app Avalonia.Android: view mobile, dùng lại ViewModel khi được
+Shorekeeper.Android              app Avalonia.Android: view mobile; Platform/ (Keystore, logcat, sau này thông báo,
+                                 content:// URI, foreground service), tách project khi cần dùng chung
 ```
 
 ### 3.1 Server HTTPS không có Kestrel (R1)
@@ -131,6 +131,16 @@ Mỗi mục là một app thử nhỏ, không phải code sản phẩm:
 Thấy nhau, Kết nối (mã 6 số), Hộp nhận: tải về Downloads, tải tiếp khi rớt mạng. App ở foreground.
 
 **Xong khi:** PC gửi 1 GB cho điện thoại, tắt Wi-Fi 20 giây giữa chừng vẫn tải tiếp; hash khớp.
+
+**Kết quả (2026-10-15, ✅ xong):** `src/Shorekeeper.Android` (không nằm trong `Shorekeeper.sln`, cần workload `android`).
+
+- Engine chạy nguyên bộ dịch vụ của desktop với `MiniHttpServer`. Dữ liệu trong bộ nhớ riêng của app, khóa thiết bị mã hóa bằng khóa AES trong Android Keystore (`KeystoreSecretProtector`), file nhận vào `Download/Shorekeeper` bằng đường dẫn (Android 11+; Android 10 dùng `requestLegacyExternalStorage`). Log ra logcat, tag `Shorekeeper`.
+- Tên máy lấy từ `Settings.Global.device_name` (Engine cho đặt `LocalDevice.HostName` và `SettingsService.DefaultDisplayName`, vì trên Android tên máy là "localhost"). Presence báo `os: "android"`.
+- Một màn hình: tab Xóm (liên hệ + người đang online, [Kết nối]), tab Hộp nhận ([Tải] [Bỏ qua], tiến độ), lớp phủ so mã khi kết nối. ViewModel riêng cho mobile; `TransferText` dùng chung với desktop.
+- Thử thật: OPPO Reno10 5G (Android 13) phát Wi-Fi, laptop bắt Wi-Fi đó. Kết nối bằng mã từ desktop; PC gửi 1 GB → điện thoại tải ~25 MB/s, SHA-256 khớp. Lần hai: ngắt Wi-Fi laptop 21 giây khi đã tải ~735 MB → app đứng chờ, ~10 giây sau khi có mạng lại tự tải tiếp, xong, SHA-256 khớp.
+- Lỗi tìm ra nhờ thử thật, đã sửa trong Engine: kiểm tra dung lượng trống trên phân vùng `/` (653 MB, đầy) thay vì phân vùng chứa Download (185 GB). Giờ chọn điểm mount dài nhất chứa thư mục nhận (cũng đúng cho Linux/macOS), có test.
+- Khác kế hoạch: phần riêng của Android (Keystore, logcat) nằm trong thư mục `Platform/` của app, chưa tách project `Shorekeeper.Platform.Android`; `IDownloadTarget` chưa cần vì ghi bằng đường dẫn vào Download chạy được.
+- Chưa có: thông báo, chạy nền (A4), gửi từ điện thoại (A3), cài đặt (đổi tên hiển thị), icon riêng.
 
 ### A3 — Gửi từ điện thoại
 
