@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
 using Shorekeeper.Android.Platform;
 using Shorekeeper.Core.Identity;
+using Shorekeeper.Core.Localization;
 using Shorekeeper.Core.Platform;
 using Shorekeeper.Core.Trust;
 using Shorekeeper.Desktop.ViewModels;
@@ -80,7 +81,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     public string Title => device.DisplayName;
 
-    public string Subtitle => $"{LocalDevice.HostName} · {device.DeviceId.ShortForm} · nhận vào {paths.DefaultDownloadDirectory}";
+    public string Subtitle => L.F("{0} · {1} · nhận vào {2}", LocalDevice.HostName, device.DeviceId.ShortForm, paths.DefaultDownloadDirectory);
 
     public GroupsTabViewModel Groups { get; }
 
@@ -140,7 +141,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
         catch (Exception ex) when (ex is Engine.Api.PeerUnreachableException or Engine.Api.PeerApiException or HttpRequestException)
         {
-            outgoing.Finish($"Không liên lạc được với {name}.");
+            outgoing.Finish(L.F("Không liên lạc được với {0}.", name));
             return;
         }
         catch (OperationCanceledException)
@@ -151,10 +152,10 @@ public sealed partial class MainViewModel : ObservableObject
 
         outgoing.Finish(outcome switch
         {
-            PairingOutcome.Accepted => $"Đã kết nối với {name}.",
-            PairingOutcome.Declined => $"{name} đã từ chối.",
-            PairingOutcome.Expired => "Yêu cầu đã hết hạn.",
-            _ => "Đã hủy.",
+            PairingOutcome.Accepted => L.F("Đã kết nối với {0}.", name),
+            PairingOutcome.Declined => L.F("{0} đã từ chối.", name),
+            PairingOutcome.Expired => L.T("Yêu cầu đã hết hạn."),
+            _ => L.T("Đã hủy."),
         });
     }
 
@@ -189,7 +190,7 @@ public sealed partial class MainViewModel : ObservableObject
                     && trust.GetLevel(m.DeviceId) == TrustLevel.Unknown && people.TrueForAll(p => p.DeviceId != m.DeviceId)))
                 {
                     PeerInfo? peer = live.FirstOrDefault(p => p.DeviceId == member.DeviceId);
-                    people.Add(new PickablePerson(member.DeviceId, peer?.DisplayName ?? member.Name, $"{Detail(peer, member.Name)} · nhóm {group.Name}", group.Id));
+                    people.Add(new PickablePerson(member.DeviceId, peer?.DisplayName ?? member.Name, L.F("{0} · nhóm {1}", Detail(peer, member.Name), group.Name), group.Id));
                 }
             }
         }
@@ -217,7 +218,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         if (prepared.Files.Count == 0)
         {
-            return "Không đọc được file nào trong số đã chọn.";
+            return L.T("Không đọc được file nào trong số đã chọn.");
         }
 
         foreach (var batch in recipients.GroupBy(r => r.GroupId))
@@ -226,7 +227,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         SelectedTab = 2;
-        return prepared.Unreadable.Count > 0 ? $"{prepared.Unreadable.Count} mục không đọc được đã bị bỏ qua." : null;
+        return prepared.Unreadable.Count > 0 ? L.F("{0} mục không đọc được đã bị bỏ qua.", prepared.Unreadable.Count) : null;
     }
 
     internal Task WithdrawAsync(SentItemViewModel offer) => offers.WithdrawAsync(offer.OfferId);
@@ -303,7 +304,7 @@ public sealed partial class PeerItemViewModel(DeviceId deviceId, string name, st
 
     public bool CanConnect { get; } = !isTrusted && isOnline;
 
-    public string Badge { get; } = isTrusted ? "✔ Đã kết nối" : "⚠ Chưa kết nối";
+    public string Badge { get; } = isTrusted ? L.T("✔ Đã kết nối") : L.T("⚠ Chưa kết nối");
 
     /// <summary>Contacts receive files; the picker is opened by the view (it needs the window).</summary>
     public bool CanSend { get; } = isTrusted;
@@ -318,7 +319,7 @@ public sealed partial class OfferItemViewModel(ReceivedOffer offer, string sende
 {
     public OfferKey Key { get; } = new(offer.SenderId, offer.OfferId);
 
-    public string Title { get; } = $"{senderName} gửi cho bạn";
+    public string Title { get; } = L.F("{0} gửi cho bạn", senderName);
 
     public string Summary { get; } = $"{TransferText.Summary(offer.Files.Select(f => f.RelativePath))} · {TransferText.Size(offer.TotalBytes)}";
 
@@ -332,14 +333,14 @@ public sealed partial class OfferItemViewModel(ReceivedOffer offer, string sende
 
     public string Status { get; } = offer.State switch
     {
-        InboxState.New => "Mới",
-        InboxState.Downloading when offer.ReconnectingUntil is not null => "Mất kết nối, đang thử lại…",
-        InboxState.Downloading => $"Đang tải {TransferText.Size(offer.BytesReceived)} / {TransferText.Size(offer.TotalBytes)}",
-        InboxState.Completed => "Đã tải xong",
-        InboxState.Partial => "Đã tải một phần",
-        InboxState.Failed => $"Lỗi: {offer.Error}",
-        InboxState.Cancelled => "Đã dừng",
-        InboxState.Declined => "Đã bỏ qua",
+        InboxState.New => L.T("Mới"),
+        InboxState.Downloading when offer.ReconnectingUntil is not null => L.T("Mất kết nối, đang thử lại…"),
+        InboxState.Downloading => L.F("Đang tải {0} / {1}", TransferText.Size(offer.BytesReceived), TransferText.Size(offer.TotalBytes)),
+        InboxState.Completed => L.T("Đã tải xong"),
+        InboxState.Partial => L.T("Đã tải một phần"),
+        InboxState.Failed => L.F("Lỗi: {0}", offer.Error),
+        InboxState.Cancelled => L.T("Đã dừng"),
+        InboxState.Declined => L.T("Đã bỏ qua"),
         _ => offer.State.ToString(),
     };
 
@@ -358,7 +359,7 @@ public sealed partial class IncomingPairingViewModel(IncomingPairing request, Ma
 {
     public string Id { get; } = request.Id;
 
-    public string Title { get; } = $"{request.Name} muốn kết nối";
+    public string Title { get; } = L.F("{0} muốn kết nối", request.Name);
 
     public string Host { get; } = request.Host;
 
@@ -375,13 +376,13 @@ public sealed partial class OutgoingPairingViewModel(string name, MainViewModel 
 {
     public CancellationTokenSource Cancellation { get; } = new();
 
-    public string Title { get; } = $"Kết nối với {name}";
+    public string Title { get; } = L.F("Kết nối với {0}", name);
 
     [ObservableProperty]
     public partial string Code { get; set; } = "…";
 
     [ObservableProperty]
-    public partial string Status { get; set; } = "Đang gửi yêu cầu… So mã này với mã trên máy kia.";
+    public partial string Status { get; set; } = L.T("Đang gửi yêu cầu… So mã này với mã trên máy kia.");
 
     [ObservableProperty]
     public partial bool IsFinished { get; set; }
@@ -414,9 +415,9 @@ public sealed partial class SentItemViewModel(SentOffer offer, MainViewModel own
 
     public string Status { get; } = offer.State switch
     {
-        OfferState.Open => offer.HasChangedFiles ? "Đang mở · có file đã bị sửa" : "Đang mở",
-        OfferState.Withdrawn => "Đã thu hồi",
-        OfferState.Expired => "Đã hết hạn",
+        OfferState.Open => offer.HasChangedFiles ? L.T("Đang mở · có file đã bị sửa") : L.T("Đang mở"),
+        OfferState.Withdrawn => L.T("Đã thu hồi"),
+        OfferState.Expired => L.T("Đã hết hạn"),
         _ => "Xong",
     };
 
@@ -427,13 +428,13 @@ public sealed partial class SentItemViewModel(SentOffer offer, MainViewModel own
 
     private static string State(RecipientState state) => state switch
     {
-        RecipientState.Pending => "chờ gửi (đang offline)",
-        RecipientState.Delivered => "chưa mở",
-        RecipientState.Downloading => "đang tải",
-        RecipientState.Completed => "đã nhận",
-        RecipientState.Partial => "đã nhận một phần",
-        RecipientState.Failed => "lỗi",
-        _ => "đã bỏ qua",
+        RecipientState.Pending => L.T("chờ gửi (đang offline)"),
+        RecipientState.Delivered => L.T("chưa mở"),
+        RecipientState.Downloading => L.T("đang tải"),
+        RecipientState.Completed => L.T("đã nhận"),
+        RecipientState.Partial => L.T("đã nhận một phần"),
+        RecipientState.Failed => L.T("lỗi"),
+        _ => L.T("đã bỏ qua"),
     };
 }
 
@@ -469,7 +470,7 @@ public sealed partial class ShareViewModel : ObservableObject
         }
     }
 
-    public string Title => $"Gửi {locations.Count} mục cho…";
+    public string Title => L.F("Gửi {0} mục cho…", locations.Count);
 
     public IReadOnlyList<PickablePerson> People { get; }
 

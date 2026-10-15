@@ -5,6 +5,7 @@ using Dapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using Shorekeeper.Core.Identity;
+using Shorekeeper.Core.Localization;
 using Shorekeeper.Core.Platform;
 using Shorekeeper.Core.Settings;
 using Shorekeeper.Core.Transfers;
@@ -56,7 +57,8 @@ public sealed class InboxService(
         await using SqliteConnection connection = await database.OpenAsync(cancellationToken);
 
         // Downloads do not survive a restart (docs/06-file-transfer.md §5): whatever was running failed.
-        await connection.ExecuteAsync("UPDATE InboxFiles SET State = 'failed', Error = 'App đã tắt khi đang tải.' WHERE State = 'downloading';");
+        await connection.ExecuteAsync(
+            "UPDATE InboxFiles SET State = 'failed', Error = @Error WHERE State = 'downloading';", new { Error = L.T("App đã tắt khi đang tải.") });
         await connection.ExecuteAsync("UPDATE InboxOffers SET State = 'failed' WHERE State = 'downloading';");
 
         var offerRows = await connection.QueryAsync<InboxOfferRow>(
@@ -273,7 +275,7 @@ public sealed class InboxService(
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            item.Error = $"Không tạo được thư mục nhận: {ex.Message}";
+            item.Error = L.F("Không tạo được thư mục nhận: {0}", ex.Message);
         }
 
         InboxState final;
@@ -293,7 +295,7 @@ public sealed class InboxService(
                 string? reason = item.Files.FirstOrDefault(f => f.Error is not null)?.Error;
                 int files = item.Files.Count(f => !f.IsDirectory);
                 int filesDone = item.Files.Count(f => !f.IsDirectory && f.State == InboxFileState.Completed);
-                item.Error = files == 1 ? reason : $"{filesDone}/{files} file đã nhận. {reason}";
+                item.Error = files == 1 ? reason : L.F("{0}/{1} file đã nhận. {2}", filesDone, files, reason);
             }
 
             item.State = final;
@@ -338,7 +340,7 @@ public sealed class InboxService(
             string expected = await WaitForHashAsync(item.Key, file.FileId, cancellationToken);
             if (!string.Equals(hash, expected, StringComparison.OrdinalIgnoreCase))
             {
-                throw new DownloadFailedException("Dữ liệu bị hỏng khi truyền (checksum không khớp).");
+                throw new DownloadFailedException(L.T("Dữ liệu bị hỏng khi truyền (checksum không khớp)."));
             }
 
             string final = UniquePath(target);
@@ -405,12 +407,12 @@ public sealed class InboxService(
             }
             catch (PeerApiException ex)
             {
-                throw new DownloadFailedException(ex.Code == ApiErrorCodes.SourceChanged ? "File gốc đã bị thay đổi." : "Không lấy được checksum từ người gửi.", ex);
+                throw new DownloadFailedException(ex.Code == ApiErrorCodes.SourceChanged ? L.T("File gốc đã bị thay đổi.") : L.T("Không lấy được checksum từ người gửi."), ex);
             }
 
             if (timeProvider.GetUtcNow() >= giveUpAt)
             {
-                throw new DownloadFailedException("Không lấy được checksum từ người gửi.");
+                throw new DownloadFailedException(L.T("Không lấy được checksum từ người gửi."));
             }
 
             await Task.Delay(TimeSpan.FromSeconds(1), timeProvider, cancellationToken);
@@ -456,7 +458,7 @@ public sealed class InboxService(
             : new DriveInfo(Path.GetPathRoot(full)!);
         if (drive.AvailableFreeSpace < needed + FreeSpaceMargin)
         {
-            throw new DownloadFailedException($"Không đủ dung lượng trống trên ổ {drive.Name} (cần {needed / (1024 * 1024):N0} MB và chừa 1 GB).");
+            throw new DownloadFailedException(L.F("Không đủ dung lượng trống trên ổ {0} (cần {1:N0} MB và chừa 1 GB).", drive.Name, needed / (1024 * 1024)));
         }
     }
 
@@ -484,7 +486,7 @@ public sealed class InboxService(
         string path = Path.GetFullPath(Path.Combine([fullRoot, .. segments]));
         if (!path.StartsWith(Path.TrimEndingDirectorySeparator(fullRoot) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
         {
-            throw new DownloadFailedException("Đường dẫn file không hợp lệ.");
+            throw new DownloadFailedException(L.T("Đường dẫn file không hợp lệ."));
         }
 
         return path;

@@ -1,4 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui"
+        xmlns:l="using:Shorekeeper.Desktop.Localization"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Shorekeeper.Android.ViewModels"
              x:Class="Shorekeeper.Android.Views.MainView"
@@ -27,7 +28,7 @@
 
   <Panel>
     <!-- The engine starts in the background (database, identity). -->
-    <TextBlock Text="Đang khởi động…" HorizontalAlignment="Center" VerticalAlignment="Center"
+    <TextBlock Text="{l:T 'Đang khởi động…'}" HorizontalAlignment="Center" VerticalAlignment="Center"
                IsVisible="{Binding $parent[UserControl].DataContext, Converter={x:Static ObjectConverters.IsNull}}" />
 
     <DockPanel Margin="0,28,0,0" IsVisible="{Binding $parent[UserControl].DataContext, Converter={x:Static ObjectConverters.IsNotNull}}">
@@ -45,9 +46,9 @@
       </Border>
 
       <TabControl Padding="12,4" SelectedIndex="{Binding SelectedTab}">
-        <TabItem Header="Xóm">
+        <TabItem Header="{l:T 'Xóm'}">
           <Panel>
-            <TextBlock Text="Chưa thấy ai trong mạng. Mở Shorekeeper trên máy tính cùng Wi-Fi."
+            <TextBlock Text="{l:T 'Chưa thấy ai trong mạng. Mở Shorekeeper trên máy tính cùng Wi-Fi.'}"
                        IsVisible="{Binding HasNoPeers}" Opacity="0.65" TextWrapping="Wrap" Margin="4,12" />
             <ScrollViewer>
               <ItemsControl ItemsSource="{Binding Peers}">
@@ -60,9 +61,9 @@
                           <TextBlock Text="{Binding Detail}" FontSize="12" Opacity="0.65" TextTrimming="CharacterEllipsis" />
                           <TextBlock Text="{Binding Badge}" FontSize="12" />
                         </StackPanel>
-                        <Button Grid.Column="1" Content="Kết nối" Command="{Binding ConnectCommand}" IsVisible="{Binding CanConnect}"
+                        <Button Grid.Column="1" Content="{l:T 'Kết nối'}" Command="{Binding ConnectCommand}" IsVisible="{Binding CanConnect}"
                                 VerticalAlignment="Center" Classes="accent" />
-                        <Button Grid.Column="1" Content="Gửi file…" Click="OnSendFiles" IsVisible="{Binding CanSend}" VerticalAlignment="Center" />
+                        <Button Grid.Column="1" Content="{l:T 'Gửi file…'}" Click="OnSendFiles" IsVisible="{Binding CanSend}" VerticalAlignment="Center" />
                       </Grid>
                     </Border>
                   </DataTemplate>
@@ -72,9 +73,9 @@
           </Panel>
         </TabItem>
 
-        <TabItem Header="Hộp nhận">
+        <TabItem Header="{l:T 'Hộp nhận'}">
           <Panel>
-            <TextBlock Text="Chưa có ai gửi gì cho bạn." IsVisible="{Binding HasNoOffers}" Opacity="0.65" Margin="4,12" />
+            <TextBlock Text="{l:T 'Chưa có ai gửi gì cho bạn.'}" IsVisible="{Binding HasNoOffers}" Opacity="0.65" Margin="4,12" />
             <ScrollViewer>
               <ItemsControl ItemsSource="{Binding Offers}">
                 <ItemsControl.ItemTemplate>
@@ -87,8 +88,8 @@
                         <ProgressBar Value="{Binding Progress}" IsVisible="{Binding IsDownloading}" />
                         <TextBlock Text="{Binding Status}" FontSize="12" Opacity="0.75" TextWrapping="Wrap" />
                         <StackPanel Orientation="Horizontal" Spacing="8">
-                          <Button Content="Tải" Command="{Binding DownloadCommand}" IsVisible="{Binding CanDownload}" Classes="accent" />
-                          <Button Content="Bỏ qua" Command="{Binding DeclineCommand}" IsVisible="{Binding CanDecline}" />
+                          <Button Content="{l:T 'Tải'}" Command="{Binding DownloadCommand}" IsVisible="{Binding CanDownload}" Classes="accent" />
+                          <Button Content="{l:T 'Bỏ qua'}" Command="{Binding DeclineCommand}" IsVisible="{Binding CanDecline}" />
                         </StackPanel>
                       </StackPanel>
                     </Border>
@@ -98,9 +99,9 @@
             </ScrollViewer>
           </Panel>
         </TabItem>
-        <TabItem Header="Đã gửi">
+        <TabItem Header="{l:T 'Đã gửi'}">
           <Panel>
-            <TextBlock Text="Chưa gửi gì. Chạm Gửi file… ở một người đã kết nối, hoặc Chia sẻ từ Thư viện ảnh / Files."
+            <TextBlock Text="{l:T 'Chưa gửi gì. Chạm Gửi file… ở một người đã kết nối, hoặc Chia sẻ từ Thư viện ảnh / Files.'}"
                        IsVisible="{Binding HasNoSent}" Opacity="0.65" TextWrapping="Wrap" Margin="4,12" />
             <ScrollViewer>
               <ItemsControl ItemsSource="{Binding Sent}">
@@ -111,7 +112,7 @@
                         <TextBlock Text="{Binding Summary}" FontWeight="SemiBold" TextWrapping="Wrap" />
                         <TextBlock Text="{Binding Recipients}" TextWrapping="Wrap" />
                         <TextBlock Text="{Binding Status}" FontSize="12" Opacity="0.75" />
-                        <Button Content="Thu hồi" Command="{Binding WithdrawCommand}" IsVisible="{Binding CanWithdraw}" />
+                        <Button Content="{l:T 'Thu hồi'}" Command="{Binding WithdrawCommand}" IsVisible="{Binding CanWithdraw}" />
                       </StackPanel>
                     </Border>
                   </DataTemplate>
@@ -120,10 +121,10 @@
             </ScrollViewer>
           </Panel>
         </TabItem>
-        <TabItem Header="Nhóm">
+        <TabItem Header="{l:T 'Nhóm'}">
           <ScrollViewer DataContext="{Binding Groups}" x:DataType="vm:GroupsTabViewModel">
             <StackPanel Spacing="4" Margin="0,0,14,24">
-              <TextBlock Text="Quản trị viên đã tắt tính năng nhóm." IsVisible="{Binding !IsEnabled}" Opacity="0.65" Margin="4,12" />
+              <TextBlock Text="{l:T 'Quản trị viên đã tắt tính năng nhóm.'}" IsVisible="{Binding !IsEnabled}" Opacity="0.65" Margin="4,12" />
 
               <ItemsControl ItemsSource="{Binding Invitations}">
                 <ItemsControl.ItemTemplate>
@@ -132,8 +133,8 @@
                       <StackPanel Spacing="6">
                         <TextBlock Text="{Binding Text}" TextWrapping="Wrap" />
                         <StackPanel Orientation="Horizontal" Spacing="8">
-                          <Button Content="Đồng ý" Command="{Binding AcceptCommand}" Classes="accent" />
-                          <Button Content="Từ chối" Command="{Binding DeclineCommand}" />
+                          <Button Content="{l:T 'Đồng ý'}" Command="{Binding AcceptCommand}" Classes="accent" />
+                          <Button Content="{l:T 'Từ chối'}" Command="{Binding DeclineCommand}" />
                         </StackPanel>
                       </StackPanel>
                     </Border>
@@ -141,8 +142,8 @@
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
 
-              <TextBlock Classes="h3" Text="Nhóm của bạn" />
-              <TextBlock Text="Chưa ở nhóm nào. Xin vào một nhóm bên dưới, hoặc nhờ Host mời bạn." IsVisible="{Binding !HasMyGroups}" Opacity="0.65" TextWrapping="Wrap" />
+              <TextBlock Classes="h3" Text="{l:T 'Nhóm của bạn'}" />
+              <TextBlock Text="{l:T 'Chưa ở nhóm nào. Xin vào một nhóm bên dưới, hoặc nhờ Host mời bạn.'}" IsVisible="{Binding !HasMyGroups}" Opacity="0.65" TextWrapping="Wrap" />
               <ItemsControl ItemsSource="{Binding MyGroups}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:GroupItemViewModel">
@@ -152,7 +153,7 @@
                         <TextBlock Text="{Binding Detail}" FontSize="12" Opacity="0.7" TextWrapping="Wrap" />
                         <TextBlock Text="{Binding Members}" FontSize="12" TextWrapping="Wrap" />
                         <StackPanel Orientation="Horizontal" Spacing="8">
-                          <Button Content="Gửi file cho nhóm…" Click="OnSendToGroup" IsVisible="{Binding CanSend}" Classes="accent" />
+                          <Button Content="{l:T 'Gửi file cho nhóm…'}" Click="OnSendToGroup" IsVisible="{Binding CanSend}" Classes="accent" />
                           <Button Content="{Binding LeaveText}" Command="{Binding LeaveCommand}" IsVisible="{Binding CanLeave}" />
                         </StackPanel>
                       </StackPanel>
@@ -161,7 +162,7 @@
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
 
-              <TextBlock Classes="h3" Text="Nhóm trong mạng" IsVisible="{Binding HasNetworkGroups}" />
+              <TextBlock Classes="h3" Text="{l:T 'Nhóm trong mạng'}" IsVisible="{Binding HasNetworkGroups}" />
               <ItemsControl ItemsSource="{Binding NetworkGroups}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:NetworkGroupItemViewModel">
@@ -171,14 +172,14 @@
                           <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
                           <TextBlock Text="{Binding Detail}" FontSize="12" Opacity="0.7" />
                         </StackPanel>
-                        <Button Grid.Column="1" Content="Xin vào" Command="{Binding JoinCommand}" VerticalAlignment="Center" />
+                        <Button Grid.Column="1" Content="{l:T 'Xin vào'}" Command="{Binding JoinCommand}" VerticalAlignment="Center" />
                       </Grid>
                     </Border>
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
 
-              <TextBlock Classes="h3" Text="Gần đây" IsVisible="{Binding HasNotices}" />
+              <TextBlock Classes="h3" Text="{l:T 'Gần đây'}" IsVisible="{Binding HasNotices}" />
               <ItemsControl ItemsSource="{Binding Notices}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="x:String">
@@ -190,47 +191,47 @@
           </ScrollViewer>
         </TabItem>
 
-        <TabItem Header="Cài đặt">
+        <TabItem Header="{l:T 'Cài đặt'}">
           <ScrollViewer DataContext="{Binding Settings}" x:DataType="vm:SettingsTabViewModel">
             <StackPanel Spacing="6" Margin="0,0,14,24">
-              <TextBlock Classes="h3" Text="Tên hiển thị" />
+              <TextBlock Classes="h3" Text="{l:T 'Tên hiển thị'}" />
               <Grid ColumnDefinitions="*,Auto">
                 <TextBox Text="{Binding DisplayName}" Margin="0,0,8,0" />
-                <Button Grid.Column="1" Content="Lưu" Command="{Binding SaveNameCommand}" />
+                <Button Grid.Column="1" Content="{l:T 'Lưu'}" Command="{Binding SaveNameCommand}" />
               </Grid>
 
-              <TextBlock Classes="h3" Text="Chạy nền" />
-              <ToggleSwitch IsChecked="{Binding AlwaysReceive}" OnContent="Luôn nhận file (kể cả khi tắt màn hình)" OffContent="Luôn nhận file (kể cả khi tắt màn hình)" />
-              <TextBlock Text="Giữ một thông báo thường trực để máy tính gửi được file bất cứ lúc nào. Tốn pin hơn một chút."
+              <TextBlock Classes="h3" Text="{l:T 'Chạy nền'}" />
+              <ToggleSwitch IsChecked="{Binding AlwaysReceive}" OnContent="{l:T 'Luôn nhận file (kể cả khi tắt màn hình)'}" OffContent="{l:T 'Luôn nhận file (kể cả khi tắt màn hình)'}" />
+              <TextBlock Text="{l:T 'Giữ một thông báo thường trực để máy tính gửi được file bất cứ lúc nào. Tốn pin hơn một chút.'}"
                          FontSize="12" Opacity="0.7" TextWrapping="Wrap" />
 
-              <TextBlock Classes="h3" Text="Sao lưu danh tính" />
-              <TextBlock Text="Giữ DeviceId, liên hệ và nhóm khi đổi điện thoại: không phải Kết nối lại với ai."
+              <TextBlock Classes="h3" Text="{l:T 'Sao lưu danh tính'}" />
+              <TextBlock Text="{l:T 'Giữ DeviceId, liên hệ và nhóm khi đổi điện thoại: không phải Kết nối lại với ai.'}"
                          FontSize="12" Opacity="0.7" TextWrapping="Wrap" />
-              <TextBox Text="{Binding BackupPassword}" PasswordChar="•" PlaceholderText="Mật khẩu (ít nhất 8 ký tự)" />
-              <TextBox Text="{Binding BackupPasswordAgain}" PasswordChar="•" PlaceholderText="Nhập lại mật khẩu" />
-              <Button Content="Sao lưu vào Download/Shorekeeper" Command="{Binding BackupCommand}" />
+              <TextBox Text="{Binding BackupPassword}" PasswordChar="•" PlaceholderText="{l:T 'Mật khẩu (ít nhất 8 ký tự)'}" />
+              <TextBox Text="{Binding BackupPasswordAgain}" PasswordChar="•" PlaceholderText="{l:T 'Nhập lại mật khẩu'}" />
+              <Button Content="{l:T 'Sao lưu vào Download/Shorekeeper'}" Command="{Binding BackupCommand}" />
 
-              <TextBlock Classes="h3" Text="Khôi phục" />
-              <TextBox Text="{Binding RestorePassword}" PasswordChar="•" PlaceholderText="Mật khẩu của bản sao lưu" />
-              <Button Content="Chọn file sao lưu…" Click="OnPickBackup" />
+              <TextBlock Classes="h3" Text="{l:T 'Khôi phục'}" />
+              <TextBox Text="{Binding RestorePassword}" PasswordChar="•" PlaceholderText="{l:T 'Mật khẩu của bản sao lưu'}" />
+              <Button Content="{l:T 'Chọn file sao lưu…'}" Click="OnPickBackup" />
               <TextBlock Text="{Binding BackupStatus}" IsVisible="{Binding HasBackupStatus}" TextWrapping="Wrap" />
               <Border Classes="card" IsVisible="{Binding CanConfirmRestore}" Background="#1AF59E0B">
                 <StackPanel Spacing="8">
                   <TextBlock Text="{Binding RestoreSummary}" TextWrapping="Wrap" />
                   <StackPanel Orientation="Horizontal" Spacing="8">
-                    <Button Content="Khôi phục và khởi động lại" Command="{Binding ConfirmRestoreCommand}" Classes="accent" />
-                    <Button Content="Hủy" Command="{Binding CancelRestoreCommand}" />
+                    <Button Content="{l:T 'Khôi phục và khởi động lại'}" Command="{Binding ConfirmRestoreCommand}" Classes="accent" />
+                    <Button Content="{l:T 'Hủy'}" Command="{Binding CancelRestoreCommand}" />
                   </StackPanel>
                 </StackPanel>
               </Border>
 
-              <TextBlock Classes="h3" Text="Mạng" />
+              <TextBlock Classes="h3" Text="{l:T 'Mạng'}" />
               <TextBlock Text="{Binding NetworkText}" FontSize="13" TextWrapping="Wrap" />
-              <TextBlock Classes="h3" Text="Thêm máy bằng địa chỉ" />
+              <TextBlock Classes="h3" Text="{l:T 'Thêm máy bằng địa chỉ'}" />
               <Grid ColumnDefinitions="*,Auto">
-                <TextBox Text="{Binding AddAddress}" PlaceholderText="Tên máy hoặc IP, vd 192.168.1.20" Margin="0,0,8,0" />
-                <Button Grid.Column="1" Content="Tìm" Command="{Binding AddCommand}" />
+                <TextBox Text="{Binding AddAddress}" PlaceholderText="{l:T 'Tên máy hoặc IP, vd 192.168.1.20'}" Margin="0,0,8,0" />
+                <Button Grid.Column="1" Content="{l:T 'Tìm'}" Command="{Binding AddCommand}" />
               </Grid>
               <TextBlock Text="{Binding AddStatus}" IsVisible="{Binding HasAddStatus}" TextWrapping="Wrap" />
             </StackPanel>
@@ -245,7 +246,7 @@
               VerticalAlignment="Center" DataContext="{Binding Share}" x:DataType="vm:ShareViewModel">
         <StackPanel Spacing="10">
           <TextBlock Text="{Binding Title}" FontSize="18" FontWeight="SemiBold" />
-          <TextBlock Text="Chưa kết nối với ai. Kết nối với máy tính trong tab Xóm trước." IsVisible="{Binding HasNobody}" TextWrapping="Wrap" />
+          <TextBlock Text="{l:T 'Chưa kết nối với ai. Kết nối với máy tính trong tab Xóm trước.'}" IsVisible="{Binding HasNobody}" TextWrapping="Wrap" />
           <ScrollViewer MaxHeight="360">
             <ItemsControl ItemsSource="{Binding People}">
               <ItemsControl.ItemTemplate>
@@ -262,8 +263,8 @@
           </ScrollViewer>
           <TextBlock Text="{Binding Error}" IsVisible="{Binding HasError}" Foreground="#EF4444" TextWrapping="Wrap" />
           <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
-            <Button Content="Hủy" Command="{Binding CancelCommand}" />
-            <Button Content="Gửi" Command="{Binding SendCommand}" IsEnabled="{Binding CanSend}" Classes="accent" />
+            <Button Content="{l:T 'Hủy'}" Command="{Binding CancelCommand}" />
+            <Button Content="{l:T 'Gửi'}" Command="{Binding SendCommand}" IsEnabled="{Binding CanSend}" Classes="accent" />
           </StackPanel>
         </StackPanel>
       </Border>
@@ -276,11 +277,11 @@
         <StackPanel Spacing="10">
           <TextBlock Text="{Binding Title}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
           <TextBlock Text="{Binding Host}" Opacity="0.65" />
-          <TextBlock Text="Chỉ chấp nhận nếu mã này giống mã trên máy kia:" TextWrapping="Wrap" />
+          <TextBlock Text="{l:T 'Chỉ chấp nhận nếu mã này giống mã trên máy kia:'}" TextWrapping="Wrap" />
           <TextBlock Text="{Binding Code}" FontSize="32" FontWeight="Bold" HorizontalAlignment="Center" />
           <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
-            <Button Content="Từ chối" Command="{Binding DeclineCommand}" />
-            <Button Content="Chấp nhận" Command="{Binding AcceptCommand}" Classes="accent" />
+            <Button Content="{l:T 'Từ chối'}" Command="{Binding DeclineCommand}" />
+            <Button Content="{l:T 'Chấp nhận'}" Command="{Binding AcceptCommand}" Classes="accent" />
           </StackPanel>
         </StackPanel>
       </Border>
@@ -294,7 +295,7 @@
           <TextBlock Text="{Binding Title}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
           <TextBlock Text="{Binding Code}" FontSize="32" FontWeight="Bold" HorizontalAlignment="Center" />
           <TextBlock Text="{Binding Status}" TextWrapping="Wrap" />
-          <Button Content="Đóng" Command="{Binding CloseCommand}" HorizontalAlignment="Right" />
+          <Button Content="{l:T 'Đóng'}" Command="{Binding CloseCommand}" HorizontalAlignment="Right" />
         </StackPanel>
       </Border>
     </Border>

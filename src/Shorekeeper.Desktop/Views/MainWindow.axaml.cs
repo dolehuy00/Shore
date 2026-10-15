@@ -4,6 +4,7 @@ using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Platform.Storage;
 using Avalonia.VisualTree;
+using Shorekeeper.Core.Localization;
 using Shorekeeper.Desktop.ViewModels;
 
 namespace Shorekeeper.Desktop.Views;
@@ -77,11 +78,11 @@ public partial class MainWindow : Window
         string[] paths = [.. (await clipboard.TryGetFilesAsync() ?? []).Select(f => f.TryGetLocalPath()).OfType<string>()];
         if (paths.Length == 0)
         {
-            await DialogService.ChooseAsync("Không có file để gửi", "Hãy copy file hoặc thư mục (vd trong Explorer) rồi nhấn Ctrl+V.", ["Đóng"]);
+            await DialogService.ChooseAsync(L.T("Không có file để gửi"), L.T("Hãy copy file hoặc thư mục (vd trong Explorer) rồi nhấn Ctrl+V."), [L.T("Đóng")]);
         }
         else if (!await main.Neighborhood.SendToSelectedAsync(paths))
         {
-            await DialogService.ChooseAsync("Chưa chọn người nhận", "Click vào thẻ một người đã kết nối rồi nhấn Ctrl+V.", ["Đóng"]);
+            await DialogService.ChooseAsync(L.T("Chưa chọn người nhận"), L.T("Click vào thẻ một người đã kết nối rồi nhấn Ctrl+V."), [L.T("Đóng")]);
         }
     }
 

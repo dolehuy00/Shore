@@ -5,6 +5,7 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Shorekeeper.Core.Identity;
+using Shorekeeper.Core.Localization;
 using Shorekeeper.Core.Trust;
 using Shorekeeper.Desktop.Views;
 using Shorekeeper.Engine.Discovery;
@@ -51,9 +52,9 @@ public sealed partial class NeighborhoodViewModel : ObservableObject
 
     public bool IsEmpty => Contacts.Count == 0 && Others.Count == 0;
 
-    public string ContactsHeader => $"Đã kết nối ({Contacts.Count})";
+    public string ContactsHeader => L.F("Đã kết nối ({0})", Contacts.Count);
 
-    public string OthersHeader => $"Đang online trong mạng ({Others.Count})";
+    public string OthersHeader => L.F("Đang online trong mạng ({0})", Others.Count);
 
     /// <summary>Filters cards by name, machine or department.</summary>
     [ObservableProperty]
@@ -226,7 +227,7 @@ public sealed partial class NeighborhoodViewModel : ObservableObject
 
     internal async Task RenameAsync(PeerCardViewModel card)
     {
-        string? alias = await DialogService.PromptAsync("Đặt tên gợi nhớ", $"Tên gợi nhớ cho {card.HostName}:", card.DisplayName);
+        string? alias = await DialogService.PromptAsync(L.T("Đặt tên gợi nhớ"), L.F("Tên gợi nhớ cho {0}:", card.HostName), card.DisplayName);
         if (alias is not null)
         {
             await trust.SetAliasAsync(card.DeviceId, alias);
@@ -322,7 +323,7 @@ public sealed partial class PeerCardViewModel(DeviceId deviceId, NeighborhoodVie
     public PeerCardViewModel Update(PeerRecord? record, PeerInfo? live, Group? sharedGroup)
     {
         SharedGroupId = sharedGroup?.Id;
-        GroupText = sharedGroup is null ? "" : $"Cùng nhóm {sharedGroup.Name}";
+        GroupText = sharedGroup is null ? "" : L.F("Cùng nhóm {0}", sharedGroup.Name);
         HostName = live?.HostName ?? record?.HostName ?? "";
         DisplayName = record?.ShownName ?? live?.DisplayName ?? "";
         IsTrusted = record?.TrustLevel == TrustLevel.Trusted;
@@ -333,11 +334,11 @@ public sealed partial class PeerCardViewModel(DeviceId deviceId, NeighborhoodVie
         IsBusy = live?.IsBusy == true;
         IsInactive = live is null || live.State == PeerState.Stale;
         Subtitle = live is null ? HostName
-            : live.Source == PeerSource.Bridge ? $"{HostName} · {live.Address} · qua cầu nối"
+            : live.Source == PeerSource.Bridge ? L.F("{0} · {1} · qua cầu nối", HostName, live.Address)
             : $"{HostName} · {live.Address}";
         StatusText = live is null ? "Offline"
-            : live.State == PeerState.Stale ? "Mất tín hiệu…"
-            : IsBusy ? "Bận"
+            : live.State == PeerState.Stale ? L.T("Mất tín hiệu…")
+            : IsBusy ? L.T("Bận")
             : "Online";
         return this;
     }

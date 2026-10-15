@@ -4,6 +4,7 @@ using Dapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using Shorekeeper.Core.Identity;
+using Shorekeeper.Core.Localization;
 using Shorekeeper.Core.Platform;
 using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Discovery;
@@ -169,7 +170,7 @@ public sealed class OfferService(
         {
             if (files.Count > MaxEntries || fileCount > MaxFiles)
             {
-                throw new InvalidOperationException($"Quá nhiều file: tối đa {MaxFiles:N0} file mỗi lần gửi.");
+                throw new InvalidOperationException(L.F("Quá nhiều file: tối đa {0:N0} file mỗi lần gửi.", MaxFiles));
             }
         }
 

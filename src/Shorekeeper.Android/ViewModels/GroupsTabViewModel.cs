@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
 using Shorekeeper.Core.Discovery;
 using Shorekeeper.Core.Identity;
+using Shorekeeper.Core.Localization;
 using Shorekeeper.Engine;
 using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Discovery;
@@ -39,7 +40,7 @@ public sealed partial class GroupsTabViewModel : ObservableObject
         groups.InvitationReceived += (_, invitation) => Dispatcher.UIThread.Post(() =>
         {
             Refresh();
-            main.Notice = $"{invitation.HostName} mời bạn vào nhóm {invitation.GroupName}: xem tab Nhóm.";
+            main.Notice = L.F("{0} mời bạn vào nhóm {1}: xem tab Nhóm.", invitation.HostName, invitation.GroupName);
         });
         Refresh();
     }
@@ -65,15 +66,15 @@ public sealed partial class GroupsTabViewModel : ObservableObject
     internal Task<string?> SendAsync(GroupItemViewModel group, IReadOnlyList<string> locations) =>
         store.Get(group.Id) is { Role: not GroupRole.Pending } current
             ? main.SendAsync(locations, [.. current.Members.Where(m => m.DeviceId != device.DeviceId).Select(m => (m.DeviceId, (string?)current.Id))])
-            : Task.FromResult<string?>("Chưa ở trong nhóm này.");
+            : Task.FromResult<string?>(L.T("Chưa ở trong nhóm này."));
 
-    internal Task LeaveAsync(GroupItemViewModel group) => RunAsync("Không rời nhóm được", () => groups.LeaveAsync(group.Id));
+    internal Task LeaveAsync(GroupItemViewModel group) => RunAsync(L.T("Không rời nhóm được"), () => groups.LeaveAsync(group.Id));
 
     internal Task JoinAsync(NetworkGroupItemViewModel group) =>
-        RunAsync("Không gửi được yêu cầu", () => groups.RequestJoinAsync(group.HostId, group.GroupId, group.Name, null));
+        RunAsync(L.T("Không gửi được yêu cầu"), () => groups.RequestJoinAsync(group.HostId, group.GroupId, group.Name, null));
 
     internal Task AcceptAsync(InvitationItemViewModel invitation) =>
-        RunAsync("Không vào nhóm được", () => groups.AcceptInvitationAsync(invitation.Invitation));
+        RunAsync(L.T("Không vào nhóm được"), () => groups.AcceptInvitationAsync(invitation.Invitation));
 
     internal void Decline(InvitationItemViewModel invitation) => groups.DismissInvitation(invitation.Invitation);
 
@@ -98,13 +99,13 @@ public sealed partial class GroupsTabViewModel : ObservableObject
     {
         if (group.Role == GroupRole.Pending)
         {
-            return $"Host: {main.NameOf(group.HostId)} · đang chờ Host duyệt";
+            return L.F("Host: {0} · đang chờ Host duyệt", main.NameOf(group.HostId));
         }
 
         int online = group.Members.Count(m => m.DeviceId == device.DeviceId || directory.Snapshot().Any(p => p.DeviceId == m.DeviceId && p.State == PeerState.Online));
-        string host = group.Role == GroupRole.Host ? "bạn" : main.NameOf(group.HostId);
+        string host = group.Role == GroupRole.Host ? L.T("bạn") : main.NameOf(group.HostId);
         string unreachable = group.Role == GroupRole.Member && groups.IsHostReachable(group.Id) == false ? " · Host offline" : "";
-        return $"Host: {host} · {group.Members.Count} thành viên · {online} online{unreachable}";
+        return L.F("Host: {0} · {1} thành viên · {2} online{3}", host, group.Members.Count, online, unreachable);
     }
 
     private void AddNotice(string message)
@@ -132,16 +133,16 @@ public sealed partial class GroupsTabViewModel : ObservableObject
         }
         catch (PeerUnreachableException)
         {
-            main.Notice = $"{title}: không liên lạc được với Host.";
+            main.Notice = L.F("{0}: không liên lạc được với Host.", title);
         }
         catch (PeerApiException ex)
         {
             main.Notice = $"{title}: " + ex.Status switch
             {
-                404 => "nhóm này không còn.",
-                429 => "đã gửi quá nhiều yêu cầu hoặc đã bị từ chối nhiều lần, thử lại sau.",
-                503 => "nhóm đã đủ thành viên.",
-                _ => "Host từ chối yêu cầu.",
+                404 => L.T("nhóm này không còn."),
+                429 => L.T("đã gửi quá nhiều yêu cầu hoặc đã bị từ chối nhiều lần, thử lại sau."),
+                503 => L.T("nhóm đã đủ thành viên."),
+                _ => L.T("Host từ chối yêu cầu."),
             };
         }
     }
@@ -170,7 +171,7 @@ public sealed partial class GroupItemViewModel(Group group, string detail, Group
 
     public bool CanLeave { get; } = group.Role != GroupRole.Host;
 
-    public string LeaveText { get; } = group.Role == GroupRole.Pending ? "Hủy yêu cầu" : "Rời nhóm";
+    public string LeaveText { get; } = group.Role == GroupRole.Pending ? L.T("Hủy yêu cầu") : L.T("Rời nhóm");
 
     internal Task<string?> SendAsync(IReadOnlyList<string> locations) => owner.SendAsync(this, locations);
 
@@ -186,7 +187,7 @@ public sealed partial class NetworkGroupItemViewModel(PresenceGroup group, Devic
 
     public DeviceId HostId { get; } = hostId;
 
-    public string Detail { get; } = $"Host: {hostName} · {group.Members} thành viên";
+    public string Detail { get; } = L.F("Host: {0} · {1} thành viên", hostName, group.Members);
 
     [RelayCommand]
     private Task JoinAsync() => owner.JoinAsync(this);
@@ -196,7 +197,7 @@ public sealed partial class InvitationItemViewModel(GroupInvitation invitation, 
 {
     internal GroupInvitation Invitation { get; } = invitation;
 
-    public string Text { get; } = $"{invitation.HostName} mời bạn vào nhóm {invitation.GroupName}";
+    public string Text { get; } = L.F("{0} mời bạn vào nhóm {1}", invitation.HostName, invitation.GroupName);
 
     [RelayCommand]
     private Task AcceptAsync() => owner.AcceptAsync(this);

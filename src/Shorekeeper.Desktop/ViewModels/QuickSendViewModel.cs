@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Shorekeeper.Core.Identity;
+using Shorekeeper.Core.Localization;
 using Shorekeeper.Desktop.Views;
 
 namespace Shorekeeper.Desktop.ViewModels;
@@ -55,9 +56,9 @@ public sealed partial class QuickSendViewModel : DialogViewModel
 
     public bool HasNobody => everyone.Count == 0;
 
-    public string PathsHeader => Paths.Count == 0 ? "Thả file hoặc thư mục vào đây" : $"{Paths.Count} mục sẽ gửi";
+    public string PathsHeader => Paths.Count == 0 ? L.T("Thả file hoặc thư mục vào đây") : L.F("{0} mục sẽ gửi", Paths.Count);
 
-    public string SummaryText => $"Đã chọn {everyone.Count(p => p.IsChecked)} người";
+    public string SummaryText => L.F("Đã chọn {0} người", everyone.Count(p => p.IsChecked));
 
     public bool CanSend => Paths.Count > 0 && everyone.Any(p => p.IsChecked);
 

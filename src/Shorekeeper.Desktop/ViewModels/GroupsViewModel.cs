@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Shorekeeper.Core.Discovery;
 using Shorekeeper.Core.Identity;
+using Shorekeeper.Core.Localization;
 using Shorekeeper.Desktop.Views;
 using Shorekeeper.Engine;
 using Shorekeeper.Engine.Api;
@@ -83,10 +84,10 @@ public sealed partial class GroupsViewModel : ObservableObject
     [RelayCommand]
     private async Task CreateAsync()
     {
-        string? name = await DialogService.PromptAsync("Tạo nhóm", "Tên nhóm:", "");
+        string? name = await DialogService.PromptAsync(L.T("Tạo nhóm"), L.T("Tên nhóm:"), "");
         if (!string.IsNullOrWhiteSpace(name))
         {
-            await RunAsync("Không tạo được nhóm", () => groups.CreateAsync(name));
+            await RunAsync(L.T("Không tạo được nhóm"), () => groups.CreateAsync(name));
         }
     }
 
@@ -101,7 +102,7 @@ public sealed partial class GroupsViewModel : ObservableObject
 
         PickablePeer[] members = [.. group.Members.Where(m => m.DeviceId != Me).Select(m => Person(m.DeviceId, m.Name, isChecked: true))];
         IReadOnlyList<PickablePeer>? picked = await DialogService.PickPeopleAsync(
-            $"Gửi cho nhóm {group.Name}", "Gửi", "Nhóm chưa có ai khác ngoài bạn.", members);
+            L.F("Gửi cho nhóm {0}", group.Name), L.T("Gửi"), L.T("Nhóm chưa có ai khác ngoài bạn."), members);
         if (picked is not null)
         {
             await dialogs.SendAsync(paths, [.. picked.Select(p => (p.DeviceId, p.Name))], group.Id);
@@ -123,11 +124,11 @@ public sealed partial class GroupsViewModel : ObservableObject
                 .Select(p => Person(p.DeviceId, Names.Of(p.DeviceId), isChecked: false, p.HostName)),
         ];
         IReadOnlyList<PickablePeer>? picked = await DialogService.PickPeopleAsync(
-            $"Mời vào nhóm {group.Name}", "Mời", "Không có ai đang online ngoài các thành viên.", candidates);
+            L.F("Mời vào nhóm {0}", group.Name), L.T("Mời"), L.T("Không có ai đang online ngoài các thành viên."), candidates);
         foreach (PickablePeer person in picked ?? [])
         {
             string host = directory.Snapshot().FirstOrDefault(p => p.DeviceId == person.DeviceId)?.HostName ?? "";
-            if (!await RunAsync($"Không mời được {person.Name}", () => groups.InviteAsync(group.Id, person.DeviceId, person.Name, host)))
+            if (!await RunAsync(L.F("Không mời được {0}", person.Name), () => groups.InviteAsync(group.Id, person.DeviceId, person.Name, host)))
             {
                 break;
             }
@@ -136,56 +137,56 @@ public sealed partial class GroupsViewModel : ObservableObject
 
     internal async Task RenameAsync(GroupCardViewModel card)
     {
-        string? name = await DialogService.PromptAsync("Đổi tên nhóm", "Tên mới:", card.Name);
+        string? name = await DialogService.PromptAsync(L.T("Đổi tên nhóm"), L.T("Tên mới:"), card.Name);
         if (!string.IsNullOrWhiteSpace(name))
         {
-            await RunAsync("Không đổi tên được", () => groups.RenameAsync(card.Id, name));
+            await RunAsync(L.T("Không đổi tên được"), () => groups.RenameAsync(card.Id, name));
         }
     }
 
     internal async Task CloseAsync(GroupCardViewModel card)
     {
         int choice = await DialogService.ChooseAsync(
-            $"Đóng nhóm {card.Name}?",
-            "Mọi thành viên sẽ rời nhóm. File đã gửi/nhận trước đó không bị ảnh hưởng.",
-            ["Đóng nhóm", "Hủy"]);
+            L.F("Đóng nhóm {0}?", card.Name),
+            L.T("Mọi thành viên sẽ rời nhóm. File đã gửi/nhận trước đó không bị ảnh hưởng."),
+            [L.T("Đóng nhóm"), L.T("Hủy")]);
         if (choice == 0)
         {
-            await RunAsync("Không đóng được nhóm", () => groups.CloseAsync(card.Id));
+            await RunAsync(L.T("Không đóng được nhóm"), () => groups.CloseAsync(card.Id));
         }
     }
 
-    internal Task LeaveAsync(GroupCardViewModel card) => RunAsync("Không rời nhóm được", () => groups.LeaveAsync(card.Id));
+    internal Task LeaveAsync(GroupCardViewModel card) => RunAsync(L.T("Không rời nhóm được"), () => groups.LeaveAsync(card.Id));
 
     internal async Task RemoveAsync(GroupCardViewModel card, MemberViewModel member)
     {
         int choice = await DialogService.ChooseAsync(
-            $"Loại {member.Name} khỏi nhóm?",
-            $"{member.Name} sẽ không còn trong nhóm {card.Name} và không nhận file qua nhóm này nữa.",
-            ["Loại khỏi nhóm", "Hủy"]);
+            L.F("Loại {0} khỏi nhóm?", member.Name),
+            L.F("{0} sẽ không còn trong nhóm {1} và không nhận file qua nhóm này nữa.", member.Name, card.Name),
+            [L.T("Loại khỏi nhóm"), L.T("Hủy")]);
         if (choice == 0)
         {
-            await RunAsync($"Không loại được {member.Name}", () => groups.RemoveMemberAsync(card.Id, member.DeviceId));
+            await RunAsync(L.F("Không loại được {0}", member.Name), () => groups.RemoveMemberAsync(card.Id, member.DeviceId));
         }
     }
 
     internal Task ApproveAsync(JoinRequestViewModel request) =>
-        RunAsync("Không duyệt được", () => groups.ApproveAsync(request.GroupId, request.PeerId));
+        RunAsync(L.T("Không duyệt được"), () => groups.ApproveAsync(request.GroupId, request.PeerId));
 
     internal Task DeclineAsync(JoinRequestViewModel request) =>
-        RunAsync("Không từ chối được", () => groups.DeclineAsync(request.GroupId, request.PeerId));
+        RunAsync(L.T("Không từ chối được"), () => groups.DeclineAsync(request.GroupId, request.PeerId));
 
     internal async Task JoinAsync(NetworkGroupViewModel group)
     {
-        string? note = await DialogService.PromptAsync($"Xin vào nhóm {group.Name}", $"Lời nhắn cho {group.HostName} (không bắt buộc):", "");
+        string? note = await DialogService.PromptAsync(L.F("Xin vào nhóm {0}", group.Name), L.F("Lời nhắn cho {0} (không bắt buộc):", group.HostName), "");
         if (note is not null)
         {
-            await RunAsync("Không gửi được yêu cầu", () => groups.RequestJoinAsync(group.HostId, group.GroupId, group.Name, note));
+            await RunAsync(L.T("Không gửi được yêu cầu"), () => groups.RequestJoinAsync(group.HostId, group.GroupId, group.Name, note));
         }
     }
 
     internal Task AcceptAsync(GroupInvitation invitation) =>
-        RunAsync("Không vào nhóm được", () => groups.AcceptInvitationAsync(invitation));
+        RunAsync(L.T("Không vào nhóm được"), () => groups.AcceptInvitationAsync(invitation));
 
     internal void Decline(GroupInvitation invitation) => groups.DismissInvitation(invitation);
 
@@ -264,21 +265,21 @@ public sealed partial class GroupsViewModel : ObservableObject
             return;
         }
 
-        string message = $"{request.Name} ({request.Host}) xin vào nhóm {group.Name}.";
+        string message = L.F("{0} ({1}) xin vào nhóm {2}.", request.Name, request.Host, group.Name);
         dialogs.Ask(
-            $"{request.Name} xin vào nhóm",
+            L.F("{0} xin vào nhóm", request.Name),
             request.Note is null ? [message] : [message, $"\"{request.Note}\""],
-            ["Duyệt", "Từ chối"],
+            [L.T("Duyệt"), L.T("Từ chối")],
             NavPage.Groups,
             choice =>
             {
                 if (choice == 0)
                 {
-                    _ = RunAsync("Không duyệt được", () => groups.ApproveAsync(request.GroupId, request.PeerId));
+                    _ = RunAsync(L.T("Không duyệt được"), () => groups.ApproveAsync(request.GroupId, request.PeerId));
                 }
                 else if (choice == 1)
                 {
-                    _ = RunAsync("Không từ chối được", () => groups.DeclineAsync(request.GroupId, request.PeerId));
+                    _ = RunAsync(L.T("Không từ chối được"), () => groups.DeclineAsync(request.GroupId, request.PeerId));
                 }
             });
     }
@@ -291,9 +292,9 @@ public sealed partial class GroupsViewModel : ObservableObject
         }
 
         dialogs.Ask(
-            "Lời mời vào nhóm",
-            [$"{invitation.HostName} mời bạn vào nhóm {invitation.GroupName}."],
-            ["Đồng ý", "Từ chối"],
+            L.T("Lời mời vào nhóm"),
+            [L.F("{0} mời bạn vào nhóm {1}.", invitation.HostName, invitation.GroupName)],
+            [L.T("Đồng ý"), L.T("Từ chối")],
             NavPage.Groups,
             choice =>
             {
@@ -333,20 +334,20 @@ public sealed partial class GroupsViewModel : ObservableObject
         }
         catch (PeerUnreachableException)
         {
-            error = "Không liên lạc được với máy kia. Máy đó có thể đang tắt Shorekeeper hoặc ở ngoài mạng.";
+            error = L.T("Không liên lạc được với máy kia. Máy đó có thể đang tắt Shorekeeper hoặc ở ngoài mạng.");
         }
         catch (PeerApiException ex)
         {
             error = ex.Status switch
             {
-                404 => "Nhóm này không còn (hoặc máy kia đã tắt tính năng nhóm).",
-                429 => "Đã gửi quá nhiều yêu cầu hoặc đã bị từ chối nhiều lần. Hãy thử lại sau.",
-                503 => "Nhóm đã đủ thành viên.",
-                _ => "Máy kia từ chối yêu cầu.",
+                404 => L.T("Nhóm này không còn (hoặc máy kia đã tắt tính năng nhóm)."),
+                429 => L.T("Đã gửi quá nhiều yêu cầu hoặc đã bị từ chối nhiều lần. Hãy thử lại sau."),
+                503 => L.T("Nhóm đã đủ thành viên."),
+                _ => L.T("Máy kia từ chối yêu cầu."),
             };
         }
 
-        await DialogService.ChooseAsync(title, error, ["Đóng"]);
+        await DialogService.ChooseAsync(title, error, [L.T("Đóng")]);
         return false;
     }
 }
@@ -380,7 +381,7 @@ public sealed partial class GroupCardViewModel(string id, GroupsViewModel owner)
 
     public bool CanLeave => !IsHost;
 
-    public string LeaveText => IsPending ? "Hủy yêu cầu" : "Rời nhóm";
+    public string LeaveText => IsPending ? L.T("Hủy yêu cầu") : L.T("Rời nhóm");
 
     [ObservableProperty]
     public partial IReadOnlyList<MemberViewModel> Members { get; set; } = [];
@@ -405,7 +406,7 @@ public sealed partial class GroupCardViewModel(string id, GroupsViewModel owner)
         Members =
         [
             .. group.Members
-                .Select(m => new MemberViewModel(m.DeviceId, m.DeviceId == owner.Me ? "Bạn" : owner.NameOf(m.DeviceId, m.Name),
+                .Select(m => new MemberViewModel(m.DeviceId, m.DeviceId == owner.Me ? L.T("Bạn") : owner.NameOf(m.DeviceId, m.Name),
                     m.IsHost, m.DeviceId == owner.Me || owner.Names.IsOnline(m.DeviceId), IsHost && m.DeviceId != owner.Me, this, owner))
                 .OrderByDescending(m => m.IsHost)
                 .ThenBy(m => m.Name, StringComparer.Create(CultureInfo.CurrentCulture, ignoreCase: true)),
@@ -414,12 +415,12 @@ public sealed partial class GroupCardViewModel(string id, GroupsViewModel owner)
             ? [.. requests.Where(r => r.State != JoinRequestState.Declined).Select(r => new JoinRequestViewModel(r, owner))]
             : [];
 
-        string hostName = IsHost ? "bạn" : owner.Names.Of(group.HostId);
+        string hostName = IsHost ? L.T("bạn") : owner.Names.Of(group.HostId);
         Subtitle = IsPending
             ? $"Host: {hostName}"
-            : $"Host: {hostName} · {group.Members.Count} thành viên · {Members.Count(m => m.IsOnline)} online";
-        StatusText = IsPending ? "Đang chờ Host duyệt yêu cầu của bạn."
-            : !IsHost && hostReachable == false ? "Host offline: vẫn gửi file cho nhau được, chỉ chưa vào/ra thành viên được."
+            : L.F("Host: {0} · {1} thành viên · {2} online", hostName, group.Members.Count, Members.Count(m => m.IsOnline));
+        StatusText = IsPending ? L.T("Đang chờ Host duyệt yêu cầu của bạn.")
+            : !IsHost && hostReachable == false ? L.T("Host offline: vẫn gửi file cho nhau được, chỉ chưa vào/ra thành viên được.")
             : null;
         return this;
     }
@@ -471,8 +472,8 @@ public sealed partial class JoinRequestViewModel(JoinRequest request, GroupsView
     public bool IsInvited { get; } = request.State == JoinRequestState.Invited;
 
     public string Text { get; } = request.State == JoinRequestState.Invited
-        ? $"Đã mời {request.Name}, chờ đồng ý"
-        : $"{request.Name} ({request.Host}) xin vào" + (request.Note is null ? "" : $": \"{request.Note}\"");
+        ? L.F("Đã mời {0}, chờ đồng ý", request.Name)
+        : L.F("{0} ({1}) xin vào", request.Name, request.Host) + (request.Note is null ? "" : $": \"{request.Note}\"");
 
     [RelayCommand]
     private Task ApproveAsync() => owner.ApproveAsync(this);
@@ -492,7 +493,7 @@ public sealed partial class NetworkGroupViewModel(string groupId, string name, D
 
     public string HostName { get; } = hostName;
 
-    public string Detail { get; } = $"Host: {hostName} · {members} thành viên";
+    public string Detail { get; } = L.F("Host: {0} · {1} thành viên", hostName, members);
 
     [RelayCommand]
     private Task JoinAsync() => owner.JoinAsync(this);
@@ -500,7 +501,7 @@ public sealed partial class NetworkGroupViewModel(string groupId, string name, D
 
 public sealed partial class InvitationViewModel(GroupInvitation invitation, GroupsViewModel owner)
 {
-    public string Text { get; } = $"{invitation.HostName} mời bạn vào nhóm {invitation.GroupName}";
+    public string Text { get; } = L.F("{0} mời bạn vào nhóm {1}", invitation.HostName, invitation.GroupName);
 
     [RelayCommand]
     private Task AcceptAsync() => owner.AcceptAsync(invitation);

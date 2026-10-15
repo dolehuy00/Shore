@@ -4,6 +4,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Shorekeeper.Core.Identity;
+using Shorekeeper.Core.Localization;
 using Shorekeeper.Core.Platform;
 using Shorekeeper.Desktop.ViewModels;
 using Shorekeeper.Engine.Discovery;
@@ -55,13 +56,13 @@ public sealed class DialogService(
         }
         catch (InvalidOperationException ex)
         {
-            await ChooseAsync("Không gửi được", ex.Message, ["Đóng"]);
+            await ChooseAsync(L.T("Không gửi được"), ex.Message, [L.T("Đóng")]);
             return;
         }
 
         if (prepared.Files.Count == 0)
         {
-            await ChooseAsync("Không gửi được", "Không đọc được file nào trong số đã chọn.", ["Đóng"]);
+            await ChooseAsync(L.T("Không gửi được"), L.T("Không đọc được file nào trong số đã chọn."), [L.T("Đóng")]);
             return;
         }
 
@@ -70,9 +71,9 @@ public sealed class DialogService(
         {
             string names = string.Join(", ", prepared.LockedFiles.Take(3).Select(f => Path.GetFileName(f.SourcePath)));
             int choice = await ChooseAsync(
-                "File đang được sử dụng",
-                $"{prepared.LockedFiles.Count} file đang được ứng dụng khác ghi ({names}). Gửi một bản sao tạm của chúng?",
-                ["Sao chép tạm rồi gửi", "Bỏ qua các file đó", "Hủy"]);
+                L.T("File đang được sử dụng"),
+                L.F("{0} file đang được ứng dụng khác ghi ({1}). Gửi một bản sao tạm của chúng?", prepared.LockedFiles.Count, names),
+                [L.T("Sao chép tạm rồi gửi"), L.T("Bỏ qua các file đó"), L.T("Hủy")]);
             if (choice is < 0 or 2)
             {
                 return;
@@ -90,13 +91,13 @@ public sealed class DialogService(
         }
         catch (IOException ex)
         {
-            await ChooseAsync("Không gửi được", $"Không sao chép tạm được file: {ex.Message}", ["Đóng"]);
+            await ChooseAsync(L.T("Không gửi được"), L.F("Không sao chép tạm được file: {0}", ex.Message), [L.T("Đóng")]);
             return;
         }
 
         if (prepared.Unreadable.Count > 0)
         {
-            await ChooseAsync("Một số mục không đọc được", $"{prepared.Unreadable.Count} mục đã bị bỏ qua vì không đọc được (không có quyền hoặc đã bị xóa).", ["Đóng"]);
+            await ChooseAsync(L.T("Một số mục không đọc được"), L.F("{0} mục đã bị bỏ qua vì không đọc được (không có quyền hoặc đã bị xóa).", prepared.Unreadable.Count), [L.T("Đóng")]);
         }
 
         OfferSent?.Invoke(this, EventArgs.Empty);
@@ -110,7 +111,7 @@ public sealed class DialogService(
             return [];
         }
 
-        IReadOnlyList<IStorageFile> files = await window.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions { Title = "Chọn file để gửi", AllowMultiple = true });
+        IReadOnlyList<IStorageFile> files = await window.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions { Title = L.T("Chọn file để gửi"), AllowMultiple = true });
         return [.. files.Select(f => f.TryGetLocalPath()).OfType<string>()];
     }
 
@@ -121,7 +122,7 @@ public sealed class DialogService(
             return [];
         }
 
-        IReadOnlyList<IStorageFolder> folders = await window.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { Title = "Chọn thư mục để gửi" });
+        IReadOnlyList<IStorageFolder> folders = await window.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { Title = L.T("Chọn thư mục để gửi") });
         return [.. folders.Select(f => f.TryGetLocalPath()).OfType<string>()];
     }
 
@@ -191,7 +192,7 @@ public sealed class DialogService(
         }));
         if (!toasted)
         {
-            ShowPopup(title, string.Join("\n\n", lines), [.. actions, "Để sau"], choice =>
+            ShowPopup(title, string.Join("\n\n", lines), [.. actions, L.T("Để sau")], choice =>
             {
                 if (choice >= 0 && choice < actions.Count)
                 {
@@ -231,7 +232,7 @@ public sealed class DialogService(
         var key = new OfferKey(offer.SenderId, offer.OfferId);
         var viewModel = new IncomingOfferViewModel(offer, senderName, () => inbox.Download(key), () => inbox.DeclineAsync(key), () => PageRequested?.Invoke(this, NavPage.Inbox));
         string[] lines = viewModel.Note is { } note ? [viewModel.Summary, note] : [viewModel.Summary];
-        bool toasted = notifier.TryShow(viewModel.Title, lines, ["Tải", "Bỏ qua", "Xem"], choice => Dispatcher.UIThread.Post(() =>
+        bool toasted = notifier.TryShow(viewModel.Title, lines, [L.T("Tải"), L.T("Bỏ qua"), "Xem"], choice => Dispatcher.UIThread.Post(() =>
         {
             switch (choice)
             {
@@ -286,7 +287,7 @@ public sealed class DialogService(
         return ShowAsync(new AddPeerWindow { DataContext = viewModel }, viewModel);
     }
 
-    public static async Task<string?> PromptAsync(string title, string label, string initialText, bool isPassword = false, string okText = "Lưu")
+    public static async Task<string?> PromptAsync(string title, string label, string initialText, bool isPassword = false, string? okText = null)
     {
         var viewModel = new TextPromptViewModel(title, label, initialText, isPassword, okText);
         await ShowAsync(new TextPromptWindow { DataContext = viewModel }, viewModel);

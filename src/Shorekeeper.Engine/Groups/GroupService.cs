@@ -5,6 +5,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Shorekeeper.Core.Discovery;
 using Shorekeeper.Core.Identity;
+using Shorekeeper.Core.Localization;
 using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Settings;
@@ -108,7 +109,7 @@ public sealed class GroupService(
         name = ValidName(name);
         if (store.GetAll().Count(g => g.Role == GroupRole.Host) >= MaxHosted)
         {
-            throw new InvalidOperationException($"Mỗi máy tạo được tối đa {MaxHosted} nhóm.");
+            throw new InvalidOperationException(L.F("Mỗi máy tạo được tối đa {0} nhóm.", MaxHosted));
         }
 
         var group = new Group(Guid.NewGuid().ToString("N"), name, device.DeviceId, GroupRole.Host, [new GroupMember(device.DeviceId, device.DisplayName, true)]);
@@ -136,7 +137,7 @@ public sealed class GroupService(
     public async Task ApproveAsync(string groupId, DeviceId peer)
     {
         Group group = Hosted(groupId);
-        JoinRequest request = store.GetRequest(groupId, peer) ?? throw new InvalidOperationException("Yêu cầu này không còn nữa.");
+        JoinRequest request = store.GetRequest(groupId, peer) ?? throw new InvalidOperationException(L.T("Yêu cầu này không còn nữa."));
         await AddMemberAsync(group, peer, request.Name);
     }
 
@@ -161,7 +162,7 @@ public sealed class GroupService(
         Group group = Hosted(groupId);
         if (peer == device.DeviceId)
         {
-            throw new InvalidOperationException("Host không tự rời nhóm được; hãy đóng nhóm.");
+            throw new InvalidOperationException(L.T("Host không tự rời nhóm được; hãy đóng nhóm."));
         }
 
         await store.SaveAsync(group with { Members = [.. group.Members.Where(m => m.DeviceId != peer)] });
@@ -185,7 +186,7 @@ public sealed class GroupService(
 
         if (group.Members.Count >= MaxMembers)
         {
-            throw new InvalidOperationException($"Nhóm đã đủ {MaxMembers} thành viên.");
+            throw new InvalidOperationException(L.F("Nhóm đã đủ {0} thành viên.", MaxMembers));
         }
 
         JoinRequest? previous = store.GetRequest(groupId, peer);
@@ -326,7 +327,7 @@ public sealed class GroupService(
 
         if (store.GetAll().Count(g => g.Role != GroupRole.Host) >= MaxJoined)
         {
-            throw new InvalidOperationException($"Mỗi máy tham gia được tối đa {MaxJoined} nhóm.");
+            throw new InvalidOperationException(L.F("Mỗi máy tham gia được tối đa {0} nhóm.", MaxJoined));
         }
 
         var body = new GroupJoinRequestBody(device.DisplayName, LocalDevice.HostName, string.IsNullOrWhiteSpace(note) ? null : note.Trim());
@@ -473,7 +474,7 @@ public sealed class GroupService(
                         since = state.Version;
                         break;
                     case GroupStatus.Declined:
-                        await EndAsync(group, $"Host không đồng ý cho bạn vào nhóm \"{group.Name}\".");
+                        await EndAsync(group, L.F("Host không đồng ý cho bạn vào nhóm \"{0}\".", group.Name));
                         return;
                     default:
                         // Still pending: the Host already waited for a decision before answering.
@@ -484,8 +485,8 @@ public sealed class GroupService(
             {
                 // Closed, removed, or the Host blocked us: all the same to us.
                 await EndAsync(group, group.Role == GroupRole.Pending
-                    ? $"Nhóm \"{group.Name}\" không còn nhận bạn vào."
-                    : $"Bạn không còn ở trong nhóm \"{group.Name}\".");
+                    ? L.F("Nhóm \"{0}\" không còn nhận bạn vào.", group.Name)
+                    : L.F("Bạn không còn ở trong nhóm \"{0}\".", group.Name));
                 return;
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -527,7 +528,7 @@ public sealed class GroupService(
             await store.SaveAsync(current with { Name = name, Role = GroupRole.Member, Members = members });
             if (current.Role == GroupRole.Pending)
             {
-                Notice?.Invoke(this, new GroupNotice(name, $"Bạn đã vào nhóm \"{name}\"."));
+                Notice?.Invoke(this, new GroupNotice(name, L.F("Bạn đã vào nhóm \"{0}\".", name)));
             }
         }
 
@@ -594,7 +595,7 @@ public sealed class GroupService(
         {
             if (group.Members.Count >= MaxMembers)
             {
-                throw new InvalidOperationException($"Nhóm đã đủ {MaxMembers} thành viên.");
+                throw new InvalidOperationException(L.F("Nhóm đã đủ {0} thành viên.", MaxMembers));
             }
 
             await store.SaveAsync(group with { Members = [.. group.Members, new GroupMember(peer, name, false)] });
@@ -606,13 +607,13 @@ public sealed class GroupService(
     }
 
     private Group Hosted(string groupId) =>
-        store.Get(groupId) is { Role: GroupRole.Host } group ? group : throw new InvalidOperationException("Nhóm này không còn.");
+        store.Get(groupId) is { Role: GroupRole.Host } group ? group : throw new InvalidOperationException(L.T("Nhóm này không còn."));
 
     private void EnsureEnabled()
     {
         if (!IsEnabled)
         {
-            throw new InvalidOperationException("Quản trị viên đã tắt tính năng nhóm.");
+            throw new InvalidOperationException(L.T("Quản trị viên đã tắt tính năng nhóm."));
         }
     }
 
@@ -626,8 +627,8 @@ public sealed class GroupService(
         }
 
         return fallback
-            ? cleaned.Length == 0 ? "Nhóm" : cleaned[..PresenceCodec.MaxGroupNameLength]
-            : throw new InvalidOperationException($"Tên nhóm cần từ 1 đến {PresenceCodec.MaxGroupNameLength} ký tự.");
+            ? cleaned.Length == 0 ? L.T("Nhóm") : cleaned[..PresenceCodec.MaxGroupNameLength]
+            : throw new InvalidOperationException(L.F("Tên nhóm cần từ 1 đến {0} ký tự.", PresenceCodec.MaxGroupNameLength));
     }
 
     private bool TryCountRequest(DeviceId caller, DateTimeOffset now)

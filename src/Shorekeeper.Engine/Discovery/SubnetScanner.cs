@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Sockets;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Shorekeeper.Core.Localization;
 using Shorekeeper.Core.Settings;
 using Shorekeeper.Engine.Settings;
 
@@ -66,13 +67,13 @@ public sealed class SubnetScanner(ProbeHints hints, SettingsService settings, IL
             || address.AddressFamily != AddressFamily.InterNetwork
             || (parts.Length == 2 && !int.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out prefix)))
         {
-            error = $"\"{text}\" không phải dải IPv4 (vd 10.1.5.0/24).";
+            error = L.F("\"{0}\" không phải dải IPv4 (vd 10.1.5.0/24).", text);
             return null;
         }
 
         if (prefix is < MinPrefixLength or > 32)
         {
-            error = $"\"{text}\" quá rộng: tối đa /{MinPrefixLength} (1.024 địa chỉ) mỗi dải.";
+            error = L.F("\"{0}\" quá rộng: tối đa /{1} (1.024 địa chỉ) mỗi dải.", text, MinPrefixLength);
             return null;
         }
 

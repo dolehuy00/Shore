@@ -3,6 +3,7 @@ using System.Diagnostics;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Shorekeeper.Core.Localization;
 using Shorekeeper.Desktop.Views;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Transfers;
@@ -122,7 +123,7 @@ public sealed partial class InboxItemViewModel(OfferKey key, InboxViewModel owne
     public partial bool CanDownload { get; set; }
 
     [ObservableProperty]
-    public partial string DownloadText { get; set; } = "Tải";
+    public partial string DownloadText { get; set; } = L.T("Tải");
 
     /// <summary>"Chọn file…" makes sense when several files are still to come.</summary>
     [ObservableProperty]
@@ -153,9 +154,9 @@ public sealed partial class InboxItemViewModel(OfferKey key, InboxViewModel owne
         CanPick = CanDownload && value.Files.Count(f => !f.IsDirectory && f.State != InboxFileState.Completed) > 1;
         DownloadText = value.State switch
         {
-            InboxState.New => "Tải",
-            InboxState.Partial => "Tải phần còn lại",
-            _ => "Tải lại",
+            InboxState.New => L.T("Tải"),
+            InboxState.Partial => L.T("Tải phần còn lại"),
+            _ => L.T("Tải lại"),
         };
         CanOpen = value.Files.Any(f => f.FinalPath is not null);
         IsError = value.State == InboxState.Failed;
@@ -165,18 +166,18 @@ public sealed partial class InboxItemViewModel(OfferKey key, InboxViewModel owne
         StatusText = value.State switch
         {
             InboxState.Downloading when value.ReconnectingUntil is { } until =>
-                $"Mất kết nối với {SenderName}, đang thử lại (còn {Math.Max(0, (int)(until - now).TotalSeconds)} giây)…",
-            InboxState.Downloading => $"Đang tải {Progress:0}% · {TransferText.Size((long)speed)}/s",
-            InboxState.Completed => "Đã nhận",
-            InboxState.Partial => $"Đã nhận {value.Files.Count(f => !f.IsDirectory && f.State == InboxFileState.Completed)}/{value.Files.Count(f => !f.IsDirectory)} file",
-            InboxState.Failed => $"Lỗi: {value.Error}",
-            InboxState.Cancelled => "Đã hủy",
-            InboxState.Declined => "Đã bỏ qua",
-            InboxState.Withdrawn => "Người gửi đã thu hồi",
-            InboxState.Expired => "Đã hết hạn",
-            _ when !open => "Đã hết hạn",
-            _ when !senderOnline => $"Người gửi offline · {TransferText.Remaining(value.ExpiresAt - now)}",
-            _ => $"Mới · {TransferText.Remaining(value.ExpiresAt - now)}",
+                L.F("Mất kết nối với {0}, đang thử lại (còn {1} giây)…", SenderName, Math.Max(0, (int)(until - now).TotalSeconds)),
+            InboxState.Downloading => L.F("Đang tải {0:0}% · {1}/s", Progress, TransferText.Size((long)speed)),
+            InboxState.Completed => L.T("Đã nhận"),
+            InboxState.Partial => L.F("Đã nhận {0}/{1} file", value.Files.Count(f => !f.IsDirectory && f.State == InboxFileState.Completed), value.Files.Count(f => !f.IsDirectory)),
+            InboxState.Failed => L.F("Lỗi: {0}", value.Error),
+            InboxState.Cancelled => L.T("Đã hủy"),
+            InboxState.Declined => L.T("Đã bỏ qua"),
+            InboxState.Withdrawn => L.T("Người gửi đã thu hồi"),
+            InboxState.Expired => L.T("Đã hết hạn"),
+            _ when !open => L.T("Đã hết hạn"),
+            _ when !senderOnline => L.F("Người gửi offline · {0}", TransferText.Remaining(value.ExpiresAt - now)),
+            _ => L.F("Mới · {0}", TransferText.Remaining(value.ExpiresAt - now)),
         };
     }
 

@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
 using Shorekeeper.Android.Platform;
 using Shorekeeper.Core.Discovery;
+using Shorekeeper.Core.Localization;
 using Shorekeeper.Core.Platform;
 using Shorekeeper.Engine;
 using Shorekeeper.Engine.Api;
@@ -62,7 +63,7 @@ public sealed partial class SettingsTabViewModel : ObservableObject
             if (value)
             {
                 BatteryOptimization.RequestExemption(global::Android.App.Application.Context);
-                main.Notice = "Máy OPPO, Xiaomi, Vivo… còn có trình tiết kiệm pin riêng: vào Cài đặt → Pin → Shorekeeper và cho phép hoạt động nền, nếu không hệ thống vẫn có thể tắt app.";
+                main.Notice = L.T("Máy OPPO, Xiaomi, Vivo… còn có trình tiết kiệm pin riêng: vào Cài đặt → Pin → Shorekeeper và cho phép hoạt động nền, nếu không hệ thống vẫn có thể tắt app.");
             }
         }
     }
@@ -99,11 +100,11 @@ public sealed partial class SettingsTabViewModel : ObservableObject
         {
             IReadOnlyList<LocalInterface> interfaces = LocalInterfaces.GetUsable();
             int heard = directory.Snapshot().Count(p => p.Source == PeerSource.Direct);
-            string addresses = interfaces.Count == 0 ? "không có (chưa vào Wi-Fi?)" : string.Join(", ", interfaces.Select(i => i.Address));
+            string addresses = interfaces.Count == 0 ? L.T("không có (chưa vào Wi-Fi?)") : string.Join(", ", interfaces.Select(i => i.Address));
             string hint = heard == 0
-                ? "\nChưa thấy máy nào. Nếu máy tính đã mở Shorekeeper cùng Wi-Fi mà vẫn không thấy, Wi-Fi có thể đang cách ly các thiết bị (mạng khách, mạng công ty): thử thêm máy bằng địa chỉ bên dưới, hoặc dùng điểm phát Wi-Fi của điện thoại."
+                ? L.T("\nChưa thấy máy nào. Nếu máy tính đã mở Shorekeeper cùng Wi-Fi mà vẫn không thấy, Wi-Fi có thể đang cách ly các thiết bị (mạng khách, mạng công ty): thử thêm máy bằng địa chỉ bên dưới, hoặc dùng điểm phát Wi-Fi của điện thoại.")
                 : "";
-            return $"Địa chỉ của điện thoại: {addresses}\nCổng HTTPS: {api.Port}\nĐang thấy trực tiếp: {heard} máy{hint}";
+            return L.F("Địa chỉ của điện thoại: {0}\nCổng HTTPS: {1}\nĐang thấy trực tiếp: {2} máy{3}", addresses, api.Port, heard, hint);
         }
     }
 
@@ -121,12 +122,12 @@ public sealed partial class SettingsTabViewModel : ObservableObject
     {
         if (string.IsNullOrWhiteSpace(DisplayName))
         {
-            main.Notice = "Tên hiển thị không được để trống.";
+            main.Notice = L.T("Tên hiển thị không được để trống.");
             return;
         }
 
         DisplayName = settings.Update(s => s with { DisplayName = DisplayName.Trim() }).DisplayName;
-        main.Notice = "Đã lưu tên.";
+        main.Notice = L.T("Đã lưu tên.");
     }
 
     /// <summary>Writes the .skbackup into the download folder, where the Files app finds it.</summary>
@@ -135,13 +136,13 @@ public sealed partial class SettingsTabViewModel : ObservableObject
     {
         if (BackupPassword.Length < IdentityBackup.MinPasswordLength)
         {
-            BackupStatus = $"Mật khẩu phải có ít nhất {IdentityBackup.MinPasswordLength} ký tự.";
+            BackupStatus = L.F("Mật khẩu phải có ít nhất {0} ký tự.", IdentityBackup.MinPasswordLength);
             return;
         }
 
         if (BackupPassword != BackupPasswordAgain)
         {
-            BackupStatus = "Hai lần nhập mật khẩu không khớp.";
+            BackupStatus = L.T("Hai lần nhập mật khẩu không khớp.");
             return;
         }
 
@@ -152,12 +153,12 @@ public sealed partial class SettingsTabViewModel : ObservableObject
             Directory.CreateDirectory(paths.DefaultDownloadDirectory);
             string password = BackupPassword;
             await Task.Run(() => backup.ExportAsync(path, password, device.DisplayName));
-            BackupStatus = $"Đã sao lưu vào {path}. Cất file và mật khẩu ở nơi an toàn: ai có cả hai có thể giả làm máy này.";
+            BackupStatus = L.F("Đã sao lưu vào {0}. Cất file và mật khẩu ở nơi an toàn: ai có cả hai có thể giả làm máy này.", path);
             BackupPassword = BackupPasswordAgain = "";
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            BackupStatus = $"Không ghi được file: {ex.Message}";
+            BackupStatus = L.F("Không ghi được file: {0}", ex.Message);
         }
     }
 
@@ -189,20 +190,20 @@ public sealed partial class SettingsTabViewModel : ObservableObject
         }
         catch (CryptographicException)
         {
-            BackupStatus = "Sai mật khẩu, hoặc file đã bị thay đổi.";
+            BackupStatus = L.T("Sai mật khẩu, hoặc file đã bị thay đổi.");
             return;
         }
         catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
         {
-            BackupStatus = "Không đọc được: file này không phải bản sao lưu Shorekeeper, hoặc đã hỏng.";
+            BackupStatus = L.T("Không đọc được: file này không phải bản sao lưu Shorekeeper, hoặc đã hỏng.");
             return;
         }
 
         BackupSummary summary = opened.Summary;
         BackupStatus = null;
-        RestoreSummary = $"Danh tính {summary.DeviceId.ShortForm} ({summary.DisplayName}, sao lưu lúc {summary.CreatedAt.ToLocalTime():HH:mm dd/MM/yyyy}) "
-            + $"với {summary.Contacts} liên hệ và {summary.Groups} nhóm. Danh tính hiện tại ({device.DeviceId.ShortForm}) cùng liên hệ và nhóm sẽ bị thay; "
-            + "app sẽ khởi động lại. Đừng chạy cùng một danh tính trên hai máy cùng lúc.";
+        RestoreSummary = L.F(
+            "Danh tính {0} ({1}, sao lưu lúc {2:HH:mm dd/MM/yyyy}) với {3} liên hệ và {4} nhóm. Danh tính hiện tại ({5}) cùng liên hệ và nhóm sẽ bị thay; app sẽ khởi động lại. Đừng chạy cùng một danh tính trên hai máy cùng lúc.",
+            summary.DeviceId.ShortForm, summary.DisplayName, summary.CreatedAt.ToLocalTime(), summary.Contacts, summary.Groups, device.DeviceId.ShortForm);
     }
 
     [RelayCommand]
@@ -228,7 +229,7 @@ public sealed partial class SettingsTabViewModel : ObservableObject
     [RelayCommand]
     private async Task AddAsync(CancellationToken cancellationToken)
     {
-        AddStatus = "Đang tìm…";
+        AddStatus = L.T("Đang tìm…");
         FindResult result = await finder.FindAsync(AddAddress, cancellationToken);
         if (result.Peer is not { } peer)
         {
@@ -236,7 +237,7 @@ public sealed partial class SettingsTabViewModel : ObservableObject
             return;
         }
 
-        AddStatus = $"Tìm thấy {peer.Name} ({peer.Host}).";
+        AddStatus = L.F("Tìm thấy {0} ({1}).", peer.Name, peer.Host);
         await finder.SaveAsync(AddAddress, cancellationToken);
         await main.ConnectAsync(peer.DeviceId, peer.Name);
     }

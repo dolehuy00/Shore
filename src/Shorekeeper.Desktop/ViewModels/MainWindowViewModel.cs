@@ -2,6 +2,7 @@ using System.Reflection;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Shorekeeper.Core.Discovery;
+using Shorekeeper.Core.Localization;
 using Shorekeeper.Desktop.Views;
 using Shorekeeper.Engine;
 using Shorekeeper.Engine.Discovery;
@@ -132,18 +133,18 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public IReadOnlyList<NavItem> NavItems { get; } =
     [
-        new(NavPage.Neighborhood, "Xóm"),
-        new(NavPage.Inbox, "Hộp nhận"),
-        new(NavPage.Sent, "Đã gửi"),
-        new(NavPage.Groups, "Nhóm"),
-        new(NavPage.Settings, "Cài đặt"),
+        new(NavPage.Neighborhood, L.T("Xóm")),
+        new(NavPage.Inbox, L.T("Hộp nhận")),
+        new(NavPage.Sent, L.T("Đã gửi")),
+        new(NavPage.Groups, L.T("Nhóm")),
+        new(NavPage.Settings, L.T("Cài đặt")),
     ];
 
     public IReadOnlyList<StatusOption> StatusOptions { get; } =
     [
         new(MyStatus.Online, "Online"),
-        new(MyStatus.Busy, "Bận"),
-        new(MyStatus.Hidden, "Ẩn"),
+        new(MyStatus.Busy, L.T("Bận")),
+        new(MyStatus.Hidden, L.T("Ẩn")),
     ];
 
     [ObservableProperty]
@@ -171,7 +172,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public bool IsComingSoonVisible => SelectedNavItem.Milestone is not null;
 
-    public string ComingSoonText => $"Mục \"{SelectedNavItem.Title}\" sẽ có ở {SelectedNavItem.Milestone}.";
+    public string ComingSoonText => L.F("Mục \"{0}\" sẽ có ở {1}.", SelectedNavItem.Title, SelectedNavItem.Milestone);
 
     partial void OnSelectedNavItemChanged(NavItem value)
     {

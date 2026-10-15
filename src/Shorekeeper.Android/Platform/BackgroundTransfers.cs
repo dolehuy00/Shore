@@ -1,6 +1,7 @@
 using Android.Content;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Shorekeeper.Core.Localization;
 using Shorekeeper.Engine.Transfers;
 using Shorekeeper.Engine.Trust;
 
@@ -117,10 +118,10 @@ internal static class BackgroundTransfers
     {
         int receiving = inbox?.GetOffers().Count(o => o.State == InboxState.Downloading) ?? 0;
         int sending = SendingOffers();
-        return receiving > 0 && sending > 0 ? $"Đang nhận {receiving} và gửi {sending} lượt file"
-            : receiving > 0 ? $"Đang nhận {receiving} lượt file"
-            : sending > 0 ? $"Chờ người nhận tải {sending} lượt file bạn gửi"
-            : "Luôn nhận file: đang chờ";
+        return receiving > 0 && sending > 0 ? L.F("Đang nhận {0} và gửi {1} lượt file", receiving, sending)
+            : receiving > 0 ? L.F("Đang nhận {0} lượt file", receiving)
+            : sending > 0 ? L.F("Chờ người nhận tải {0} lượt file bạn gửi", sending)
+            : L.T("Luôn nhận file: đang chờ");
     }
 
     private static bool IsBusy() =>

@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
+using Shorekeeper.Core.Localization;
 using Shorekeeper.Engine.Api;
 
 namespace Shorekeeper.Engine.Transfers;
@@ -66,7 +67,7 @@ public sealed class FileDownloader(TimeProvider timeProvider)
 
                         if (received + read > size)
                         {
-                            throw new DownloadFailedException("Máy gửi trả về nhiều dữ liệu hơn kích thước file.");
+                            throw new DownloadFailedException(L.T("Máy gửi trả về nhiều dữ liệu hơn kích thước file."));
                         }
 
                         await WriteOrFailAsync(() => file.WriteAsync(buffer.AsMemory(0, read), cancellationToken));
@@ -89,7 +90,7 @@ public sealed class FileDownloader(TimeProvider timeProvider)
                     DateTimeOffset giveUpAt = failingSince.Value + reconnectWindow;
                     if (now >= giveUpAt)
                     {
-                        throw new DownloadFailedException("Mất kết nối với máy gửi quá lâu.", ex);
+                        throw new DownloadFailedException(L.T("Mất kết nối với máy gửi quá lâu."), ex);
                     }
 
                     progress?.Report(new DownloadProgress(received, giveUpAt));
@@ -114,7 +115,7 @@ public sealed class FileDownloader(TimeProvider timeProvider)
             // If-Range did not match: the sender's file changed, so the server sent everything again.
             if (resuming && response.StatusCode != HttpStatusCode.PartialContent)
             {
-                throw new DownloadFailedException("File gốc đã bị thay đổi trong lúc tải.");
+                throw new DownloadFailedException(L.T("File gốc đã bị thay đổi trong lúc tải."));
             }
 
             return;
@@ -132,10 +133,10 @@ public sealed class FileDownloader(TimeProvider timeProvider)
         {
             throw new DownloadFailedException(ex.Code switch
             {
-                ApiErrorCodes.SourceChanged => "File gốc đã bị thay đổi.",
-                ApiErrorCodes.OfferClosed => "Người gửi đã thu hồi hoặc lượt gửi đã hết hạn.",
-                ApiErrorCodes.NotFound => "Người gửi không còn file này.",
-                _ => "Người gửi từ chối yêu cầu tải.",
+                ApiErrorCodes.SourceChanged => L.T("File gốc đã bị thay đổi."),
+                ApiErrorCodes.OfferClosed => L.T("Người gửi đã thu hồi hoặc lượt gửi đã hết hạn."),
+                ApiErrorCodes.NotFound => L.T("Người gửi không còn file này."),
+                _ => L.T("Người gửi từ chối yêu cầu tải."),
             }, ex);
         }
     }
@@ -164,7 +165,7 @@ public sealed class FileDownloader(TimeProvider timeProvider)
         }
         catch (IOException ex)
         {
-            throw new DownloadFailedException($"Không ghi được file: {ex.Message}", ex);
+            throw new DownloadFailedException(L.F("Không ghi được file: {0}", ex.Message), ex);
         }
     }
 
@@ -176,7 +177,7 @@ public sealed class FileDownloader(TimeProvider timeProvider)
         }
         catch (IOException ex)
         {
-            throw new DownloadFailedException($"Không ghi được file: {ex.Message}", ex);
+            throw new DownloadFailedException(L.F("Không ghi được file: {0}", ex.Message), ex);
         }
     }
 
@@ -188,7 +189,7 @@ public sealed class FileDownloader(TimeProvider timeProvider)
         }
         catch (IOException ex)
         {
-            throw new DownloadFailedException($"Không ghi được file: {ex.Message}", ex);
+            throw new DownloadFailedException(L.F("Không ghi được file: {0}", ex.Message), ex);
         }
     }
 }

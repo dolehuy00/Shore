@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Shorekeeper.Android.ViewModels;
+using Shorekeeper.Core.Localization;
 
 namespace Shorekeeper.Android.Views;
 
@@ -14,7 +15,7 @@ public partial class MainView : UserControl
     private async void OnSendFiles(object? sender, RoutedEventArgs e)
     {
         if ((sender as Control)?.DataContext is PeerItemViewModel peer && DataContext is MainViewModel main
-            && await PickAsync($"Gửi cho {peer.Name}", allowMultiple: true) is { Count: > 0 } picked)
+            && await PickAsync(L.F("Gửi cho {0}", peer.Name), allowMultiple: true) is { Count: > 0 } picked)
         {
             main.Notice = await peer.SendAsync(picked);
         }
@@ -24,7 +25,7 @@ public partial class MainView : UserControl
     private async void OnSendToGroup(object? sender, RoutedEventArgs e)
     {
         if ((sender as Control)?.DataContext is GroupItemViewModel group && DataContext is MainViewModel main
-            && await PickAsync($"Gửi cho nhóm {group.Name}", allowMultiple: true) is { Count: > 0 } picked)
+            && await PickAsync(L.F("Gửi cho nhóm {0}", group.Name), allowMultiple: true) is { Count: > 0 } picked)
         {
             main.Notice = await group.SendAsync(picked);
         }
@@ -33,7 +34,7 @@ public partial class MainView : UserControl
     /// <summary>"Chọn file sao lưu…" in Cài đặt.</summary>
     private async void OnPickBackup(object? sender, RoutedEventArgs e)
     {
-        if (DataContext is MainViewModel main && await PickAsync("Chọn bản sao lưu Shorekeeper", allowMultiple: false) is [var file])
+        if (DataContext is MainViewModel main && await PickAsync(L.T("Chọn bản sao lưu Shorekeeper"), allowMultiple: false) is [var file])
         {
             await main.Settings.OpenBackupAsync(file);
         }

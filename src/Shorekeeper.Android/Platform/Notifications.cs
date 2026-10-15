@@ -1,5 +1,6 @@
 using Android.Content;
 using Android.Graphics.Drawables;
+using Shorekeeper.Core.Localization;
 using Shorekeeper.Desktop.ViewModels;
 using Shorekeeper.Engine.Transfers;
 using AndroidResource = Android.Resource;
@@ -17,8 +18,8 @@ internal static class Notifications
     public static void CreateChannels(Context context)
     {
         NotificationManager manager = Manager(context);
-        manager.CreateNotificationChannel(new NotificationChannel(OffersChannel, "File gửi đến", NotificationImportance.High));
-        manager.CreateNotificationChannel(new NotificationChannel(TransfersChannel, "Đang truyền file", NotificationImportance.Low));
+        manager.CreateNotificationChannel(new NotificationChannel(OffersChannel, L.T("File gửi đến"), NotificationImportance.High));
+        manager.CreateNotificationChannel(new NotificationChannel(TransfersChannel, L.T("Đang truyền file"), NotificationImportance.Low));
     }
 
     public static Notification Transfer(Context context, string text) =>
@@ -36,14 +37,14 @@ internal static class Notifications
         var key = new OfferKey(offer.SenderId, offer.OfferId);
         string summary = $"{TransferText.Summary(offer.Files.Select(f => f.RelativePath))} · {TransferText.Size(offer.TotalBytes)}";
         Notification notification = new Notification.Builder(context, OffersChannel)
-            .SetContentTitle($"{senderName} gửi cho bạn")!
+            .SetContentTitle(L.F("{0} gửi cho bạn", senderName))!
             .SetContentText(summary)!
             .SetStyle(new Notification.BigTextStyle().BigText(offer.Note is null ? summary : $"{summary}\n\"{offer.Note}\""))!
             .SetSmallIcon(AndroidResource.Drawable.StatSysDownload)!
             .SetAutoCancel(true)!
             .SetContentIntent(OpenApp(context, tab: 1))!
-            .AddAction(Action(context, "Tải", TransferService.ActionDownload, key))!
-            .AddAction(Action(context, "Bỏ qua", TransferService.ActionDecline, key))!
+            .AddAction(Action(context, L.T("Tải"), TransferService.ActionDownload, key))!
+            .AddAction(Action(context, L.T("Bỏ qua"), TransferService.ActionDecline, key))!
             .Build()!;
         Manager(context).Notify(Tag(key), OfferNotificationId, notification);
     }

@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Shorekeeper.Core.Identity;
+using Shorekeeper.Core.Localization;
 using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Transfers;
@@ -21,10 +22,10 @@ public sealed partial class OutgoingPairingViewModel(PairingService pairing, Dev
 {
     private readonly CancellationTokenSource cancellation = new();
 
-    public string Title { get; } = $"Kết nối với {name}";
+    public string Title { get; } = L.F("Kết nối với {0}", name);
 
     [ObservableProperty]
-    public partial string Message { get; set; } = "Đang gửi yêu cầu…";
+    public partial string Message { get; set; } = L.T("Đang gửi yêu cầu…");
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasCode))]
@@ -34,7 +35,7 @@ public sealed partial class OutgoingPairingViewModel(PairingService pairing, Dev
     public partial bool IsWaiting { get; set; } = true;
 
     [ObservableProperty]
-    public partial string CloseText { get; set; } = "Hủy";
+    public partial string CloseText { get; set; } = L.T("Hủy");
 
     public bool HasCode => Code is not null;
 
@@ -45,33 +46,33 @@ public sealed partial class OutgoingPairingViewModel(PairingService pairing, Dev
             PairingOutcome outcome = await pairing.RequestAsync(target, null, pending =>
             {
                 Code = pending.Code;
-                Message = $"Đang chờ {pending.Name} chấp nhận…";
+                Message = L.F("Đang chờ {0} chấp nhận…", pending.Name);
             }, cancellation.Token);
 
             Message = outcome switch
             {
-                PairingOutcome.Accepted => $"Đã kết nối với {name}.",
-                PairingOutcome.Declined => $"{name} đã từ chối.",
-                PairingOutcome.Expired => "Yêu cầu đã hết hạn.",
-                _ => "Đã hủy.",
+                PairingOutcome.Accepted => L.F("Đã kết nối với {0}.", name),
+                PairingOutcome.Declined => L.F("{0} đã từ chối.", name),
+                PairingOutcome.Expired => L.T("Yêu cầu đã hết hạn."),
+                _ => L.T("Đã hủy."),
             };
         }
         catch (PeerUnreachableException)
         {
-            Message = $"Không kết nối được tới {name}. Máy đó có thể đã tắt Shorekeeper hoặc firewall đang chặn.";
+            Message = L.F("Không kết nối được tới {0}. Máy đó có thể đã tắt Shorekeeper hoặc firewall đang chặn.", name);
         }
         catch (PeerApiException ex) when (ex.Code == ApiErrorCodes.RateLimited)
         {
-            Message = "Bạn đã gửi nhiều yêu cầu cho máy này. Hãy thử lại sau ít phút.";
+            Message = L.T("Bạn đã gửi nhiều yêu cầu cho máy này. Hãy thử lại sau ít phút.");
         }
         catch (PeerApiException)
         {
-            Message = $"{name} không nhận yêu cầu kết nối.";
+            Message = L.F("{0} không nhận yêu cầu kết nối.", name);
         }
         finally
         {
             IsWaiting = false;
-            CloseText = "Đóng";
+            CloseText = L.T("Đóng");
         }
     }
 
@@ -93,7 +94,7 @@ public sealed partial class IncomingPairingViewModel(PairingService pairing, Inc
 {
     public string RequestId => request.Id;
 
-    public string Title => $"{request.Name} ({request.Host}) muốn kết nối";
+    public string Title => L.F("{0} ({1}) muốn kết nối", request.Name, request.Host);
 
     public string Code => request.Code;
 
@@ -145,10 +146,10 @@ public sealed partial class AddPeerViewModel(ManualPeerFinder finder, Func<Found
     private async Task FindAsync(CancellationToken cancellationToken)
     {
         Found = null;
-        Status = "Đang tìm…";
+        Status = L.T("Đang tìm…");
         FindResult result = await finder.FindAsync(Input, cancellationToken);
         Found = result.Peer;
-        Status = result.Peer is { } peer ? $"Tìm thấy: {peer.Name} · {peer.Host} ({peer.Endpoint.Address})" : result.Error;
+        Status = result.Peer is { } peer ? L.F("Tìm thấy: {0} · {1} ({2})", peer.Name, peer.Host, peer.Endpoint.Address) : result.Error;
     }
 
     [RelayCommand]
@@ -233,7 +234,7 @@ public sealed partial class PickPeopleViewModel : DialogViewModel
 
     public bool IsEmpty => People.Count == 0;
 
-    public string SummaryText => $"Đã chọn {People.Count(p => p.IsChecked)}/{People.Count} người";
+    public string SummaryText => L.F("Đã chọn {0}/{1} người", People.Count(p => p.IsChecked), People.Count);
 
     /// <summary>Set when the user confirms with at least one person.</summary>
     public IReadOnlyList<PickablePeer>? Selected { get; private set; }
@@ -338,7 +339,7 @@ public sealed partial class PickOfferFilesViewModel : DialogViewModel
 public sealed partial class IncomingOfferViewModel(ReceivedOffer offer, string senderName, Action download, Func<Task> decline, Action show)
     : DialogViewModel
 {
-    public string Title { get; } = $"{senderName} gửi cho bạn";
+    public string Title { get; } = L.F("{0} gửi cho bạn", senderName);
 
     public string Summary { get; } = $"{TransferText.Summary(offer.Files.Select(f => f.RelativePath))} · {TransferText.Size(offer.TotalBytes)}";
 
@@ -370,7 +371,7 @@ public sealed partial class IncomingOfferViewModel(ReceivedOffer offer, string s
 
 /// <summary>Single-line text input, e.g. "Đặt tên gợi nhớ".</summary>
 /// <param name="isPassword">Typed characters are hidden.</param>
-public sealed partial class TextPromptViewModel(string title, string label, string initialText, bool isPassword = false, string okText = "Lưu") : DialogViewModel
+public sealed partial class TextPromptViewModel(string title, string label, string initialText, bool isPassword = false, string? okText = null) : DialogViewModel
 {
     public string Title { get; } = title;
 
@@ -378,7 +379,7 @@ public sealed partial class TextPromptViewModel(string title, string label, stri
 
     public char PasswordChar { get; } = isPassword ? '•' : '\0';
 
-    public string OkText { get; } = okText;
+    public string OkText { get; } = okText ?? L.T("Lưu");
 
     [ObservableProperty]
     public partial string Text { get; set; } = initialText;

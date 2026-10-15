@@ -6,6 +6,7 @@ using Avalonia.Platform;
 using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Shorekeeper.Core.Discovery;
+using Shorekeeper.Core.Localization;
 using Shorekeeper.Desktop.ViewModels;
 using Shorekeeper.Desktop.Views;
 using Shorekeeper.Engine.Discovery;
@@ -131,13 +132,13 @@ public partial class App : Application
 
     private void CreateTrayIcon(IClassicDesktopStyleApplicationLifetime desktop)
     {
-        var openItem = new NativeMenuItem("Mở Shorekeeper");
+        var openItem = new NativeMenuItem(L.T("Mở Shorekeeper"));
         openItem.Click += (_, _) => ShowMainWindow();
 
-        var quickSendItem = new NativeMenuItem("Gửi nhanh…");
+        var quickSendItem = new NativeMenuItem(L.T("Gửi nhanh…"));
         quickSendItem.Click += (_, _) => quickSend?.Open([]);
 
-        var exitItem = new NativeMenuItem("Thoát");
+        var exitItem = new NativeMenuItem(L.T("Thoát"));
         exitItem.Click += (_, _) =>
         {
             isExiting = true;

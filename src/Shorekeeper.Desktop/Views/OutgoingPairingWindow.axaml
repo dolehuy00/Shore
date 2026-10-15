@@ -1,4 +1,5 @@
 <Window xmlns="https://github.com/avaloniaui"
+        xmlns:l="using:Shorekeeper.Desktop.Localization"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Shorekeeper.Desktop.ViewModels"
         x:Class="Shorekeeper.Desktop.Views.OutgoingPairingWindow"
@@ -12,9 +13,9 @@
     <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />
 
     <StackPanel IsVisible="{Binding HasCode}" Spacing="4">
-      <TextBlock Text="Mã xác nhận" Opacity="0.65" />
+      <TextBlock Text="{l:T 'Mã xác nhận'}" Opacity="0.65" />
       <TextBlock Text="{Binding Code}" FontSize="32" FontWeight="SemiBold" FontFamily="Consolas,monospace" />
-      <TextBlock Text="Muốn chắc chắn? Hỏi người kia xem mã trên máy họ có giống không." Opacity="0.65" FontSize="12" TextWrapping="Wrap" />
+      <TextBlock Text="{l:T 'Muốn chắc chắn? Hỏi người kia xem mã trên máy họ có giống không.'}" Opacity="0.65" FontSize="12" TextWrapping="Wrap" />
     </StackPanel>
 
     <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsWaiting}" />

@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using Microsoft.Extensions.Logging;
 using Shorekeeper.Core.Discovery;
 using Shorekeeper.Core.Identity;
+using Shorekeeper.Core.Localization;
 using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Settings;
 using Shorekeeper.Engine.Trust;
@@ -28,7 +29,7 @@ public sealed class ManualPeerFinder(
         ManualTarget target = ManualTarget.Parse(input);
         if (target.Host.Length == 0)
         {
-            return new FindResult(null, "Hãy nhập tên máy hoặc địa chỉ IP.");
+            return new FindResult(null, L.T("Hãy nhập tên máy hoặc địa chỉ IP."));
         }
 
         IPAddress[] addresses;
@@ -40,7 +41,7 @@ public sealed class ManualPeerFinder(
         }
         catch (SocketException)
         {
-            return new FindResult(null, $"Không tìm thấy máy tên \"{target.Host}\" trong mạng.");
+            return new FindResult(null, L.F("Không tìm thấy máy tên \"{0}\" trong mạng.", target.Host));
         }
 
         int port = target.Port ?? settings.Current.ApiPort;
@@ -52,7 +53,7 @@ public sealed class ManualPeerFinder(
                 (HelloResponse hello, DeviceId id) = await client.HelloAsync(endpoint, cancellationToken);
                 if (id == device.DeviceId)
                 {
-                    return new FindResult(null, "Đó là máy của bạn.");
+                    return new FindResult(null, L.T("Đó là máy của bạn."));
                 }
 
                 // Show it in "Xóm" right away; probes keep it there if the user saves it.
@@ -68,7 +69,7 @@ public sealed class ManualPeerFinder(
         }
 
         return new FindResult(null,
-            $"Không kết nối được tới {target.Host}. Máy đó có thể chưa mở Shorekeeper, sai cổng, hoặc firewall đang chặn.");
+            L.F("Không kết nối được tới {0}. Máy đó có thể chưa mở Shorekeeper, sai cổng, hoặc firewall đang chặn.", target.Host));
     }
 
     /// <summary>Remember the machine so it is probed and found again after a restart.</summary>

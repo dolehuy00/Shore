@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Shorekeeper.Core.Localization;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Transfers;
 
@@ -77,10 +78,10 @@ public sealed partial class SentItemViewModel(string offerId, SentViewModel owne
         HasChangedFiles = offer.HasChangedFiles && offer.State == OfferState.Open;
         StatusText = offer.State switch
         {
-            OfferState.Open => $"Gửi lúc {offer.CreatedAt.ToLocalTime():HH:mm dd/MM} · mở {TransferText.Remaining(offer.ExpiresAt - now)}",
-            OfferState.Withdrawn => "Đã thu hồi",
-            OfferState.Expired => "Đã hết hạn",
-            _ => "Hoàn tất",
+            OfferState.Open => L.F("Gửi lúc {0:HH:mm dd/MM} · mở {1}", offer.CreatedAt.ToLocalTime(), TransferText.Remaining(offer.ExpiresAt - now)),
+            OfferState.Withdrawn => L.T("Đã thu hồi"),
+            OfferState.Expired => L.T("Đã hết hạn"),
+            _ => L.T("Hoàn tất"),
         };
         RecipientsText = string.Join("\n", offer.Recipients.Select(r => $"{owner.Names.Of(r.DeviceId)}: {Describe(r, offer.TotalBytes)}"));
     }
@@ -90,13 +91,13 @@ public sealed partial class SentItemViewModel(string offerId, SentViewModel owne
 
     private string Describe(SentRecipient recipient, long total) => recipient.State switch
     {
-        RecipientState.Pending => owner.Names.IsOnline(recipient.DeviceId) ? "đang gửi thông báo…" : "chưa nhận được thông báo (đang offline)",
-        RecipientState.Delivered => "chưa mở",
+        RecipientState.Pending => owner.Names.IsOnline(recipient.DeviceId) ? L.T("đang gửi thông báo…") : L.T("chưa nhận được thông báo (đang offline)"),
+        RecipientState.Delivered => L.T("chưa mở"),
         // Range retries can resend bytes, so cap below 100% until the recipient confirms.
-        RecipientState.Downloading => $"đang tải {Math.Min(99, total == 0 ? 0 : 100.0 * recipient.BytesServed / total):0}%",
-        RecipientState.Completed => "đã nhận",
-        RecipientState.Partial => "đã nhận một phần",
-        RecipientState.Declined => "đã bỏ qua",
-        _ => "lỗi (không tải được hoặc không nhận lời gửi)",
+        RecipientState.Downloading => L.F("đang tải {0:0}%", Math.Min(99, total == 0 ? 0 : 100.0 * recipient.BytesServed / total)),
+        RecipientState.Completed => L.T("đã nhận"),
+        RecipientState.Partial => L.T("đã nhận một phần"),
+        RecipientState.Declined => L.T("đã bỏ qua"),
+        _ => L.T("lỗi (không tải được hoặc không nhận lời gửi)"),
     };
 }

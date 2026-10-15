@@ -1,5 +1,6 @@
 using Avalonia.Threading;
 using Shorekeeper.Core.Identity;
+using Shorekeeper.Core.Localization;
 using Shorekeeper.Core.Platform;
 using Shorekeeper.Core.Settings;
 using Shorekeeper.Core.Trust;
@@ -115,7 +116,7 @@ public sealed class QuickSendService(
                         people.Add(new QuickSendPerson(
                             member.DeviceId,
                             name == member.DeviceId.ShortForm ? member.Name : name,
-                            $"{Online(member.DeviceId)} · nhóm {group.Name}",
+                            L.F("{0} · nhóm {1}", Online(member.DeviceId), group.Name),
                             group.Id));
                     }
                 }

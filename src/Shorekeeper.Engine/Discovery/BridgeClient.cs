@@ -6,6 +6,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Shorekeeper.Core.Discovery;
 using Shorekeeper.Core.Identity;
+using Shorekeeper.Core.Localization;
 using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Settings;
 
@@ -93,7 +94,7 @@ public sealed class BridgeClient(
                 .. sessions.Values.Where(s => s.IsRemote).Select(s => s.ToStatus()),
                 .. failed.Where(f => !sessions.ContainsKey(f.Key) && retryAt.GetValueOrDefault(f.Key) > now - TimeSpan.FromMinutes(5)).Select(f => f.Value),
                 .. unreachable.Where(a => settings.Current.BridgeAddresses.Contains(a, StringComparer.OrdinalIgnoreCase))
-                    .Select(a => new BridgeStatus(a, a, false, 0, "Không tìm thấy máy hoặc máy đó không chạy Shorekeeper")),
+                    .Select(a => new BridgeStatus(a, a, false, 0, L.T("Không tìm thấy máy hoặc máy đó không chạy Shorekeeper"))),
             ];
         }
     }
@@ -313,7 +314,7 @@ public sealed class BridgeClient(
         catch (Exception ex) when (ex is PeerUnreachableException or PeerApiException or HttpRequestException or OperationCanceledException or System.Text.Json.JsonException)
         {
             logger.LogInformation(ex, "Bridge {Bridge} at {Endpoint} is not available", session.Name, session.Endpoint);
-            Fail(session, ex is PeerApiException { Status: 404 } ? "Máy này không còn làm cầu nối" : "Không kết nối được");
+            Fail(session, ex is PeerApiException { Status: 404 } ? L.T("Máy này không còn làm cầu nối") : L.T("Không kết nối được"));
         }
         finally
         {

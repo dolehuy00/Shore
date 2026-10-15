@@ -8,4 +8,9 @@
     <InternalsVisibleTo Include="Shorekeeper.Core.Tests" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- English text for L (Vietnamese sentences are the keys). -->
+    <EmbeddedResource Include="Localization\en.json" LogicalName="Shorekeeper.Localization.en.json" />
+  </ItemGroup>
+
 </Project>

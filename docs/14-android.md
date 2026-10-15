@@ -183,6 +183,13 @@ Chia làm A5a (Android) và A5b (tiếng Anh cho cả desktop lẫn Android, chu
 - Thử thật với desktop bản dev: desktop tạo nhóm "Thử A5" → điện thoại [Xin vào] → desktop duyệt → điện thoại gửi 6 ảnh cho nhóm → desktop tải xong, 6/6 khớp SHA-256 (desktop thêm " (1)" vì trùng tên ảnh đã nhận trước đó). Sao lưu tạo được file `.skbackup`; mở lại file đó với mật khẩu hiện đúng tóm tắt (DeviceId, liên hệ, nhóm).
 - Chưa kiểm chứng trên máy thật: bấm khôi phục đến bước khởi động lại, thêm máy bằng địa chỉ.
 
+**A5b — kết quả (2026-10-15, ✅ xong):**
+
+- Lớp `L` trong Core: câu tiếng Việt là khóa, bản tiếng Anh trong `en.json` nhúng vào assembly (382 câu: Engine, desktop, Android). Chọn theo `CurrentUICulture` (Windows, hoặc ngôn ngữ máy/ngôn ngữ riêng của app trên Android 13); `SHOREKEEPER_LANGUAGE` để ép. Số và ngày theo `L.Culture` ("1,5 GB" / "1.5 GB").
+- AXAML dùng `{l:T '…'}` (`TExtension`, Android link cùng file). Thiếu bản dịch thì hiện tiếng Việt; test `LocalizationTests` quét `src/` để bắt câu chưa dịch và kiểm placeholder `{0}` khớp.
+- Thử trên điện thoại: máy vi-VN hiện tiếng Việt; đặt ngôn ngữ riêng cho app là en-US (`cmd locale set-app-locales`) thì tab, Cài đặt, thẻ người và thông báo nền đều tiếng Anh. Đã trả lại ngôn ngữ mặc định.
+- Còn tiếng Việt: chữ "Gửi bằng Shorekeeper…" trong menu chuột phải của Explorer (MSI ghi cố định vào registry) và file ADMX chỉ có `vi-VN`.
+
 ### A6 — Phát hành
 
 APK ký bằng keystore riêng (miễn phí, không cần mua chứng chỉ như Authenticode), phát hành trên GitHub Releases. Play Store tùy chọn (phí đăng ký một lần, phải khai báo lý do dùng foreground service và quyền mạng LAN).

@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using Shorekeeper.Core.Localization;
 
 namespace Shorekeeper.Engine.Discovery;
 
@@ -38,7 +39,7 @@ public static class LocalInterfaces
                     continue;
                 }
 
-                string? reason = nicReason ?? (IsLinkLocal(unicast.Address) ? "Chưa có IP (169.254.x.x)" : null);
+                string? reason = nicReason ?? (IsLinkLocal(unicast.Address) ? L.T("Chưa có IP (169.254.x.x)") : null);
                 result.Add(new LocalInterface(nic.Name, nic.Description, unicast.Address, unicast.PrefixLength, reason));
             }
         }
@@ -79,7 +80,7 @@ public static class LocalInterfaces
 
         if (!supportsMulticast)
         {
-            return "Không hỗ trợ multicast";
+            return L.T("Không hỗ trợ multicast");
         }
 
         foreach (string marker in VirtualAdapterMarkers)
@@ -87,7 +88,7 @@ public static class LocalInterfaces
             if (name.Contains(marker, StringComparison.OrdinalIgnoreCase)
                 || description.Contains(marker, StringComparison.OrdinalIgnoreCase))
             {
-                return "Adapter ảo";
+                return L.T("Adapter ảo");
             }
         }
 

@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Shorekeeper.Core.Localization;
 using Shorekeeper.Core.Platform;
 using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Discovery;
@@ -55,11 +56,11 @@ public sealed partial class NetworkDiagnosticsViewModel(
 
             int seen = directory.Snapshot().Count(p => p.Source == PeerSource.Direct);
             Items.Add(seen > 0
-                ? new DiagnosticItem("Multicast / probe", $"Đang thấy trực tiếp {seen} máy · UDP {settings.Current.DiscoveryPort}", DiagnosticLevel.Ok)
-                : new DiagnosticItem("Multicast / probe", $"Chưa nhận được tín hiệu từ máy nào · UDP {settings.Current.DiscoveryPort}", DiagnosticLevel.Info));
+                ? new DiagnosticItem("Multicast / probe", L.F("Đang thấy trực tiếp {0} máy · UDP {1}", seen, settings.Current.DiscoveryPort), DiagnosticLevel.Ok)
+                : new DiagnosticItem("Multicast / probe", L.F("Chưa nhận được tín hiệu từ máy nào · UDP {0}", settings.Current.DiscoveryPort), DiagnosticLevel.Info));
             Items.Add(api.Port > 0
-                ? new DiagnosticItem("HTTPS (kết nối)", $"Đang nghe TCP {api.Port}", DiagnosticLevel.Ok)
-                : new DiagnosticItem("HTTPS (kết nối)", "Không mở được cổng: máy khác sẽ không kết nối được tới bạn", DiagnosticLevel.Error));
+                ? new DiagnosticItem(L.T("HTTPS (kết nối)"), L.F("Đang nghe TCP {0}", api.Port), DiagnosticLevel.Ok)
+                : new DiagnosticItem(L.T("HTTPS (kết nối)"), L.T("Không mở được cổng: máy khác sẽ không kết nối được tới bạn"), DiagnosticLevel.Error));
             AddBridges();
         }
         finally
@@ -72,7 +73,7 @@ public sealed partial class NetworkDiagnosticsViewModel(
     {
         if (bridgeRegistry.IsEnabled)
         {
-            Items.Add(new DiagnosticItem("Làm cầu nối", $"Đang bật · {bridgeRegistry.Count} máy đăng ký", DiagnosticLevel.Ok));
+            Items.Add(new DiagnosticItem(L.T("Làm cầu nối"), L.F("Đang bật · {0} máy đăng ký", bridgeRegistry.Count), DiagnosticLevel.Ok));
         }
 
         IReadOnlyList<BridgeStatus> statuses = bridges.GetStatus();
@@ -80,20 +81,20 @@ public sealed partial class NetworkDiagnosticsViewModel(
         {
             Items.Add(bridge switch
             {
-                { IsConnected: true } => new DiagnosticItem("Cầu nối", $"{bridge.Name} ({bridge.Address}) · thấy {bridge.PeerCount} máy", DiagnosticLevel.Ok),
-                { Error: { } error } => new DiagnosticItem("Cầu nối", $"{bridge.Name} ({bridge.Address}): {error}", DiagnosticLevel.Warning),
-                _ => new DiagnosticItem("Cầu nối", $"{bridge.Name} ({bridge.Address}) · đang kết nối…", DiagnosticLevel.Info),
+                { IsConnected: true } => new DiagnosticItem(L.T("Cầu nối"), L.F("{0} ({1}) · thấy {2} máy", bridge.Name, bridge.Address, bridge.PeerCount), DiagnosticLevel.Ok),
+                { Error: { } error } => new DiagnosticItem(L.T("Cầu nối"), $"{bridge.Name} ({bridge.Address}): {error}", DiagnosticLevel.Warning),
+                _ => new DiagnosticItem(L.T("Cầu nối"), L.F("{0} ({1}) · đang kết nối…", bridge.Name, bridge.Address), DiagnosticLevel.Info),
             });
         }
 
         if (statuses.Count == 0 && !bridgeRegistry.IsEnabled)
         {
-            Items.Add(new DiagnosticItem("Cầu nối", "Chưa có. Máy ở subnet khác chỉ thấy nhau qua người đã kết nối.", DiagnosticLevel.Info));
+            Items.Add(new DiagnosticItem(L.T("Cầu nối"), L.T("Chưa có. Máy ở subnet khác chỉ thấy nhau qua người đã kết nối."), DiagnosticLevel.Info));
         }
 
         if (settings.Current.ProbeSubnets.Count > 0)
         {
-            Items.Add(new DiagnosticItem("Dò dải IP", string.Join(", ", settings.Current.ProbeSubnets), DiagnosticLevel.Info));
+            Items.Add(new DiagnosticItem(L.T("Dò dải IP"), string.Join(", ", settings.Current.ProbeSubnets), DiagnosticLevel.Info));
         }
     }
 
@@ -101,14 +102,14 @@ public sealed partial class NetworkDiagnosticsViewModel(
     {
         if (!interfaces.Any(i => i.IsUsable))
         {
-            Items.Add(new DiagnosticItem("Card mạng", "Không có card mạng nào dùng được", DiagnosticLevel.Error));
+            Items.Add(new DiagnosticItem(L.T("Card mạng"), L.T("Không có card mạng nào dùng được"), DiagnosticLevel.Error));
         }
 
         foreach (LocalInterface nic in interfaces)
         {
             Items.Add(nic.IsUsable
-                ? new DiagnosticItem(nic.Name, $"{nic.Address}/{nic.PrefixLength} · đang dùng", DiagnosticLevel.Ok)
-                : new DiagnosticItem(nic.Name, $"{nic.Address} · bỏ qua: {nic.ExcludedReason}", DiagnosticLevel.Info));
+                ? new DiagnosticItem(nic.Name, L.F("{0}/{1} · đang dùng", nic.Address, nic.PrefixLength), DiagnosticLevel.Ok)
+                : new DiagnosticItem(nic.Name, L.F("{0} · bỏ qua: {1}", nic.Address, nic.ExcludedReason), DiagnosticLevel.Info));
         }
     }
 
@@ -116,20 +117,20 @@ public sealed partial class NetworkDiagnosticsViewModel(
     {
         if (status is null)
         {
-            Items.Add(new DiagnosticItem("Firewall", "Không đọc được trạng thái", DiagnosticLevel.Info));
+            Items.Add(new DiagnosticItem("Firewall", L.T("Không đọc được trạng thái"), DiagnosticLevel.Info));
             return;
         }
 
         Items.Add(status.ActiveProfiles.HasFlag(NetworkProfiles.Public)
-            ? new DiagnosticItem("Loại mạng Windows", "Public: Windows chặn kết nối từ máy khác. Hãy chuyển mạng sang Private.", DiagnosticLevel.Error)
-            : new DiagnosticItem("Loại mạng Windows", status.ActiveProfiles.ToString(), DiagnosticLevel.Ok));
+            ? new DiagnosticItem(L.T("Loại mạng Windows"), L.T("Public: Windows chặn kết nối từ máy khác. Hãy chuyển mạng sang Private."), DiagnosticLevel.Error)
+            : new DiagnosticItem(L.T("Loại mạng Windows"), status.ActiveProfiles.ToString(), DiagnosticLevel.Ok));
 
         Items.Add(status switch
         {
-            { FirewallEnabled: false } => new DiagnosticItem("Firewall", "Đang tắt", DiagnosticLevel.Ok),
-            { HasBlockRule: true } => new DiagnosticItem("Firewall", "Đang CHẶN Shorekeeper. Mở Windows Security → Firewall để cho phép.", DiagnosticLevel.Error),
-            { HasAllowRule: true } => new DiagnosticItem("Firewall", "Đã cho phép Shorekeeper", DiagnosticLevel.Ok),
-            _ => new DiagnosticItem("Firewall", "Chưa cho phép Shorekeeper: máy khác sẽ không thấy bạn.", DiagnosticLevel.Warning),
+            { FirewallEnabled: false } => new DiagnosticItem("Firewall", L.T("Đang tắt"), DiagnosticLevel.Ok),
+            { HasBlockRule: true } => new DiagnosticItem("Firewall", L.T("Đang CHẶN Shorekeeper. Mở Windows Security → Firewall để cho phép."), DiagnosticLevel.Error),
+            { HasAllowRule: true } => new DiagnosticItem("Firewall", L.T("Đã cho phép Shorekeeper"), DiagnosticLevel.Ok),
+            _ => new DiagnosticItem("Firewall", L.T("Chưa cho phép Shorekeeper: máy khác sẽ không thấy bạn."), DiagnosticLevel.Warning),
         });
     }
 }

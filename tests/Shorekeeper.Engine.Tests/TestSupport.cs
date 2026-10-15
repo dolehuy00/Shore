@@ -1,9 +1,19 @@
 using System.Net;
 using System.Net.Sockets;
 using Microsoft.Data.Sqlite;
+using Shorekeeper.Core.Localization;
 using Shorekeeper.Core.Platform;
+using Shorekeeper.Engine.Tests;
+
+[assembly: AssemblyFixture(typeof(VietnameseText))]
 
 namespace Shorekeeper.Engine.Tests;
+
+/// <summary>The tests check the Vietnamese wording, whatever the language of the machine running them.</summary>
+public sealed class VietnameseText
+{
+    public VietnameseText() => L.IsVietnamese = true;
+}
 
 /// <summary>Isolated data folder for one test; deleted afterwards.</summary>
 internal sealed class TempAppFolder : IDisposable

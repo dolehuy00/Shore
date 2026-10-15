@@ -4,6 +4,7 @@ using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Shorekeeper.Core.Localization;
 using Shorekeeper.Core.Settings;
 using Shorekeeper.Desktop.Views;
 using Shorekeeper.Engine;
@@ -18,7 +19,7 @@ public sealed record SettingChoice(int Value, string Label);
 /// <summary>"Cài đặt → Gửi & nhận" and "Máy ở mạng khác" (docs/10-ux.md §9). Settings locked by IT policy are read-only.</summary>
 public sealed partial class SettingsViewModel : ObservableObject
 {
-    private static readonly FilePickerFileType BackupFileType = new("Bản sao lưu Shorekeeper") { Patterns = ["*" + IdentityBackup.FileExtension] };
+    private static readonly FilePickerFileType BackupFileType = new(L.T("Bản sao lưu Shorekeeper")) { Patterns = ["*" + IdentityBackup.FileExtension] };
 
     private readonly SettingsService settings;
     private readonly QuickSendService quickSend;
@@ -38,12 +39,12 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     public IReadOnlyList<SettingChoice> OfferLifetimeChoices { get; } =
     [
-        new(1, "1 giờ"), new(6, "6 giờ"), new(24, "1 ngày"), new(72, "3 ngày"), new(168, "7 ngày"),
+        new(1, L.T("1 giờ")), new(6, L.T("6 giờ")), new(24, L.T("1 ngày")), new(72, L.T("3 ngày")), new(168, L.T("7 ngày")),
     ];
 
     public IReadOnlyList<SettingChoice> ReconnectChoices { get; } =
     [
-        new(15, "15 giây"), new(30, "30 giây"), new(60, "1 phút"), new(120, "2 phút"), new(300, "5 phút"),
+        new(15, L.T("15 giây")), new(30, L.T("30 giây")), new(60, L.T("1 phút")), new(120, L.T("2 phút")), new(300, L.T("5 phút")),
     ];
 
     [ObservableProperty]
@@ -67,11 +68,11 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     public partial bool QuickSendHotkey { get; set; }
 
-    public string HotkeyText => $"Phím tắt {quickSend.HotkeyText} mở cửa sổ Gửi nhanh";
+    public string HotkeyText => L.F("Phím tắt {0} mở cửa sổ Gửi nhanh", quickSend.HotkeyText);
 
     /// <summary>Null unless the shortcut is on but another program already took it.</summary>
     public string? HotkeyWarning => quickSend.IsHotkeyTaken
-        ? $"{quickSend.HotkeyText} đang được ứng dụng khác dùng nên chưa bật được. Vẫn mở Gửi nhanh được từ icon ở khay hệ thống."
+        ? L.F("{0} đang được ứng dụng khác dùng nên chưa bật được. Vẫn mở Gửi nhanh được từ icon ở khay hệ thống.", quickSend.HotkeyText)
         : null;
 
     [ObservableProperty]
@@ -110,8 +111,8 @@ public sealed partial class SettingsViewModel : ObservableObject
     [RelayCommand]
     private async Task BackupAsync()
     {
-        const string title = "Sao lưu danh tính";
-        string? password = await DialogService.PromptAsync(title, $"Đặt mật khẩu cho bản sao lưu (ít nhất {IdentityBackup.MinPasswordLength} ký tự):", "", isPassword: true, okText: "Tiếp");
+        string title = L.T("Sao lưu danh tính");
+        string? password = await DialogService.PromptAsync(title, L.F("Đặt mật khẩu cho bản sao lưu (ít nhất {0} ký tự):", IdentityBackup.MinPasswordLength), "", isPassword: true, okText: L.T("Tiếp"));
         if (password is null)
         {
             return;
@@ -119,18 +120,18 @@ public sealed partial class SettingsViewModel : ObservableObject
 
         if (password.Length < IdentityBackup.MinPasswordLength)
         {
-            await DialogService.ChooseAsync(title, $"Mật khẩu phải có ít nhất {IdentityBackup.MinPasswordLength} ký tự.", ["Đóng"]);
+            await DialogService.ChooseAsync(title, L.F("Mật khẩu phải có ít nhất {0} ký tự.", IdentityBackup.MinPasswordLength), [L.T("Đóng")]);
             return;
         }
 
-        if (await DialogService.PromptAsync(title, "Nhập lại mật khẩu:", "", isPassword: true, okText: "Tiếp") is not { } again)
+        if (await DialogService.PromptAsync(title, L.T("Nhập lại mật khẩu:"), "", isPassword: true, okText: L.T("Tiếp")) is not { } again)
         {
             return;
         }
 
         if (again != password)
         {
-            await DialogService.ChooseAsync(title, "Hai lần nhập mật khẩu không khớp.", ["Đóng"]);
+            await DialogService.ChooseAsync(title, L.T("Hai lần nhập mật khẩu không khớp."), [L.T("Đóng")]);
             return;
         }
 
@@ -146,28 +147,28 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
         catch (IOException ex)
         {
-            await DialogService.ChooseAsync(title, $"Không ghi được file: {ex.Message}", ["Đóng"]);
+            await DialogService.ChooseAsync(title, L.F("Không ghi được file: {0}", ex.Message), [L.T("Đóng")]);
             return;
         }
         catch (UnauthorizedAccessException)
         {
-            await DialogService.ChooseAsync(title, "Không có quyền ghi vào thư mục đã chọn.", ["Đóng"]);
+            await DialogService.ChooseAsync(title, L.T("Không có quyền ghi vào thư mục đã chọn."), [L.T("Đóng")]);
             return;
         }
 
         await DialogService.ChooseAsync(
-            "Đã sao lưu",
-            "Cất file và mật khẩu ở nơi an toàn: ai có cả hai có thể giả làm máy này.\n\nKhi cài lại Windows hoặc chuyển sang máy mới, vào Cài đặt → Khôi phục để giữ nguyên danh tính, liên hệ và nhóm.",
-            ["Đóng"]);
+            L.T("Đã sao lưu"),
+            L.T("Cất file và mật khẩu ở nơi an toàn: ai có cả hai có thể giả làm máy này.\n\nKhi cài lại Windows hoặc chuyển sang máy mới, vào Cài đặt → Khôi phục để giữ nguyên danh tính, liên hệ và nhóm."),
+            [L.T("Đóng")]);
     }
 
     /// <summary>"Khôi phục…": the backup replaces the identity, contacts and groups at the next start.</summary>
     [RelayCommand]
     private async Task RestoreAsync()
     {
-        const string title = "Khôi phục danh tính";
+        string title = L.T("Khôi phục danh tính");
         if (await DialogService.PickFileAsync(title, BackupFileType) is not { } path
-            || await DialogService.PromptAsync(title, "Mật khẩu của bản sao lưu:", "", isPassword: true, okText: "Mở") is not { } password)
+            || await DialogService.PromptAsync(title, L.T("Mật khẩu của bản sao lưu:"), "", isPassword: true, okText: L.T("Mở")) is not { } password)
         {
             return;
         }
@@ -179,23 +180,23 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
         catch (CryptographicException)
         {
-            await DialogService.ChooseAsync(title, "Sai mật khẩu, hoặc file đã bị thay đổi.", ["Đóng"]);
+            await DialogService.ChooseAsync(title, L.T("Sai mật khẩu, hoặc file đã bị thay đổi."), [L.T("Đóng")]);
             return;
         }
         catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
         {
-            await DialogService.ChooseAsync(title, "Không đọc được: file này không phải bản sao lưu Shorekeeper, hoặc đã hỏng.", ["Đóng"]);
+            await DialogService.ChooseAsync(title, L.T("Không đọc được: file này không phải bản sao lưu Shorekeeper, hoặc đã hỏng."), [L.T("Đóng")]);
             return;
         }
 
         BackupSummary summary = opened.Summary;
         int choice = await DialogService.ChooseAsync(
             title,
-            $"Khôi phục danh tính {summary.DeviceId.ShortForm} ({summary.DisplayName}, sao lưu lúc {summary.CreatedAt.ToLocalTime():HH:mm dd/MM/yyyy}) "
-            + $"với {summary.Contacts} liên hệ và {summary.Groups} nhóm?\n\n"
-            + $"Danh tính hiện tại ({device.DeviceId.ShortForm}) cùng liên hệ và nhóm đang có sẽ được thay. Shorekeeper sẽ khởi động lại.\n\n"
-            + "Đừng chạy cùng một danh tính trên hai máy cùng lúc.",
-            ["Khôi phục và khởi động lại", "Hủy"]);
+            L.F("Khôi phục danh tính {0} ({1}, sao lưu lúc {2:HH:mm dd/MM/yyyy}) với {3} liên hệ và {4} nhóm?\n\n",
+                summary.DeviceId.ShortForm, summary.DisplayName, summary.CreatedAt.ToLocalTime(), summary.Contacts, summary.Groups)
+            + L.F("Danh tính hiện tại ({0}) cùng liên hệ và nhóm đang có sẽ được thay. Shorekeeper sẽ khởi động lại.\n\n", device.DeviceId.ShortForm)
+            + L.T("Đừng chạy cùng một danh tính trên hai máy cùng lúc."),
+            [L.T("Khôi phục và khởi động lại"), L.T("Hủy")]);
         if (choice != 0)
         {
             return;
@@ -220,7 +221,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     {
         if (string.IsNullOrWhiteSpace(DisplayName))
         {
-            StatusText = "Tên hiển thị không được để trống.";
+            StatusText = L.T("Tên hiển thị không được để trống.");
             return;
         }
 
@@ -236,8 +237,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         });
         Load(saved);
         StatusText = saved.OfferLifetime < TimeSpan.FromHours(OfferLifetime.Value)
-            ? "Đã lưu. Quản trị viên giới hạn thời hạn mở offer ngắn hơn lựa chọn của bạn."
-            : "Đã lưu.";
+            ? L.T("Đã lưu. Quản trị viên giới hạn thời hạn mở offer ngắn hơn lựa chọn của bạn.")
+            : L.T("Đã lưu.");
     }
 
     [RelayCommand]
@@ -260,7 +261,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             ProbeSubnets = IsProbeSubnetsLocked ? current.ProbeSubnets : subnets,
         });
         LoadNetwork(saved);
-        NetworkStatusText = "Đã lưu.";
+        NetworkStatusText = L.T("Đã lưu.");
     }
 
     private void LoadNetwork(EffectiveSettings current)

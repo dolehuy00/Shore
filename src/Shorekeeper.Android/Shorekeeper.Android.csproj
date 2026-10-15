@@ -22,8 +22,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Shorekeeper.Engine\Shorekeeper.Engine.csproj" />
-    <!-- Same wording for sizes and file lists as the desktop. -->
+    <!-- Same wording for sizes and file lists, and the same AXAML translation, as the desktop. -->
     <Compile Include="..\Shorekeeper.Desktop\ViewModels\TransferText.cs" Link="ViewModels\TransferText.cs" />
+    <Compile Include="..\Shorekeeper.Desktop\Localization\TExtension.cs" Link="Localization\TExtension.cs" />
   </ItemGroup>
 
   <ItemGroup>
