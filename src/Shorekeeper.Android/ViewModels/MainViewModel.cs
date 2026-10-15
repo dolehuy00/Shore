@@ -4,6 +4,7 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
+using Shorekeeper.Android.Platform;
 using Shorekeeper.Core.Identity;
 using Shorekeeper.Core.Platform;
 using Shorekeeper.Core.Trust;
@@ -89,6 +90,22 @@ public sealed partial class MainViewModel : ObservableObject
     public partial ShareViewModel? Share { get; set; }
 
     public bool HasShare => Share is not null;
+
+    /// <summary>"Luôn nhận file": keeps a foreground service so PCs reach the phone with the screen off.</summary>
+    public bool AlwaysReceive
+    {
+        get => BackgroundTransfers.AlwaysReceive;
+        set
+        {
+            BackgroundTransfers.AlwaysReceive = value;
+            OnPropertyChanged();
+            if (value)
+            {
+                BatteryOptimization.RequestExemption(global::Android.App.Application.Context);
+                Notice = "Máy OPPO, Xiaomi, Vivo… còn có trình tiết kiệm pin riêng: vào Cài đặt → Pin → Shorekeeper và cho phép hoạt động nền, nếu không hệ thống vẫn có thể tắt app.";
+            }
+        }
+    }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasNotice))]

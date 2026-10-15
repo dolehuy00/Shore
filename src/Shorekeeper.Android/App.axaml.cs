@@ -45,6 +45,15 @@ public partial class App : Application
         }
     });
 
+    /// <summary>A notification was tapped: 0 Xóm, 1 Hộp nhận, 2 Đã gửi.</summary>
+    internal static void ShowTab(int tab) => Dispatcher.UIThread.Post(() =>
+    {
+        if (main is not null)
+        {
+            main.SelectedTab = tab;
+        }
+    });
+
     private static async Task ShowWhenReadyAsync(Control view, Task<IServiceProvider> engine)
     {
         IServiceProvider services = await engine;

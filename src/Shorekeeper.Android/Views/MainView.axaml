@@ -28,6 +28,7 @@
           <TextBlock Text="{Binding Title}" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center" />
         </StackPanel>
         <TextBlock Text="{Binding Subtitle}" FontSize="12" Opacity="0.6" TextWrapping="Wrap" />
+        <ToggleSwitch IsChecked="{Binding AlwaysReceive}" OnContent="Luôn nhận file (kể cả khi tắt màn hình)" OffContent="Luôn nhận file (kể cả khi tắt màn hình)" />
       </StackPanel>
 
       <!-- Short messages, e.g. "2 mục không đọc được đã bị bỏ qua". -->

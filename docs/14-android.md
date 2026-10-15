@@ -162,6 +162,14 @@ Thông báo có file đến (Tải / Bỏ qua), foreground service khi truyền,
 
 **Xong khi:** màn hình tắt, PC gửi file → điện thoại hiện thông báo; tải xong khi máy vẫn khóa màn hình.
 
+**Kết quả (2026-10-15, ✅ xong):**
+
+- `TransferService`: foreground service `connectedDevice` + `WifiLock` (high perf) + `WakeLock` (partial), chạy khi đang nhận, khi còn người có thể tải file mình gửi (offer mở, người nhận chưa xong), hoặc luôn luôn với "Luôn nhận file" (lưu trong SharedPreferences). Hết lý do thì tự dừng. Thông báo thường trực nói đang làm gì.
+- Thông báo "… gửi cho bạn" (kênh quan trọng cao) với [Tải] [Bỏ qua]: nút là `PendingIntent.GetForegroundService` mang sẵn offer (URI riêng cho mỗi offer), nên chạy được cả khi Android đã đóng app; bấm vào thông báo mở tab Hộp nhận; thông báo tự gỡ khi offer đã xử lý trong app. Xin `POST_NOTIFICATIONS` khi mở app.
+- Thử thật (OPPO, Android 13, giả lập chạy pin + Doze sâu bằng `dumpsys`): lần 1 app bị **ColorOS (Athena/guardelf) đóng cưỡng bức** sau ~5 phút dù có foreground service. Thêm: bật "Luôn nhận file" thì xin miễn tối ưu hóa pin (`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`) + nhắc bật "hoạt động nền" trong cài đặt pin của hãng. Lần 2 (đã miễn + cho phép hoạt động nền): app sống > 13 phút, PC vẫn gọi được; PC gửi 1 GB → thông báo trên màn hình khóa → bấm Tải không mở khóa → xong ~20 giây, SHA-256 khớp.
+- Bài học: trên máy OPPO/Xiaomi/Vivo… foreground service **không đủ**; người dùng phải tự cho phép chạy nền trong cài đặt của hãng (app chỉ nhắc được). Xem dontkillmyapp.com.
+- Chưa làm: quyền mạng LAN của Android 17 (app đang target API 36 nên chưa bị áp), tự chạy lại sau khi khởi động lại máy, giữ service đủ 30 phút liên tục (đã thử ~13 phút).
+
 ### A5 — Nhóm & hoàn thiện
 
 Nhóm (thành viên), sao lưu/khôi phục danh tính (đổi điện thoại), chẩn đoán mạng (gợi ý khi Wi-Fi cách ly client, R7), tiếng Việt + tiếng Anh.

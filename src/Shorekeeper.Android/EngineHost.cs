@@ -55,6 +55,7 @@ public static class EngineHost
 
         IHost host = builder.Build();
         await host.StartAsync();
+        BackgroundTransfers.Start(context.ApplicationContext ?? context, host.Services);
         return host.Services;
     }
 

@@ -15,12 +15,22 @@ namespace Shorekeeper.Android;
 [IntentFilter([Intent.ActionSend, Intent.ActionSendMultiple], Categories = [Intent.CategoryDefault], DataMimeType = "*/*")]
 public sealed class MainActivity : AvaloniaMainActivity
 {
+    /// <summary>Tab to show when a notification opens the app.</summary>
+    public const string ExtraTab = "tab";
+
     protected override void OnCreate(Bundle? savedInstanceState)
     {
         base.OnCreate(savedInstanceState);
+        // Android 13+: without it, offers arrive silently.
+        if (OperatingSystem.IsAndroidVersionAtLeast(33))
+        {
+            RequestPermissions([global::Android.Manifest.Permission.PostNotifications], 1);
+        }
+
         if (savedInstanceState is null)
         {
             HandleShare(Intent);
+            HandleTab(Intent);
         }
     }
 
@@ -28,6 +38,15 @@ public sealed class MainActivity : AvaloniaMainActivity
     {
         base.OnNewIntent(intent);
         HandleShare(intent);
+        HandleTab(intent);
+    }
+
+    private static void HandleTab(Intent? intent)
+    {
+        if (intent is not null && !intent.Flags.HasFlag(ActivityFlags.LaunchedFromHistory) && intent.GetIntExtra(ExtraTab, -1) is >= 0 and var tab)
+        {
+            App.ShowTab(tab);
+        }
     }
 
     private static void HandleShare(Intent? intent)
