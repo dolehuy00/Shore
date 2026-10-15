@@ -1,13 +1,85 @@
+using Android.Content;
 using Android.Content.PM;
 using Avalonia.Android;
+using AndroidUri = Android.Net.Uri;
 
 namespace Shorekeeper.Android;
 
 /// <summary>
-/// The only activity. singleTask: Avalonia has one main view, so anything that opens the app (e.g. the share
-/// sheet later) must reach this activity rather than create a second one (docs/14-android.md, A0).
+/// The only activity, also the target of the share sheet ("Chia sẻ → Shorekeeper"). singleTask: Avalonia has one
+/// main view, so a share must reach this activity rather than create a second one (docs/14-android.md, A0).
 /// </summary>
 [Activity(Label = "Shorekeeper", Theme = "@style/ShorekeeperTheme", MainLauncher = true, Exported = true,
     LaunchMode = LaunchMode.SingleTask,
     ConfigurationChanges = ConfigChanges.Orientation | ConfigChanges.ScreenSize | ConfigChanges.UiMode)]
-public sealed class MainActivity : AvaloniaMainActivity;
+[IntentFilter([Intent.ActionSend, Intent.ActionSendMultiple], Categories = [Intent.CategoryDefault], DataMimeType = "*/*")]
+public sealed class MainActivity : AvaloniaMainActivity
+{
+    protected override void OnCreate(Bundle? savedInstanceState)
+    {
+        base.OnCreate(savedInstanceState);
+        if (savedInstanceState is null)
+        {
+            HandleShare(Intent);
+        }
+    }
+
+    protected override void OnNewIntent(Intent? intent)
+    {
+        base.OnNewIntent(intent);
+        HandleShare(intent);
+    }
+
+    private static void HandleShare(Intent? intent)
+    {
+        // Opening the app from Recents delivers the last share again, and its read permission is gone by then.
+        if (intent is null || intent.Flags.HasFlag(ActivityFlags.LaunchedFromHistory)
+            || intent.Action is not (Intent.ActionSend or Intent.ActionSendMultiple))
+        {
+            return;
+        }
+
+        List<string> locations = [];
+        if (intent.ClipData is { } clip)
+        {
+            for (int i = 0; i < clip.ItemCount; i++)
+            {
+                if (clip.GetItemAt(i)?.Uri is { } uri)
+                {
+                    locations.Add(uri.ToString()!);
+                }
+            }
+        }
+
+        // Not every app fills ClipData; EXTRA_STREAM is where the share sheet documents them.
+        if (locations.Count == 0)
+        {
+            locations.AddRange(Streams(intent).Select(uri => uri.ToString()!));
+        }
+
+        if (locations.Count > 0)
+        {
+            App.Share(locations);
+        }
+    }
+
+    private static IEnumerable<AndroidUri> Streams(Intent intent)
+    {
+        if (intent.Action == Intent.ActionSend)
+        {
+            AndroidUri? single = OperatingSystem.IsAndroidVersionAtLeast(33)
+                ? intent.GetParcelableExtra(Intent.ExtraStream, Java.Lang.Class.FromType(typeof(AndroidUri))) as AndroidUri
+#pragma warning disable CA1422 // The typed overload only exists from API 33.
+                : intent.GetParcelableExtra(Intent.ExtraStream) as AndroidUri;
+#pragma warning restore CA1422
+            return single is null ? [] : [single];
+        }
+
+        var many = OperatingSystem.IsAndroidVersionAtLeast(33)
+            ? intent.GetParcelableArrayListExtra(Intent.ExtraStream, Java.Lang.Class.FromType(typeof(AndroidUri)))
+#pragma warning disable CA1422
+            : intent.GetParcelableArrayListExtra(Intent.ExtraStream);
+#pragma warning restore CA1422
+        return many?.OfType<AndroidUri>() ?? [];
+    }
+}

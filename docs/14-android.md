@@ -56,7 +56,7 @@ API của Shorekeeper nhỏ (khoảng 25 endpoint, JSON, `Range` khi tải file,
 | Interface | Desktop | Android |
 |---|---|---|
 | `ISecretProtector` | DPAPI | Android Keystore (khóa AES không xuất được) |
-| `IFileSource` (đọc file để gửi: tên, size, thời gian sửa, mở stream) | Đường dẫn | `content://` URI, giữ quyền đọc bằng `takePersistableUriPermission` |
+| `IExternalFileSource` (A3: file không có đường dẫn — tên, size, thời gian sửa, mở stream seek được) | Không dùng | `content://` URI qua `ParcelFileDescriptor` |
 | `IDownloadTarget` (nơi ghi file nhận) | Thư mục | `MediaStore.Downloads` (file `.skpart` trong cache app, xong mới chép sang) |
 | `INotifier` | Toast | Notification channel + action (Tải / Bỏ qua) |
 | `INetworkLocks` | — | `MulticastLock`, `WifiLock` khi đang truyền |
@@ -147,6 +147,14 @@ Thấy nhau, Kết nối (mã 6 số), Hộp nhận: tải về Downloads, tải
 Chia sẻ từ Gallery / Files → chọn người → gửi; chọn file trong app. File đọc thẳng từ `content://` (không sao chép), hỗ trợ `Range`.
 
 **Xong khi:** gửi 50 ảnh từ Gallery lên PC trong một offer.
+
+**Kết quả (2026-10-15, ✅ xong):**
+
+- Engine: `IExternalFileSource` (Core) cho file không có đường dẫn. `OfferService.Prepare` nhận cả đường dẫn lẫn vị trí của nguồn ngoài; khi phục vụ, kiểm tra "file đã đổi" và mở stream qua nguồn đó; `FileHasher` tính hash cũng vậy. Không có bản sao tạm cho file loại này. Desktop không đổi (nguồn rỗng). Test: gửi và tải về đúng, tên trùng được đổi, `Range` và 412 khi file đổi — chạy trên cả hai server.
+- Android: `ContentUriFiles` đọc tên/size/thời gian sửa từ provider (`_display_name`, `_size`, `last_modified` hoặc `date_modified`), mở file qua `ParcelFileDescriptor` → `FileStream` seek được. App nhận `ACTION_SEND` / `ACTION_SEND_MULTIPLE` (bỏ qua intent mở lại từ Gần đây), hiện "Gửi … mục cho…" để chọn liên hệ; nút "Gửi file…" trên thẻ liên hệ mở trình chọn file; tab "Đã gửi" (trạng thái từng người, Thu hồi).
+- Thử thật: chia sẻ 48 ảnh từ Gallery → PC trong một offer (27,9 MB, ~26 giây); cả 48 file trên PC khớp SHA-256 với ảnh gốc trên điện thoại.
+- Quyền đọc `content://` từ menu Chia sẻ là quyền tạm, gắn với activity nhận; sau khi app bị Android đóng, người nhận chưa tải có thể gặp lỗi (chưa kiểm chứng). Chạy nền ở A4 giảm việc này.
+- Chưa thử trên máy thật: nút "Gửi file…" (trình chọn file trong app).
 
 ### A4 — Chạy nền & thông báo
 

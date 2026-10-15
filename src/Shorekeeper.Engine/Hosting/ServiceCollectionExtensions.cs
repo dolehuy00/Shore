@@ -53,6 +53,7 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddTransfers(this IServiceCollection services)
     {
         services.TryAddSingleton<IFileTagger>(NullFileTagger.Instance);
+        services.TryAddSingleton<IExternalFileSource>(NullExternalFileSource.Instance);
         services.AddSingleton<FileHasher>();
         services.AddSingleton<FileDownloader>();
         services.AddSingleton<OfferService>();

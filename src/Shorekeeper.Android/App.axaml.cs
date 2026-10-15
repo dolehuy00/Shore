@@ -11,6 +11,9 @@ namespace Shorekeeper.Android;
 
 public partial class App : Application
 {
+    private static MainViewModel? main;
+    private static IReadOnlyList<string>? pendingShare;
+
     /// <summary>Set by <see cref="AndroidApp"/> before Avalonia starts.</summary>
     internal static Task<IServiceProvider>? Engine { get; set; }
 
@@ -29,9 +32,31 @@ public partial class App : Application
         base.OnFrameworkInitializationCompleted();
     }
 
+    /// <summary>Items shared from another app; kept until the engine is ready if the share started the app.</summary>
+    internal static void Share(IReadOnlyList<string> locations) => Dispatcher.UIThread.Post(() =>
+    {
+        if (main is null)
+        {
+            pendingShare = locations;
+        }
+        else
+        {
+            main.ShowShare(locations);
+        }
+    });
+
     private static async Task ShowWhenReadyAsync(Control view, Task<IServiceProvider> engine)
     {
         IServiceProvider services = await engine;
-        await Dispatcher.UIThread.InvokeAsync(() => view.DataContext = new MainViewModel(services));
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            main = new MainViewModel(services);
+            view.DataContext = main;
+            if (pendingShare is { } locations)
+            {
+                pendingShare = null;
+                main.ShowShare(locations);
+            }
+        });
     }
 }

@@ -4,6 +4,7 @@ using Dapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using Shorekeeper.Core.Identity;
+using Shorekeeper.Core.Platform;
 using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Groups;
@@ -25,6 +26,7 @@ public sealed class OfferService(
     FileHasher hasher,
     SettingsService settings,
     AppPaths paths,
+    IExternalFileSource external,
     TimeProvider timeProvider,
     ILogger<OfferService> logger)
 {
@@ -115,8 +117,9 @@ public sealed class OfferService(
     // ───────────── Creating ─────────────
 
     /// <summary>Lists what would be sent: folders are expanded, links and system clutter skipped, locked files flagged.</summary>
+    /// <param name="external">Reads locations that are not paths, such as Android <c>content://</c> URIs.</param>
     /// <exception cref="InvalidOperationException">More than <see cref="MaxFiles"/> files or <see cref="MaxEntries"/> entries.</exception>
-    public static PreparedOffer Prepare(IEnumerable<string> selectedPaths)
+    public static PreparedOffer Prepare(IEnumerable<string> selectedPaths, IExternalFileSource? external = null)
     {
         var files = new List<PreparedFile>();
         var unreadable = new List<string>();
@@ -125,6 +128,22 @@ public sealed class OfferService(
 
         foreach (string selected in selectedPaths)
         {
+            if (external?.Owns(selected) == true)
+            {
+                if (external.Describe(selected) is { } info)
+                {
+                    files.Add(new PreparedFile(Unique(info.Name), selected, info.Size, ToMsPrecision(info.ModifiedAt.UtcDateTime), IsDirectory: false, IsLocked: false));
+                    fileCount++;
+                }
+                else
+                {
+                    unreadable.Add(selected);
+                }
+
+                CheckLimits();
+                continue;
+            }
+
             string full = Path.GetFullPath(selected);
             if (Directory.Exists(full))
             {
@@ -243,7 +262,7 @@ public sealed class OfferService(
             }
 
             var entry = new OfferFile($"f{offer.Files.Count}", file.RelativePath, file.Size, file.ModifiedAt, file.SourcePath, null, file.IsDirectory, false);
-            if (!file.IsDirectory && (snapshotAll || file.IsLocked))
+            if (!file.IsDirectory && (snapshotAll || file.IsLocked) && !external.Owns(file.SourcePath))
             {
                 entry = await SnapshotAsync(offer.Id, entry, cancellationToken);
             }
@@ -406,13 +425,15 @@ public sealed class OfferService(
             return PeerResponse.Problem(HttpStatusCode.ServiceUnavailable, ApiErrorCodes.Busy);
         }
 
-        FileStream stream;
+        Stream stream;
         try
         {
             // FileShare.Read: other programs can read but not modify the file while it is being sent.
-            stream = new FileStream(file.ServePath, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete, 1024 * 1024, FileOptions.SequentialScan | FileOptions.Asynchronous);
+            stream = external.Owns(file.ServePath)
+                ? external.OpenRead(file.ServePath)
+                : new FileStream(file.ServePath, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete, 1024 * 1024, FileOptions.SequentialScan | FileOptions.Asynchronous);
         }
-        catch (IOException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             Interlocked.Decrement(ref activeStreams);
             return PeerResponse.Problem(HttpStatusCode.ServiceUnavailable, ApiErrorCodes.Busy);
@@ -523,8 +544,14 @@ public sealed class OfferService(
         }
     }
 
-    private static bool IsUnchanged(OfferFile file)
+    private bool IsUnchanged(OfferFile file)
     {
+        if (external.Owns(file.ServePath))
+        {
+            return external.Describe(file.ServePath) is { } shared
+                && shared.Size == file.Size && ToMsPrecision(shared.ModifiedAt.UtcDateTime) == file.ModifiedAt;
+        }
+
         var info = new FileInfo(file.ServePath);
         return info.Exists && info.Length == file.Size && ToMsPrecision(info.LastWriteTimeUtc) == file.ModifiedAt;
     }

@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using Dapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
+using Shorekeeper.Core.Platform;
 using Shorekeeper.Engine.Storage;
 
 namespace Shorekeeper.Engine.Transfers;
@@ -11,7 +12,7 @@ namespace Shorekeeper.Engine.Transfers;
 /// SHA-256 of files we send, computed once in the background and cached by (path, size, modified time),
 /// shared by every recipient (docs/06-file-transfer.md §6).
 /// </summary>
-public sealed class FileHasher(SqliteDatabase database, TimeProvider timeProvider, ILogger<FileHasher> logger)
+public sealed class FileHasher(SqliteDatabase database, IExternalFileSource external, TimeProvider timeProvider, ILogger<FileHasher> logger)
 {
     private readonly ConcurrentDictionary<string, Task<string>> running = new();
 
@@ -71,7 +72,9 @@ public sealed class FileHasher(SqliteDatabase database, TimeProvider timeProvide
     private async Task<string> ComputeAsync(string path, long size, long modified)
     {
         string hash;
-        await using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete, 1024 * 1024, FileOptions.SequentialScan | FileOptions.Asynchronous))
+        await using (Stream stream = external.Owns(path)
+            ? external.OpenRead(path)
+            : new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete, 1024 * 1024, FileOptions.SequentialScan | FileOptions.Asynchronous))
         {
             hash = Convert.ToHexStringLower(await SHA256.HashDataAsync(stream));
         }

@@ -47,6 +47,7 @@ public static class EngineHost
         HostApplicationBuilder builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings { DisableDefaults = true });
         builder.Logging.AddProvider(new LogcatLoggerProvider());
         builder.Services.AddSingleton<ISecretProtector, KeystoreSecretProtector>();
+        builder.Services.AddSingleton<IExternalFileSource>(new ContentUriFiles(context.ContentResolver!));
         builder.Services.AddShorekeeperEngine(paths);
         builder.Services.AddTransfers();
         builder.Services.AddPeerApi();

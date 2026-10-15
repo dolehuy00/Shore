@@ -30,7 +30,12 @@
         <TextBlock Text="{Binding Subtitle}" FontSize="12" Opacity="0.6" TextWrapping="Wrap" />
       </StackPanel>
 
-      <TabControl Padding="12,4">
+      <!-- Short messages, e.g. "2 mục không đọc được đã bị bỏ qua". -->
+      <Border DockPanel.Dock="Bottom" IsVisible="{Binding HasNotice}" Background="#33F59E0B" Padding="16,10">
+        <TextBlock Text="{Binding Notice}" TextWrapping="Wrap" />
+      </Border>
+
+      <TabControl Padding="12,4" SelectedIndex="{Binding SelectedTab}">
         <TabItem Header="Xóm">
           <Panel>
             <TextBlock Text="Chưa thấy ai trong mạng. Mở Shorekeeper trên máy tính cùng Wi-Fi."
@@ -48,6 +53,7 @@
                         </StackPanel>
                         <Button Grid.Column="1" Content="Kết nối" Command="{Binding ConnectCommand}" IsVisible="{Binding CanConnect}"
                                 VerticalAlignment="Center" Classes="accent" />
+                        <Button Grid.Column="1" Content="Gửi file…" Click="OnSendFiles" IsVisible="{Binding CanSend}" VerticalAlignment="Center" />
                       </Grid>
                     </Border>
                   </DataTemplate>
@@ -83,8 +89,60 @@
             </ScrollViewer>
           </Panel>
         </TabItem>
+        <TabItem Header="Đã gửi">
+          <Panel>
+            <TextBlock Text="Chưa gửi gì. Chạm Gửi file… ở một người đã kết nối, hoặc Chia sẻ từ Thư viện ảnh / Files."
+                       IsVisible="{Binding HasNoSent}" Opacity="0.65" TextWrapping="Wrap" Margin="4,12" />
+            <ScrollViewer>
+              <ItemsControl ItemsSource="{Binding Sent}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:SentItemViewModel">
+                    <Border Classes="card">
+                      <StackPanel Spacing="4">
+                        <TextBlock Text="{Binding Summary}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding Recipients}" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding Status}" FontSize="12" Opacity="0.75" />
+                        <Button Content="Thu hồi" Command="{Binding WithdrawCommand}" IsVisible="{Binding CanWithdraw}" />
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+          </Panel>
+        </TabItem>
       </TabControl>
     </DockPanel>
+
+    <!-- Shared from another app: pick the recipients. -->
+    <Border Classes="overlay" IsVisible="{Binding HasShare}">
+      <Border Background="{DynamicResource SystemControlBackgroundAltHighBrush}" CornerRadius="12" Margin="24" Padding="20"
+              VerticalAlignment="Center" DataContext="{Binding Share}" x:DataType="vm:ShareViewModel">
+        <StackPanel Spacing="10">
+          <TextBlock Text="{Binding Title}" FontSize="18" FontWeight="SemiBold" />
+          <TextBlock Text="Chưa kết nối với ai. Kết nối với máy tính trong tab Xóm trước." IsVisible="{Binding HasNobody}" TextWrapping="Wrap" />
+          <ScrollViewer MaxHeight="360">
+            <ItemsControl ItemsSource="{Binding People}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:PickablePerson">
+                  <CheckBox IsChecked="{Binding IsChecked}" Margin="0,4">
+                    <StackPanel>
+                      <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                      <TextBlock Text="{Binding Detail}" FontSize="12" Opacity="0.65" />
+                    </StackPanel>
+                  </CheckBox>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+          <TextBlock Text="{Binding Error}" IsVisible="{Binding HasError}" Foreground="#EF4444" TextWrapping="Wrap" />
+          <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+            <Button Content="Hủy" Command="{Binding CancelCommand}" />
+            <Button Content="Gửi" Command="{Binding SendCommand}" IsEnabled="{Binding CanSend}" Classes="accent" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+    </Border>
 
     <!-- Someone wants to connect: compare the code with theirs. -->
     <Border Classes="overlay" IsVisible="{Binding HasIncoming}">

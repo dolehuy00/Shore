@@ -60,7 +60,8 @@ internal sealed class TestNode : IAsyncDisposable
 
     /// <param name="settings">Extra settings.json properties, e.g. <c>"enableBridge": true</c>.</param>
     /// <param name="directory">The company directory this node's user is in.</param>
-    public static async Task<TestNode> StartAsync(string name, string? settings = null, IDirectoryInfo? directory = null)
+    /// <param name="external">Files handed over by reference, as on Android.</param>
+    public static async Task<TestNode> StartAsync(string name, string? settings = null, IDirectoryInfo? directory = null, IExternalFileSource? external = null)
     {
         var folder = new TempAppFolder();
         // A private port per node so tests never collide with a running Shorekeeper.
@@ -74,6 +75,11 @@ internal sealed class TestNode : IAsyncDisposable
         if (directory is not null)
         {
             builder.Services.AddSingleton(directory);
+        }
+
+        if (external is not null)
+        {
+            builder.Services.AddSingleton(external);
         }
 
         builder.Services.AddShorekeeperEngine(folder.Paths);
