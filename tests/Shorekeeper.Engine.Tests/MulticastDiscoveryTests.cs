@@ -26,7 +26,7 @@ public sealed class MulticastDiscoveryTests : IAsyncDisposable
         }
     }
 
-    [Fact]
+    [Fact(Skip = "Linux/macOS deliver multicast only to sockets bound to the wildcard address; these tests bind 127.0.0.x", SkipType = typeof(TestPlatform), SkipUnless = nameof(TestPlatform.IsWindows))]
     public async Task Three_peers_see_each_other_within_three_seconds()
     {
         TestPeer a = await StartPeer("A"), b = await StartPeer("B"), c = await StartPeer("C");
@@ -38,7 +38,7 @@ public sealed class MulticastDiscoveryTests : IAsyncDisposable
         Assert.Equal(["A", "B"], Names(c));
     }
 
-    [Fact]
+    [Fact(Skip = "Linux/macOS deliver multicast only to sockets bound to the wildcard address; these tests bind 127.0.0.x", SkipType = typeof(TestPlatform), SkipUnless = nameof(TestPlatform.IsWindows))]
     public async Task Stopping_a_peer_says_bye()
     {
         TestPeer a = await StartPeer("A");
@@ -50,7 +50,7 @@ public sealed class MulticastDiscoveryTests : IAsyncDisposable
         await WaitUntil(() => a.Directory.Snapshot().Count == 0, TimeSpan.FromSeconds(2));
     }
 
-    [Fact]
+    [Fact(Skip = "Linux/macOS deliver multicast only to sockets bound to the wildcard address; these tests bind 127.0.0.x", SkipType = typeof(TestPlatform), SkipUnless = nameof(TestPlatform.IsWindows))]
     public async Task Hidden_peer_disappears_and_comes_back_when_online_again()
     {
         TestPeer a = await StartPeer("A");
@@ -68,7 +68,7 @@ public sealed class MulticastDiscoveryTests : IAsyncDisposable
         await WaitUntil(() => a.Directory.Snapshot().Count == 1, TimeSpan.FromSeconds(3));
     }
 
-    [Fact]
+    [Fact(Skip = "Linux/macOS deliver multicast only to sockets bound to the wildcard address; these tests bind 127.0.0.x", SkipType = typeof(TestPlatform), SkipUnless = nameof(TestPlatform.IsWindows))]
     public async Task Busy_status_is_visible_to_others()
     {
         TestPeer a = await StartPeer("A");

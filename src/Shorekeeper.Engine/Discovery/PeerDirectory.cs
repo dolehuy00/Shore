@@ -38,7 +38,9 @@ public sealed record PeerInfo(
     PeerSource Source = PeerSource.Direct,
     int DiscoveryPort = 0,
     bool IsBridge = false,
-    IReadOnlyList<PresenceGroup>? HostedGroups = null);
+    IReadOnlyList<PresenceGroup>? HostedGroups = null,
+    string? Department = null,
+    string? AvatarTag = null);
 
 public enum PeerChangeKind
 {
@@ -180,7 +182,9 @@ public sealed class PeerDirectory(TimeProvider timeProvider)
         source,
         discoveryPort,
         packet.Capabilities.Contains(PresenceCapabilities.Bridge),
-        packet.Groups.Count > 0 ? packet.Groups : null);
+        packet.Groups.Count > 0 ? packet.Groups : null,
+        packet.Department,
+        packet.AvatarTag);
 
     /// <summary>Stores the observation; returns the change to raise outside the lock, or null if nothing visible changed.</summary>
     private PeerChange? Store(PeerInfo observed)

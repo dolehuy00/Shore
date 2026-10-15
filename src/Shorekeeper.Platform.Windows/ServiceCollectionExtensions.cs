@@ -13,6 +13,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IFileTagger, MarkOfTheWebTagger>();
         services.AddSingleton<INotifier, WindowsToastNotifier>();
         services.AddSingleton<IGlobalHotkey, WindowsGlobalHotkey>();
+        services.AddSingleton<IDirectoryInfo, ActiveDirectoryInfo>();
         return services;
     }
 }

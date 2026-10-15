@@ -168,7 +168,7 @@ public sealed class TransferTests : IAsyncLifetime
         await WaitUntil(() => a.Offers.GetOffers().Single().Recipients.Single().State == RecipientState.Delivered);
     }
 
-    [Fact]
+    [Fact(Skip = "Only Windows refuses to share a file another program is writing", SkipType = typeof(TestPlatform), SkipUnless = nameof(TestPlatform.IsWindows))]
     public async Task File_open_for_writing_is_sent_as_a_temporary_copy()
     {
         string source = WriteFile(a, "app.log", "line 1\n"u8.ToArray());
@@ -184,7 +184,7 @@ public sealed class TransferTests : IAsyncLifetime
         Assert.Equal("line 1\n", await File.ReadAllTextAsync(done.Files.Single().FinalPath!, Ct));
     }
 
-    [Fact]
+    [Fact(Skip = "Only Windows refuses to share a file another program is writing", SkipType = typeof(TestPlatform), SkipUnless = nameof(TestPlatform.IsWindows))]
     public async Task Locked_files_are_left_out_without_a_snapshot()
     {
         string locked = WriteFile(a, "db.mdf", [1, 2, 3]);

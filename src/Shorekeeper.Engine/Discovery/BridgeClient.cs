@@ -270,6 +270,8 @@ public sealed class BridgeClient(
                 App = hello.App,
                 Port = hello.Port,
                 Capabilities = [PresenceCapabilities.Bridge],
+                Department = Department(hello.Dept),
+                AvatarTag = PresenceCodec.IsValidAvatarTag(hello.Avatar) ? hello.Avatar : null,
             };
 
             long since = 0;
@@ -339,7 +341,7 @@ public sealed class BridgeClient(
         }
 
         PresencePacket me = presence.CreatePacket(PresencePacketTypes.Announce);
-        var body = new BridgeRegistration(me.Name, me.Host, me.Os, me.App, me.Status, me.Port);
+        var body = new BridgeRegistration(me.Name, me.Host, me.Os, me.App, me.Status, me.Port, me.Department, me.AvatarTag);
         using HttpResponseMessage response = await client.SendAsync(
             session.Id,
             session.Endpoint,
@@ -446,7 +448,15 @@ public sealed class BridgeClient(
         App = peer.App,
         Port = peer.Port,
         Status = peer.Status,
+        Department = Department(peer.Dept),
+        AvatarTag = PresenceCodec.IsValidAvatarTag(peer.Avatar) ? peer.Avatar : null,
     };
+
+    /// <summary>Relayed claims get the same limits as presence packets.</summary>
+    private static string? Department(string? department) =>
+        string.IsNullOrWhiteSpace(department) ? null
+        : department.Length > PresenceCodec.MaxDepartmentLength ? department[..PresenceCodec.MaxDepartmentLength]
+        : department.Trim();
 
     private void Fail(Session session, string error)
     {

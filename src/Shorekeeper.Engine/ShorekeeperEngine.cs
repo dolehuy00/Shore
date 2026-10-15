@@ -18,6 +18,7 @@ public sealed class ShorekeeperEngine(
     IdentityStore identityStore,
     TrustStore trustStore,
     GroupStore groupStore,
+    IdentityBackup backup,
     ILogger<ShorekeeperEngine> logger) : IDisposable
 {
     private DeviceIdentity? identity;
@@ -38,6 +39,7 @@ public sealed class ShorekeeperEngine(
         await migrations.MigrateAsync(cancellationToken);
         await trustStore.LoadAsync(cancellationToken);
         await groupStore.LoadAsync(cancellationToken);
+        await backup.ApplyPendingRestoreAsync(cancellationToken);
         identity = identityStore.LoadOrCreate();
 
         logger.LogInformation(

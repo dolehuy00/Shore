@@ -1,8 +1,17 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <!--
+    Windows builds (on Windows, or published with -r win-*) get Platform.Windows: DPAPI, toasts, the hotkey, AD.
+    Any other build is portable net10.0 for Linux/macOS (docs/02-architecture.md §9), e.g. dotnet publish -r linux-x64.
+  -->
+  <PropertyGroup>
+    <ShorekeeperWindows Condition="'$(RuntimeIdentifier)' == ''">$([MSBuild]::IsOSPlatform('Windows'))</ShorekeeperWindows>
+    <ShorekeeperWindows Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier.StartsWith('win'))</ShorekeeperWindows>
+  </PropertyGroup>
+
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <TargetFramework Condition="'$(ShorekeeperWindows)' == 'true'">net10.0-windows10.0.19041.0</TargetFramework>
     <RootNamespace>Shorekeeper.Desktop</RootNamespace>
     <AssemblyName>Shorekeeper</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
@@ -18,6 +27,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Shorekeeper.Engine\Shorekeeper.Engine.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(ShorekeeperWindows)' == 'true'">
     <ProjectReference Include="..\Shorekeeper.Platform.Windows\Shorekeeper.Platform.Windows.csproj" />
   </ItemGroup>
 

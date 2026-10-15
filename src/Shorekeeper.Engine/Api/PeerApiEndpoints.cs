@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Shorekeeper.Core.Identity;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Groups;
+using Shorekeeper.Engine.Identity;
 using Shorekeeper.Engine.Transfers;
 using Shorekeeper.Engine.Trust;
 
@@ -28,11 +29,19 @@ internal static class PeerApiEndpoints
         var bridge = services.GetRequiredService<BridgeRegistry>();
         var groupStore = services.GetRequiredService<GroupStore>();
         var groups = services.GetRequiredService<GroupService>();
+        var profile = services.GetRequiredService<DirectoryProfileService>();
 
         RouteGroupBuilder api = app.MapGroup(PeerClient.ApiBasePath.TrimEnd('/'));
 
         api.MapGet("/hello", () => new HelloResponse(
-                device.DeviceId.Value, device.DisplayName, LocalDevice.HostName, LocalDevice.Os, LocalDevice.AppVersion, [1], server.Port))
+                device.DeviceId.Value, device.DisplayName, LocalDevice.HostName, LocalDevice.Os, LocalDevice.AppVersion, [1], server.Port,
+                profile.Department, profile.AvatarTag))
+            .AllowAnyPeer();
+
+        // The picture from the company directory, public like the name (docs/13-active-directory.md §2).
+        api.MapGet("/hello/avatar", () => profile.Avatar is { } photo
+                ? Results.File(photo, AvatarContentType(photo))
+                : ApiResults.Problem(StatusCodes.Status404NotFound, ApiErrorCodes.NotFound))
             .AllowAnyPeer();
 
         api.MapPost("/pairing/request", (HttpContext context, PairingRequestBody body) =>
@@ -176,4 +185,8 @@ internal static class PeerApiEndpoints
                 })
             .AllowAnyPeer();
     }
+
+    /// <summary>Directory pictures are JPEG, sometimes PNG.</summary>
+    private static string AvatarContentType(byte[] photo) =>
+        photo is [0x89, (byte)'P', (byte)'N', (byte)'G', ..] ? "image/png" : "image/jpeg";
 }

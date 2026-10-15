@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using Avalonia;
 using Microsoft.Extensions.DependencyInjection;
@@ -9,7 +10,12 @@ using Shorekeeper.Desktop.ViewModels;
 using Shorekeeper.Desktop.Views;
 using Shorekeeper.Engine;
 using Shorekeeper.Engine.Hosting;
+#if WINDOWS
 using Shorekeeper.Platform.Windows;
+#else
+using Shorekeeper.Core.Platform;
+using Shorekeeper.Engine.Identity;
+#endif
 
 namespace Shorekeeper.Desktop;
 
@@ -28,7 +34,9 @@ internal static class Program
         if (!instance.IsPrimary)
         {
             // Already running in this session: bring it to the front, or hand over files to send.
+#if WINDOWS
             ForegroundRights.GrantToOtherProcesses();
+#endif
             return instance.TrySignalPrimary(args.Length == 0 ? ["--activate"] : args) ? 0 : 1;
         }
 
@@ -62,6 +70,13 @@ internal static class Program
 
             host.StopAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
             Log.Information("Shorekeeper stopped");
+            if (App.RestartRequested)
+            {
+                // The new process must find the single-instance lock free.
+                instance.Dispose();
+                Process.Start(Environment.ProcessPath!);
+            }
+
             return 0;
         }
         catch (Exception ex)
@@ -102,7 +117,14 @@ internal static class Program
         builder.Services.AddTransfers();
         builder.Services.AddPeerApi();
         builder.Services.AddMulticastDiscovery();
+#if WINDOWS
         builder.Services.AddWindowsPlatform();
+#else
+        // Linux/macOS: no key store, notifications or global shortcut yet (docs/02-architecture.md §9).
+        builder.Services.AddSingleton<ISecretProtector, OwnerOnlyFolderProtector>();
+        builder.Services.AddSingleton<INotifier>(NullNotifier.Instance);
+        builder.Services.AddSingleton<IGlobalHotkey>(NullGlobalHotkey.Instance);
+#endif
         builder.Services.AddSingleton<DialogService>();
         builder.Services.AddSingleton<QuickSendService>();
         builder.Services.AddSingleton<PeerNames>();

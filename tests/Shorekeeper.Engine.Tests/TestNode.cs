@@ -51,7 +51,8 @@ internal sealed class TestNode : IAsyncDisposable
     public string WorkDirectory => System.IO.Directory.CreateDirectory(Path.Combine(folder.Root, "work")).FullName;
 
     /// <param name="settings">Extra settings.json properties, e.g. <c>"enableBridge": true</c>.</param>
-    public static async Task<TestNode> StartAsync(string name, string? settings = null)
+    /// <param name="directory">The company directory this node's user is in.</param>
+    public static async Task<TestNode> StartAsync(string name, string? settings = null, IDirectoryInfo? directory = null)
     {
         var folder = new TempAppFolder();
         // A private port per node so tests never collide with a running Shorekeeper.
@@ -62,6 +63,11 @@ internal sealed class TestNode : IAsyncDisposable
         builder.Services.AddLogging();
         builder.Services.AddSingleton(new ApiServerOptions { BindAddress = IPAddress.Loopback });
         builder.Services.AddSingleton<ISecretProtector, XorSecretProtector>();
+        if (directory is not null)
+        {
+            builder.Services.AddSingleton(directory);
+        }
+
         builder.Services.AddShorekeeperEngine(folder.Paths);
         builder.Services.AddTransfers();
         builder.Services.AddPeerApi();

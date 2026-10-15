@@ -144,11 +144,19 @@ sequenceDiagram
 
 ## 9. Port sang Linux/macOS
 
-| Phần | Windows | Linux/macOS |
-|---|---|---|
-| Bảo vệ khóa | DPAPI | libsecret / Keychain |
-| Firewall | Rule qua installer | Hướng dẫn / prompt của hệ thống |
-| Thông báo | Windows Toast | libnotify / UserNotifications |
-| Auto-start | HKCU Run | XDG autostart / LaunchAgent |
-| Mark of the Web | ADS `Zone.Identifier` | xattr quarantine (mac) |
-| AD | System.DirectoryServices | Không hỗ trợ (hoặc LDAP thuần) |
+Từ M6b, `Shorekeeper.Desktop` build được cho Linux/macOS (`dotnet publish src/Shorekeeper.Desktop -r linux-x64` hoặc `-r osx-arm64`, chạy được cả từ Windows): khi đích không phải Windows, project dùng `net10.0` và không tham chiếu `Platform.Windows`. Core + Engine test chạy trên Linux (WSL Ubuntu): pass hết trừ các test chỉ đúng với Windows (multicast trên địa chỉ loopback riêng, khóa file đang ghi).
+
+| Phần | Windows | Linux/macOS hiện tại | Linux/macOS sau này |
+|---|---|---|---|
+| Bảo vệ khóa | DPAPI | Thư mục dữ liệu quyền `700` (ADR-014) | libsecret / Keychain |
+| Firewall | Rule qua installer | Không làm gì | Hướng dẫn / prompt của hệ thống |
+| Thông báo | Windows Toast | Cửa sổ nhỏ của app | libnotify / UserNotifications |
+| Phím tắt Gửi nhanh | `RegisterHotKey` | Không có (mở từ tray) | Tùy desktop environment |
+| Menu "Gửi bằng…" | Verb trong MSI | Không có | Nautilus script / Finder Quick Action |
+| Auto-start | HKLM Run (MSI) | Không có | XDG autostart / LaunchAgent |
+| Mark of the Web | ADS `Zone.Identifier` | Không đánh dấu | xattr quarantine (mac) |
+| AD | System.DirectoryServices | Không hỗ trợ | LDAP thuần (nếu cần) |
+| File đang bị ghi | Mở bị từ chối → sao chép tạm | Không phát hiện được: gửi thẳng, file đổi giữa chừng thì người nhận báo lỗi hash | Như hiện tại |
+| Gói cài | MSI | Chưa có | AppImage / .deb, .dmg |
+
+Chưa thử chạy giao diện trên Linux/macOS thật (tray cần StatusNotifier trên Linux; macOS chưa ký số sẽ bị Gatekeeper chặn).

@@ -79,7 +79,10 @@ public sealed class BridgeRegistry
         }
 
         string address = from.MapToIPv4().ToString();
-        var peer = new BridgePeer(caller.Value, body.Name.Trim(), body.Host, body.Os, body.App, body.Status, address, body.Port);
+        var peer = new BridgePeer(
+            caller.Value, body.Name.Trim(), body.Host, body.Os, body.App, body.Status, address, body.Port,
+            body.Dept is { Length: > 0 and <= PresenceCodec.MaxDepartmentLength } ? body.Dept : null,
+            PresenceCodec.IsValidAvatarTag(body.Avatar) ? body.Avatar : null);
         DateTimeOffset expiresAt = timeProvider.GetUtcNow() + Lease;
         lock (gate)
         {

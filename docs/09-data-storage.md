@@ -7,6 +7,9 @@
 ├── identity.pfx.dpapi              ← khóa thiết bị (DPAPI CurrentUser)
 ├── shorekeeper.db                  ← SQLite (WAL)
 ├── settings.json                   ← cài đặt người dùng (GPO ghi đè)
+├── directory.json, avatar.img      ← hồ sơ AD lần đọc gần nhất (tên, phòng ban, ảnh), M6b
+├── restore.pending                 ← bản sao lưu chờ áp dụng ở lần khởi động sau (mã hóa như khóa), M6b
+├── identity.pfx.dpapi.replaced-*   ← khóa cũ, giữ lại sau khi khôi phục
 ├── snapshots\{offerId}\...         ← bản sao tạm; xóa khi offer đóng
 └── logs\shorekeeper-YYYYMMDD.log
 

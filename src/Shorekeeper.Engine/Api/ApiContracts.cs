@@ -1,7 +1,8 @@
 namespace Shorekeeper.Engine.Api;
 
 /// <summary>Response of <c>GET /api/v1/hello</c>; only what presence already makes public.</summary>
-public sealed record HelloResponse(string DeviceId, string Name, string Host, string Os, string App, int[] Proto, int Port);
+/// <param name="Dept">Department from the company directory; <paramref name="Avatar"/> as in presence.</param>
+public sealed record HelloResponse(string DeviceId, string Name, string Host, string Os, string App, int[] Proto, int Port, string? Dept = null, string? Avatar = null);
 
 /// <summary>Body of <c>POST /api/v1/pairing/request</c>. Name and host are claims, shown next to the code.</summary>
 public sealed record PairingRequestBody(string PairingId, string Nonce, string Name, string Host, int ApiPort, string? Note);
@@ -55,7 +56,7 @@ public sealed record KnownPeer(string DeviceId, string Name, string Address, int
 public sealed record KnownBridge(string DeviceId, string Address, int Port);
 
 /// <summary>Body of <c>POST /api/v1/bridge/register</c>: the caller's public presence. The DeviceId comes from its TLS certificate.</summary>
-public sealed record BridgeRegistration(string Name, string Host, string Os, string App, string Status, int Port);
+public sealed record BridgeRegistration(string Name, string Host, string Os, string App, string Status, int Port, string? Dept = null, string? Avatar = null);
 
 /// <param name="ObservedAddr">Address the Bridge sees the caller at; this is what other peers will use.</param>
 public sealed record BridgeRegistered(int LeaseSeconds, string ObservedAddr);
@@ -67,7 +68,7 @@ public sealed record BridgeRegistered(int LeaseSeconds, string ObservedAddr);
 public sealed record BridgePeersResponse(long Version, bool Full, IReadOnlyList<BridgePeer> Peers, IReadOnlyList<string> Removed);
 
 /// <param name="Port">HTTPS API port.</param>
-public sealed record BridgePeer(string DeviceId, string Name, string Host, string Os, string App, string Status, string Address, int Port);
+public sealed record BridgePeer(string DeviceId, string Name, string Host, string Os, string App, string Status, string Address, int Port, string? Dept = null, string? Avatar = null);
 
 /// <summary>Body of <c>POST /api/v1/groups/{groupId}/join-requests</c>, sent to the Host. Name and host are shown to the Host.</summary>
 public sealed record GroupJoinRequestBody(string Name, string Host, string? Note);

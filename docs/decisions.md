@@ -170,3 +170,33 @@ Mỗi mục: **Bối cảnh → Quyết định → Hệ quả**. Trạng thái:
 - ❌ Chọn nhiều file trong Explorer → nhiều tiến trình khởi động ngắn (mỗi tiến trình vài trăm ms trước khi chuyển cho bản đang chạy).
 - ❌ Bản projection WinRT làm app nặng thêm ~25 MB (trước nén).
 - Khi có chữ ký số: thêm sparse MSIX cho menu mới của Windows 11, giữ verb cổ điển cho Windows 10.
+
+---
+
+## ADR-013 — Sao lưu danh tính: file mã hóa bằng mật khẩu, khôi phục khi khởi động lại
+
+**Trạng thái:** Chấp nhận (M6b)
+
+**Bối cảnh:** Cài lại Windows hoặc đổi máy thì DPAPI không giải mã được khóa cũ, DeviceId đổi, mọi người phải Kết nối lại và vào lại nhóm. Danh tính đang được Kestrel, client mTLS, presence và nhóm dùng suốt lúc app chạy.
+
+**Quyết định:**
+- File `.skbackup`: `SKBK`, phiên bản, số vòng PBKDF2-SHA256 (600.000), salt, nonce + tag AES-256-GCM (phần đầu file được xác thực cùng), rồi JSON: khóa PKCS#12, liên hệ + máy bị chặn, nhóm.
+- Khôi phục không thay danh tính khi app đang chạy: bản đã mở được ghi tạm (`restore.pending`, mã hóa bằng `ISecretProtector`), app khởi động lại, engine áp dụng nó sau khi nạp kho liên hệ/nhóm và trước khi nạp danh tính. Áp dụng lỗi thì đổi tên file thành `.failed-…` để không lặp lại mỗi lần mở app.
+
+**Hệ quả:**
+- ✅ Không dịch vụ nào thấy danh tính đổi giữa chừng; không cần làm mới cert của Kestrel hay `HttpClient`.
+- ✅ Dùng được trên mọi hệ điều hành (không phụ thuộc DPAPI).
+- ❌ Phải khởi động lại app.
+- ❌ Offer đang mở do danh tính cũ gửi đi không tải được nữa (người nhận ghim DeviceId cũ).
+
+---
+
+## ADR-014 — Linux/macOS: khóa thiết bị bảo vệ bằng quyền thư mục
+
+**Trạng thái:** Chấp nhận (M6b, tạm thời)
+
+**Bối cảnh:** Chuẩn bị port cần `ISecretProtector` ngoài Windows. libsecret (D-Bus) và Keychain mỗi cái là một tích hợp riêng, chưa thử được trên máy thật.
+
+**Quyết định:** `OwnerOnlyFolderProtector` không mã hóa; thư mục dữ liệu được tạo với quyền `700`, giống `~/.ssh`. Thay bằng libsecret / Keychain khi làm bản Linux/macOS thật.
+
+**Hệ quả:** ✅ Build và chạy được ngay, test được trên WSL. ❌ Root hoặc bản sao lưu toàn ổ đĩa đọc được khóa; chấp nhận cho giai đoạn chuẩn bị.

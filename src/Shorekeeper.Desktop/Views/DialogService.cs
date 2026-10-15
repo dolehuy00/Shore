@@ -125,6 +125,36 @@ public sealed class DialogService(
         return [.. folders.Select(f => f.TryGetLocalPath()).OfType<string>()];
     }
 
+    /// <returns>The file chosen, or null when cancelled.</returns>
+    public static async Task<string?> PickFileAsync(string title, FilePickerFileType type)
+    {
+        if (MainWindow is not { } window)
+        {
+            return null;
+        }
+
+        IReadOnlyList<IStorageFile> files = await window.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions { Title = title, FileTypeFilter = [type] });
+        return files.Count == 0 ? null : files[0].TryGetLocalPath();
+    }
+
+    /// <returns>Where to save, or null when cancelled.</returns>
+    public static async Task<string?> PickSaveFileAsync(string title, string suggestedName, FilePickerFileType type)
+    {
+        if (MainWindow is not { } window)
+        {
+            return null;
+        }
+
+        IStorageFile? file = await window.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = title,
+            SuggestedFileName = suggestedName,
+            FileTypeChoices = [type],
+            DefaultExtension = type.Patterns is [var pattern, ..] ? pattern.TrimStart('*') : null,
+        });
+        return file?.TryGetLocalPath();
+    }
+
     /// <returns>The file ids picked, or null when cancelled.</returns>
     public static async Task<IReadOnlyList<string>?> PickOfferFilesAsync(ReceivedOffer offer)
     {
@@ -256,9 +286,9 @@ public sealed class DialogService(
         return ShowAsync(new AddPeerWindow { DataContext = viewModel }, viewModel);
     }
 
-    public static async Task<string?> PromptAsync(string title, string label, string initialText)
+    public static async Task<string?> PromptAsync(string title, string label, string initialText, bool isPassword = false, string okText = "Lưu")
     {
-        var viewModel = new TextPromptViewModel(title, label, initialText);
+        var viewModel = new TextPromptViewModel(title, label, initialText, isPassword, okText);
         await ShowAsync(new TextPromptWindow { DataContext = viewModel }, viewModel);
         return viewModel.Confirmed ? viewModel.Text : null;
     }

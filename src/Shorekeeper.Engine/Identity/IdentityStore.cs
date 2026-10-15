@@ -27,7 +27,7 @@ public sealed class IdentityStore(
         {
             try
             {
-                DeviceIdentity identity = Load(path);
+                DeviceIdentity identity = Load();
                 logger.LogInformation("Loaded device identity {DeviceId}", identity.DeviceId);
                 return identity;
             }
@@ -46,9 +46,10 @@ public sealed class IdentityStore(
         return created;
     }
 
-    private DeviceIdentity Load(string path)
+    /// <summary>The stored PKCS#12 (no password), for a backup. The caller clears it after use.</summary>
+    public byte[] ReadPkcs12()
     {
-        byte[] content = File.ReadAllBytes(path);
+        byte[] content = File.ReadAllBytes(paths.IdentityFile);
         if (content.Length <= HeaderLength
             || BinaryPrimitives.ReadUInt32LittleEndian(content) != Magic
             || content[4] != FormatVersion)
@@ -56,7 +57,27 @@ public sealed class IdentityStore(
             throw new InvalidDataException("Identity file has an unknown format.");
         }
 
-        byte[] pkcs12 = protector.Unprotect(content[HeaderLength..]);
+        return protector.Unprotect(content[HeaderLength..]);
+    }
+
+    /// <summary>
+    /// Replaces the identity with a restored one (used before the engine loads it). The current file is kept
+    /// next to it in case the restore was a mistake.
+    /// </summary>
+    public void Replace(byte[] pkcs12)
+    {
+        string path = paths.IdentityFile;
+        if (File.Exists(path))
+        {
+            File.Move(path, $"{path}.replaced-{timeProvider.GetUtcNow():yyyyMMddHHmmss}");
+        }
+
+        Write(path, pkcs12);
+    }
+
+    private DeviceIdentity Load()
+    {
+        byte[] pkcs12 = ReadPkcs12();
         try
         {
             X509Certificate2 certificate = X509CertificateLoader.LoadPkcs12(pkcs12, password: null, X509KeyStorageFlags.UserKeySet);
@@ -74,16 +95,7 @@ public sealed class IdentityStore(
         byte[] pkcs12 = generated.Export(X509ContentType.Pkcs12);
         try
         {
-            byte[] protectedBlob = protector.Protect(pkcs12);
-            byte[] content = new byte[HeaderLength + protectedBlob.Length];
-            BinaryPrimitives.WriteUInt32LittleEndian(content, Magic);
-            content[4] = FormatVersion;
-            protectedBlob.CopyTo(content, HeaderLength);
-
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            string temp = path + ".tmp";
-            File.WriteAllBytes(temp, content);
-            File.Move(temp, path, overwrite: true);
+            Write(path, pkcs12);
 
             // Reload from the persisted bytes so the in-memory key is exactly what we will load next time.
             X509Certificate2 certificate = X509CertificateLoader.LoadPkcs12(pkcs12, password: null, X509KeyStorageFlags.UserKeySet);
@@ -93,5 +105,19 @@ public sealed class IdentityStore(
         {
             CryptographicOperations.ZeroMemory(pkcs12);
         }
+    }
+
+    private void Write(string path, byte[] pkcs12)
+    {
+        byte[] protectedBlob = protector.Protect(pkcs12);
+        byte[] content = new byte[HeaderLength + protectedBlob.Length];
+        BinaryPrimitives.WriteUInt32LittleEndian(content, Magic);
+        content[4] = FormatVersion;
+        protectedBlob.CopyTo(content, HeaderLength);
+
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        string temp = path + ".tmp";
+        File.WriteAllBytes(temp, content);
+        File.Move(temp, path, overwrite: true);
     }
 }

@@ -100,11 +100,12 @@ Kế hoạch ban đầu:
 - Interface `INotifier`, `IGlobalHotkey` trong Core (cho bản Linux/macOS sau này).
 - **Chưa làm:** menu cấp 1 trên Windows 11 (cần ký số); thử trên máy thật: toast, menu Explorer sau khi cài MSI, chọn 100+ file.
 
-### M6b
+### M6b ✅ (2026-10-12)
 
-- AD mức 1 ([13](13-active-directory.md)): tên thật, phòng ban, ảnh. Mức 2 đã có (MSI + ADMX, M4b). Mức 3–4 nếu có AD CS.
-- Sao lưu/khôi phục danh tính.
-- Chuẩn bị port Linux/macOS.
+- **AD mức 1** ([13](13-active-directory.md) §2): tên thật, phòng ban, ảnh (cache khi offline); presence `dept` + `av`, `GET /hello/avatar`, Bridge chuyển tiếp; thẻ hiện ảnh + phòng ban, Xóm xếp theo phòng ban, ô tìm người. Mức 2 đã có từ M4b.
+- **Sao lưu/khôi phục danh tính** ([04](04-identity-security.md) §1.1, ADR-013): file `.skbackup` có mật khẩu (khóa + liên hệ + nhóm), khôi phục áp dụng khi app khởi động lại.
+- **Chuẩn bị port Linux/macOS** ([02](02-architecture.md) §9, ADR-014): Desktop build `net10.0` khi đích không phải Windows; khóa trong thư mục quyền 700; cross-publish `linux-x64` / `osx-arm64` được; Core + Engine test chạy trên WSL Ubuntu.
+- **Chưa làm:** AD trên domain thật (chỉ test bằng dữ liệu giả), mức 3–4 (cần AD CS); chạy giao diện trên Linux/macOS thật, libsecret / Keychain, gói cài Linux/macOS; tìm theo email.
 
 ## Kiểm thử (xuyên suốt)
 

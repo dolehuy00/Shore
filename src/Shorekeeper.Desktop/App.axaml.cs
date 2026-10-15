@@ -27,6 +27,9 @@ public partial class App : Application
 
     public static bool StartInBackground { get; set; }
 
+    /// <summary>Set when the app exits to start again (after a restore); <see cref="Program"/> does the start.</summary>
+    public static bool RestartRequested { get; private set; }
+
     /// <summary>Started by Explorer's "Gửi bằng Shorekeeper…": open "Gửi nhanh" instead of the main window.</summary>
     public static IReadOnlyList<string>? StartupSendPaths { get; set; }
 
@@ -98,6 +101,17 @@ public partial class App : Application
                 app.ShowMainWindow();
             }
         });
+
+    /// <summary>Exits and starts again, e.g. to load a restored identity.</summary>
+    internal static void Restart()
+    {
+        if (Current is App app && app.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            RestartRequested = true;
+            app.isExiting = true;
+            desktop.Shutdown();
+        }
+    }
 
     public void ShowMainWindow()
     {

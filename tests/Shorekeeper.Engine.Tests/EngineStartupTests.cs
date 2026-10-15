@@ -1,3 +1,4 @@
+using System.Runtime.Versioning;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shorekeeper.Core.Identity;
@@ -21,6 +22,13 @@ public sealed class EngineStartupTests : IDisposable
         Assert.False(first.IsEmpty);
         Assert.Equal(first, second);
         Assert.True(File.Exists(folder.Paths.DatabaseFile));
+    }
+
+    [Fact(Skip = "Windows protects the key with DPAPI instead", SkipType = typeof(TestPlatform), SkipWhen = nameof(TestPlatform.IsWindows))]
+    [UnsupportedOSPlatform("windows")]
+    public void Data_folder_is_readable_by_its_owner_only()
+    {
+        Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute, File.GetUnixFileMode(folder.Paths.DataDirectory));
     }
 
     private async Task<DeviceId> StartAndGetDeviceId()

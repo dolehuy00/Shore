@@ -49,6 +49,14 @@ public sealed record PresencePacket
     public IReadOnlyList<PresenceGroup> Groups { get; init; } = [];
 
     public const int MaxGroups = 5;
+
+    /// <summary>Department from the company directory (AD), when known. A claim, like the name.</summary>
+    [JsonPropertyName("dept")]
+    public string? Department { get; init; }
+
+    /// <summary>Set when the device has a picture at <c>GET /hello/avatar</c>; changes with the picture (8 hex digits).</summary>
+    [JsonPropertyName("av")]
+    public string? AvatarTag { get; init; }
 }
 
 /// <param name="Members">Number of members, host included.</param>

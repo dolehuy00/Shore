@@ -70,6 +70,49 @@ public class PresenceCodecTests
     }
 
     [Fact]
+    public void Department_and_picture_tag_round_trip()
+    {
+        var packet = new PresencePacket { Type = PresencePacketTypes.Heartbeat, Id = ValidId, Department = "Phòng Kế toán", AvatarTag = "0a1b2c3d" };
+
+        Assert.True(PresenceCodec.TryDecode(PresenceCodec.Encode(packet), out PresencePacket? decoded));
+        Assert.Equal(("Phòng Kế toán", "0a1b2c3d"), (decoded.Department, decoded.AvatarTag));
+    }
+
+    [Theory]
+    [InlineData("\"av\":\"XYZ\"")]
+    [InlineData("\"av\":\"0A1B2C3D\"")]
+    [InlineData("\"dept\":\"0123456789012345678901234567890123456789x\"")]
+    public void Bad_department_or_picture_tag_is_rejected(string field)
+    {
+        byte[] data = Packet($$"""{"v":1,"type":"heartbeat","id":"{{ValidId}}",{{field}}}""");
+
+        Assert.False(PresenceCodec.TryDecode(data, out _));
+    }
+
+    [Fact]
+    public void Longest_names_fit_by_leaving_out_groups_then_the_department()
+    {
+        var packet = new PresencePacket
+        {
+            Type = PresencePacketTypes.Heartbeat,
+            Id = ValidId,
+            Name = new string('ạ', PresenceCodec.MaxNameLength),
+            Host = new string('H', 63),
+            Addresses = [.. Enumerable.Range(0, 12).Select(i => $"192.168.{i}.{i}")],
+            Department = new string('ạ', PresenceCodec.MaxDepartmentLength),
+            AvatarTag = "0a1b2c3d",
+            Groups = [.. Enumerable.Range(0, PresencePacket.MaxGroups).Select(i => new PresenceGroup(i.ToString("x32", CultureInfo.InvariantCulture), new string('ạ', PresenceCodec.MaxGroupNameLength), i))],
+        };
+
+        byte[] data = PresenceCodec.Encode(packet);
+
+        Assert.True(data.Length <= PresenceCodec.MaxPacketSize);
+        Assert.True(PresenceCodec.TryDecode(data, out PresencePacket? decoded));
+        Assert.Equal(packet.Name, decoded.Name);
+        Assert.Equal("0a1b2c3d", decoded.AvatarTag);
+    }
+
+    [Fact]
     public void Decode_normalizes_device_id_case()
     {
         byte[] data = Packet($$"""{"v":1,"type":"heartbeat","id":"{{ValidId.ToUpperInvariant()}}"}""");

@@ -83,3 +83,9 @@ internal static class FreePort
         return ((IPEndPoint)socket.LocalEndPoint!).Port;
     }
 }
+
+/// <summary>For tests of behavior only Windows has (<c>SkipUnless</c>).</summary>
+public static class TestPlatform
+{
+    public static bool IsWindows => OperatingSystem.IsWindows();
+}

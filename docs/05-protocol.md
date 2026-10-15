@@ -47,9 +47,12 @@
 | `caps` | Khả năng: `bridge` khi máy đang làm cầu nối | M4 |
 | `proto` | Phiên bản API hỗ trợ | (dự kiến) |
 | `groups` | Nhóm mà máy này Host (tối đa 5): `[{ id, name, n }]`, `n` = số thành viên | M5 |
+| `dept` | Phòng ban trong AD, tối đa 40 ký tự | M6b |
+| `av` | Có ảnh ở `GET /hello/avatar`; 8 ký tự hex, đổi khi ảnh đổi | M6b |
 | `bridges` | Bridge mà peer đang biết | (bỏ: PEX đã mang danh sách Bridge, gói UDP giữ gọn) |
 
-- Mọi gói (kể cả `heartbeat`) mang **đầy đủ** presence. Gói ~300 byte, nên không cần bản rút gọn.
+- Mọi gói (kể cả `heartbeat`) mang **đầy đủ** presence. Gói ~300 byte, nên không cần bản rút gọn. Gói vượt 1200 byte thì bỏ bớt nhóm (từ cuối), rồi tới `dept`.
+- `dept` dài quá hoặc `av` sai định dạng thì bỏ cả gói, như `name`.
 - Trường thiếu thì dùng giá trị mặc định; trường lạ thì bỏ qua. Nhờ vậy thêm trường ở milestone sau không làm hỏng peer cũ.
 
 > Presence công khai tên và nhóm. Đó là thông tin **ai trong LAN cũng thấy**, cần thiết để xin kết nối hoặc xin vào nhóm.

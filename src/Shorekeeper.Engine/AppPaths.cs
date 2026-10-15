@@ -23,6 +23,15 @@ public sealed class AppPaths
 
     public string SettingsFile => Path.Combine(DataDirectory, "settings.json");
 
+    /// <summary>A restored backup waiting for the next start (encrypted like the identity).</summary>
+    public string PendingRestoreFile => Path.Combine(DataDirectory, "restore.pending");
+
+    /// <summary>Last profile read from the company directory (AD), for when it cannot be reached.</summary>
+    public string DirectoryCacheFile => Path.Combine(DataDirectory, "directory.json");
+
+    /// <summary>The user's picture from the company directory.</summary>
+    public string AvatarFile => Path.Combine(DataDirectory, "avatar.img");
+
     public string LogsDirectory => Path.Combine(DataDirectory, "logs");
 
     public string SnapshotsDirectory => Path.Combine(DataDirectory, "snapshots");
@@ -38,7 +47,18 @@ public sealed class AppPaths
 
     public void EnsureCreated()
     {
-        Directory.CreateDirectory(DataDirectory);
+        if (OperatingSystem.IsWindows())
+        {
+            Directory.CreateDirectory(DataDirectory);
+        }
+        else
+        {
+            // Owner only: outside Windows the device key is protected by these permissions alone.
+            const UnixFileMode ownerOnly = UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute;
+            Directory.CreateDirectory(DataDirectory, ownerOnly);
+            File.SetUnixFileMode(DataDirectory, ownerOnly);
+        }
+
         Directory.CreateDirectory(LogsDirectory);
         Directory.CreateDirectory(SnapshotsDirectory);
     }

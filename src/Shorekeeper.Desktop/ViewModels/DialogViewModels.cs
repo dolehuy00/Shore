@@ -369,11 +369,16 @@ public sealed partial class IncomingOfferViewModel(ReceivedOffer offer, string s
 }
 
 /// <summary>Single-line text input, e.g. "Đặt tên gợi nhớ".</summary>
-public sealed partial class TextPromptViewModel(string title, string label, string initialText) : DialogViewModel
+/// <param name="isPassword">Typed characters are hidden.</param>
+public sealed partial class TextPromptViewModel(string title, string label, string initialText, bool isPassword = false, string okText = "Lưu") : DialogViewModel
 {
     public string Title { get; } = title;
 
     public string Label { get; } = label;
+
+    public char PasswordChar { get; } = isPassword ? '•' : '\0';
+
+    public string OkText { get; } = okText;
 
     [ObservableProperty]
     public partial string Text { get; set; } = initialText;

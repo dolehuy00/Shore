@@ -69,5 +69,22 @@ public sealed class SettingsStoreTests : IDisposable
         Assert.Equal("Mai · PC-QA-07", CreateStore().Load().DisplayName);
     }
 
+    [Fact]
+    public void Directory_name_replaces_the_default_name_but_not_one_the_user_chose()
+    {
+        var service = new SettingsService(folder.Paths, CreateStore(), Core.Platform.NullPolicyProvider.Instance);
+        service.Load();
+        int changes = 0;
+        service.Changed += (_, _) => changes++;
+
+        service.SetDirectoryName("Lê Văn Huy");
+        Assert.Equal("Lê Văn Huy", service.Current.DisplayName);
+
+        service.Update(s => s with { DisplayName = "Huy (build)" });
+        service.SetDirectoryName("Lê Văn Huy");
+        Assert.Equal("Huy (build)", service.Current.DisplayName);
+        Assert.Equal(2, changes);
+    }
+
     private SettingsStore CreateStore() => new(folder.Paths, TimeProvider.System, NullLogger<SettingsStore>.Instance);
 }

@@ -1,6 +1,7 @@
 using Shorekeeper.Core.Discovery;
 using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Groups;
+using Shorekeeper.Engine.Identity;
 using Shorekeeper.Engine.Settings;
 
 namespace Shorekeeper.Engine.Discovery;
@@ -22,14 +23,18 @@ public sealed class LocalPresence : ILocalPresence
     private readonly ApiServer api;
     private readonly SettingsService settings;
     private readonly GroupStore groups;
+    private readonly DirectoryProfileService profile;
     private MyStatus status = MyStatus.Online;
 
-    public LocalPresence(LocalDevice device, ApiServer api, SettingsService settings, GroupStore groups)
+    public LocalPresence(LocalDevice device, ApiServer api, SettingsService settings, GroupStore groups, DirectoryProfileService profile)
     {
         this.device = device;
         this.api = api;
         this.settings = settings;
         this.groups = groups;
+        this.profile = profile;
+        // Department and picture from the company directory arrive after start-up.
+        profile.Changed += (_, _) => Changed?.Invoke(this, EventArgs.Empty);
         // Others see a new or renamed group (and its member count) right away.
         groups.Changed += (_, _) => Changed?.Invoke(this, EventArgs.Empty);
         // A new display name is announced right away instead of with the next heartbeat.
@@ -66,5 +71,7 @@ public sealed class LocalPresence : ILocalPresence
         Groups = settings.Current.GroupsEnabled
             ? [.. groups.GetAll().Where(g => g.Role == GroupRole.Host).Take(PresencePacket.MaxGroups).Select(g => new PresenceGroup(g.Id, g.Name, g.Members.Count))]
             : [],
+        Department = profile.Department,
+        AvatarTag = profile.AvatarTag,
     };
 }

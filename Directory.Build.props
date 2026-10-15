@@ -8,5 +8,7 @@
     <Product>Shorekeeper</Product>
     <Version>0.1.0</Version>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <!-- Lets the whole solution build on Linux/macOS too (the Windows-only projects compile, their tests need Windows). -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
   </PropertyGroup>
 </Project>

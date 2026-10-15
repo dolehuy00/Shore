@@ -16,6 +16,7 @@
     <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.12" />
     <PackageVersion Include="Dapper" Version="2.1.89" />
     <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="10.0.12" />
+    <PackageVersion Include="System.DirectoryServices.AccountManagement" Version="10.0.12" />
 
     <!-- Installer (WiX v5, see docs/decisions.md ADR-006) -->
     <PackageVersion Include="WixToolset.Firewall.wixext" Version="5.0.2" />

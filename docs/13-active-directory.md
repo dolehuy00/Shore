@@ -13,16 +13,19 @@
 
 App tự phát hiện máy có join domain không (`Domain.GetComputerDomain()`) để bật mức 1. Mức 3–4 bật theo chính sách GPO.
 
-## 2. Mức 1 — Thông tin người dùng từ AD
+## 2. Mức 1 — Thông tin người dùng từ AD (M6b ✅)
 
-- Đọc thuộc tính của **người dùng hiện tại**: `displayName`, `department`, `title`, `mail`, `thumbnailPhoto` (qua `System.DirectoryServices.AccountManagement` → `UserPrincipal.Current`, và `DirectoryEntry` để lấy ảnh).
-- Cache lại. Không kết nối được DC (làm việc offline) thì dùng bản cache.
-- Presence UDP chỉ mang tên + phòng ban (gói nhỏ). Ảnh lấy qua `GET /api/v1/hello/avatar` khi cần.
-- UI: thẻ hiện ảnh + phòng ban; danh sách "Xóm" nhóm theo phòng ban; tìm theo tên/phòng ban/email.
+- Máy có join domain không: `NetGetJoinInformation` (cục bộ, không gọi mạng). Không join thì không làm gì.
+- Đọc thuộc tính của **người dùng hiện tại** (tìm theo SID): `displayName`, `department`, `title`, `mail`, `thumbnailPhoto` (qua `System.DirectoryServices.AccountManagement` + `DirectoryEntry`). Đọc khi khởi động và 8 giờ một lần, chờ tối đa 30 giây.
+- Cache lại (`directory.json`, `avatar.img`). Không kết nối được DC (làm việc offline) thì dùng bản cache.
+- Tên AD thay tên mặc định "user · máy"; tên người dùng tự đặt vẫn được ưu tiên.
+- Presence UDP chỉ mang tên + phòng ban (`dept`) + mã ảnh (`av`). Ảnh (≤ 100 KB) lấy qua `GET /api/v1/hello/avatar` khi cần, cache trong RAM theo mã ảnh. Bridge chuyển tiếp cả `dept` và `av`.
+- UI: thẻ hiện ảnh + phòng ban; "Xóm" xếp theo phòng ban rồi tên; ô tìm theo tên / tên máy / phòng ban. (Email chưa có trong presence nên chưa tìm theo email.)
+- Chỉ test được bằng dữ liệu giả; chưa thử trên domain thật.
 
 > ⚠️ Ở mức 1, thông tin là do **máy kia tự khai**. Ai cũng có thể sửa app để khai tên người khác. UI vẫn hiển thị "⚠ Chưa kết nối" cho đến khi Kết nối (hoặc có mức 3).
 
-Thêm vào thiết kế: interface `IDirectoryInfo` trong Core, hiện thực trong `Platform.Windows`.
+Interface `IDirectoryInfo` trong Core, hiện thực `ActiveDirectoryInfo` trong `Platform.Windows`; Linux/macOS dùng bản rỗng.
 
 ## 3. Mức 2 — Quản lý tập trung qua GPO
 

@@ -11,6 +11,7 @@ public sealed class SettingsService(AppPaths paths, SettingsStore store, IPolicy
     private readonly Lock gate = new();
     private ShorekeeperSettings? user;
     private EffectiveSettings? current;
+    private string? directoryName;
 
     public event EventHandler<EffectiveSettings>? Changed;
 
@@ -44,8 +45,31 @@ public sealed class SettingsService(AppPaths paths, SettingsStore store, IPolicy
         return updated;
     }
 
+    /// <summary>
+    /// The user's real name from the company directory (docs/13-active-directory.md §2) replaces the default
+    /// "user · PC" name; a name the user typed still wins.
+    /// </summary>
+    public void SetDirectoryName(string? name)
+    {
+        EffectiveSettings? updated = null;
+        lock (gate)
+        {
+            directoryName = string.IsNullOrWhiteSpace(name) ? null : name.Trim();
+            EffectiveSettings resolved = Resolve(User);
+            if (resolved.DisplayName != Current.DisplayName)
+            {
+                current = updated = resolved;
+            }
+        }
+
+        if (updated is not null)
+        {
+            Changed?.Invoke(this, updated);
+        }
+    }
+
     private EffectiveSettings Resolve(ShorekeeperSettings settings) =>
-        SettingsResolver.Resolve(settings, policy, DefaultDisplayName, paths.DefaultDownloadDirectory);
+        SettingsResolver.Resolve(settings, policy, directoryName ?? DefaultDisplayName, paths.DefaultDownloadDirectory);
 
     private static InvalidOperationException NotLoaded() => new("Settings have not been loaded yet.");
 }

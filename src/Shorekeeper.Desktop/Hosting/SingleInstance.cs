@@ -15,6 +15,7 @@ internal sealed class SingleInstance : IDisposable
     private readonly string pipeName;
     private readonly CancellationTokenSource cancellation = new();
     private bool ownsMutex;
+    private bool disposed;
 
     private SingleInstance(string name)
     {
@@ -28,7 +29,7 @@ internal sealed class SingleInstance : IDisposable
     public static SingleInstance Acquire()
     {
         // Local\ mutexes are per session; the pipe name also needs the session and user to stay unique machine-wide.
-        string user = WindowsIdentity.GetCurrent().User?.Value ?? Environment.UserName;
+        string user = (OperatingSystem.IsWindows() ? WindowsIdentity.GetCurrent().User?.Value : null) ?? Environment.UserName;
         int session = Process.GetCurrentProcess().SessionId;
         return new SingleInstance($"Shorekeeper-{user}-{session}");
     }
@@ -93,6 +94,12 @@ internal sealed class SingleInstance : IDisposable
 
     public void Dispose()
     {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
         cancellation.Cancel();
         if (ownsMutex)
         {

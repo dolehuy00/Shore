@@ -16,13 +16,15 @@ public static class PresenceCodec
     private const int HeaderLength = 6;
     private static ReadOnlySpan<byte> Magic => "SKP1"u8;
 
-    /// <summary>Encodes the packet; hosted groups that do not fit are left out, last first.</summary>
+    /// <summary>Encodes the packet; what does not fit is left out: hosted groups (last first), then the department.</summary>
     public static byte[] Encode(PresencePacket packet)
     {
         byte[] json = JsonSerializer.SerializeToUtf8Bytes(packet, PresenceJsonContext.Default.PresencePacket);
-        while (HeaderLength + json.Length > MaxPacketSize && packet.Groups.Count > 0)
+        while (HeaderLength + json.Length > MaxPacketSize && (packet.Groups.Count > 0 || packet.Department is not null))
         {
-            packet = packet with { Groups = [.. packet.Groups.Take(packet.Groups.Count - 1)] };
+            packet = packet.Groups.Count > 0
+                ? packet with { Groups = [.. packet.Groups.Take(packet.Groups.Count - 1)] }
+                : packet with { Department = null };
             json = JsonSerializer.SerializeToUtf8Bytes(packet, PresenceJsonContext.Default.PresencePacket);
         }
 
@@ -62,7 +64,9 @@ public static class PresenceCodec
             || decoded.Version != PresencePacket.CurrentVersion
             || !PresencePacketTypes.IsKnown(decoded.Type)
             || !DeviceId.TryParse(decoded.Id, out DeviceId id)
-            || name.Length > MaxNameLength)
+            || name.Length > MaxNameLength
+            || decoded.Department is { Length: > MaxDepartmentLength }
+            || (decoded.AvatarTag is not null && !IsValidAvatarTag(decoded.AvatarTag)))
         {
             return false;
         }
@@ -78,6 +82,7 @@ public static class PresenceCodec
             Status = decoded.Status ?? PresenceStatus.Available,
             Capabilities = decoded.Capabilities ?? [],
             Groups = [.. (decoded.Groups ?? []).Where(IsValid).Take(PresencePacket.MaxGroups)],
+            Department = string.IsNullOrWhiteSpace(decoded.Department) ? null : decoded.Department.Trim(),
         };
         return true;
     }
@@ -89,6 +94,11 @@ public static class PresenceCodec
         group is not null && IsValidGroupId(group.Id) && group.Name is { Length: > 0 and <= MaxGroupNameLength } && group.Members >= 0;
 
     public const int MaxGroupNameLength = 40;
+
+    public const int MaxDepartmentLength = 40;
+
+    /// <summary>8 lowercase hex digits (start of the picture's SHA-256).</summary>
+    public static bool IsValidAvatarTag(string? tag) => tag is { Length: 8 } && tag.All(char.IsAsciiHexDigitLower);
 }
 
 [JsonSourceGenerationOptions(DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault)]

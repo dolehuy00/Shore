@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
+using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -14,7 +15,7 @@ namespace Shorekeeper.Desktop.ViewModels;
 
 /// <summary>
 /// The "Xóm" page (docs/10-ux.md §2): contacts (online or not) first, then everyone else currently online.
-/// Blocked peers are hidden.
+/// Blocked peers are hidden. With Active Directory, people are ordered by department and show their picture.
 /// </summary>
 public sealed partial class NeighborhoodViewModel : ObservableObject
 {
@@ -23,15 +24,18 @@ public sealed partial class NeighborhoodViewModel : ObservableObject
     private readonly GroupStore groups;
     private readonly PairingService pairing;
     private readonly DialogService dialogs;
+    private readonly PeerAvatars avatars;
     private readonly Dictionary<DeviceId, PeerCardViewModel> cards = [];
 
-    public NeighborhoodViewModel(PeerDirectory directory, TrustStore trust, GroupStore groups, PairingService pairing, DialogService dialogs)
+    public NeighborhoodViewModel(
+        PeerDirectory directory, TrustStore trust, GroupStore groups, PairingService pairing, DialogService dialogs, PeerAvatars avatars)
     {
         this.directory = directory;
         this.trust = trust;
         this.groups = groups;
         this.pairing = pairing;
         this.dialogs = dialogs;
+        this.avatars = avatars;
 
         directory.Changed += (_, _) => Dispatcher.UIThread.Post(Refresh);
         trust.Changed += (_, _) => Dispatcher.UIThread.Post(Refresh);
@@ -51,6 +55,12 @@ public sealed partial class NeighborhoodViewModel : ObservableObject
 
     public string OthersHeader => $"Đang online trong mạng ({Others.Count})";
 
+    /// <summary>Filters cards by name, machine or department.</summary>
+    [ObservableProperty]
+    public partial string Search { get; set; } = "";
+
+    partial void OnSearchChanged(string value) => Refresh();
+
     [RelayCommand]
     private Task AddPeerAsync() => dialogs.AddPeerAsync();
 
@@ -60,11 +70,13 @@ public sealed partial class NeighborhoodViewModel : ObservableObject
         Group[] joined = [.. groups.GetAll().Where(g => g.Role != GroupRole.Pending)];
 
         var contacts = trust.GetAll(TrustLevel.Trusted)
-            .Select(record => Card(record.DeviceId).Update(record, live.GetValueOrDefault(record.DeviceId), null))
+            .Select(record => Show(Card(record.DeviceId).Update(record, live.GetValueOrDefault(record.DeviceId), null), live.GetValueOrDefault(record.DeviceId)))
+            .Where(Matches)
             .ToList();
         var others = live.Values
             .Where(peer => trust.GetLevel(peer.DeviceId) == TrustLevel.Unknown)
-            .Select(peer => Card(peer.DeviceId).Update(null, peer, joined.FirstOrDefault(g => g.Contains(peer.DeviceId))))
+            .Select(peer => Show(Card(peer.DeviceId).Update(null, peer, joined.FirstOrDefault(g => g.Contains(peer.DeviceId))), peer))
+            .Where(Matches)
             .ToList();
 
         Sync(Contacts, contacts);
@@ -86,11 +98,53 @@ public sealed partial class NeighborhoodViewModel : ObservableObject
         return card;
     }
 
+    private bool Matches(PeerCardViewModel card)
+    {
+        string search = Search.Trim();
+        return search.Length == 0
+            || card.DisplayName.Contains(search, StringComparison.CurrentCultureIgnoreCase)
+            || card.HostName.Contains(search, StringComparison.CurrentCultureIgnoreCase)
+            || (card.Department?.Contains(search, StringComparison.CurrentCultureIgnoreCase) ?? false);
+    }
+
+    /// <summary>Loads the peer's picture when it announces a new one.</summary>
+    private PeerCardViewModel Show(PeerCardViewModel card, PeerInfo? live)
+    {
+        if (live?.AvatarTag is { } tag && tag != card.AvatarTag)
+        {
+            card.AvatarTag = tag;
+            _ = LoadAvatarAsync(card, live);
+        }
+
+        return card;
+    }
+
+    private async Task LoadAvatarAsync(PeerCardViewModel card, PeerInfo live)
+    {
+        if (await avatars.GetAsync(live) is not { } photo || card.AvatarTag != live.AvatarTag)
+        {
+            return;
+        }
+
+        try
+        {
+            card.Avatar = new Bitmap(new MemoryStream(photo));
+        }
+        catch (Exception)
+        {
+            // Not a picture Avalonia can read: keep the plain card.
+        }
+    }
+
     /// <summary>Cards are updated in place; the list is only rebuilt when membership or order changes.</summary>
     private static void Sync(ObservableCollection<PeerCardViewModel> target, List<PeerCardViewModel> desired)
     {
-        // Culture-aware so Vietnamese names sort the way people expect.
-        desired.Sort((x, y) => CultureInfo.CurrentCulture.CompareInfo.Compare(x.DisplayName, y.DisplayName, CompareOptions.IgnoreCase));
+        // By department (people without one last), then name; culture-aware so Vietnamese sorts the way people expect.
+        CompareInfo compare = CultureInfo.CurrentCulture.CompareInfo;
+        desired.Sort((x, y) =>
+            x.Department is null != y.Department is null ? (x.Department is null ? 1 : -1)
+            : compare.Compare(x.Department, y.Department, CompareOptions.IgnoreCase) is var byDepartment and not 0 ? byDepartment
+            : compare.Compare(x.DisplayName, y.DisplayName, CompareOptions.IgnoreCase));
         if (target.SequenceEqual(desired))
         {
             return;
@@ -218,6 +272,22 @@ public sealed partial class PeerCardViewModel(DeviceId deviceId, NeighborhoodVie
     [ObservableProperty]
     public partial string GroupText { get; set; } = "";
 
+    /// <summary>From the company directory (a claim, like the name).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasDepartment))]
+    public partial string? Department { get; set; }
+
+    public bool HasDepartment => Department is not null;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasAvatar))]
+    public partial Bitmap? Avatar { get; set; }
+
+    public bool HasAvatar => Avatar is not null;
+
+    /// <summary>Version of the picture shown or being loaded.</summary>
+    internal string? AvatarTag { get; set; }
+
     public bool HasGroup => !IsTrusted && SharedGroupId is not null;
 
     public bool CanSend => IsTrusted || SharedGroupId is not null;
@@ -258,6 +328,8 @@ public sealed partial class PeerCardViewModel(DeviceId deviceId, NeighborhoodVie
         IsTrusted = record?.TrustLevel == TrustLevel.Trusted;
         IsAutoAccept = record?.AutoAcceptMaxBytes is not null;
         IsOnline = live is not null;
+        // Offline contacts keep what was last seen.
+        Department = live is null ? Department : live.Department;
         IsBusy = live?.IsBusy == true;
         IsInactive = live is null || live.State == PeerState.Stale;
         Subtitle = live is null ? HostName

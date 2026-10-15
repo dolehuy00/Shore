@@ -29,18 +29,22 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<IPolicyProvider>(NullPolicyProvider.Instance);
         services.TryAddSingleton<IFirewallInspector>(NullFirewallInspector.Instance);
+        services.TryAddSingleton<IDirectoryInfo>(NullDirectoryInfo.Instance);
 
         services.AddSingleton<SettingsStore>();
         services.AddSingleton<SettingsService>();
         services.AddSingleton<SqliteDatabase>();
         services.AddSingleton<MigrationRunner>();
         services.AddSingleton<IdentityStore>();
+        services.AddSingleton<IdentityBackup>();
         services.AddSingleton<TrustStore>();
         services.AddSingleton<GroupStore>();
         services.AddSingleton<PeerDirectory>();
         services.AddSingleton<LocalDevice>();
         services.AddSingleton<ShorekeeperEngine>();
         services.AddHostedService<EngineHostedService>();
+        services.AddSingleton<DirectoryProfileService>();
+        services.AddHostedService(sp => sp.GetRequiredService<DirectoryProfileService>());
 
         return services;
     }
@@ -74,6 +78,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ILocalPresence>(sp => sp.GetRequiredService<LocalPresence>());
         services.AddSingleton<ProbeHints>();
         services.AddSingleton<BridgeRegistry>();
+        services.AddSingleton<PeerAvatars>();
         services.AddSingleton<BridgeClient>();
         services.AddHostedService(sp => sp.GetRequiredService<BridgeClient>());
         services.AddSingleton<PexService>();
