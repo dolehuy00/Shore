@@ -31,6 +31,7 @@
 | 11 | [Triển khai trên Windows](11-windows-deployment.md) | Installer, firewall, GPO, auto-start |
 | 12 | [Lộ trình](12-roadmap.md) | Milestone M0 → M6 |
 | 13 | [Tích hợp Active Directory](13-active-directory.md) | Tùy chọn, nếu công ty có AD |
+| 14 | [Bản Android](14-android.md) | Kế hoạch: ràng buộc nền tảng, kiến trúc, giai đoạn A0 → A6 |
 | — | [Quyết định kiến trúc (ADR)](decisions.md) | Nhật ký quyết định & lý do |
 | — | [Câu hỏi mở](open-questions.md) | Những điểm cần chốt thêm |
 
