@@ -91,6 +91,22 @@ Mỗi mục là một app thử nhỏ, không phải code sản phẩm:
 
 **Xong khi:** PC và điện thoại gọi `GET /hello` của nhau qua mTLS và nhận được presence của nhau. Nếu mục 1 thất bại: thử lại với BouncyCastle TLS trước khi đi tiếp.
 
+**Kết quả (2026-10-15, ✅ xong):** điện thoại OPPO CPH2525, Android 13; laptop Windows 11, cùng Wi-Fi 5 GHz. Code thử ở `spikes/android-a0/` (A0Phone, A0Ui, A0Pc).
+
+| # | Kết quả |
+|---|---|
+| 1 mTLS | ✅ `SslStream` của .NET chạy được cả hai vai: điện thoại làm server (bắt buộc client cert) và làm client gọi Shorekeeper thật trên PC. TLS 1.3, DeviceId lấy từ cert khớp. **Không cần BouncyCastle** (R2 đã gỡ) |
+| 2 Multicast | ✅ Có `MulticastLock` thì nghe được heartbeat của PC; probe unicast được PC trả lời |
+| 3 SQLite + Dapper | ✅ Bản Release |
+| 4 Avalonia.Android | ✅ Giao diện + tiếng Việt. Activity của Avalonia là `AppCompatActivity` → phải đặt theme `Theme.AppCompat.*`. Nhận được `ACTION_SEND` từ Files (`content://`, đọc tên + size + stream); phải đọc cả `ClipData` lẫn `EXTRA_STREAM`. Avalonia chỉ có **một** giao diện chính: activity phải là `launchMode=singleTask`, nếu không chia sẻ lúc app đang mở sẽ tạo activity thứ hai và crash. Mở lại app từ danh sách gần đây thì Android **gửi lại intent chia sẻ cũ** (quyền đọc URI đã hết): bỏ qua intent có cờ `FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY`. File 50 MB từ Files đọc ở 137 MB/s |
+| 5 Chạy nền | Server trong activity: màn hình tắt + Doze thì **không trả lời**. Foreground service `connectedDevice` + `WifiLock` (high perf) + `WakeLock` (partial): màn hình tắt + Doze sâu vẫn **14–16 MB/s**. Mới thử ~1 phút Doze, chưa thử 30 phút |
+
+- Tốc độ điện thoại → PC (100 MB): TLS 7–16 MB/s qua Wi-Fi, 27 MB/s qua USB; TLS chỉ tốn ~15% so với TCP thường.
+- Bài học về mạng (R7): trên một mạng mesh, mọi kết nối giữa hai máy chỉ đạt 0,1 MB/s, kể cả `nc` ngoài app; đổi Wi-Fi thì bình thường. Phần Chẩn đoán của app Android nên đo và báo trường hợp này.
+- Rule firewall "Public" của Windows có thể có sẵn nếu người dùng đã bấm Allow ở hộp thoại của Windows; rule của MSI chỉ mở Domain/Private.
+- Chia sẻ nhiều file (`ACTION_SEND_MULTIPLE`): 4 ảnh từ Files, đủ tên + size.
+- Chưa thử: giữ service 30 phút, quyền mạng LAN của Android 17.
+
 ### A1 — Tách Engine khỏi ASP.NET Core
 
 - `PeerApiHandlers` + `Shorekeeper.Engine.Kestrel` (desktop không đổi hành vi) + `Shorekeeper.Engine.MiniHttp`.
