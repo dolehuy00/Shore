@@ -12,14 +12,19 @@ namespace Shorekeeper.Android.Platform;
 internal static class Notifications
 {
     private const string OffersChannel = "offers";
-    private const string TransfersChannel = "transfers";
+    // A new id: a channel's badge setting cannot change once created, and the old "transfers" one showed a badge.
+    private const string TransfersChannel = "transfer-progress";
     private const int OfferNotificationId = 2;
 
     public static void CreateChannels(Context context)
     {
         NotificationManager manager = Manager(context);
         manager.CreateNotificationChannel(new NotificationChannel(OffersChannel, L.T("File gửi đến"), NotificationImportance.High));
-        manager.CreateNotificationChannel(new NotificationChannel(TransfersChannel, L.T("Đang truyền file"), NotificationImportance.Low));
+        // The ongoing transfer is not something waiting for the user, so the icon's badge stays for offers.
+        var transfers = new NotificationChannel(TransfersChannel, L.T("Đang truyền file"), NotificationImportance.Low);
+        transfers.SetShowBadge(false);
+        manager.CreateNotificationChannel(transfers);
+        manager.DeleteNotificationChannel("transfers");
     }
 
     public static Notification Transfer(Context context, string text) =>
