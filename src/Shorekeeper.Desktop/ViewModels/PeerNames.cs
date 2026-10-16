@@ -13,4 +13,7 @@ public sealed class PeerNames(TrustStore trust, PeerDirectory directory)
         ?? id.ShortForm;
 
     public bool IsOnline(DeviceId id) => directory.Snapshot().Any(p => p.DeviceId == id && p.State == PeerState.Online);
+
+    /// <summary>The peer as seen on the network right now; null while it is not.</summary>
+    public PeerInfo? Live(DeviceId id) => directory.Snapshot().FirstOrDefault(p => p.DeviceId == id);
 }

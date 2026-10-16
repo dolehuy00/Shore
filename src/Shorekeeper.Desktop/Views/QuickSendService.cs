@@ -6,6 +6,7 @@ using Shorekeeper.Core.Settings;
 using Shorekeeper.Core.Trust;
 using Shorekeeper.Desktop.ViewModels;
 using Shorekeeper.Engine;
+using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Groups;
 using Shorekeeper.Engine.Settings;
 using Shorekeeper.Engine.Transfers;
@@ -114,8 +115,7 @@ public sealed class QuickSendService(
 
         List<QuickSendPerson> people =
         [
-            .. trust.GetAll(TrustLevel.Trusted)
-                .Select(record => new QuickSendPerson(record.DeviceId, names.Of(record.DeviceId), Online(record.DeviceId), null)),
+            .. trust.GetAll(TrustLevel.Trusted).Select(record => Person(record.DeviceId, names.Of(record.DeviceId), record.HostName, null, lastSent)),
         ];
         if (settings.Current.GroupsEnabled)
         {
@@ -128,11 +128,7 @@ public sealed class QuickSendService(
                         && people.TrueForAll(p => p.DeviceId != member.DeviceId))
                     {
                         string name = names.Of(member.DeviceId);
-                        people.Add(new QuickSendPerson(
-                            member.DeviceId,
-                            name == member.DeviceId.ShortForm ? member.Name : name,
-                            L.F("{0} · nhóm {1}", Online(member.DeviceId), group.Name),
-                            group.Id));
+                        people.Add(Person(member.DeviceId, name == member.DeviceId.ShortForm ? member.Name : name, "", group, lastSent));
                     }
                 }
             }
@@ -142,10 +138,34 @@ public sealed class QuickSendService(
         [
             .. people
                 .OrderByDescending(p => lastSent.GetValueOrDefault(p.DeviceId))
-                .ThenByDescending(p => names.IsOnline(p.DeviceId))
+                .ThenByDescending(p => !p.IsInactive)
                 .ThenBy(p => p.Name, StringComparer.CurrentCultureIgnoreCase),
         ];
     }
 
-    private string Online(DeviceId id) => names.IsOnline(id) ? "online" : "offline";
+    /// <param name="hostName">The computer's name as last known, used while it is offline.</param>
+    private QuickSendPerson Person(DeviceId id, string name, string hostName, Group? group, Dictionary<DeviceId, DateTimeOffset> lastSent)
+    {
+        PeerInfo? live = names.Live(id);
+        List<string> detail = [];
+        if ((live?.HostName ?? hostName) is { Length: > 0 } host)
+        {
+            detail.Add(host);
+        }
+
+        if (lastSent.TryGetValue(id, out DateTimeOffset sentAt))
+        {
+            detail.Add(L.F("gửi lần cuối {0}", TransferText.Ago(sentAt, DateTimeOffset.UtcNow)));
+        }
+
+        return new QuickSendPerson(id, name, group?.Id)
+        {
+            IsPhone = live?.Os.Equals("android", StringComparison.OrdinalIgnoreCase) == true,
+            IsBusy = live?.IsBusy == true,
+            IsInactive = live is null || live.State == PeerState.Stale,
+            StatusText = live is null ? "Offline" : live.IsBusy ? L.T("Bận") : "Online",
+            Detail = string.Join(" · ", detail),
+            GroupText = group is null ? "" : L.F("Nhóm {0}", group.Name),
+        };
+    }
 }

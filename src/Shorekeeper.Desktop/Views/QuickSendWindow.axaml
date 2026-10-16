@@ -10,6 +10,31 @@
         Topmost="True"
         WindowStartupLocation="CenterScreen"
         DragDrop.AllowDrop="True">
+  <Window.Styles>
+    <!-- As on the main window: green online, amber busy, gray offline. -->
+    <Style Selector="Ellipse.dot">
+      <Setter Property="Width" Value="8" />
+      <Setter Property="Height" Value="8" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Fill" Value="#22C55E" />
+    </Style>
+    <Style Selector="Ellipse.dot.busy">
+      <Setter Property="Fill" Value="#F59E0B" />
+    </Style>
+    <Style Selector="Ellipse.dot.muted">
+      <Setter Property="Fill" Value="#9CA3AF" />
+    </Style>
+    <Style Selector="Border.person">
+      <Setter Property="Margin" Value="0,0,0,6" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Sk.CardBorder}" />
+      <Setter Property="Background" Value="{DynamicResource Sk.CardBackground}" />
+    </Style>
+    <Style Selector="Border.person.checked">
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentButtonBackground}" />
+    </Style>
+  </Window.Styles>
   <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" Margin="20">
     <TextBlock Text="{l:T 'Gửi nhanh'}" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,10" />
 
@@ -17,11 +42,28 @@
     <Border Grid.Row="1" Padding="12" CornerRadius="8" BorderThickness="1" BorderBrush="{DynamicResource Sk.CardBorder}" Background="{DynamicResource Sk.CardBackground}">
       <StackPanel Spacing="8">
         <TextBlock Text="{Binding PathsHeader}" FontWeight="SemiBold" />
-        <ScrollViewer MaxHeight="96" IsVisible="{Binding HasPaths}">
-          <ItemsControl ItemsSource="{Binding Paths}">
+        <ScrollViewer MaxHeight="168" IsVisible="{Binding HasPaths}">
+          <ItemsControl x:Name="FileList" ItemsSource="{Binding Files}">
             <ItemsControl.ItemTemplate>
-              <DataTemplate x:DataType="x:String">
-                <TextBlock Text="{Binding}" TextTrimming="PathSegmentEllipsis" FontSize="12" Opacity="0.8" ToolTip.Tip="{Binding}" />
+              <DataTemplate x:DataType="vm:QuickSendFile">
+                <!-- Name, then the folder it is in; ✕ takes just this one out. -->
+                <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,2" ToolTip.Tip="{Binding Path}">
+                  <Border Width="32" Height="32" CornerRadius="6" Background="{DynamicResource Sk.TileBackground}" VerticalAlignment="Center">
+                    <Panel>
+                      <PathIcon Data="{StaticResource Icon.Document}" IsVisible="{Binding !IsFolder}" Width="16" Height="16" />
+                      <PathIcon Data="{StaticResource Icon.FolderOpen}" IsVisible="{Binding IsFolder}" Width="16" Height="16" />
+                    </Panel>
+                  </Border>
+                  <StackPanel Grid.Column="1" Margin="10,0,8,0" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{Binding Folder}" FontSize="11" Opacity="0.6" TextTrimming="PathSegmentEllipsis" />
+                  </StackPanel>
+                  <Button Grid.Column="2" Command="{Binding #FileList.((vm:QuickSendViewModel)DataContext).RemoveCommand}" CommandParameter="{Binding}"
+                          Background="Transparent" BorderThickness="0" Padding="6" VerticalAlignment="Center"
+                          ToolTip.Tip="{l:T 'Bỏ khỏi danh sách'}" AutomationProperties.Name="{l:T 'Bỏ khỏi danh sách'}">
+                    <PathIcon Data="{StaticResource Icon.Dismiss}" Width="12" Height="12" />
+                  </Button>
+                </Grid>
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
@@ -42,12 +84,30 @@
       <ItemsControl ItemsSource="{Binding People}">
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:QuickSendPerson">
-            <CheckBox IsChecked="{Binding IsChecked}" Margin="0,2">
-              <TextBlock>
-                <Run Text="{Binding Name}" FontWeight="SemiBold" />
-                <Run Text="{Binding Detail}" Foreground="Gray" />
-              </TextBlock>
-            </CheckBox>
+            <!-- The whole row is the check box; ticked rows get an accent border. -->
+            <Border Classes="person" Classes.checked="{Binding IsChecked}">
+              <CheckBox IsChecked="{Binding IsChecked}" Margin="12,8" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                <Grid ColumnDefinitions="Auto,*" Margin="4,0,0,0">
+                  <Border Width="36" Height="36" CornerRadius="8" Background="{DynamicResource Sk.TileBackground}" VerticalAlignment="Center">
+                    <Panel>
+                      <PathIcon Data="{StaticResource Icon.Laptop}" IsVisible="{Binding !IsPhone}" Width="18" Height="18" />
+                      <PathIcon Data="{StaticResource Icon.Phone}" IsVisible="{Binding IsPhone}" Width="18" Height="18" />
+                    </Panel>
+                  </Border>
+                  <StackPanel Grid.Column="1" Margin="10,0,0,0" Spacing="1" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                    <Grid ColumnDefinitions="Auto,Auto,*">
+                      <Ellipse Classes="dot" Classes.busy="{Binding IsBusy}" Classes.muted="{Binding IsInactive}" Margin="0,0,6,0" />
+                      <TextBlock Grid.Column="1" Text="{Binding StatusText}" FontSize="12" Opacity="0.75" />
+                      <TextBlock Grid.Column="2" Text="{Binding Detail, StringFormat=' · {0}'}" IsVisible="{Binding Detail.Length}"
+                                 FontSize="12" Opacity="0.6" TextTrimming="CharacterEllipsis" />
+                    </Grid>
+                    <TextBlock Text="{Binding GroupText}" IsVisible="{Binding HasGroup}" FontSize="12"
+                               Foreground="{DynamicResource AccentButtonBackground}" TextTrimming="CharacterEllipsis" />
+                  </StackPanel>
+                </Grid>
+              </CheckBox>
+            </Border>
           </DataTemplate>
         </ItemsControl.ItemTemplate>
       </ItemsControl>

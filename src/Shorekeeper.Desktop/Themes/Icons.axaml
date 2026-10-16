@@ -1,7 +1,7 @@
 <!--
   Icons from Fluent UI System Icons 1.1.344 (https://github.com/microsoft/fluentui-system-icons),
   Copyright (c) 2020 Microsoft Corporation, MIT License (THIRD-PARTY-NOTICES.md). Path data only, 24x24.
-  F1 = nonzero fill, as in the SVGs.
+  F1 = nonzero fill, as in the SVGs. Icon.Dismiss is drawn in the same style (a 1.5-wide X).
 -->
 <ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
@@ -21,4 +21,5 @@
   <StreamGeometry x:Key="Icon.CheckCircle">F1 M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20m3.22 6.97-4.47 4.47-1.97-1.97a.75.75 0 0 0-1.06 1.06l2.5 2.5c.3.3.77.3 1.06 0l5-5a.75.75 0 1 0-1.06-1.06</StreamGeometry>
   <StreamGeometry x:Key="Icon.Add">F1 M12 3.25c.41 0 .75.34.75.75v7.25H20a.75.75 0 0 1 0 1.5h-7.25V20a.75.75 0 0 1-1.5 0v-7.25H4a.75.75 0 0 1 0-1.5h7.25V4c0-.41.34-.75.75-.75</StreamGeometry>
   <StreamGeometry x:Key="Icon.Search">F1 M16.1 17.16a8 8 0 1 1 1.06-1.06l4.62 4.62a.75.75 0 1 1-1.06 1.06zM17.5 11a6.5 6.5 0 1 0-13 0 6.5 6.5 0 0 0 13 0</StreamGeometry>
+  <StreamGeometry x:Key="Icon.Dismiss">F1 M4.47 4.47a.75.75 0 0 1 1.06 0L12 10.94l6.47-6.47a.75.75 0 1 1 1.06 1.06L13.06 12l6.47 6.47a.75.75 0 1 1-1.06 1.06L12 13.06l-6.47 6.47a.75.75 0 0 1-1.06-1.06L10.94 12 4.47 5.53a.75.75 0 0 1 0-1.06z</StreamGeometry>
 </ResourceDictionary>

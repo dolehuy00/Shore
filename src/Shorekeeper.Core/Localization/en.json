@@ -410,5 +410,8 @@
   "Nhấn Ctrl hoặc Alt (thêm Shift nếu muốn) cùng một chữ cái, số hoặc F1–F12. Esc để hủy.": "Press Ctrl or Alt (plus Shift if you like) with a letter, digit or F1–F12. Esc to cancel.",
   "Ẩn danh sách": "Hide list",
   "Xem cả {0} mục": "Show all {0} items",
-  "{0} (thư mục · {1})": "{0} (folder · {1})"
+  "{0} (thư mục · {1})": "{0} (folder · {1})",
+  "Bỏ khỏi danh sách": "Remove from the list",
+  "gửi lần cuối {0}": "last sent {0}",
+  "Nhóm {0}": "Group {0}"
 }
