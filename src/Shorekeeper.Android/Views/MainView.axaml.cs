@@ -31,12 +31,12 @@ public partial class MainView : UserControl
         }
     }
 
-    /// <summary>"Chọn file sao lưu…" in Cài đặt.</summary>
+    /// <summary>"Khôi phục…" in Cài đặt: the file first, then its password.</summary>
     private async void OnPickBackup(object? sender, RoutedEventArgs e)
     {
         if (DataContext is MainViewModel main && await PickAsync(L.T("Chọn bản sao lưu Shorekeeper"), allowMultiple: false) is [var file])
         {
-            await main.Settings.OpenBackupAsync(file);
+            main.Settings.StartRestore(file);
         }
     }
 

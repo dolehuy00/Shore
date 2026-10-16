@@ -102,10 +102,7 @@
   "Giữ DeviceId, liên hệ và nhóm khi đổi điện thoại: không phải Kết nối lại với ai.": "Keep your DeviceId, contacts and groups when you change phones: no need to Connect with anyone again.",
   "Mật khẩu (ít nhất 8 ký tự)": "Password (at least 8 characters)",
   "Nhập lại mật khẩu": "Repeat the password",
-  "Sao lưu vào Download/Shorekeeper": "Back up to Download/Shorekeeper",
-  "Khôi phục": "Restore",
   "Mật khẩu của bản sao lưu": "Backup password",
-  "Chọn file sao lưu…": "Choose a backup file…",
   "Khôi phục và khởi động lại": "Restore and restart",
   "Hủy": "Cancel",
   "Mạng": "Network",
@@ -405,5 +402,7 @@
   "Ngắt kết nối với {0}?": "Disconnect from {0}?",
   "Muốn gửi file cho nhau lại thì phải Kết nối lại.": "To send files to each other again, you will have to Connect again.",
   "Chặn {0}?": "Block {0}?",
-  "Máy này sẽ không gửi được yêu cầu kết nối hay file cho bạn nữa. Bỏ chặn trong Cài đặt.": "This device won't be able to send you connection requests or files anymore. Unblock it in Settings."
+  "Máy này sẽ không gửi được yêu cầu kết nối hay file cho bạn nữa. Bỏ chặn trong Cài đặt.": "This device won't be able to send you connection requests or files anymore. Unblock it in Settings.",
+  "Sao lưu": "Back up",
+  "File được lưu vào Download/Shorekeeper.": "The file goes to Download/Shorekeeper."
 }

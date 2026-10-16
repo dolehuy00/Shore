@@ -394,23 +394,11 @@
               <TextBlock Classes="h3" Text="{l:T 'Sao lưu danh tính'}" />
               <TextBlock Classes="muted" Text="{l:T 'Giữ DeviceId, liên hệ và nhóm khi đổi điện thoại: không phải Kết nối lại với ai.'}"
                          FontSize="12" TextWrapping="Wrap" />
-              <TextBox Text="{Binding BackupPassword}" PasswordChar="•" PlaceholderText="{l:T 'Mật khẩu (ít nhất 8 ký tự)'}" />
-              <TextBox Text="{Binding BackupPasswordAgain}" PasswordChar="•" PlaceholderText="{l:T 'Nhập lại mật khẩu'}" />
-              <Button Content="{l:T 'Sao lưu vào Download/Shorekeeper'}" Command="{Binding BackupCommand}" />
-
-              <TextBlock Classes="h3" Text="{l:T 'Khôi phục'}" />
-              <TextBox Text="{Binding RestorePassword}" PasswordChar="•" PlaceholderText="{l:T 'Mật khẩu của bản sao lưu'}" />
-              <Button Content="{l:T 'Chọn file sao lưu…'}" Click="OnPickBackup" />
-              <TextBlock Text="{Binding BackupStatus}" IsVisible="{Binding HasBackupStatus}" TextWrapping="Wrap" />
-              <Border Classes="card" IsVisible="{Binding CanConfirmRestore}" Background="#1AF59E0B">
-                <StackPanel Spacing="8">
-                  <TextBlock Text="{Binding RestoreSummary}" TextWrapping="Wrap" />
-                  <WrapPanel ItemSpacing="8" LineSpacing="8">
-                    <Button Content="{l:T 'Khôi phục và khởi động lại'}" Command="{Binding ConfirmRestoreCommand}" Classes="accent" />
-                    <Button Content="{l:T 'Hủy'}" Command="{Binding CancelRestoreCommand}" />
-                  </WrapPanel>
-                </StackPanel>
-              </Border>
+              <WrapPanel ItemSpacing="8" LineSpacing="8" Margin="0,4,0,0">
+                <Button Content="{l:T 'Sao lưu danh tính…'}" Command="{Binding StartBackupCommand}" />
+                <Button Content="{l:T 'Khôi phục…'}" Click="OnPickBackup" />
+              </WrapPanel>
+              <TextBlock Text="{Binding BackupStatus}" IsVisible="{Binding HasBackupStatus}" FontSize="13" TextWrapping="Wrap" />
 
               <TextBlock Classes="h3" Text="{l:T 'Đã chặn'}" />
               <TextBlock Classes="muted" Text="{l:T 'Chưa chặn ai.'}" IsVisible="{Binding !Blocked.Items.Count}" FontSize="12" />
@@ -485,6 +473,34 @@
             <Button Content="{l:T 'Từ chối'}" Command="{Binding DeclineCommand}" />
             <Button Content="{l:T 'Chấp nhận'}" Command="{Binding AcceptCommand}" Classes="accent" />
           </StackPanel>
+        </StackPanel>
+      </Border>
+    </Border>
+
+    <!-- Backup and restore, one step at a time. -->
+    <Border Classes="overlay" IsVisible="{Binding Settings.IsDialogOpen}">
+      <Border Classes="dialog" DataContext="{Binding Settings}" x:DataType="vm:SettingsTabViewModel">
+        <StackPanel Spacing="12">
+          <StackPanel Spacing="12" IsVisible="{Binding IsBackupStep}">
+            <TextBlock Text="{l:T 'Sao lưu danh tính'}" FontSize="18" FontWeight="SemiBold" />
+            <TextBlock Text="{Binding BackupPrompt}" TextWrapping="Wrap" />
+            <TextBox Text="{Binding BackupPassword}" PasswordChar="•" PlaceholderText="{l:T 'Mật khẩu (ít nhất 8 ký tự)'}" />
+            <TextBox Text="{Binding BackupPasswordAgain}" PasswordChar="•" PlaceholderText="{l:T 'Nhập lại mật khẩu'}" />
+            <TextBlock Classes="muted" Text="{l:T 'File được lưu vào Download/Shorekeeper.'}" FontSize="12" TextWrapping="Wrap" />
+          </StackPanel>
+          <StackPanel Spacing="12" IsVisible="{Binding IsRestorePasswordStep}">
+            <TextBlock Text="{l:T 'Khôi phục danh tính'}" FontSize="18" FontWeight="SemiBold" />
+            <TextBox Text="{Binding RestorePassword}" PasswordChar="•" PlaceholderText="{l:T 'Mật khẩu của bản sao lưu'}" />
+          </StackPanel>
+          <StackPanel Spacing="12" IsVisible="{Binding IsRestoreConfirmStep}">
+            <TextBlock Text="{l:T 'Khôi phục danh tính'}" FontSize="18" FontWeight="SemiBold" />
+            <TextBlock Text="{Binding RestoreSummary}" TextWrapping="Wrap" />
+          </StackPanel>
+          <TextBlock Text="{Binding DialogError}" IsVisible="{Binding HasDialogError}" Foreground="#EF4444" TextWrapping="Wrap" />
+          <WrapPanel ItemSpacing="8" LineSpacing="8" HorizontalAlignment="Right">
+            <Button Content="{l:T 'Hủy'}" Command="{Binding CancelDialogCommand}" />
+            <Button Content="{Binding DialogOkText}" Command="{Binding DialogOkCommand}" Classes="accent" />
+          </WrapPanel>
         </StackPanel>
       </Border>
     </Border>

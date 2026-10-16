@@ -19,6 +19,14 @@ using Shorekeeper.Engine.Trust;
 
 namespace Shorekeeper.Android.ViewModels;
 
+public enum BackupStep
+{
+    None,
+    Backup,
+    RestorePassword,
+    RestoreConfirm,
+}
+
 /// <summary>
 /// "Cài đặt" on the phone (docs/14-android.md, A5): name, "Luôn nhận file", identity backup and restore (to move to
 /// a new phone without connecting again, ADR-013), and what the network looks like from here, with "add by address"
@@ -37,6 +45,7 @@ public sealed partial class SettingsTabViewModel : ObservableObject
     private readonly MainViewModel main;
     private readonly string? startLanguage;
     private OpenedBackup? opened;
+    private string? restoreLocation;
 
     public SettingsTabViewModel(IServiceProvider services, MainViewModel main)
     {
@@ -105,6 +114,30 @@ public sealed partial class SettingsTabViewModel : ObservableObject
     }
 
     // ───────────── Backup ─────────────
+    // Two buttons on the page; everything else happens in one dialog:
+    // "Sao lưu…" → password twice; "Khôi phục…" → pick the file → its password → what restoring would do.
+
+    /// <summary>The step the backup dialog shows; <see cref="BackupStep.None"/> when it is closed.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsDialogOpen), nameof(IsBackupStep), nameof(IsRestorePasswordStep), nameof(IsRestoreConfirmStep), nameof(DialogOkText))]
+    public partial BackupStep Step { get; set; }
+
+    public bool IsDialogOpen => Step != BackupStep.None;
+
+    public bool IsBackupStep => Step == BackupStep.Backup;
+
+    public bool IsRestorePasswordStep => Step == BackupStep.RestorePassword;
+
+    public bool IsRestoreConfirmStep => Step == BackupStep.RestoreConfirm;
+
+    public string DialogOkText => Step switch
+    {
+        BackupStep.Backup => L.T("Sao lưu"),
+        BackupStep.RestorePassword => L.T("Mở"),
+        _ => L.T("Khôi phục và khởi động lại"),
+    };
+
+    public string BackupPrompt { get; } = L.F("Đặt mật khẩu cho bản sao lưu (ít nhất {0} ký tự):", IdentityBackup.MinPasswordLength);
 
     [ObservableProperty]
     public partial string BackupPassword { get; set; } = "";
@@ -115,18 +148,23 @@ public sealed partial class SettingsTabViewModel : ObservableObject
     [ObservableProperty]
     public partial string RestorePassword { get; set; } = "";
 
+    /// <summary>A problem to fix without leaving the dialog (short password, wrong password…).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasDialogError))]
+    public partial string? DialogError { get; set; }
+
+    public bool HasDialogError => DialogError is not null;
+
+    /// <summary>The outcome, under the buttons once the dialog has closed.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasBackupStatus))]
     public partial string? BackupStatus { get; set; }
 
     public bool HasBackupStatus => BackupStatus is not null;
 
-    /// <summary>Set once a backup is opened: what restoring it would do.</summary>
+    /// <summary>What restoring the opened backup would do.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanConfirmRestore))]
     public partial string? RestoreSummary { get; set; }
-
-    public bool CanConfirmRestore => RestoreSummary is not null;
 
     // ───────────── Network ─────────────
 
@@ -166,19 +204,55 @@ public sealed partial class SettingsTabViewModel : ObservableObject
         main.Notice = L.T("Đã lưu tên.");
     }
 
-    /// <summary>Writes the .skbackup into the download folder, where the Files app finds it.</summary>
     [RelayCommand]
+    private void StartBackup()
+    {
+        BackupPassword = BackupPasswordAgain = "";
+        DialogError = BackupStatus = null;
+        Step = BackupStep.Backup;
+    }
+
+    /// <summary>"Khôi phục…": the view picked a file (a content:// URI or a path); its password comes next.</summary>
+    internal void StartRestore(string location)
+    {
+        restoreLocation = location;
+        opened = null;
+        RestorePassword = "";
+        DialogError = BackupStatus = null;
+        Step = BackupStep.RestorePassword;
+    }
+
+    [RelayCommand]
+    private Task DialogOkAsync() => Step switch
+    {
+        BackupStep.Backup => BackupAsync(),
+        BackupStep.RestorePassword => OpenBackupAsync(),
+        BackupStep.RestoreConfirm => ConfirmRestore(),
+        _ => Task.CompletedTask,
+    };
+
+    [RelayCommand]
+    private void CancelDialog()
+    {
+        opened = null;
+        restoreLocation = null;
+        BackupPassword = BackupPasswordAgain = RestorePassword = "";
+        DialogError = null;
+        Step = BackupStep.None;
+    }
+
+    /// <summary>Writes the .skbackup into the download folder, where the Files app finds it.</summary>
     private async Task BackupAsync()
     {
         if (BackupPassword.Length < IdentityBackup.MinPasswordLength)
         {
-            BackupStatus = L.F("Mật khẩu phải có ít nhất {0} ký tự.", IdentityBackup.MinPasswordLength);
+            DialogError = L.F("Mật khẩu phải có ít nhất {0} ký tự.", IdentityBackup.MinPasswordLength);
             return;
         }
 
         if (BackupPassword != BackupPasswordAgain)
         {
-            BackupStatus = L.T("Hai lần nhập mật khẩu không khớp.");
+            DialogError = L.T("Hai lần nhập mật khẩu không khớp.");
             return;
         }
 
@@ -189,20 +263,22 @@ public sealed partial class SettingsTabViewModel : ObservableObject
             Directory.CreateDirectory(paths.DefaultDownloadDirectory);
             string password = BackupPassword;
             await Task.Run(() => backup.ExportAsync(path, password, device.DisplayName));
+            CancelDialog();
             BackupStatus = L.F("Đã sao lưu vào {0}. Cất file và mật khẩu ở nơi an toàn: ai có cả hai có thể giả làm máy này.", path);
-            BackupPassword = BackupPasswordAgain = "";
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            BackupStatus = L.F("Không ghi được file: {0}", ex.Message);
+            DialogError = L.F("Không ghi được file: {0}", ex.Message);
         }
     }
 
-    /// <summary>Called with the file picked by the view (a content:// URI or a path).</summary>
-    internal async Task OpenBackupAsync(string location)
+    private async Task OpenBackupAsync()
     {
-        opened = null;
-        RestoreSummary = null;
+        if (restoreLocation is not { } location)
+        {
+            return;
+        }
+
         try
         {
             string password = RestorePassword;
@@ -226,39 +302,32 @@ public sealed partial class SettingsTabViewModel : ObservableObject
         }
         catch (CryptographicException)
         {
-            BackupStatus = L.T("Sai mật khẩu, hoặc file đã bị thay đổi.");
+            DialogError = L.T("Sai mật khẩu, hoặc file đã bị thay đổi.");
             return;
         }
         catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
         {
-            BackupStatus = L.T("Không đọc được: file này không phải bản sao lưu Shorekeeper, hoặc đã hỏng.");
+            DialogError = L.T("Không đọc được: file này không phải bản sao lưu Shorekeeper, hoặc đã hỏng.");
             return;
         }
 
         BackupSummary summary = opened.Summary;
-        BackupStatus = null;
+        DialogError = null;
+        Step = BackupStep.RestoreConfirm;
         RestoreSummary = L.F(
             "Danh tính {0} ({1}, sao lưu lúc {2:HH:mm dd/MM/yyyy}) với {3} liên hệ và {4} nhóm. Danh tính hiện tại ({5}) cùng liên hệ và nhóm sẽ bị thay; app sẽ khởi động lại. Đừng chạy cùng một danh tính trên hai máy cùng lúc.",
             summary.DeviceId.ShortForm, summary.DisplayName, summary.CreatedAt.ToLocalTime(), summary.Contacts, summary.Groups, device.DeviceId.ShortForm);
     }
 
-    [RelayCommand]
-    private void ConfirmRestore()
+    private Task ConfirmRestore()
     {
-        if (opened is null)
+        if (opened is not null)
         {
-            return;
+            backup.StageRestore(opened);
+            AppRestart.Restart(global::Android.App.Application.Context);
         }
 
-        backup.StageRestore(opened);
-        AppRestart.Restart(global::Android.App.Application.Context);
-    }
-
-    [RelayCommand]
-    private void CancelRestore()
-    {
-        opened = null;
-        RestoreSummary = null;
+        return Task.CompletedTask;
     }
 
     /// <summary>"Thêm máy": asks an address who it is, then connects; the address is kept so the phone finds it again.</summary>
