@@ -26,7 +26,7 @@ internal static class Notifications
         new Notification.Builder(context, TransfersChannel)
             .SetContentTitle("Shorekeeper")!
             .SetContentText(text)!
-            .SetSmallIcon(AndroidResource.Drawable.StatSysDownload)!
+            .SetSmallIcon(Resource.Drawable.ic_stat_shorekeeper)!
             .SetOngoing(true)!
             .SetContentIntent(OpenApp(context, tab: 0))!
             .Build()!;
@@ -40,7 +40,7 @@ internal static class Notifications
             .SetContentTitle(L.F("{0} gửi cho bạn", senderName))!
             .SetContentText(summary)!
             .SetStyle(new Notification.BigTextStyle().BigText(offer.Note is null ? summary : $"{summary}\n\"{offer.Note}\""))!
-            .SetSmallIcon(AndroidResource.Drawable.StatSysDownload)!
+            .SetSmallIcon(Resource.Drawable.ic_stat_shorekeeper)!
             .SetAutoCancel(true)!
             .SetContentIntent(OpenApp(context, tab: 1))!
             .AddAction(Action(context, L.T("Tải"), TransferService.ActionDownload, key))!

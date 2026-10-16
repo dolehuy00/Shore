@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
   <!-- Android 10 still needs the legacy flag (and the permission below) to write into Download/ by path. -->
-  <application android:label="Shorekeeper" android:supportsRtl="true" android:requestLegacyExternalStorage="true" />
+  <application android:label="Shorekeeper" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:supportsRtl="true" android:requestLegacyExternalStorage="true" />
   <uses-permission android:name="android.permission.INTERNET" />
   <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
   <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
