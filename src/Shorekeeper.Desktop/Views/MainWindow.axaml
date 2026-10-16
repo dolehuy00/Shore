@@ -477,9 +477,9 @@
                 </ComboBox>
 
                 <TextBlock Grid.Row="2" Text="{l:T 'Ngôn ngữ'}" VerticalAlignment="Center" Margin="0,0,12,0" Opacity="0.7" />
-                <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding Settings.LanguageChoices}" SelectedItem="{Binding Settings.Language}" MinWidth="140">
+                <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{x:Static l:LanguageChoice.All}" SelectedItem="{Binding Settings.Language}" MinWidth="140">
                   <ComboBox.ItemTemplate>
-                    <DataTemplate x:DataType="vm:LanguageChoice">
+                    <DataTemplate x:DataType="l:LanguageChoice">
                       <TextBlock Text="{Binding Label}" />
                     </DataTemplate>
                   </ComboBox.ItemTemplate>

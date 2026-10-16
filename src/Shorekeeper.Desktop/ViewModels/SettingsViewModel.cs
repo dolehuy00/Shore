@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Shorekeeper.Core.Localization;
 using Shorekeeper.Core.Settings;
+using Shorekeeper.Desktop.Localization;
 using Shorekeeper.Desktop.Views;
 using Shorekeeper.Engine;
 using Shorekeeper.Engine.Discovery;
@@ -15,9 +16,6 @@ using Shorekeeper.Engine.Settings;
 namespace Shorekeeper.Desktop.ViewModels;
 
 public sealed record SettingChoice(int Value, string Label);
-
-/// <param name="Code">"vi", "en", or null for the system language.</param>
-public sealed record LanguageChoice(string? Code, string Label);
 
 /// <summary>"Cài đặt → Gửi & nhận" and "Máy ở mạng khác" (docs/10-ux.md §9). Settings locked by IT policy are read-only.</summary>
 public sealed partial class SettingsViewModel : ObservableObject
@@ -48,12 +46,6 @@ public sealed partial class SettingsViewModel : ObservableObject
     public IReadOnlyList<SettingChoice> ReconnectChoices { get; } =
     [
         new(15, L.T("15 giây")), new(30, L.T("30 giây")), new(60, L.T("1 phút")), new(120, L.T("2 phút")), new(300, L.T("5 phút")),
-    ];
-
-    /// <summary>Each language named in itself, so it can be found whatever the current one is.</summary>
-    public IReadOnlyList<LanguageChoice> LanguageChoices { get; } =
-    [
-        new(null, L.T("Theo hệ điều hành")), new(L.Vietnamese, "Tiếng Việt"), new(L.English, "English"),
     ];
 
     [ObservableProperty]
@@ -306,7 +298,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         CreateSenderSubfolders = current.CreateSenderSubfolders;
         AlwaysSnapshotBeforeSend = current.AlwaysSnapshotBeforeSend;
         QuickSendHotkey = current.QuickSendHotkey;
-        Language = LanguageChoices.FirstOrDefault(c => c.Code == settings.User.Language) ?? LanguageChoices[0];
+        Language = LanguageChoice.Of(settings.User.Language);
         OfferLifetime = Closest(OfferLifetimeChoices, settings.User.OfferLifetimeHours ?? (int)current.OfferLifetime.TotalHours);
         ReconnectWindow = Closest(ReconnectChoices, (int)current.ReconnectWindow.TotalSeconds);
         IsDownloadDirectoryLocked = current.IsLocked(nameof(ShorekeeperSettings.DownloadDirectory));

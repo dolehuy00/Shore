@@ -8,6 +8,7 @@ using Shorekeeper.Android.Platform;
 using Shorekeeper.Core.Discovery;
 using Shorekeeper.Core.Localization;
 using Shorekeeper.Core.Platform;
+using Shorekeeper.Desktop.Localization;
 using Shorekeeper.Engine;
 using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Discovery;
@@ -32,6 +33,7 @@ public sealed partial class SettingsTabViewModel : ObservableObject
     private readonly LocalDevice device;
     private readonly AppPaths paths;
     private readonly MainViewModel main;
+    private readonly string? startLanguage;
     private OpenedBackup? opened;
 
     public SettingsTabViewModel(IServiceProvider services, MainViewModel main)
@@ -46,6 +48,8 @@ public sealed partial class SettingsTabViewModel : ObservableObject
         paths = services.GetRequiredService<AppPaths>();
         this.main = main;
         DisplayName = settings.Current.DisplayName;
+        startLanguage = settings.User.Language;
+        Language = LanguageChoice.Of(startLanguage);
         directory.Changed += (_, _) => Dispatcher.UIThread.Post(() => OnPropertyChanged(nameof(NetworkText)));
     }
 
@@ -65,6 +69,32 @@ public sealed partial class SettingsTabViewModel : ObservableObject
                 BatteryOptimization.RequestExemption(global::Android.App.Application.Context);
                 main.Notice = L.T("Máy OPPO, Xiaomi, Vivo… còn có trình tiết kiệm pin riêng: vào Cài đặt → Pin → Shorekeeper và cho phép hoạt động nền, nếu không hệ thống vẫn có thể tắt app.");
             }
+        }
+    }
+
+    // ───────────── Language ─────────────
+
+    /// <summary>Saved as soon as it is picked; text is translated when it is created, so it shows after a restart.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(NeedsRestart))]
+    public partial LanguageChoice Language { get; set; }
+
+    public bool NeedsRestart => Language.Code != startLanguage;
+
+    partial void OnLanguageChanged(LanguageChoice value)
+    {
+        if (value.Code != settings.User.Language)
+        {
+            settings.Update(s => s with { Language = value.Code });
+        }
+    }
+
+    [RelayCommand]
+    private void RestartApp()
+    {
+        if (NeedsRestart)
+        {
+            AppRestart.Restart(global::Android.App.Application.Context);
         }
     }
 

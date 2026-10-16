@@ -3,7 +3,9 @@ using Android.Net.Wifi;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Shorekeeper.Android.Platform;
+using Shorekeeper.Core.Localization;
 using Shorekeeper.Core.Platform;
 using Shorekeeper.Engine;
 using Shorekeeper.Engine.Hosting;
@@ -24,9 +26,24 @@ public static class EngineHost
     private static WifiManager.MulticastLock? multicastLock;
 
     /// <summary>Started once per process; later calls get the same task.</summary>
-    public static Task<IServiceProvider> StartAsync(Context context) => starting ??= Task.Run(() => StartCoreAsync(context));
+    public static Task<IServiceProvider> StartAsync(Context context)
+    {
+        if (starting is null)
+        {
+            var paths = new AppPaths(
+                Path.Combine(context.FilesDir!.AbsolutePath, "Shorekeeper"),
+                Path.Combine(DownloadDirectory(), "Shorekeeper"));
+            paths.EnsureCreated();
 
-    private static async Task<IServiceProvider> StartCoreAsync(Context context)
+            // The UI is built while the engine starts, so the language chosen in Settings must be in place first.
+            L.Use(new SettingsStore(paths, TimeProvider.System, NullLogger<SettingsStore>.Instance).Load().Language);
+            starting = Task.Run(() => StartCoreAsync(context, paths));
+        }
+
+        return starting;
+    }
+
+    private static async Task<IServiceProvider> StartCoreAsync(Context context, AppPaths paths)
     {
         // Machine and user names mean nothing on a phone ("localhost", "u0_a280").
         string name = GlobalSettings.GetString(context.ContentResolver, "device_name") ?? Build.Model ?? "Android";
@@ -38,11 +55,6 @@ public static class EngineHost
         multicastLock = wifi.CreateMulticastLock("shorekeeper-discovery")!;
         multicastLock.SetReferenceCounted(false);
         multicastLock.Acquire();
-
-        var paths = new AppPaths(
-            Path.Combine(context.FilesDir!.AbsolutePath, "Shorekeeper"),
-            Path.Combine(DownloadDirectory(), "Shorekeeper"));
-        paths.EnsureCreated();
 
         HostApplicationBuilder builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings { DisableDefaults = true });
         builder.Logging.AddProvider(new LogcatLoggerProvider());

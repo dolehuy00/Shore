@@ -200,6 +200,19 @@
                 <Button Grid.Column="1" Content="{l:T 'Lưu'}" Command="{Binding SaveNameCommand}" />
               </Grid>
 
+              <TextBlock Classes="h3" Text="{l:T 'Ngôn ngữ'}" />
+              <ComboBox ItemsSource="{x:Static l:LanguageChoice.All}" SelectedItem="{Binding Language}" HorizontalAlignment="Stretch">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="l:LanguageChoice">
+                    <TextBlock Text="{Binding Label}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+              <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding NeedsRestart}">
+                <TextBlock Text="{l:T 'Ngôn ngữ mới có hiệu lực sau khi khởi động lại Shorekeeper.'}" FontSize="12" Opacity="0.7" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <Button Grid.Column="1" Content="{l:T 'Khởi động lại'}" Command="{Binding RestartAppCommand}" Classes="accent" />
+              </Grid>
+
               <TextBlock Classes="h3" Text="{l:T 'Chạy nền'}" />
               <ToggleSwitch IsChecked="{Binding AlwaysReceive}" OnContent="{l:T 'Luôn nhận file (kể cả khi tắt màn hình)'}" OffContent="{l:T 'Luôn nhận file (kể cả khi tắt màn hình)'}" />
               <TextBlock Text="{l:T 'Giữ một thông báo thường trực để máy tính gửi được file bất cứ lúc nào. Tốn pin hơn một chút.'}"
