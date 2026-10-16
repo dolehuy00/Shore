@@ -81,5 +81,8 @@
 
   <Application.Styles>
     <FluentTheme />
+    <Style Selector=":is(Window)">
+      <Setter Property="Background" Value="{DynamicResource Sk.WindowBackground}" />
+    </Style>
   </Application.Styles>
 </Application>

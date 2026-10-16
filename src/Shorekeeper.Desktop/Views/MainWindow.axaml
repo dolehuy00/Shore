@@ -7,7 +7,6 @@
         Title="Shorekeeper"
         Icon="/Assets/shorekeeper.png"
         Width="960" Height="620" MinWidth="720" MinHeight="480"
-        Background="{DynamicResource Sk.WindowBackground}"
         WindowStartupLocation="CenterScreen">
 
   <Window.Styles>
@@ -476,11 +475,17 @@
         <!-- Nhóm -->
         <StackPanel IsVisible="{Binding IsGroupsVisible}" Spacing="14" MaxWidth="860" HorizontalAlignment="Stretch">
           <Grid ColumnDefinitions="*,Auto">
-            <TextBlock Classes="h2" Text="{l:T 'Nhóm'}" />
-            <Button Grid.Column="1" Content="{l:T '+ Tạo nhóm'}" Command="{Binding Groups.CreateCommand}" IsVisible="{Binding Groups.IsEnabled}" />
+            <TextBlock Classes="h2" Text="{l:T 'Nhóm'}" VerticalAlignment="Center" />
+            <Button Grid.Column="1" Classes="accent" Command="{Binding Groups.CreateCommand}" IsVisible="{Binding Groups.IsEnabled}"
+                    AutomationProperties.Name="{l:T 'Tạo nhóm'}">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <PathIcon Data="{StaticResource Icon.Add}" Width="16" Height="16" />
+                <TextBlock Text="{l:T 'Tạo nhóm'}" />
+              </StackPanel>
+            </Button>
           </Grid>
 
-          <TextBlock IsVisible="{Binding !Groups.IsEnabled}" Opacity="0.7" Text="{l:T 'Quản trị viên đã tắt tính năng nhóm trên máy này.'}" />
+          <TextBlock Classes="muted" IsVisible="{Binding !Groups.IsEnabled}" Text="{l:T 'Quản trị viên đã tắt tính năng nhóm trên máy này.'}" />
 
           <!-- What happened lately -->
           <ItemsControl ItemsSource="{Binding Groups.Notices}">
@@ -489,7 +494,8 @@
                 <Border Classes="panel" Background="#143B82F6">
                   <Grid ColumnDefinitions="*,Auto">
                     <TextBlock Text="{Binding Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
-                    <Button Grid.Column="1" Content="✕" Command="{Binding DismissCommand}" Padding="8,2" Background="Transparent" />
+                    <Button Grid.Column="1" Content="✕" Command="{Binding DismissCommand}" Padding="8,2" Background="Transparent" BorderThickness="0"
+                            AutomationProperties.Name="{l:T 'Đóng'}" />
                   </Grid>
                 </Border>
               </DataTemplate>
@@ -512,23 +518,36 @@
             </ItemsControl.ItemTemplate>
           </ItemsControl>
 
-          <TextBlock Text="{l:T 'Nhóm của tôi'}" FontWeight="SemiBold" Opacity="0.7" IsVisible="{Binding Groups.HasMyGroups}" />
-          <TextBlock IsVisible="{Binding !Groups.HasMyGroups}" Opacity="0.65" TextWrapping="Wrap"
-                     Text="{l:T 'Bạn chưa ở trong nhóm nào. Tạo nhóm, hoặc xin vào một nhóm trong mạng: thành viên cùng nhóm gửi file cho nhau được mà không cần Kết nối từng người.'}" />
+          <TextBlock Classes="section" Text="{l:T 'Nhóm của tôi'}" IsVisible="{Binding Groups.HasMyGroups}" />
+          <StackPanel IsVisible="{Binding !Groups.HasMyGroups}" Spacing="6" Margin="0,24" HorizontalAlignment="Center">
+            <PathIcon Data="{StaticResource Icon.Team}" Width="40" Height="40" Opacity="0.5" HorizontalAlignment="Center" />
+            <TextBlock Text="{l:T 'Bạn chưa ở trong nhóm nào.'}" FontWeight="SemiBold" HorizontalAlignment="Center" />
+            <TextBlock Classes="muted" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="520"
+                       Text="{l:T 'Tạo nhóm, hoặc xin vào một nhóm trong mạng: thành viên cùng nhóm gửi file cho nhau được mà không cần Kết nối từng người.'}" />
+          </StackPanel>
           <ItemsControl ItemsSource="{Binding Groups.MyGroups}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:GroupCardViewModel">
                 <Border Classes="panel" Classes.droptarget="{Binding IsDropTarget}" DragDrop.AllowDrop="True">
                   <StackPanel Spacing="8">
-                    <Grid ColumnDefinitions="*,Auto">
-                      <StackPanel Spacing="2">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                      <Border Classes="tile">
+                        <PathIcon Data="{StaticResource Icon.Team}" Width="22" Height="22" />
+                      </Border>
+                      <StackPanel Grid.Column="1" Spacing="2" Margin="14,0,12,0" VerticalAlignment="Center">
                         <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                        <TextBlock Text="{Binding Subtitle}" Opacity="0.65" FontSize="12" />
+                        <TextBlock Classes="muted" Text="{Binding Subtitle}" FontSize="12" />
                       </StackPanel>
-                      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
-                        <Button Content="{l:T 'Gửi file cho nhóm'}" Command="{Binding SendFilesCommand}" Classes="accent" IsVisible="{Binding CanDrop}" />
+                      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <Button Command="{Binding SendFilesCommand}" Classes="accent" IsVisible="{Binding CanDrop}" AutomationProperties.Name="{l:T 'Gửi file cho nhóm'}">
+                          <StackPanel Orientation="Horizontal" Spacing="8">
+                            <PathIcon Data="{StaticResource Icon.Send}" Width="16" Height="16" />
+                            <TextBlock Text="{l:T 'Gửi file cho nhóm'}" />
+                          </StackPanel>
+                        </Button>
                         <Button Content="{l:T 'Mời…'}" Command="{Binding InviteCommand}" IsVisible="{Binding IsHost}" />
-                        <Button Content="⋯">
+                        <Button Padding="9,7" ToolTip.Tip="{l:T 'Thêm'}" AutomationProperties.Name="{l:T 'Thêm'}">
+                          <PathIcon Data="{StaticResource Icon.More}" Width="16" Height="16" />
                           <Button.Flyout>
                             <MenuFlyout>
                               <MenuItem Header="{l:T 'Gửi thư mục cho nhóm…'}" Command="{Binding SendFolderCommand}" IsVisible="{Binding CanDrop}" />
@@ -541,7 +560,7 @@
                       </StackPanel>
                     </Grid>
 
-                    <TextBlock Text="{Binding StatusText}" IsVisible="{Binding HasStatus}" Opacity="0.8" FontSize="12" TextWrapping="Wrap" />
+                    <TextBlock Classes="muted" Text="{Binding StatusText}" IsVisible="{Binding HasStatus}" FontSize="12" TextWrapping="Wrap" />
 
                     <ItemsControl ItemsSource="{Binding Members}">
                       <ItemsControl.ItemsPanel>
@@ -551,12 +570,13 @@
                       </ItemsControl.ItemsPanel>
                       <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:MemberViewModel">
-                          <Border Padding="8,3" Margin="0,0,6,6" CornerRadius="12" Background="#14808080">
+                          <Border Classes="chip">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                               <Ellipse Classes="dot" Classes.muted="{Binding !IsOnline}" Width="8" Height="8" />
                               <TextBlock Text="{Binding Label}" FontSize="12" VerticalAlignment="Center" />
                               <Button Content="✕" Command="{Binding RemoveCommand}" IsVisible="{Binding CanRemove}" ToolTip.Tip="{l:T 'Loại khỏi nhóm'}"
-                                      Padding="4,0" FontSize="10" Background="Transparent" VerticalAlignment="Center" />
+                                      Padding="4,0" MinHeight="0" FontSize="10" Background="Transparent" BorderThickness="0" VerticalAlignment="Center"
+                                      AutomationProperties.Name="{l:T 'Loại khỏi nhóm'}" />
                             </StackPanel>
                           </Border>
                         </DataTemplate>
@@ -582,24 +602,27 @@
             </ItemsControl.ItemTemplate>
           </ItemsControl>
 
-          <TextBlock Text="{l:T 'Nhóm trong mạng'}" FontWeight="SemiBold" Opacity="0.7" IsVisible="{Binding Groups.HasNetworkGroups}" />
+          <TextBlock Classes="section" Text="{l:T 'Nhóm trong mạng'}" IsVisible="{Binding Groups.HasNetworkGroups}" />
           <ItemsControl ItemsSource="{Binding Groups.NetworkGroups}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:NetworkGroupViewModel">
                 <Border Classes="panel">
-                  <Grid ColumnDefinitions="*,Auto">
-                    <StackPanel Spacing="2">
+                  <Grid ColumnDefinitions="Auto,*,Auto">
+                    <Border Classes="tile">
+                      <PathIcon Data="{StaticResource Icon.Team}" Width="22" Height="22" />
+                    </Border>
+                    <StackPanel Grid.Column="1" Spacing="2" Margin="14,0,12,0" VerticalAlignment="Center">
                       <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                      <TextBlock Text="{Binding Detail}" Opacity="0.65" FontSize="12" />
+                      <TextBlock Classes="muted" Text="{Binding Detail}" FontSize="12" />
                     </StackPanel>
-                    <Button Grid.Column="1" Content="{l:T 'Xin vào'}" Command="{Binding JoinCommand}" VerticalAlignment="Center" />
+                    <Button Grid.Column="2" Content="{l:T 'Xin vào'}" Command="{Binding JoinCommand}" VerticalAlignment="Center" />
                   </Grid>
                 </Border>
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
 
-          <TextBlock Opacity="0.55" FontSize="12" TextWrapping="Wrap"
+          <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
                      Text="{l:T 'Kéo file vào một nhóm để gửi cho các thành viên (chọn được từng người). Thành viên vẫn gửi file cho nhau được khi Host offline.'}" />
         </StackPanel>
 
@@ -631,7 +654,7 @@
               <Button Content="{l:T 'Sao lưu danh tính…'}" Command="{Binding Settings.BackupCommand}" />
               <Button Content="{l:T 'Khôi phục…'}" Command="{Binding Settings.RestoreCommand}" />
             </StackPanel>
-            <TextBlock TextWrapping="Wrap" FontSize="12" Opacity="0.7"
+            <TextBlock Classes="muted" TextWrapping="Wrap" FontSize="12"
                        Text="{l:T 'Bản sao lưu (có mật khẩu) giữ DeviceId, liên hệ và nhóm: cài lại Windows hay đổi máy không phải Kết nối lại với ai.'}" />
           </StackPanel>
 
@@ -639,24 +662,24 @@
           <Border Padding="18,16" CornerRadius="8" BorderThickness="1" BorderBrush="{DynamicResource Sk.CardBorder}" Background="{DynamicResource Sk.CardBackground}">
             <StackPanel Spacing="12">
               <StackPanel Spacing="4">
-                <TextBlock Text="{l:T 'Tên hiển thị'}" Opacity="0.7" />
+                <TextBlock Classes="muted" Text="{l:T 'Tên hiển thị'}" />
                 <TextBox Text="{Binding Settings.DisplayName}" MaxLength="64" />
               </StackPanel>
 
               <StackPanel Spacing="4">
-                <TextBlock Text="{l:T 'Thư mục nhận'}" Opacity="0.7" />
+                <TextBlock Classes="muted" Text="{l:T 'Thư mục nhận'}" />
                 <Grid ColumnDefinitions="*,Auto">
                   <TextBox Text="{Binding Settings.DownloadDirectory}" IsReadOnly="{Binding Settings.IsDownloadDirectoryLocked}" Margin="0,0,8,0" />
                   <Button Grid.Column="1" Content="{l:T 'Chọn…'}" Command="{Binding Settings.PickDownloadDirectoryCommand}"
                           IsEnabled="{Binding !Settings.IsDownloadDirectoryLocked}" />
                 </Grid>
-                <TextBlock Text="{l:T 'Do quản trị viên đặt'}" IsVisible="{Binding Settings.IsDownloadDirectoryLocked}" FontSize="12" Opacity="0.6" />
+                <TextBlock Classes="muted" Text="{l:T 'Do quản trị viên đặt'}" IsVisible="{Binding Settings.IsDownloadDirectoryLocked}" FontSize="12" />
               </StackPanel>
 
               <CheckBox IsChecked="{Binding Settings.CreateSenderSubfolders}" Content="{l:T 'Tạo thư mục con theo tên người gửi'}" />
 
               <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto">
-                <TextBlock Text="{l:T 'File tôi gửi mở trong'}" VerticalAlignment="Center" Margin="0,0,12,8" Opacity="0.7" />
+                <TextBlock Classes="muted" Text="{l:T 'File tôi gửi mở trong'}" VerticalAlignment="Center" Margin="0,0,12,8" />
                 <ComboBox Grid.Column="1" ItemsSource="{Binding Settings.OfferLifetimeChoices}" SelectedItem="{Binding Settings.OfferLifetime}" MinWidth="140" Margin="0,0,0,8">
                   <ComboBox.ItemTemplate>
                     <DataTemplate x:DataType="vm:SettingChoice">
@@ -665,7 +688,7 @@
                   </ComboBox.ItemTemplate>
                 </ComboBox>
 
-                <TextBlock Grid.Row="1" Text="{l:T 'Chờ kết nối lại khi rớt mạng'}" VerticalAlignment="Center" Margin="0,0,12,8" Opacity="0.7" />
+                <TextBlock Classes="muted" Grid.Row="1" Text="{l:T 'Chờ kết nối lại khi rớt mạng'}" VerticalAlignment="Center" Margin="0,0,12,8" />
                 <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding Settings.ReconnectChoices}" SelectedItem="{Binding Settings.ReconnectWindow}"
                           IsEnabled="{Binding !Settings.IsReconnectWindowLocked}" MinWidth="140" Margin="0,0,0,8">
                   <ComboBox.ItemTemplate>
@@ -675,7 +698,7 @@
                   </ComboBox.ItemTemplate>
                 </ComboBox>
 
-                <TextBlock Grid.Row="2" Text="{l:T 'Ngôn ngữ'}" VerticalAlignment="Center" Margin="0,0,12,0" Opacity="0.7" />
+                <TextBlock Classes="muted" Grid.Row="2" Text="{l:T 'Ngôn ngữ'}" VerticalAlignment="Center" Margin="0,0,12,0" />
                 <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{x:Static l:LanguageChoice.All}" SelectedItem="{Binding Settings.Language}" MinWidth="140">
                   <ComboBox.ItemTemplate>
                     <DataTemplate x:DataType="l:LanguageChoice">
@@ -705,28 +728,28 @@
           <TextBlock Classes="h2" Text="{l:T 'Máy ở mạng khác'}" />
           <Border Padding="18,16" CornerRadius="8" BorderThickness="1" BorderBrush="{DynamicResource Sk.CardBorder}" Background="{DynamicResource Sk.CardBackground}">
             <StackPanel Spacing="12">
-              <TextBlock TextWrapping="Wrap" Opacity="0.7"
+              <TextBlock Classes="muted" TextWrapping="Wrap"
                          Text="{l:T 'Máy cùng mạng tự thấy nhau. Máy ở subnet/VLAN khác thấy nhau khi bạn đã kết nối với một máy bên đó, khi có máy làm cầu nối, hoặc khi dò dải IP.'}" />
 
               <StackPanel Spacing="4">
                 <CheckBox IsChecked="{Binding Settings.EnableBridge}" IsEnabled="{Binding !Settings.IsBridgeLocked}">
                   <TextBlock TextWrapping="Wrap" Text="{l:T 'Làm cầu nối cho mạng: máy ở mọi subnet đăng ký qua máy này để thấy nhau (nên bật trên máy hay mở)'}" />
                 </CheckBox>
-                <TextBlock Text="{l:T 'Do quản trị viên đặt'}" IsVisible="{Binding Settings.IsBridgeLocked}" FontSize="12" Opacity="0.6" />
+                <TextBlock Classes="muted" Text="{l:T 'Do quản trị viên đặt'}" IsVisible="{Binding Settings.IsBridgeLocked}" FontSize="12" />
               </StackPanel>
 
               <StackPanel Spacing="4">
-                <TextBlock Text="{l:T 'Cầu nối đã biết: tên máy hoặc IP, mỗi dòng một máy'}" Opacity="0.7" />
+                <TextBlock Classes="muted" Text="{l:T 'Cầu nối đã biết: tên máy hoặc IP, mỗi dòng một máy'}" />
                 <TextBox Text="{Binding Settings.BridgeAddresses}" AcceptsReturn="True" MinHeight="56" PlaceholderText="PC-BUILD-01"
                          IsReadOnly="{Binding Settings.IsBridgeAddressesLocked}" FontFamily="Consolas,monospace" />
-                <TextBlock Text="{l:T 'Do quản trị viên đặt'}" IsVisible="{Binding Settings.IsBridgeAddressesLocked}" FontSize="12" Opacity="0.6" />
+                <TextBlock Classes="muted" Text="{l:T 'Do quản trị viên đặt'}" IsVisible="{Binding Settings.IsBridgeAddressesLocked}" FontSize="12" />
               </StackPanel>
 
               <StackPanel Spacing="4">
-                <TextBlock Text="{l:T 'Dò dải IP: mỗi dòng một dải, tối đa /22 (1.024 địa chỉ), quét 10 phút một lần'}" Opacity="0.7" />
+                <TextBlock Classes="muted" Text="{l:T 'Dò dải IP: mỗi dòng một dải, tối đa /22 (1.024 địa chỉ), quét 10 phút một lần'}" />
                 <TextBox Text="{Binding Settings.ProbeSubnets}" AcceptsReturn="True" MinHeight="56" PlaceholderText="10.1.5.0/24"
                          IsReadOnly="{Binding Settings.IsProbeSubnetsLocked}" FontFamily="Consolas,monospace" />
-                <TextBlock Text="{l:T 'Do quản trị viên đặt'}" IsVisible="{Binding Settings.IsProbeSubnetsLocked}" FontSize="12" Opacity="0.6" />
+                <TextBlock Classes="muted" Text="{l:T 'Do quản trị viên đặt'}" IsVisible="{Binding Settings.IsProbeSubnetsLocked}" FontSize="12" />
               </StackPanel>
 
               <StackPanel Orientation="Horizontal" Spacing="12">
@@ -748,7 +771,7 @@
                   <Grid ColumnDefinitions="Auto,170,*" Margin="0,4">
                     <Ellipse Classes="dot" Classes.muted="{Binding !IsOk}" Classes.busy="{Binding IsWarning}" Classes.error="{Binding IsError}"
                              Margin="0,0,10,0" VerticalAlignment="Top" />
-                    <TextBlock Grid.Column="1" Text="{Binding Label}" Opacity="0.65" TextTrimming="CharacterEllipsis" Margin="0,0,12,0" />
+                    <TextBlock Classes="muted" Grid.Column="1" Text="{Binding Label}" TextTrimming="CharacterEllipsis" Margin="0,0,12,0" />
                     <SelectableTextBlock Grid.Column="2" Text="{Binding Value}" TextWrapping="Wrap" />
                   </Grid>
                 </DataTemplate>
@@ -757,7 +780,7 @@
           </Border>
 
           <TextBlock Classes="h2" Text="{l:T 'Đã chặn'}" />
-          <TextBlock IsVisible="{Binding !Blocked.Items.Count}" Opacity="0.65" Text="{l:T 'Chưa chặn ai.'}" />
+          <TextBlock Classes="muted" IsVisible="{Binding !Blocked.Items.Count}" Text="{l:T 'Chưa chặn ai.'}" />
           <ItemsControl ItemsSource="{Binding Blocked.Items}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:BlockedPeerItem">
@@ -773,7 +796,7 @@
           </ItemsControl>
 
           <TextBlock Classes="h2" Text="{l:T 'Máy đã thêm thủ công'}" />
-          <TextBlock IsVisible="{Binding !Blocked.ManualTargets.Count}" Opacity="0.65" TextWrapping="Wrap"
+          <TextBlock Classes="muted" IsVisible="{Binding !Blocked.ManualTargets.Count}" TextWrapping="Wrap"
                      Text="{l:T 'Chưa có. Dùng nút Thêm máy khác ở trang Xóm để thêm máy ở mạng khác.'}" />
           <ItemsControl ItemsSource="{Binding Blocked.ManualTargets}">
             <ItemsControl.ItemTemplate>

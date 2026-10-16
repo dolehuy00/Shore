@@ -288,10 +288,8 @@
   "Chọn file…": "Choose files…",
   "Mở thư mục": "Open folder",
   "File gốc đã bị sửa sau khi gửi: ai chưa tải sẽ không tải được bản cũ. Hãy gửi lại.": "The original file was changed after sending: anyone who hasn't downloaded it can't get the old version. Send it again.",
-  "+ Tạo nhóm": "+ Create group",
   "Quản trị viên đã tắt tính năng nhóm trên máy này.": "Your administrator has turned off groups on this computer.",
   "Nhóm của tôi": "My groups",
-  "Bạn chưa ở trong nhóm nào. Tạo nhóm, hoặc xin vào một nhóm trong mạng: thành viên cùng nhóm gửi file cho nhau được mà không cần Kết nối từng người.": "You're not in any group yet. Create one, or ask to join a group on the network: members of a group can send files to each other without Connecting one by one.",
   "Gửi file cho nhóm": "Send files to the group",
   "Mời…": "Invite…",
   "Gửi thư mục cho nhóm…": "Send a folder to the group…",
@@ -399,5 +397,7 @@
   "{0:dd/MM}": "{0:MMM d}",
   "Đang mở · {0}": "Open · {0}",
   "Bạn chưa gửi gì.": "You haven't sent anything yet.",
-  "Kéo file vào một người ở trang Xóm để gửi.": "Drag files onto a person on the Nearby page to send them."
+  "Kéo file vào một người ở trang Xóm để gửi.": "Drag files onto a person on the Nearby page to send them.",
+  "Bạn chưa ở trong nhóm nào.": "You're not in any group yet.",
+  "Tạo nhóm, hoặc xin vào một nhóm trong mạng: thành viên cùng nhóm gửi file cho nhau được mà không cần Kết nối từng người.": "Create one, or ask to join a group on the network: members of a group can send files to each other without Connecting one by one."
 }
