@@ -13,7 +13,11 @@ public static class L
     /// <summary>Overrides the system language, e.g. <c>SHOREKEEPER_LANGUAGE=en</c> to try the English text.</summary>
     public const string OverrideVariable = "SHOREKEEPER_LANGUAGE";
 
-    private static readonly Lazy<IReadOnlyDictionary<string, string>> English = new(LoadEnglish);
+    public const string Vietnamese = "vi";
+
+    public const string English = "en";
+
+    private static readonly Lazy<IReadOnlyDictionary<string, string>> EnglishText = new(LoadEnglish);
 
     /// <summary>True when the text is shown in Vietnamese: the system language is Vietnamese (or the override says so).</summary>
     public static bool IsVietnamese { get; set; } = DetectVietnamese();
@@ -23,20 +27,33 @@ public static class L
 
     /// <summary>Translates a Vietnamese sentence.</summary>
     public static string T(string vietnamese) =>
-        IsVietnamese || !English.Value.TryGetValue(vietnamese, out string? english) ? vietnamese : english;
+        IsVietnamese || !EnglishText.Value.TryGetValue(vietnamese, out string? english) ? vietnamese : english;
 
     /// <summary>Translates a Vietnamese format ("{0}" placeholders), then fills it in.</summary>
     public static string F(string vietnameseFormat, params object?[] args) => string.Format(Culture, T(vietnameseFormat), args);
 
+    /// <summary>
+    /// Applies the language chosen in Settings (<see cref="Vietnamese"/> or <see cref="English"/>) before any text is shown;
+    /// null keeps the system language. <see cref="OverrideVariable"/> still wins.
+    /// </summary>
+    public static void Use(string? language)
+    {
+        if (language is not null && string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(OverrideVariable)))
+        {
+            IsVietnamese = IsVietnameseCode(language);
+        }
+    }
+
     /// <summary>The embedded English catalog, for tests.</summary>
-    public static IReadOnlyDictionary<string, string> EnglishCatalog => English.Value;
+    public static IReadOnlyDictionary<string, string> EnglishCatalog => EnglishText.Value;
 
     private static bool DetectVietnamese()
     {
         string? forced = Environment.GetEnvironmentVariable(OverrideVariable);
-        string language = string.IsNullOrWhiteSpace(forced) ? CultureInfo.CurrentUICulture.TwoLetterISOLanguageName : forced.Trim();
-        return language.StartsWith("vi", StringComparison.OrdinalIgnoreCase);
+        return IsVietnameseCode(string.IsNullOrWhiteSpace(forced) ? CultureInfo.CurrentUICulture.TwoLetterISOLanguageName : forced.Trim());
     }
+
+    private static bool IsVietnameseCode(string language) => language.StartsWith(Vietnamese, StringComparison.OrdinalIgnoreCase);
 
     private static Dictionary<string, string> LoadEnglish()
     {

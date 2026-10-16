@@ -456,7 +456,7 @@
 
               <CheckBox IsChecked="{Binding Settings.CreateSenderSubfolders}" Content="{l:T 'Tạo thư mục con theo tên người gửi'}" />
 
-              <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
+              <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto">
                 <TextBlock Text="{l:T 'File tôi gửi mở trong'}" VerticalAlignment="Center" Margin="0,0,12,8" Opacity="0.7" />
                 <ComboBox Grid.Column="1" ItemsSource="{Binding Settings.OfferLifetimeChoices}" SelectedItem="{Binding Settings.OfferLifetime}" MinWidth="140" Margin="0,0,0,8">
                   <ComboBox.ItemTemplate>
@@ -466,11 +466,20 @@
                   </ComboBox.ItemTemplate>
                 </ComboBox>
 
-                <TextBlock Grid.Row="1" Text="{l:T 'Chờ kết nối lại khi rớt mạng'}" VerticalAlignment="Center" Margin="0,0,12,0" Opacity="0.7" />
+                <TextBlock Grid.Row="1" Text="{l:T 'Chờ kết nối lại khi rớt mạng'}" VerticalAlignment="Center" Margin="0,0,12,8" Opacity="0.7" />
                 <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding Settings.ReconnectChoices}" SelectedItem="{Binding Settings.ReconnectWindow}"
-                          IsEnabled="{Binding !Settings.IsReconnectWindowLocked}" MinWidth="140">
+                          IsEnabled="{Binding !Settings.IsReconnectWindowLocked}" MinWidth="140" Margin="0,0,0,8">
                   <ComboBox.ItemTemplate>
                     <DataTemplate x:DataType="vm:SettingChoice">
+                      <TextBlock Text="{Binding Label}" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+
+                <TextBlock Grid.Row="2" Text="{l:T 'Ngôn ngữ'}" VerticalAlignment="Center" Margin="0,0,12,0" Opacity="0.7" />
+                <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding Settings.LanguageChoices}" SelectedItem="{Binding Settings.Language}" MinWidth="140">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:LanguageChoice">
                       <TextBlock Text="{Binding Label}" />
                     </DataTemplate>
                   </ComboBox.ItemTemplate>

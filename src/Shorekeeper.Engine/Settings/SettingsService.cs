@@ -1,3 +1,4 @@
+using Shorekeeper.Core.Localization;
 using Shorekeeper.Core.Platform;
 using Shorekeeper.Core.Settings;
 
@@ -28,6 +29,7 @@ public sealed class SettingsService(AppPaths paths, SettingsStore store, IPolicy
         {
             user = store.Load();
             current = Resolve(user);
+            L.Use(user.Language);
         }
     }
 

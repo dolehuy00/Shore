@@ -44,6 +44,15 @@ public sealed class SettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public void Chosen_language_is_remembered()
+    {
+        Assert.Null(CreateStore().Load().Language);
+
+        CreateStore().Save(new ShorekeeperSettings { Language = "vi" });
+        Assert.Equal("vi", CreateStore().Load().Language);
+    }
+
+    [Fact]
     public void Corrupt_file_is_backed_up_and_defaults_are_used()
     {
         File.WriteAllText(folder.Paths.SettingsFile, "{ not json");

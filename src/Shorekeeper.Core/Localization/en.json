@@ -381,5 +381,9 @@
   "Không lấy được checksum từ người gửi.": "Couldn't get the checksum from the sender.",
   "Không đủ dung lượng trống trên ổ {0} (cần {1:N0} MB và chừa 1 GB).": "Not enough free space on {0} (needs {1:N0} MB plus 1 GB to spare).",
   "Đường dẫn file không hợp lệ.": "Invalid file path.",
-  "Quá nhiều file: tối đa {0:N0} file mỗi lần gửi.": "Too many files: at most {0:N0} per send."
+  "Quá nhiều file: tối đa {0:N0} file mỗi lần gửi.": "Too many files: at most {0:N0} per send.",
+  "Theo hệ điều hành": "System default",
+  "Ngôn ngữ": "Language",
+  "Ngôn ngữ mới có hiệu lực sau khi khởi động lại Shorekeeper.": "The new language takes effect after Shorekeeper restarts.",
+  "Khởi động lại": "Restart"
 }

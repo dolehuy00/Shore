@@ -62,6 +62,29 @@ public partial class LocalizationTests
         }
     }
 
+    [Fact]
+    public void Chosen_language_replaces_the_system_one()
+    {
+        bool original = L.IsVietnamese;
+        try
+        {
+            L.IsVietnamese = false;
+            L.Use(L.Vietnamese);
+            Assert.True(L.IsVietnamese);
+
+            L.Use(L.English);
+            Assert.False(L.IsVietnamese);
+
+            // Null means "follow the system": the language detected at start stays.
+            L.Use(null);
+            Assert.False(L.IsVietnamese);
+        }
+        finally
+        {
+            L.IsVietnamese = original;
+        }
+    }
+
     private static HashSet<string> Placeholders(string text) => [.. Placeholder().Matches(text).Select(m => m.Groups[1].Value)];
 
     private static string RepositoryRoot()

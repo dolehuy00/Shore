@@ -19,6 +19,9 @@ public sealed record ShorekeeperSettings
 
     public bool AlwaysSnapshotBeforeSend { get; init; }
 
+    /// <summary>"vi" or "en"; null follows the system language (docs/10-ux.md §1). Takes effect at the next start.</summary>
+    public string? Language { get; init; }
+
     /// <summary>Ctrl+Alt+S opens "Gửi nhanh" from anywhere (on by default).</summary>
     public bool? QuickSendHotkey { get; init; }
 
