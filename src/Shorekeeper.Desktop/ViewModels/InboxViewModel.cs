@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
@@ -294,26 +295,55 @@ public sealed partial class InboxItemViewModel(OfferKey key, InboxViewModel owne
 
     /// <summary>Opens the received file, or the folder for several files.</summary>
     [RelayCommand]
-    private void Open()
+    private async Task OpenAsync()
     {
         string[] received = [.. offer?.Files.Where(f => f.FinalPath is not null && !f.IsDirectory).Select(f => f.FinalPath!) ?? []];
-        if (received.Length == 1)
+        if (received.Length != 1)
         {
-            Process.Start(new ProcessStartInfo(received[0]) { UseShellExecute = true });
+            await OpenFolderAsync();
+        }
+        else if (!File.Exists(received[0]))
+        {
+            await ShowMissingAsync();
         }
         else
         {
-            OpenFolder();
+            await StartAsync(new ProcessStartInfo(received[0]) { UseShellExecute = true });
         }
     }
 
+    /// <summary>Shows the received files in Explorer: the first one still there, else the folder they went to.</summary>
     [RelayCommand]
-    private void OpenFolder()
+    private async Task OpenFolderAsync()
     {
-        string? first = offer?.Files.FirstOrDefault(f => f.FinalPath is not null)?.FinalPath;
-        if (first is not null)
+        string[] received = [.. offer?.Files.Where(f => f.FinalPath is not null).Select(f => f.FinalPath!) ?? []];
+        if (received.FirstOrDefault(p => File.Exists(p) || Directory.Exists(p)) is { } existing)
         {
-            Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{first}\"") { UseShellExecute = true });
+            await StartAsync(new ProcessStartInfo("explorer.exe", $"/select,\"{existing}\"") { UseShellExecute = true });
+        }
+        else if (received.Select(Path.GetDirectoryName).FirstOrDefault(Directory.Exists) is { } folder)
+        {
+            await StartAsync(new ProcessStartInfo(folder) { UseShellExecute = true });
+        }
+        else
+        {
+            await ShowMissingAsync();
+        }
+    }
+
+    private static async Task ShowMissingAsync() =>
+        await DialogService.ChooseAsync(L.T("Mở"), L.T("Không còn thấy file đã nhận: có thể nó đã bị xóa hoặc chuyển đi chỗ khác."), [L.T("Đóng")]);
+
+    /// <summary>Opening can still fail (deleted just now, blocked by policy); that must not take the app down.</summary>
+    private static async Task StartAsync(ProcessStartInfo start)
+    {
+        try
+        {
+            Process.Start(start)?.Dispose();
+        }
+        catch (Win32Exception ex)
+        {
+            await DialogService.ChooseAsync(L.T("Mở"), L.F("Không mở được: {0}", ex.Message), [L.T("Đóng")]);
         }
     }
 

@@ -422,5 +422,7 @@
   "Nhập số GB lớn hơn 0 và không quá {0}.": "Enter a number of GB above 0 and no more than {0}.",
   "Tự nhận file tối đa": "Auto-accept files up to",
   "cho máy đã kết nối có Tự nhận file theo cài đặt chung": "for connected devices whose auto-accept follows the general setting",
-  "Cho máy đã kết nối có Tự nhận file theo cài đặt chung; từng máy có thể đặt riêng ở menu ⋮.": "For connected devices whose auto-accept follows the general setting; each device can have its own limit in its ⋮ menu."
+  "Cho máy đã kết nối có Tự nhận file theo cài đặt chung; từng máy có thể đặt riêng ở menu ⋮.": "For connected devices whose auto-accept follows the general setting; each device can have its own limit in its ⋮ menu.",
+  "Không còn thấy file đã nhận: có thể nó đã bị xóa hoặc chuyển đi chỗ khác.": "The received file is no longer there: it may have been deleted or moved.",
+  "Không mở được: {0}": "Couldn't open it: {0}"
 }
