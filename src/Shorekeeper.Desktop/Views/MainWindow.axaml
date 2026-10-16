@@ -123,6 +123,11 @@
     <Style Selector="PathIcon.done">
       <Setter Property="Foreground" Value="#22C55E" />
     </Style>
+    <!-- The row a search result pointed at, for a moment. -->
+    <Style Selector="Border.found">
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentButtonBackground}" />
+      <Setter Property="BorderThickness" Value="2" />
+    </Style>
     <Style Selector="TextBlock.muted">
       <Setter Property="Foreground" Value="{DynamicResource Sk.MutedText}" />
     </Style>
@@ -207,6 +212,48 @@
           <Image Source="/Assets/shorekeeper.png" Width="28" Height="28" />
           <TextBlock Text="Shorekeeper" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" />
         </StackPanel>
+
+        <!-- Ctrl+K: people, groups, received and sent files. -->
+        <TextBox x:Name="SearchBox" Grid.Column="1" MaxWidth="460" Margin="24,0" Text="{Binding Search.Query}"
+                 PlaceholderText="{l:T 'Tìm người, máy, nhóm, file…'}" AutomationProperties.Name="{l:T 'Tìm kiếm'}">
+          <TextBox.InnerLeftContent>
+            <PathIcon Data="{StaticResource Icon.Search}" Width="16" Height="16" Margin="10,0,0,0" Opacity="0.7" />
+          </TextBox.InnerLeftContent>
+          <TextBox.InnerRightContent>
+            <Border Classes="chip" Margin="0,0,6,0" VerticalAlignment="Center">
+              <TextBlock Classes="muted" Text="Ctrl K" FontSize="11" />
+            </Border>
+          </TextBox.InnerRightContent>
+        </TextBox>
+        <Popup Grid.Column="1" PlacementTarget="{Binding #SearchBox}" Placement="BottomEdgeAlignedLeft" VerticalOffset="4"
+               IsOpen="{Binding Search.IsOpen, Mode=TwoWay}" IsLightDismissEnabled="True" Width="{Binding #SearchBox.Bounds.Width}">
+          <Border Background="{DynamicResource Sk.CardBackground}" BorderBrush="{DynamicResource Sk.CardBorder}" BorderThickness="1"
+                  CornerRadius="10" Padding="6" MaxHeight="440">
+            <Panel>
+              <TextBlock Classes="muted" Text="{l:T 'Không tìm thấy kết quả.'}" IsVisible="{Binding Search.HasNoResults}" Margin="10,8" />
+              <ListBox x:Name="SearchResults" ItemsSource="{Binding Search.Results}" SelectedItem="{Binding Search.Selected}" Background="Transparent">
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:SearchResult">
+                    <Grid ColumnDefinitions="Auto,*,Auto" Background="Transparent" Tapped="OnSearchResultTapped">
+                      <Panel Width="20" Height="20" VerticalAlignment="Center">
+                        <PathIcon Data="{StaticResource Icon.People}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:SearchKind.Person}}" Width="18" Height="18" />
+                        <PathIcon Data="{StaticResource Icon.Team}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:SearchKind.Group}}" Width="18" Height="18" />
+                        <PathIcon Data="{StaticResource Icon.Download}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:SearchKind.Received}}" Width="18" Height="18" />
+                        <PathIcon Data="{StaticResource Icon.Upload}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:SearchKind.Sent}}" Width="18" Height="18" />
+                      </Panel>
+                      <StackPanel Grid.Column="1" Margin="12,0" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Classes="muted" Text="{Binding Subtitle}" FontSize="12" TextTrimming="CharacterEllipsis" />
+                      </StackPanel>
+                      <Button Grid.Column="2" Content="{Binding ActionText}" IsVisible="{Binding HasAction}" VerticalAlignment="Center" Padding="10,4"
+                              Command="{Binding #SearchResults.((vm:MainWindowViewModel)DataContext).Search.RunActionCommand}" CommandParameter="{Binding}" />
+                    </Grid>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </Panel>
+          </Border>
+        </Popup>
         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
           <Ellipse Classes="dot" Classes.busy="{Binding IsBusy}" Classes.muted="{Binding IsHidden}" />
           <ComboBox ItemsSource="{Binding StatusOptions}" SelectedItem="{Binding SelectedStatus}" MinWidth="96">
@@ -342,12 +389,12 @@
 
           <StackPanel IsVisible="{Binding Neighborhood.HasContacts}" Spacing="8">
             <TextBlock Classes="section" Text="{Binding Neighborhood.ContactsHeader}" />
-            <ItemsControl ItemsSource="{Binding Neighborhood.Contacts}" ItemTemplate="{StaticResource PeerCard}" />
+            <ItemsControl x:Name="ContactsList" ItemsSource="{Binding Neighborhood.Contacts}" ItemTemplate="{StaticResource PeerCard}" />
           </StackPanel>
 
           <StackPanel IsVisible="{Binding !Neighborhood.IsEmpty}" Spacing="8">
             <TextBlock Classes="section" Text="{Binding Neighborhood.OthersHeader}" />
-            <ItemsControl ItemsSource="{Binding Neighborhood.Others}" ItemTemplate="{StaticResource PeerCard}" />
+            <ItemsControl x:Name="OthersList" ItemsSource="{Binding Neighborhood.Others}" ItemTemplate="{StaticResource PeerCard}" />
             <TextBlock Classes="muted" IsVisible="{Binding !Neighborhood.HasOthers}" FontSize="12"
                        Text="{l:T 'Không có máy nào khác đang online.'}" />
           </StackPanel>
@@ -363,7 +410,7 @@
             <PathIcon Data="{StaticResource Icon.Download}" Width="40" Height="40" Opacity="0.5" HorizontalAlignment="Center" />
             <TextBlock Text="{l:T 'Chưa có ai gửi gì cho bạn.'}" FontWeight="SemiBold" HorizontalAlignment="Center" />
           </StackPanel>
-          <ItemsControl ItemsSource="{Binding Inbox.Items}">
+          <ItemsControl x:Name="InboxList" ItemsSource="{Binding Inbox.Items}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:InboxItemViewModel">
                 <Border Classes="panel">
@@ -422,7 +469,7 @@
             <TextBlock Text="{l:T 'Bạn chưa gửi gì.'}" FontWeight="SemiBold" HorizontalAlignment="Center" />
             <TextBlock Classes="muted" Text="{l:T 'Kéo file vào một người ở trang Xóm để gửi.'}" HorizontalAlignment="Center" />
           </StackPanel>
-          <ItemsControl ItemsSource="{Binding Sent.Items}">
+          <ItemsControl x:Name="SentList" ItemsSource="{Binding Sent.Items}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:SentItemViewModel">
                 <Border Classes="panel">
@@ -525,7 +572,7 @@
             <TextBlock Classes="muted" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="520"
                        Text="{l:T 'Tạo nhóm, hoặc xin vào một nhóm trong mạng: thành viên cùng nhóm gửi file cho nhau được mà không cần Kết nối từng người.'}" />
           </StackPanel>
-          <ItemsControl ItemsSource="{Binding Groups.MyGroups}">
+          <ItemsControl x:Name="MyGroupsList" ItemsSource="{Binding Groups.MyGroups}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:GroupCardViewModel">
                 <Border Classes="panel" Classes.droptarget="{Binding IsDropTarget}" DragDrop.AllowDrop="True">
@@ -603,7 +650,7 @@
           </ItemsControl>
 
           <TextBlock Classes="section" Text="{l:T 'Nhóm trong mạng'}" IsVisible="{Binding Groups.HasNetworkGroups}" />
-          <ItemsControl ItemsSource="{Binding Groups.NetworkGroups}">
+          <ItemsControl x:Name="NetworkGroupsList" ItemsSource="{Binding Groups.NetworkGroups}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:NetworkGroupViewModel">
                 <Border Classes="panel">

@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Shorekeeper.Core.Identity;
 using Shorekeeper.Core.Localization;
+using Shorekeeper.Core.Text;
 using Shorekeeper.Core.Trust;
 using Shorekeeper.Desktop.Views;
 using Shorekeeper.Engine.Discovery;
@@ -48,6 +49,9 @@ public sealed partial class NeighborhoodViewModel : ObservableObject
 
     public ObservableCollection<PeerCardViewModel> Others { get; } = [];
 
+    /// <summary>Contacts and everyone online, whatever the filter on this page (for the Ctrl+K search).</summary>
+    public IReadOnlyList<PeerCardViewModel> Everyone { get; private set; } = [];
+
     public bool HasContacts => Contacts.Count > 0;
 
     public bool IsEmpty => Contacts.Count == 0 && Others.Count == 0;
@@ -74,16 +78,15 @@ public sealed partial class NeighborhoodViewModel : ObservableObject
 
         var contacts = trust.GetAll(TrustLevel.Trusted)
             .Select(record => Show(Card(record.DeviceId).Update(record, live.GetValueOrDefault(record.DeviceId), null), live.GetValueOrDefault(record.DeviceId)))
-            .Where(Matches)
             .ToList();
         var others = live.Values
             .Where(peer => trust.GetLevel(peer.DeviceId) == TrustLevel.Unknown)
             .Select(peer => Show(Card(peer.DeviceId).Update(null, peer, joined.FirstOrDefault(g => g.Contains(peer.DeviceId))), peer))
-            .Where(Matches)
             .ToList();
+        Everyone = [.. contacts, .. others];
 
-        Sync(Contacts, contacts);
-        Sync(Others, others);
+        Sync(Contacts, [.. contacts.Where(Matches)]);
+        Sync(Others, [.. others.Where(Matches)]);
         OnPropertyChanged(nameof(HasContacts));
         OnPropertyChanged(nameof(IsEmpty));
         OnPropertyChanged(nameof(HasOthers));
@@ -104,11 +107,7 @@ public sealed partial class NeighborhoodViewModel : ObservableObject
 
     private bool Matches(PeerCardViewModel card)
     {
-        string search = Search.Trim();
-        return search.Length == 0
-            || card.DisplayName.Contains(search, StringComparison.CurrentCultureIgnoreCase)
-            || card.HostName.Contains(search, StringComparison.CurrentCultureIgnoreCase)
-            || (card.Department?.Contains(search, StringComparison.CurrentCultureIgnoreCase) ?? false);
+        return Search.Trim().Length == 0 || TextSearch.Matches(Search, card.DisplayName, card.HostName, card.Department);
     }
 
     /// <summary>Loads the peer's picture when it announces a new one.</summary>

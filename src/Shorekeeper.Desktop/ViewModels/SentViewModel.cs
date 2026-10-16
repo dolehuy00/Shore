@@ -74,6 +74,9 @@ public sealed partial class SentItemViewModel(string offerId, SentViewModel owne
     [ObservableProperty]
     public partial TransferKind Kind { get; set; }
 
+    /// <summary>Every file and folder of the offer (the title shows only the first).</summary>
+    public IReadOnlyList<string> Paths { get; private set; } = [];
+
     [ObservableProperty]
     public partial IReadOnlyList<SentRecipientItem> Recipients { get; set; } = [];
 
@@ -86,6 +89,7 @@ public sealed partial class SentItemViewModel(string offerId, SentViewModel owne
     public void Update(SentOffer offer)
     {
         DateTimeOffset now = owner.TimeProvider.GetUtcNow();
+        Paths = offer.Paths;
         Title = TransferText.Summary(offer.Paths);
         Summary = $"{Title} · {TransferText.Size(offer.TotalBytes)}";
         string[] files = [.. offer.Paths.Where(p => !p.EndsWith('/'))];

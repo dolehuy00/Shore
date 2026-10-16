@@ -162,6 +162,9 @@ public sealed partial class InboxItemViewModel(OfferKey key, InboxViewModel owne
 
     public bool HasThumbnail => Thumbnail is not null;
 
+    /// <summary>Every file and folder of the offer (the title shows only the first).</summary>
+    public IEnumerable<string> FileNames => offer?.Files.Select(f => f.RelativePath) ?? [];
+
     [ObservableProperty]
     public partial string StatusText { get; set; } = "";
 

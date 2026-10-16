@@ -114,6 +114,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             RefreshStorage();
             return true;
         }, TimeSpan.FromMinutes(1));
+        Search = new SearchViewModel(neighborhood, groups, inbox, sent, Reveal);
         dialogs.OfferSent += (_, _) => SelectedNavItem = NavItems[2];
         dialogs.PageRequested += (_, page) => SelectedNavItem = NavItems.First(i => i.Page == page);
     }
@@ -131,6 +132,11 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public SettingsViewModel Settings { get; }
 
     public GroupsViewModel Groups { get; }
+
+    public SearchViewModel Search { get; }
+
+    /// <summary>A search result was chosen: the view scrolls to this row's view model and points at it.</summary>
+    public event EventHandler<object>? RevealRequested;
 
     [ObservableProperty]
     public partial string DisplayName { get; set; }
@@ -209,6 +215,25 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     [RelayCommand]
     private void ShowPage(NavPage page) => SelectedNavItem = NavItems.First(i => i.Page == page);
+
+    private void Reveal(SearchResult result)
+    {
+        if (result.Item is PeerCardViewModel person)
+        {
+            // The page's own filter could hide the person; selecting lets Ctrl+V send to them right away.
+            Neighborhood.Search = "";
+            Neighborhood.Select(person, toggle: false);
+        }
+
+        ShowPage(result.Kind switch
+        {
+            SearchKind.Person => NavPage.Neighborhood,
+            SearchKind.Group => NavPage.Groups,
+            SearchKind.Received => NavPage.Inbox,
+            _ => NavPage.Sent,
+        });
+        RevealRequested?.Invoke(this, result.Item);
+    }
 
     partial void OnSelectedStatusChanged(StatusOption value) => presence.Status = value.Status;
 

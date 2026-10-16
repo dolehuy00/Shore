@@ -4,6 +4,7 @@ using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Shorekeeper.Core.Localization;
 using Shorekeeper.Desktop.ViewModels;
@@ -26,7 +27,19 @@ public partial class MainWindow : Window
         // Click selects a card, Ctrl+click several; Ctrl+V sends copied files to them.
         AddHandler(PointerPressedEvent, OnPointerPressed, handledEventsToo: true);
         KeyDown += OnKeyDown;
+        // Ctrl+K from anywhere; ↑/↓/Enter/Esc while searching.
+        AddHandler(KeyDownEvent, OnSearchShortcut, RoutingStrategies.Tunnel);
+        SearchBox.AddHandler(KeyDownEvent, OnSearchKeyDown, RoutingStrategies.Tunnel);
+        DataContextChanged += (_, _) =>
+        {
+            if (DataContext is MainWindowViewModel main)
+            {
+                main.RevealRequested += (_, item) => Dispatcher.UIThread.Post(() => Reveal(item), DispatcherPriority.Loaded);
+            }
+        };
     }
+
+    private SearchViewModel? Search => (DataContext as MainWindowViewModel)?.Search;
 
     private NeighborhoodViewModel? Neighborhood => (DataContext as MainWindowViewModel)?.Neighborhood;
 
@@ -67,6 +80,79 @@ public partial class MainWindow : Window
             && button.GetVisualAncestors().OfType<Control>().FirstOrDefault(c => c.ContextMenu is not null) is { ContextMenu: { } menu } row)
         {
             menu.Open(row);
+        }
+    }
+
+    private void OnSearchShortcut(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.K && e.KeyModifiers.HasFlag(KeyModifiers.Control))
+        {
+            e.Handled = true;
+            SearchBox.Focus();
+            SearchBox.SelectAll();
+        }
+    }
+
+    private void OnSearchKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (Search is not { } search)
+        {
+            return;
+        }
+
+        switch (e.Key)
+        {
+            case Key.Down:
+                search.Move(1);
+                break;
+            case Key.Up:
+                search.Move(-1);
+                break;
+            case Key.Enter:
+                search.ChooseCommand.Execute(null);
+                break;
+            case Key.Escape:
+                search.Close();
+                Focus();
+                break;
+            default:
+                return;
+        }
+
+        e.Handled = true;
+        if (search.Selected is { } selected)
+        {
+            SearchResults.ScrollIntoView(selected);
+        }
+    }
+
+    /// <summary>A click on a result opens it; its quick-action button does its own thing.</summary>
+    private void OnSearchResultTapped(object? sender, TappedEventArgs e)
+    {
+        if ((e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<Button>().Any() != true && (sender as Control)?.DataContext is SearchResult result)
+        {
+            Search?.ChooseCommand.Execute(result);
+        }
+    }
+
+    /// <summary>Scrolls to the row of a chosen search result and outlines it for a moment.</summary>
+    private void Reveal(object item)
+    {
+        foreach (ItemsControl list in (ItemsControl[])[ContactsList, OthersList, InboxList, SentList, MyGroupsList, NetworkGroupsList])
+        {
+            if (list.ContainerFromItem(item) is not { } row)
+            {
+                continue;
+            }
+
+            row.BringIntoView();
+            if (row.GetVisualDescendants().OfType<Border>().FirstOrDefault(b => b.Classes.Contains("card") || b.Classes.Contains("panel")) is { } frame)
+            {
+                frame.Classes.Add("found");
+                DispatcherTimer.RunOnce(() => frame.Classes.Remove("found"), TimeSpan.FromSeconds(2));
+            }
+
+            return;
         }
     }
 

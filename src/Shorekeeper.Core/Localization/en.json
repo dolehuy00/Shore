@@ -399,5 +399,9 @@
   "Bạn chưa gửi gì.": "You haven't sent anything yet.",
   "Kéo file vào một người ở trang Xóm để gửi.": "Drag files onto a person on the Nearby page to send them.",
   "Bạn chưa ở trong nhóm nào.": "You're not in any group yet.",
-  "Tạo nhóm, hoặc xin vào một nhóm trong mạng: thành viên cùng nhóm gửi file cho nhau được mà không cần Kết nối từng người.": "Create one, or ask to join a group on the network: members of a group can send files to each other without Connecting one by one."
+  "Tạo nhóm, hoặc xin vào một nhóm trong mạng: thành viên cùng nhóm gửi file cho nhau được mà không cần Kết nối từng người.": "Create one, or ask to join a group on the network: members of a group can send files to each other without Connecting one by one.",
+  "Tìm người, máy, nhóm, file…": "Search people, devices, groups, files…",
+  "Tìm kiếm": "Search",
+  "Không tìm thấy kết quả.": "No results.",
+  "Từ {0} · {1}": "From {0} · {1}"
 }
