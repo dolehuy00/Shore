@@ -451,31 +451,10 @@ public sealed class InboxService(
 
     private static void EnsureFreeSpace(string root, long needed)
     {
-        string full = Path.GetFullPath(root);
-        DriveInfo[] drives = DriveInfo.GetDrives();
-        var drive = MountPointOf(full, drives.Select(d => d.Name)) is { } mount
-            ? drives.First(d => d.Name == mount)
-            : new DriveInfo(Path.GetPathRoot(full)!);
+        DriveInfo drive = DiskSpace.DriveOf(root);
         if (drive.AvailableFreeSpace < needed + FreeSpaceMargin)
         {
             throw new DownloadFailedException(L.F("Không đủ dung lượng trống trên ổ {0} (cần {1:N0} MB và chừa 1 GB).", drive.Name, needed / (1024 * 1024)));
-        }
-    }
-
-    /// <summary>
-    /// The mount point holding <paramref name="path"/>: the longest one it lies under. On Linux and Android the path's
-    /// root ("/") is usually a small system volume, not where Downloads live.
-    /// </summary>
-    internal static string? MountPointOf(string path, IEnumerable<string> mountPoints)
-    {
-        StringComparison comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-        return mountPoints.Where(Holds).MaxBy(mount => mount.Length);
-
-        // "/" (trimmed to "") holds everything; otherwise the path must continue with a separator after the mount point.
-        bool Holds(string mount)
-        {
-            string trimmed = mount.TrimEnd('/', '\\');
-            return path.StartsWith(trimmed, comparison) && (path.Length == trimmed.Length || path[trimmed.Length] is '/' or '\\');
         }
     }
 

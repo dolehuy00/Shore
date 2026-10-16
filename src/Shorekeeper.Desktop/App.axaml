@@ -2,6 +2,81 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="Shorekeeper.Desktop.App"
              RequestedThemeVariant="Default">
+  <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceInclude Source="/Themes/Icons.axaml" />
+      </ResourceDictionary.MergedDictionaries>
+
+      <!-- Same corner and height for buttons, text boxes and combo boxes (the Fluent defaults differ slightly). -->
+      <CornerRadius x:Key="ControlCornerRadius">6</CornerRadius>
+      <Thickness x:Key="ButtonBorderThemeThickness">1</Thickness>
+      <Thickness x:Key="ButtonPadding">14,7,14,7</Thickness>
+      <x:Double x:Key="TextControlThemeMinHeight">34</x:Double>
+      <Thickness x:Key="TextControlThemePadding">10,7,6,6</Thickness>
+      <x:Double x:Key="ComboBoxMinHeight">34</x:Double>
+      <Thickness x:Key="ComboBoxPadding">12,7,0,7</Thickness>
+
+      <!-- Shared colors (docs/10-ux.md §1), one set per Windows theme. The accent stays the Windows accent color. -->
+      <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Light">
+          <SolidColorBrush x:Key="Sk.WindowBackground" Color="#F7F8FA" />
+          <SolidColorBrush x:Key="Sk.SidebarBackground" Color="#EEF1F5" />
+          <SolidColorBrush x:Key="Sk.CardBackground" Color="#FFFFFF" />
+          <SolidColorBrush x:Key="Sk.CardBorder" Color="#DDE2E9" />
+          <SolidColorBrush x:Key="Sk.Divider" Color="#E3E7ED" />
+          <SolidColorBrush x:Key="Sk.MutedText" Color="#5B6472" />
+          <SolidColorBrush x:Key="Sk.Track" Color="#DDE2E9" />
+          <!-- Buttons, text boxes and combo boxes share one look. -->
+          <SolidColorBrush x:Key="ButtonBackground" Color="#FFFFFF" />
+          <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#F3F5F8" />
+          <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#EAEEF3" />
+          <SolidColorBrush x:Key="ButtonBorderBrush" Color="#CDD3DC" />
+          <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="#B4BCC8" />
+          <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="#CDD3DC" />
+          <SolidColorBrush x:Key="ComboBoxBackground" Color="#FFFFFF" />
+          <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver" Color="#F3F5F8" />
+          <SolidColorBrush x:Key="ComboBoxBackgroundPressed" Color="#EAEEF3" />
+          <SolidColorBrush x:Key="ComboBoxBorderBrush" Color="#CDD3DC" />
+          <SolidColorBrush x:Key="ComboBoxBorderBrushPointerOver" Color="#B4BCC8" />
+          <SolidColorBrush x:Key="ComboBoxBorderBrushPressed" Color="#CDD3DC" />
+          <SolidColorBrush x:Key="TextControlBackground" Color="#FFFFFF" />
+          <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="#F3F5F8" />
+          <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="#FFFFFF" />
+          <SolidColorBrush x:Key="TextControlBorderBrush" Color="#CDD3DC" />
+          <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="#B4BCC8" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Dark">
+          <SolidColorBrush x:Key="Sk.WindowBackground" Color="#111419" />
+          <SolidColorBrush x:Key="Sk.SidebarBackground" Color="#161A20" />
+          <SolidColorBrush x:Key="Sk.CardBackground" Color="#1B2027" />
+          <SolidColorBrush x:Key="Sk.CardBorder" Color="#2B323C" />
+          <SolidColorBrush x:Key="Sk.Divider" Color="#262C35" />
+          <SolidColorBrush x:Key="Sk.MutedText" Color="#9AA4B2" />
+          <SolidColorBrush x:Key="Sk.Track" Color="#2B323C" />
+          <!-- Buttons, text boxes and combo boxes share one look. -->
+          <SolidColorBrush x:Key="ButtonBackground" Color="#20262E" />
+          <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#272E38" />
+          <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#1B2027" />
+          <SolidColorBrush x:Key="ButtonBorderBrush" Color="#343C48" />
+          <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="#444D5A" />
+          <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="#343C48" />
+          <SolidColorBrush x:Key="ComboBoxBackground" Color="#20262E" />
+          <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver" Color="#272E38" />
+          <SolidColorBrush x:Key="ComboBoxBackgroundPressed" Color="#1B2027" />
+          <SolidColorBrush x:Key="ComboBoxBorderBrush" Color="#343C48" />
+          <SolidColorBrush x:Key="ComboBoxBorderBrushPointerOver" Color="#444D5A" />
+          <SolidColorBrush x:Key="ComboBoxBorderBrushPressed" Color="#343C48" />
+          <SolidColorBrush x:Key="TextControlBackground" Color="#20262E" />
+          <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="#272E38" />
+          <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="#20262E" />
+          <SolidColorBrush x:Key="TextControlBorderBrush" Color="#343C48" />
+          <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="#444D5A" />
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
+    </ResourceDictionary>
+  </Application.Resources>
+
   <Application.Styles>
     <FluentTheme />
   </Application.Styles>

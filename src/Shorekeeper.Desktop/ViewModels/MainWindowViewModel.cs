@@ -1,4 +1,7 @@
 using System.Reflection;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Media;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Shorekeeper.Core.Discovery;
@@ -7,6 +10,7 @@ using Shorekeeper.Desktop.Views;
 using Shorekeeper.Engine;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Settings;
+using Shorekeeper.Engine.Transfers;
 
 namespace Shorekeeper.Desktop.ViewModels;
 
@@ -20,11 +24,14 @@ public enum NavPage
 }
 
 /// <param name="milestone">Set while the page is not built yet.</param>
-public sealed partial class NavItem(NavPage page, string title, string? milestone = null) : ObservableObject
+/// <param name="icon">Key of a geometry in Themes/Icons.axaml.</param>
+public sealed partial class NavItem(NavPage page, string title, string icon, string? milestone = null) : ObservableObject
 {
     public NavPage Page { get; } = page;
 
     public string Title { get; } = title;
+
+    public Geometry? Icon { get; } = Application.Current?.FindResource(icon) as Geometry;
 
     public string? Milestone { get; } = milestone;
 
@@ -99,6 +106,13 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 NavItems[3].Badge = groups.AttentionCount;
             }
         };
+        // Downloads fill the disk without telling the window; once a minute is enough for the card.
+        RefreshStorage();
+        DispatcherTimer.Run(() =>
+        {
+            RefreshStorage();
+            return true;
+        }, TimeSpan.FromMinutes(1));
         dialogs.OfferSent += (_, _) => SelectedNavItem = NavItems[2];
         dialogs.PageRequested += (_, page) => SelectedNavItem = NavItems.First(i => i.Page == page);
     }
@@ -133,11 +147,11 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public IReadOnlyList<NavItem> NavItems { get; } =
     [
-        new(NavPage.Neighborhood, L.T("Xóm")),
-        new(NavPage.Inbox, L.T("Hộp nhận")),
-        new(NavPage.Sent, L.T("Đã gửi")),
-        new(NavPage.Groups, L.T("Nhóm")),
-        new(NavPage.Settings, L.T("Cài đặt")),
+        new(NavPage.Neighborhood, L.T("Xóm"), "Icon.People"),
+        new(NavPage.Inbox, L.T("Hộp nhận"), "Icon.Download"),
+        new(NavPage.Sent, L.T("Đã gửi"), "Icon.Upload"),
+        new(NavPage.Groups, L.T("Nhóm"), "Icon.Team"),
+        new(NavPage.Settings, L.T("Cài đặt"), "Icon.Settings"),
     ];
 
     public IReadOnlyList<StatusOption> StatusOptions { get; } =
@@ -182,5 +196,32 @@ public sealed partial class MainWindowViewModel : ObservableObject
         }
     }
 
+    /// <summary>Used share of the drive holding the download folder, 0 to 1 ("this device" card).</summary>
+    [ObservableProperty]
+    public partial double StorageUsed { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasStorage))]
+    public partial string? StorageText { get; set; }
+
+    public bool HasStorage => StorageText is not null;
+
     partial void OnSelectedStatusChanged(StatusOption value) => presence.Status = value.Status;
+
+    partial void OnDownloadDirectoryChanged(string value) => RefreshStorage();
+
+    private void RefreshStorage()
+    {
+        try
+        {
+            DriveInfo drive = DiskSpace.DriveOf(DownloadDirectory);
+            StorageUsed = drive.TotalSize == 0 ? 0 : 1 - ((double)drive.AvailableFreeSpace / drive.TotalSize);
+            StorageText = L.F("Trống {0} / {1}", TransferText.Size(drive.AvailableFreeSpace), TransferText.Size(drive.TotalSize));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            // Unplugged drive or unreadable folder: hide the bar rather than show a wrong number.
+            StorageText = null;
+        }
+    }
 }

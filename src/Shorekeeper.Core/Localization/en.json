@@ -385,5 +385,6 @@
   "Theo hệ điều hành": "System default",
   "Ngôn ngữ": "Language",
   "Ngôn ngữ mới có hiệu lực sau khi khởi động lại Shorekeeper.": "The new language takes effect after Shorekeeper restarts.",
-  "Khởi động lại": "Restart"
+  "Khởi động lại": "Restart",
+  "Trống {0} / {1}": "{0} free of {1}"
 }
