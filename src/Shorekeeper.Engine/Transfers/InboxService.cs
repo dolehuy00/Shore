@@ -213,7 +213,8 @@ public sealed class InboxService(
         logger.LogInformation("Offer {Offer} received from {Sender}: {Files} entries, {Bytes} bytes", key.OfferId, sender, files.Count, item.TotalBytes);
 
         // "Tự nhận file" for this contact (docs/06-file-transfer.md §10).
-        if (trust.Get(sender) is { TrustLevel: TrustLevel.Trusted, AutoAcceptMaxBytes: { } limit } && item.TotalBytes <= limit)
+        if (trust.Get(sender) is { TrustLevel: TrustLevel.Trusted, AutoAcceptMaxBytes: { } limit }
+            && item.TotalBytes <= (limit == TrustStore.FollowSettingsLimit ? settings.Current.AutoAcceptMaxBytes : limit))
         {
             Download(key);
         }

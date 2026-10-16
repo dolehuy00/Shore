@@ -10,6 +10,7 @@ using Shorekeeper.Core.Trust;
 using Shorekeeper.Desktop.Views;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Groups;
+using Shorekeeper.Engine.Settings;
 using Shorekeeper.Engine.Trust;
 
 namespace Shorekeeper.Desktop.ViewModels;
@@ -26,10 +27,12 @@ public sealed partial class NeighborhoodViewModel : ObservableObject
     private readonly PairingService pairing;
     private readonly DialogService dialogs;
     private readonly PeerAvatars avatars;
+    private readonly SettingsService settings;
     private readonly Dictionary<DeviceId, PeerCardViewModel> cards = [];
 
     public NeighborhoodViewModel(
-        PeerDirectory directory, TrustStore trust, GroupStore groups, PairingService pairing, DialogService dialogs, PeerAvatars avatars)
+        PeerDirectory directory, TrustStore trust, GroupStore groups, PairingService pairing, DialogService dialogs, PeerAvatars avatars,
+        SettingsService settings)
     {
         this.directory = directory;
         this.trust = trust;
@@ -37,6 +40,7 @@ public sealed partial class NeighborhoodViewModel : ObservableObject
         this.pairing = pairing;
         this.dialogs = dialogs;
         this.avatars = avatars;
+        this.settings = settings;
 
         directory.Changed += (_, _) => Dispatcher.UIThread.Post(Refresh);
         trust.Changed += (_, _) => Dispatcher.UIThread.Post(Refresh);
@@ -206,8 +210,10 @@ public sealed partial class NeighborhoodViewModel : ObservableObject
         }
     }
 
-    internal Task ToggleAutoAcceptAsync(PeerCardViewModel card) =>
-        trust.SetAutoAcceptAsync(card.DeviceId, card.IsAutoAccept ? null : PeerCardViewModel.AutoAcceptLimit);
+    internal Task ChooseAutoAcceptAsync(PeerCardViewModel card) =>
+        DialogService.ChooseAutoAcceptAsync(
+            card.DisplayName, trust.Get(card.DeviceId)?.AutoAcceptMaxBytes, settings.Current.AutoAcceptLimitGb,
+            maxBytes => trust.SetAutoAcceptAsync(card.DeviceId, maxBytes));
 
     internal async Task SendFilesAsync(PeerCardViewModel card) => await SendAsync(card, await DialogService.PickFilesAsync());
 
@@ -297,9 +303,6 @@ public sealed partial class PeerCardViewModel(DeviceId deviceId, NeighborhoodVie
 
     public bool CanConnect => !IsTrusted && IsOnline;
 
-    /// <summary>Offers from a contact with "Tự nhận file" on download by themselves up to this size.</summary>
-    public const long AutoAcceptLimit = TrustStore.DefaultAutoAcceptLimit;
-
     [ObservableProperty]
     public partial bool IsAutoAccept { get; set; }
 
@@ -345,7 +348,7 @@ public sealed partial class PeerCardViewModel(DeviceId deviceId, NeighborhoodVie
     private Task SendFilesAsync() => owner.SendFilesAsync(this);
 
     [RelayCommand]
-    private Task ToggleAutoAcceptAsync() => owner.ToggleAutoAcceptAsync(this);
+    private Task ChooseAutoAcceptAsync() => owner.ChooseAutoAcceptAsync(this);
 
     [RelayCommand]
     private Task SendFolderAsync() => owner.SendFolderAsync(this);

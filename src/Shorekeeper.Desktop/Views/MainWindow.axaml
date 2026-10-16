@@ -149,7 +149,7 @@
           <ContextMenu>
             <MenuItem Header="{l:T 'Gửi file…'}" Command="{Binding SendFilesCommand}" IsVisible="{Binding CanSend}" />
             <MenuItem Header="{l:T 'Gửi thư mục…'}" Command="{Binding SendFolderCommand}" IsVisible="{Binding CanSend}" />
-            <MenuItem Header="{l:T 'Tự nhận file (tối đa 2 GB)'}" Command="{Binding ToggleAutoAcceptCommand}" IsVisible="{Binding IsTrusted}"
+            <MenuItem Header="{l:T 'Tự nhận file…'}" Command="{Binding ChooseAutoAcceptCommand}" IsVisible="{Binding IsTrusted}"
                       ToggleType="CheckBox" IsChecked="{Binding IsAutoAccept, Mode=OneWay}" />
             <MenuItem Header="{l:T 'Kết nối'}" Command="{Binding ConnectCommand}" IsVisible="{Binding CanConnect}" />
             <MenuItem Header="{l:T 'Đặt tên gợi nhớ…'}" Command="{Binding RenameCommand}" IsVisible="{Binding IsTrusted}" />
@@ -759,7 +759,7 @@
 
               <CheckBox IsChecked="{Binding Settings.CreateSenderSubfolders}" Content="{l:T 'Tạo thư mục con theo tên người gửi'}" />
 
-              <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto">
+              <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto">
                 <TextBlock Classes="muted" Text="{l:T 'File tôi gửi mở trong'}" VerticalAlignment="Center" Margin="0,0,12,8" />
                 <ComboBox Grid.Column="1" ItemsSource="{Binding Settings.OfferLifetimeChoices}" SelectedItem="{Binding Settings.OfferLifetime}" MinWidth="140" Margin="0,0,0,8">
                   <ComboBox.ItemTemplate>
@@ -779,8 +779,16 @@
                   </ComboBox.ItemTemplate>
                 </ComboBox>
 
-                <TextBlock Classes="muted" Grid.Row="2" Text="{l:T 'Ngôn ngữ'}" VerticalAlignment="Center" Margin="0,0,12,0" />
-                <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{x:Static l:LanguageChoice.All}" SelectedItem="{Binding Settings.Language}" MinWidth="140">
+                <!-- For connected devices whose "Tự nhận file…" follows Settings. -->
+                <TextBlock Classes="muted" Grid.Row="2" Text="{l:T 'Tự nhận file tối đa'}" VerticalAlignment="Center" Margin="0,0,12,8" />
+                <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
+                  <NumericUpDown Value="{Binding Settings.AutoAcceptLimitGb}" Minimum="0.1" Maximum="10000" Increment="1" FormatString="0.##" Width="140" />
+                  <TextBlock Text="GB" VerticalAlignment="Center" />
+                  <TextBlock Classes="muted" Text="{l:T 'cho máy đã kết nối có Tự nhận file theo cài đặt chung'}" FontSize="12" VerticalAlignment="Center" TextWrapping="Wrap" />
+                </StackPanel>
+
+                <TextBlock Classes="muted" Grid.Row="3" Text="{l:T 'Ngôn ngữ'}" VerticalAlignment="Center" Margin="0,0,12,0" />
+                <ComboBox Grid.Row="3" Grid.Column="1" ItemsSource="{x:Static l:LanguageChoice.All}" SelectedItem="{Binding Settings.Language}" MinWidth="140">
                   <ComboBox.ItemTemplate>
                     <DataTemplate x:DataType="l:LanguageChoice">
                       <TextBlock Text="{Binding Label}" />

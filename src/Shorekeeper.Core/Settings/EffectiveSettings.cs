@@ -14,6 +14,8 @@ public sealed record EffectiveSettings
     public static readonly TimeSpan MinReconnectWindow = TimeSpan.FromSeconds(15);
     public static readonly TimeSpan MaxReconnectWindow = TimeSpan.FromSeconds(300);
     public static readonly TimeSpan MaxOfferLifetime = TimeSpan.FromDays(30);
+    public const double DefaultAutoAcceptLimitGb = 2;
+    public const double MaxAutoAcceptLimitGb = 10_000;
 
     public required string DisplayName { get; init; }
 
@@ -26,6 +28,11 @@ public sealed record EffectiveSettings
     public TimeSpan ReconnectWindow { get; init; } = DefaultReconnectWindow;
 
     public bool AlwaysSnapshotBeforeSend { get; init; }
+
+    /// <summary>"Tự nhận file" limit for contacts that follow Settings.</summary>
+    public double AutoAcceptLimitGb { get; init; } = DefaultAutoAcceptLimitGb;
+
+    public long AutoAcceptMaxBytes => (long)(AutoAcceptLimitGb * (1L << 30));
 
     public bool QuickSendHotkey { get; init; } = true;
 

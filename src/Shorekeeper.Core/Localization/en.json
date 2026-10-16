@@ -30,7 +30,6 @@
   "{0} đã từ chối.": "{0} declined.",
   "Yêu cầu đã hết hạn.": "The request expired.",
   "Đã hủy.": "Cancelled.",
-  "{0} · nhóm {1}": "{0} · group {1}",
   "Không đọc được file nào trong số đã chọn.": "None of the chosen files could be read.",
   "{0} mục không đọc được đã bị bỏ qua.": "Skipped {0} item(s) that couldn't be read.",
   "⚠ Chưa kết nối": "⚠ Not connected",
@@ -270,7 +269,6 @@
   "Muốn chắc chắn? Hỏi người kia xem mã trên máy họ có giống không. Chỉ chấp nhận nếu bạn biết người này.": "Want to be sure? Ask the other person whether the code on their device is the same. Only accept if you know this person.",
   "Chặn": "Block",
   "Gửi thư mục…": "Send a folder…",
-  "Tự nhận file (tối đa 2 GB)": "Auto-accept files (up to 2 GB)",
   "Đặt tên gợi nhớ…": "Set a nickname…",
   "Ngắt kết nối": "Disconnect",
   "Chưa kết nối": "Not connected",
@@ -413,5 +411,16 @@
   "{0} (thư mục · {1})": "{0} (folder · {1})",
   "Bỏ khỏi danh sách": "Remove from the list",
   "gửi lần cuối {0}": "last sent {0}",
-  "Nhóm {0}": "Group {0}"
+  "Nhóm {0}": "Group {0}",
+  "{0} · nhóm {1}": "{0} · group {1}",
+  "Tự nhận file…": "Auto-accept files…",
+  "Tự nhận file từ {0}": "Auto-accept files from {0}",
+  "Theo cài đặt chung (tối đa {0})": "Follow the general setting (up to {0})",
+  "Tắt (luôn hỏi trước khi tải)": "Off (always ask before downloading)",
+  "Riêng cho máy này, tối đa": "Just for this device, up to",
+  "File gửi đến từ máy này, nếu không quá giới hạn, sẽ tự tải về mà không hỏi.": "Files from this device download without asking if they're within the limit.",
+  "Nhập số GB lớn hơn 0 và không quá {0}.": "Enter a number of GB above 0 and no more than {0}.",
+  "Tự nhận file tối đa": "Auto-accept files up to",
+  "cho máy đã kết nối có Tự nhận file theo cài đặt chung": "for connected devices whose auto-accept follows the general setting",
+  "Cho máy đã kết nối có Tự nhận file theo cài đặt chung; từng máy có thể đặt riêng ở menu ⋮.": "For connected devices whose auto-accept follows the general setting; each device can have its own limit in its ⋮ menu."
 }

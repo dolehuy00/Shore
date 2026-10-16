@@ -21,6 +21,7 @@ public class SettingsResolverTests
         Assert.Equal(47471, settings.ApiPort);
         Assert.True(settings.QuickSendHotkey);
         Assert.Equal(Hotkey.Default, settings.QuickSendShortcut);
+        Assert.Equal(2L << 30, settings.AutoAcceptMaxBytes);
         Assert.Empty(settings.LockedSettings);
     }
 
@@ -35,7 +36,10 @@ public class SettingsResolverTests
             ReconnectWindowSeconds = 120,
             QuickSendHotkey = false,
             QuickSendShortcut = "alt+shift+d",
+            AutoAcceptLimitGb = 0.5,
         });
+
+        Assert.Equal(512L << 20, settings.AutoAcceptMaxBytes);
 
         Assert.False(settings.QuickSendHotkey);
         Assert.Equal("Alt+Shift+D", settings.QuickSendShortcut.ToString());

@@ -32,7 +32,7 @@ CREATE TABLE Peers (
   TrustLevel         INTEGER NOT NULL,  -- 0 Unknown, 1 Trusted, 2 Blocked
   TrustedAt          INTEGER,
   PublicKey          BLOB,
-  AutoAcceptMaxBytes INTEGER,           -- NULL = tắt tự nhận
+  AutoAcceptMaxBytes INTEGER,           -- NULL = tắt tự nhận, -1 = theo giới hạn trong Cài đặt
   DirectoryUpn       TEXT,              -- nếu xác minh qua AD (13)
   DeclinedCount      INTEGER NOT NULL DEFAULT 0,  -- chống spam yêu cầu
   MutedUntil         INTEGER,

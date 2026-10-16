@@ -66,6 +66,10 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     public partial bool AlwaysSnapshotBeforeSend { get; set; }
 
+    /// <summary>"Tự nhận file tối đa" (GB) for contacts that follow Settings.</summary>
+    [ObservableProperty]
+    public partial decimal? AutoAcceptLimitGb { get; set; }
+
     [ObservableProperty]
     public partial bool QuickSendHotkey { get; set; }
 
@@ -236,6 +240,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             OfferLifetimeHours = OfferLifetime.Value,
             ReconnectWindowSeconds = IsReconnectWindowLocked ? current.ReconnectWindowSeconds : ReconnectWindow.Value,
             AlwaysSnapshotBeforeSend = AlwaysSnapshotBeforeSend,
+            AutoAcceptLimitGb = AutoAcceptLimitGb is > 0 and var gb ? (double)gb : current.AutoAcceptLimitGb,
             QuickSendHotkey = QuickSendHotkey,
             QuickSendShortcut = QuickSendShortcut,
             Language = Language.Code,
@@ -296,6 +301,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         DownloadDirectory = current.DownloadDirectory;
         CreateSenderSubfolders = current.CreateSenderSubfolders;
         AlwaysSnapshotBeforeSend = current.AlwaysSnapshotBeforeSend;
+        AutoAcceptLimitGb = (decimal)current.AutoAcceptLimitGb;
         QuickSendHotkey = current.QuickSendHotkey;
         QuickSendShortcut = current.QuickSendShortcut.ToString();
         OnPropertyChanged(nameof(HotkeyWarning));

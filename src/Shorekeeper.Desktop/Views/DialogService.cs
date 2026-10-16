@@ -340,6 +340,21 @@ public sealed class DialogService(
     private static Window? MainWindow => (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?
         .Windows.FirstOrDefault(w => w is MainWindow { IsVisible: true });
 
+    /// <summary>"Tự nhận file…" for one contact; <paramref name="save"/> gets the choice when the user saves.</summary>
+    public static async Task ChooseAutoAcceptAsync(string name, long? current, double generalLimitGb, Func<long?, Task> save)
+    {
+        var window = new AutoAcceptWindow();
+        window.DataContext = new AutoAcceptChoiceViewModel(name, current, generalLimitGb, save, window.Close);
+        if (MainWindow is { } owner)
+        {
+            await window.ShowDialog(owner);
+        }
+        else
+        {
+            window.Show();
+        }
+    }
+
     private static async Task ShowAsync(Window window, DialogViewModel viewModel)
     {
         viewModel.CloseRequested += (_, _) => window.Close();

@@ -1,0 +1,27 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:l="using:Shorekeeper.Desktop.Localization"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Shorekeeper.Desktop.ViewModels"
+        x:Class="Shorekeeper.Desktop.Views.AutoAcceptWindow"
+        x:DataType="vm:AutoAcceptChoiceViewModel"
+        Title="{Binding Title}"
+        Icon="/Assets/shorekeeper.png"
+        Width="420" SizeToContent="Height" CanResize="False"
+        WindowStartupLocation="CenterOwner">
+  <StackPanel Margin="24" Spacing="10">
+    <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" />
+    <TextBlock Text="{l:T 'File gửi đến từ máy này, nếu không quá giới hạn, sẽ tự tải về mà không hỏi.'}" Opacity="0.75" TextWrapping="Wrap" />
+    <RadioButton GroupName="AutoAccept" IsChecked="{Binding IsOff}" Content="{l:T 'Tắt (luôn hỏi trước khi tải)'}" />
+    <RadioButton GroupName="AutoAccept" IsChecked="{Binding IsFollow}" Content="{Binding FollowText}" />
+    <StackPanel Orientation="Horizontal" Spacing="8">
+      <RadioButton GroupName="AutoAccept" IsChecked="{Binding IsCustom}" Content="{l:T 'Riêng cho máy này, tối đa'}" VerticalAlignment="Center" />
+      <NumericUpDown Value="{Binding CustomGb}" Minimum="0.1" Maximum="10000" Increment="1" FormatString="0.##" Width="130" VerticalAlignment="Center" />
+      <TextBlock Text="GB" VerticalAlignment="Center" />
+    </StackPanel>
+    <TextBlock Text="{Binding Error}" IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}" Foreground="#EF4444" TextWrapping="Wrap" />
+    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,6,0,0">
+      <Button Content="{l:T 'Hủy'}" Command="{Binding CancelCommand}" IsCancel="True" />
+      <Button Content="{l:T 'Lưu'}" Command="{Binding OkCommand}" IsDefault="True" Classes="accent" />
+    </StackPanel>
+  </StackPanel>
+</Window>

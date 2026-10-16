@@ -8,6 +8,7 @@ using Shorekeeper.Android.Platform;
 using Shorekeeper.Core.Discovery;
 using Shorekeeper.Core.Localization;
 using Shorekeeper.Core.Platform;
+using Shorekeeper.Core.Settings;
 using Shorekeeper.Desktop.Localization;
 using Shorekeeper.Desktop.ViewModels;
 using Shorekeeper.Engine;
@@ -57,6 +58,7 @@ public sealed partial class SettingsTabViewModel : ObservableObject
         Blocked = new BlockedPeersViewModel(services.GetRequiredService<TrustStore>());
         this.main = main;
         DisplayName = settings.Current.DisplayName;
+        AutoAcceptLimitGb = (decimal)settings.Current.AutoAcceptLimitGb;
         startLanguage = settings.User.Language;
         Language = LanguageChoice.Of(startLanguage);
         directory.Changed += (_, _) => Dispatcher.UIThread.Post(() => OnPropertyChanged(nameof(NetworkText)));
@@ -64,6 +66,10 @@ public sealed partial class SettingsTabViewModel : ObservableObject
 
     [ObservableProperty]
     public partial string DisplayName { get; set; }
+
+    /// <summary>"Tự nhận file tối đa" (GB) for contacts that follow Settings.</summary>
+    [ObservableProperty]
+    public partial decimal? AutoAcceptLimitGb { get; set; }
 
     /// <summary>"Luôn nhận file": keeps a foreground service so PCs reach the phone with the screen off.</summary>
     public bool AlwaysReceive
@@ -177,6 +183,19 @@ public sealed partial class SettingsTabViewModel : ObservableObject
                 : "";
             return L.F("Địa chỉ của điện thoại: {0}\nCổng HTTPS: {1}\nĐang thấy trực tiếp: {2} máy{3}", addresses, api.Port, heard, hint);
         }
+    }
+
+    [RelayCommand]
+    private void SaveAutoAcceptLimit()
+    {
+        if (AutoAcceptLimitGb is not ({ } gb and > 0) || gb > (decimal)EffectiveSettings.MaxAutoAcceptLimitGb)
+        {
+            main.Notice = L.F("Nhập số GB lớn hơn 0 và không quá {0}.", EffectiveSettings.MaxAutoAcceptLimitGb.ToString("N0", L.Culture));
+            return;
+        }
+
+        AutoAcceptLimitGb = (decimal)settings.Update(s => s with { AutoAcceptLimitGb = (double)gb }).AutoAcceptLimitGb;
+        main.Notice = L.T("Đã lưu.");
     }
 
     [RelayCommand]

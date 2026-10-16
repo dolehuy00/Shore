@@ -150,8 +150,17 @@ public sealed partial class MainViewModel : ObservableObject
 
     public bool HasQuestion => Question is not null;
 
-    internal Task SetAutoAcceptAsync(PeerItemViewModel peer, bool on) =>
-        trust.SetAutoAcceptAsync(peer.DeviceId, on ? TrustStore.DefaultAutoAcceptLimit : null);
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasAutoAccept))]
+    public partial AutoAcceptChoiceViewModel? AutoAccept { get; set; }
+
+    public bool HasAutoAccept => AutoAccept is not null;
+
+    /// <summary>"Tự nhận file…" on a contact: off, the limit in Settings, or its own.</summary>
+    internal void ChooseAutoAccept(PeerItemViewModel peer) =>
+        AutoAccept = new AutoAcceptChoiceViewModel(
+            peer.Name, trust.Get(peer.DeviceId)?.AutoAcceptMaxBytes, settings.Current.AutoAcceptLimitGb,
+            maxBytes => trust.SetAutoAcceptAsync(peer.DeviceId, maxBytes), () => AutoAccept = null);
 
     internal void AskAlias(PeerItemViewModel peer) =>
         Question = new QuestionViewModel(L.T("Đặt tên gợi nhớ"), L.F("Tên gợi nhớ cho {0}:", peer.Host), L.T("Lưu"), peer.Name,
@@ -387,7 +396,7 @@ public sealed partial class PeerItemViewModel(
     private Task ConnectAsync() => owner.ConnectAsync(DeviceId, Name);
 
     [RelayCommand]
-    private Task ToggleAutoAcceptAsync() => owner.SetAutoAcceptAsync(this, !IsAutoAccept);
+    private void ChooseAutoAccept() => owner.ChooseAutoAccept(this);
 
     [RelayCommand]
     private void Rename() => owner.AskAlias(this);

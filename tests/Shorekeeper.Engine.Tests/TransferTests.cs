@@ -3,7 +3,9 @@ using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using Shorekeeper.Core.Identity;
 using Shorekeeper.Engine.Api;
+using Shorekeeper.Engine.Settings;
 using Shorekeeper.Engine.Transfers;
+using Shorekeeper.Engine.Trust;
 
 namespace Shorekeeper.Engine.Tests;
 
@@ -201,6 +203,20 @@ public sealed class TransferTests : IAsyncLifetime
     public async Task Auto_accept_downloads_offers_within_the_limit_without_asking()
     {
         await b.Trust.SetAutoAcceptAsync(a.Id, 1024, Ct);
+
+        string small = await SendAsync(a, [WriteFile(a, "small.txt", new byte[1000])], b.Id);
+        string large = await SendAsync(a, [WriteFile(a, "large.bin", new byte[5000])], b.Id);
+
+        await WaitUntil(() => b.Inbox.Get(new OfferKey(a.Id, small))?.State == InboxState.Completed);
+        await WaitForOfferAsync(b, large);
+        Assert.Equal(InboxState.New, b.Inbox.Get(new OfferKey(a.Id, large))!.State);
+    }
+
+    [Fact]
+    public async Task Auto_accept_that_follows_settings_uses_the_limit_in_settings()
+    {
+        b.Get<SettingsService>().Update(s => s with { AutoAcceptLimitGb = 2048.0 / (1L << 30) });
+        await b.Trust.SetAutoAcceptAsync(a.Id, TrustStore.FollowSettingsLimit, Ct);
 
         string small = await SendAsync(a, [WriteFile(a, "small.txt", new byte[1000])], b.Id);
         string large = await SendAsync(a, [WriteFile(a, "large.bin", new byte[5000])], b.Id);

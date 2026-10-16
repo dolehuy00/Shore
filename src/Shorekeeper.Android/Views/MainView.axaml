@@ -152,7 +152,7 @@
                             </PathIcon>
                             <Button.Flyout>
                               <MenuFlyout>
-                                <MenuItem Header="{l:T 'Tự nhận file (tối đa 2 GB)'}" Command="{Binding ToggleAutoAcceptCommand}" IsVisible="{Binding IsTrusted}"
+                                <MenuItem Header="{l:T 'Tự nhận file…'}" Command="{Binding ChooseAutoAcceptCommand}" IsVisible="{Binding IsTrusted}"
                                           ToggleType="CheckBox" IsChecked="{Binding IsAutoAccept, Mode=OneWay}" />
                                 <MenuItem Header="{l:T 'Đặt tên gợi nhớ…'}" Command="{Binding RenameCommand}" IsVisible="{Binding IsTrusted}" />
                                 <MenuItem Header="{l:T 'Ngắt kết nối'}" Command="{Binding DisconnectCommand}" IsVisible="{Binding IsTrusted}" />
@@ -426,6 +426,14 @@
                 <Button Grid.Column="1" Content="{l:T 'Khởi động lại'}" Command="{Binding RestartAppCommand}" Classes="accent" />
               </Grid>
 
+              <TextBlock Classes="h3" Text="{l:T 'Tự nhận file tối đa'}" />
+              <Grid ColumnDefinitions="*,Auto,Auto">
+                <NumericUpDown Value="{Binding AutoAcceptLimitGb}" Minimum="0.1" Maximum="10000" Increment="1" FormatString="0.##" ShowButtonSpinner="False" />
+                <TextBlock Grid.Column="1" Text="GB" VerticalAlignment="Center" Margin="8,0" />
+                <Button Grid.Column="2" Content="{l:T 'Lưu'}" Command="{Binding SaveAutoAcceptLimitCommand}" />
+              </Grid>
+              <TextBlock Classes="muted" Text="{l:T 'Cho máy đã kết nối có Tự nhận file theo cài đặt chung; từng máy có thể đặt riêng ở menu ⋮.'}" FontSize="12" TextWrapping="Wrap" />
+
               <TextBlock Classes="h3" Text="{l:T 'Chạy nền'}" />
               <ToggleSwitch IsChecked="{Binding AlwaysReceive}" OnContent="{l:T 'Luôn nhận file (kể cả khi tắt màn hình)'}" OffContent="{l:T 'Luôn nhận file (kể cả khi tắt màn hình)'}" />
               <TextBlock Classes="muted" Text="{l:T 'Giữ một thông báo thường trực để máy tính gửi được file bất cứ lúc nào. Tốn pin hơn một chút.'}"
@@ -551,6 +559,28 @@
           <WrapPanel ItemSpacing="8" LineSpacing="8" HorizontalAlignment="Right">
             <Button Content="{l:T 'Hủy'}" Command="{Binding CloseCommand}" />
             <Button Content="{l:T 'Tìm'}" Command="{Binding FindCommand}" Classes="accent" />
+          </WrapPanel>
+        </StackPanel>
+      </Border>
+    </Border>
+
+    <!-- "Tự nhận file…" on a contact. -->
+    <Border Classes="overlay" IsVisible="{Binding HasAutoAccept}">
+      <Border Classes="dialog" DataContext="{Binding AutoAccept}" x:DataType="dvm:AutoAcceptChoiceViewModel">
+        <StackPanel Spacing="10">
+          <TextBlock Text="{Binding Title}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
+          <TextBlock Classes="muted" Text="{l:T 'File gửi đến từ máy này, nếu không quá giới hạn, sẽ tự tải về mà không hỏi.'}" FontSize="13" TextWrapping="Wrap" />
+          <RadioButton GroupName="AutoAccept" IsChecked="{Binding IsOff}" Content="{l:T 'Tắt (luôn hỏi trước khi tải)'}" />
+          <RadioButton GroupName="AutoAccept" IsChecked="{Binding IsFollow}" Content="{Binding FollowText}" />
+          <RadioButton GroupName="AutoAccept" IsChecked="{Binding IsCustom}" Content="{l:T 'Riêng cho máy này, tối đa'}" />
+          <Grid ColumnDefinitions="*,Auto" Margin="28,0,0,0">
+            <NumericUpDown Value="{Binding CustomGb}" Minimum="0.1" Maximum="10000" Increment="1" FormatString="0.##" ShowButtonSpinner="False" />
+            <TextBlock Grid.Column="1" Text="GB" VerticalAlignment="Center" Margin="8,0,0,0" />
+          </Grid>
+          <TextBlock Text="{Binding Error}" IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}" Foreground="#EF4444" TextWrapping="Wrap" />
+          <WrapPanel ItemSpacing="8" LineSpacing="8" HorizontalAlignment="Right">
+            <Button Content="{l:T 'Hủy'}" Command="{Binding CancelCommand}" />
+            <Button Content="{l:T 'Lưu'}" Command="{Binding OkCommand}" Classes="accent" />
           </WrapPanel>
         </StackPanel>
       </Border>

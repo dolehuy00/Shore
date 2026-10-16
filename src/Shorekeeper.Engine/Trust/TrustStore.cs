@@ -8,7 +8,10 @@ using Shorekeeper.Engine.Storage;
 namespace Shorekeeper.Engine.Trust;
 
 /// <param name="Alias">Name the user chose for this peer; shown instead of <paramref name="DisplayName"/> when set.</param>
-/// <param name="AutoAcceptMaxBytes">When set, offers from this contact up to this size download without asking.</param>
+/// <param name="AutoAcceptMaxBytes">
+/// When set, offers from this contact up to this size download without asking; <see cref="TrustStore.FollowSettingsLimit"/>
+/// means up to the limit in Settings.
+/// </param>
 public sealed record PeerRecord(DeviceId DeviceId, string DisplayName, string HostName, string? Alias, TrustLevel TrustLevel, long? AutoAcceptMaxBytes = null)
 {
     public string ShownName => string.IsNullOrWhiteSpace(Alias) ? DisplayName : Alias;
@@ -20,8 +23,8 @@ public sealed record PeerRecord(DeviceId DeviceId, string DisplayName, string Ho
 /// </summary>
 public sealed class TrustStore(SqliteDatabase database, TimeProvider timeProvider)
 {
-    /// <summary>"Tự nhận file": offers from such a contact download by themselves up to this size.</summary>
-    public const long DefaultAutoAcceptLimit = 2L * 1024 * 1024 * 1024;
+    /// <summary>"Tự nhận file" up to the limit in Settings (<see cref="Core.Settings.EffectiveSettings.AutoAcceptMaxBytes"/>).</summary>
+    public const long FollowSettingsLimit = -1;
 
     private static readonly TimeSpan EndpointRetention = TimeSpan.FromDays(14);
 
@@ -123,7 +126,10 @@ public sealed class TrustStore(SqliteDatabase database, TimeProvider timeProvide
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>"Tự nhận file": offers from this contact up to <paramref name="maxBytes"/> download without asking; null turns it off.</summary>
+    /// <summary>
+    /// "Tự nhận file": offers from this contact up to <paramref name="maxBytes"/> download without asking
+    /// (<see cref="FollowSettingsLimit"/>: up to the limit in Settings); null turns it off.
+    /// </summary>
     public async Task SetAutoAcceptAsync(DeviceId id, long? maxBytes, CancellationToken cancellationToken = default)
     {
         await using (SqliteConnection connection = await database.OpenAsync(cancellationToken))
