@@ -122,8 +122,9 @@
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:PeerItemViewModel">
                     <Border Classes="card">
-                      <Grid ColumnDefinitions="Auto,*,Auto">
-                        <Border Classes="tile">
+                      <!-- Tall enough that ⋮ (top) and the main action (bottom) do not crowd each other. -->
+                      <Grid ColumnDefinitions="Auto,*,Auto" MinHeight="96">
+                        <Border Classes="tile" VerticalAlignment="Center">
                           <Panel>
                             <PathIcon Data="{StaticResource Icon.Laptop}" IsVisible="{Binding !IsPhone}" Width="22" Height="22" />
                             <PathIcon Data="{StaticResource Icon.Phone}" IsVisible="{Binding IsPhone}" Width="22" Height="22" />
