@@ -38,6 +38,7 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly SettingsService settings;
     private readonly LocalDevice device;
     private readonly AppPaths paths;
+    private readonly ManualPeerFinder finder;
     private readonly DispatcherTimer progressTimer;
 
     public MainViewModel(IServiceProvider services)
@@ -52,6 +53,7 @@ public sealed partial class MainViewModel : ObservableObject
         settings = services.GetRequiredService<SettingsService>();
         device = services.GetRequiredService<LocalDevice>();
         paths = services.GetRequiredService<AppPaths>();
+        finder = services.GetRequiredService<ManualPeerFinder>();
         Groups = new GroupsTabViewModel(services, this);
         Settings = new SettingsTabViewModel(services, this);
         settings.Changed += (_, _) => Dispatcher.UIThread.Post(() => OnPropertyChanged(nameof(Title)));
@@ -132,6 +134,16 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasQuestion))]
     public partial QuestionViewModel? Question { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasAddPeer))]
+    public partial AddPeerViewModel? AddPeer { get; set; }
+
+    public bool HasAddPeer => AddPeer is not null;
+
+    /// <summary>The + on Xóm.</summary>
+    [RelayCommand]
+    private void OpenAddPeer() => AddPeer = new AddPeerViewModel(finder, this);
 
     public bool HasQuestion => Question is not null;
 
@@ -369,6 +381,45 @@ public sealed partial class PeerItemViewModel(
 
     [RelayCommand]
     private void Block() => owner.ConfirmBlock(this);
+}
+
+/// <summary>
+/// "Thêm máy bằng địa chỉ" (the + on Xóm), for Wi-Fi that hides devices from each other (R7): asks the address who it is,
+/// keeps the address so the phone finds it again, then connects.
+/// </summary>
+public sealed partial class AddPeerViewModel(ManualPeerFinder finder, MainViewModel owner) : ObservableObject
+{
+    [ObservableProperty]
+    public partial string Address { get; set; } = "";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasStatus))]
+    public partial string? Status { get; set; }
+
+    public bool HasStatus => Status is not null;
+
+    [RelayCommand]
+    private async Task FindAsync(CancellationToken cancellationToken)
+    {
+        Status = L.T("Đang tìm…");
+        FindResult result = await finder.FindAsync(Address, cancellationToken);
+        if (result.Peer is not { } peer)
+        {
+            Status = result.Error;
+            return;
+        }
+
+        await finder.SaveAsync(Address, cancellationToken);
+        owner.AddPeer = null;
+        await owner.ConnectAsync(peer.DeviceId, peer.Name);
+    }
+
+    [RelayCommand]
+    private void Close()
+    {
+        FindCommand.Cancel();
+        owner.AddPeer = null;
+    }
 }
 
 /// <summary>A question over the page: a confirmation, or a name to type when <paramref name="input"/> is set.</summary>

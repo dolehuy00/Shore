@@ -118,7 +118,8 @@
                          TextWrapping="Wrap" TextAlignment="Center" />
             </StackPanel>
             <ScrollViewer>
-              <ItemsControl ItemsSource="{Binding Peers}">
+              <!-- Room at the end so the last card can scroll above the + button. -->
+              <ItemsControl ItemsSource="{Binding Peers}" Margin="0,0,0,80">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:PeerItemViewModel">
                     <Border Classes="card">
@@ -177,6 +178,13 @@
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
             </ScrollViewer>
+            <!-- "Thêm máy bằng địa chỉ", for devices the phone cannot see by itself. -->
+            <Button Classes="accent" Command="{Binding OpenAddPeerCommand}" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                    Width="44" Height="44" CornerRadius="22" Padding="0" Margin="0,0,6,14"
+                    HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                    AutomationProperties.Name="{l:T 'Thêm máy bằng địa chỉ'}">
+              <PathIcon Data="{StaticResource Icon.Add}" Width="20" Height="20" />
+            </Button>
           </Panel>
         </TabItem>
 
@@ -420,12 +428,6 @@
 
               <TextBlock Classes="h3" Text="{l:T 'Mạng'}" />
               <TextBlock Text="{Binding NetworkText}" FontSize="13" TextWrapping="Wrap" />
-              <TextBlock Classes="h3" Text="{l:T 'Thêm máy bằng địa chỉ'}" />
-              <Grid ColumnDefinitions="*,Auto">
-                <TextBox Text="{Binding AddAddress}" PlaceholderText="{l:T 'Tên máy hoặc IP, vd 192.168.1.20'}" Margin="0,0,8,0" />
-                <Button Grid.Column="1" Content="{l:T 'Tìm'}" Command="{Binding AddCommand}" />
-              </Grid>
-              <TextBlock Text="{Binding AddStatus}" IsVisible="{Binding HasAddStatus}" TextWrapping="Wrap" />
             </StackPanel>
           </ScrollViewer>
         </TabItem>
@@ -500,6 +502,23 @@
           <WrapPanel ItemSpacing="8" LineSpacing="8" HorizontalAlignment="Right">
             <Button Content="{l:T 'Hủy'}" Command="{Binding CancelDialogCommand}" />
             <Button Content="{Binding DialogOkText}" Command="{Binding DialogOkCommand}" Classes="accent" />
+          </WrapPanel>
+        </StackPanel>
+      </Border>
+    </Border>
+
+    <!-- The + on Xóm: a device by name or address. -->
+    <Border Classes="overlay" IsVisible="{Binding HasAddPeer}">
+      <Border Classes="dialog" DataContext="{Binding AddPeer}" x:DataType="vm:AddPeerViewModel">
+        <StackPanel Spacing="12">
+          <TextBlock Text="{l:T 'Thêm máy bằng địa chỉ'}" FontSize="18" FontWeight="SemiBold" />
+          <TextBlock Classes="muted" Text="{l:T 'Dùng khi Wi-Fi không cho các máy thấy nhau: nhập tên hoặc IP của máy tính đang mở Shorekeeper.'}"
+                     FontSize="13" TextWrapping="Wrap" />
+          <TextBox Text="{Binding Address}" PlaceholderText="{l:T 'Tên máy hoặc IP, vd 192.168.1.20'}" />
+          <TextBlock Text="{Binding Status}" IsVisible="{Binding HasStatus}" TextWrapping="Wrap" />
+          <WrapPanel ItemSpacing="8" LineSpacing="8" HorizontalAlignment="Right">
+            <Button Content="{l:T 'Hủy'}" Command="{Binding CloseCommand}" />
+            <Button Content="{l:T 'Tìm'}" Command="{Binding FindCommand}" Classes="accent" />
           </WrapPanel>
         </StackPanel>
       </Border>

@@ -29,15 +29,13 @@ public enum BackupStep
 
 /// <summary>
 /// "Cài đặt" on the phone (docs/14-android.md, A5): name, "Luôn nhận file", identity backup and restore (to move to
-/// a new phone without connecting again, ADR-013), and what the network looks like from here, with "add by address"
-/// for Wi-Fi that hides devices from each other (R7).
+/// a new phone without connecting again, ADR-013), and what the network looks like from here.
 /// </summary>
 public sealed partial class SettingsTabViewModel : ObservableObject
 {
     private readonly SettingsService settings;
     private readonly IdentityBackup backup;
     private readonly IExternalFileSource external;
-    private readonly ManualPeerFinder finder;
     private readonly PeerDirectory directory;
     private readonly ApiServer api;
     private readonly LocalDevice device;
@@ -52,7 +50,6 @@ public sealed partial class SettingsTabViewModel : ObservableObject
         settings = services.GetRequiredService<SettingsService>();
         backup = services.GetRequiredService<IdentityBackup>();
         external = services.GetRequiredService<IExternalFileSource>();
-        finder = services.GetRequiredService<ManualPeerFinder>();
         directory = services.GetRequiredService<PeerDirectory>();
         api = services.GetRequiredService<ApiServer>();
         device = services.GetRequiredService<LocalDevice>();
@@ -176,20 +173,11 @@ public sealed partial class SettingsTabViewModel : ObservableObject
             int heard = directory.Snapshot().Count(p => p.Source == PeerSource.Direct);
             string addresses = interfaces.Count == 0 ? L.T("không có (chưa vào Wi-Fi?)") : string.Join(", ", interfaces.Select(i => i.Address));
             string hint = heard == 0
-                ? L.T("\nChưa thấy máy nào. Nếu máy tính đã mở Shorekeeper cùng Wi-Fi mà vẫn không thấy, Wi-Fi có thể đang cách ly các thiết bị (mạng khách, mạng công ty): thử thêm máy bằng địa chỉ bên dưới, hoặc dùng điểm phát Wi-Fi của điện thoại.")
+                ? L.T("\nChưa thấy máy nào. Nếu máy tính đã mở Shorekeeper cùng Wi-Fi mà vẫn không thấy, Wi-Fi có thể đang cách ly các thiết bị (mạng khách, mạng công ty): thử thêm máy bằng địa chỉ (nút + ở tab Xóm), hoặc dùng điểm phát Wi-Fi của điện thoại.")
                 : "";
             return L.F("Địa chỉ của điện thoại: {0}\nCổng HTTPS: {1}\nĐang thấy trực tiếp: {2} máy{3}", addresses, api.Port, heard, hint);
         }
     }
-
-    [ObservableProperty]
-    public partial string AddAddress { get; set; } = "";
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasAddStatus))]
-    public partial string? AddStatus { get; set; }
-
-    public bool HasAddStatus => AddStatus is not null;
 
     [RelayCommand]
     private void SaveName()
@@ -328,22 +316,5 @@ public sealed partial class SettingsTabViewModel : ObservableObject
         }
 
         return Task.CompletedTask;
-    }
-
-    /// <summary>"Thêm máy": asks an address who it is, then connects; the address is kept so the phone finds it again.</summary>
-    [RelayCommand]
-    private async Task AddAsync(CancellationToken cancellationToken)
-    {
-        AddStatus = L.T("Đang tìm…");
-        FindResult result = await finder.FindAsync(AddAddress, cancellationToken);
-        if (result.Peer is not { } peer)
-        {
-            AddStatus = result.Error;
-            return;
-        }
-
-        AddStatus = L.F("Tìm thấy {0} ({1}).", peer.Name, peer.Host);
-        await finder.SaveAsync(AddAddress, cancellationToken);
-        await main.ConnectAsync(peer.DeviceId, peer.Name);
     }
 }
