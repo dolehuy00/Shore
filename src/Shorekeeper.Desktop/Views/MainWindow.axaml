@@ -643,23 +643,37 @@
 
                     <TextBlock Classes="muted" Text="{Binding StatusText}" IsVisible="{Binding HasStatus}" FontSize="12" TextWrapping="Wrap" />
 
+                    <!-- One row per member: device, name, Host/Bạn, status and where they are on the network. -->
                     <ItemsControl ItemsSource="{Binding Members}">
-                      <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                          <WrapPanel />
-                        </ItemsPanelTemplate>
-                      </ItemsControl.ItemsPanel>
                       <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:MemberViewModel">
-                          <Border Classes="chip">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                              <Ellipse Classes="dot" Classes.muted="{Binding !IsOnline}" Width="8" Height="8" />
-                              <TextBlock Text="{Binding Label}" FontSize="12" VerticalAlignment="Center" />
-                              <Button Content="✕" Command="{Binding RemoveCommand}" IsVisible="{Binding CanRemove}" ToolTip.Tip="{l:T 'Loại khỏi nhóm'}"
-                                      Padding="4,0" MinHeight="0" FontSize="10" Background="Transparent" BorderThickness="0" VerticalAlignment="Center"
-                                      AutomationProperties.Name="{l:T 'Loại khỏi nhóm'}" />
+                          <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,3">
+                            <Border Width="32" Height="32" CornerRadius="6" Background="{DynamicResource Sk.TileBackground}" VerticalAlignment="Center">
+                              <Panel>
+                                <PathIcon Data="{StaticResource Icon.Laptop}" IsVisible="{Binding !IsPhone}" Width="16" Height="16" />
+                                <PathIcon Data="{StaticResource Icon.Phone}" IsVisible="{Binding IsPhone}" Width="16" Height="16" />
+                              </Panel>
+                            </Border>
+                            <StackPanel Grid.Column="1" Margin="10,0" VerticalAlignment="Center">
+                              <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                <Border Classes="tag" IsVisible="{Binding IsHost}" VerticalAlignment="Center">
+                                  <TextBlock Text="Host" FontSize="11" />
+                                </Border>
+                              </StackPanel>
+                              <StackPanel Orientation="Horizontal" Spacing="6">
+                                <Ellipse Classes="dot" Classes.busy="{Binding IsBusy}" Classes.muted="{Binding !IsOnline}" Width="8" Height="8" />
+                                <TextBlock Classes="muted" Text="{Binding StatusText}" FontSize="12" />
+                                <TextBlock Classes="muted" Text="·" FontSize="12" IsVisible="{Binding HasDetail}" />
+                                <TextBlock Classes="muted" Text="{Binding Detail}" FontSize="12" TextTrimming="CharacterEllipsis" IsVisible="{Binding HasDetail}" />
+                              </StackPanel>
                             </StackPanel>
-                          </Border>
+                            <Button Grid.Column="2" Command="{Binding RemoveCommand}" IsVisible="{Binding CanRemove}" ToolTip.Tip="{l:T 'Loại khỏi nhóm'}"
+                                    Background="Transparent" BorderThickness="0" Padding="6" VerticalAlignment="Center"
+                                    AutomationProperties.Name="{l:T 'Loại khỏi nhóm'}">
+                              <PathIcon Data="{StaticResource Icon.Dismiss}" Width="12" Height="12" />
+                            </Button>
+                          </Grid>
                         </DataTemplate>
                       </ItemsControl.ItemTemplate>
                     </ItemsControl>

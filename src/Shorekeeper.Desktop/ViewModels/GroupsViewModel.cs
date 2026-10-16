@@ -405,9 +405,7 @@ public sealed partial class GroupCardViewModel(string id, GroupsViewModel owner)
 
         Members =
         [
-            .. group.Members
-                .Select(m => new MemberViewModel(m.DeviceId, m.DeviceId == owner.Me ? L.T("Bạn") : owner.NameOf(m.DeviceId, m.Name),
-                    m.IsHost, m.DeviceId == owner.Me || owner.Names.IsOnline(m.DeviceId), IsHost && m.DeviceId != owner.Me, this, owner))
+            .. group.Members.Select(m => Member(m))
                 .OrderByDescending(m => m.IsHost)
                 .ThenBy(m => m.Name, StringComparer.Create(CultureInfo.CurrentCulture, ignoreCase: true)),
         ];
@@ -423,6 +421,26 @@ public sealed partial class GroupCardViewModel(string id, GroupsViewModel owner)
             : !IsHost && hostReachable == false ? L.T("Host offline: vẫn gửi file cho nhau được, chỉ chưa vào/ra thành viên được.")
             : null;
         return this;
+    }
+
+    /// <summary>A member row: who, on what device, whether they can be reached now, and where.</summary>
+    private MemberViewModel Member(GroupMember member)
+    {
+        bool isMe = member.DeviceId == owner.Me;
+        PeerInfo? live = isMe ? null : owner.Names.Live(member.DeviceId);
+        bool isOnline = isMe || live?.State == PeerState.Online;
+        string detail = isMe ? LocalDevice.HostName
+            : live is null ? ""
+            : $"{live.HostName} · {live.Address}";
+        return new MemberViewModel(member.DeviceId, isMe ? L.T("Bạn") : owner.NameOf(member.DeviceId, member.Name),
+            member.IsHost, isOnline, IsHost && !isMe, this, owner)
+        {
+            IsMe = isMe,
+            IsPhone = live?.Os.Equals("android", StringComparison.OrdinalIgnoreCase) == true,
+            IsBusy = live?.IsBusy == true,
+            StatusText = isOnline ? live?.IsBusy == true ? L.T("Bận") : "Online" : live is null ? "Offline" : L.T("Mất tín hiệu…"),
+            Detail = detail,
+        };
     }
 
     [RelayCommand]
@@ -457,7 +475,19 @@ public sealed partial class MemberViewModel(
 
     public bool CanRemove { get; } = canRemove;
 
-    public string Label => IsHost ? $"{Name} (Host)" : Name;
+    public bool IsMe { get; init; }
+
+    public bool IsPhone { get; init; }
+
+    public bool IsBusy { get; init; }
+
+    /// <summary>"Online", "Bận", "Offline".</summary>
+    public string StatusText { get; init; } = "";
+
+    /// <summary>"MSI-PC · 192.168.1.20" while online; this computer's name for "Bạn".</summary>
+    public string Detail { get; init; } = "";
+
+    public bool HasDetail => Detail.Length > 0;
 
     [RelayCommand]
     private Task RemoveAsync() => owner.RemoveAsync(card, this);
