@@ -2,6 +2,7 @@
         xmlns:l="using:Shorekeeper.Desktop.Localization"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Shorekeeper.Desktop.ViewModels"
+        xmlns:v="using:Shorekeeper.Desktop.Views"
         x:Class="Shorekeeper.Desktop.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Title="Shorekeeper"
@@ -761,7 +762,14 @@
               </CheckBox>
 
               <StackPanel Spacing="4">
-                <CheckBox IsChecked="{Binding Settings.QuickSendHotkey}" Content="{Binding Settings.HotkeyText}" />
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                  <CheckBox IsChecked="{Binding Settings.QuickSendHotkey}" Content="{l:T 'Phím tắt mở cửa sổ Gửi nhanh'}" />
+                  <v:ShortcutRecorder Shortcut="{Binding Settings.QuickSendShortcut}" IsRecording="{Binding Settings.IsRecordingShortcut}"
+                                      IsEnabled="{Binding Settings.QuickSendHotkey}" MinWidth="120" VerticalAlignment="Center" HorizontalContentAlignment="Center"
+                                      ToolTip.Tip="{l:T 'Bấm rồi nhấn tổ hợp phím mới'}" />
+                </StackPanel>
+                <TextBlock Classes="muted" Text="{l:T 'Nhấn Ctrl hoặc Alt (thêm Shift nếu muốn) cùng một chữ cái, số hoặc F1–F12. Esc để hủy.'}"
+                           IsVisible="{Binding Settings.IsRecordingShortcut}" TextWrapping="Wrap" FontSize="12" />
                 <TextBlock Text="{Binding Settings.HotkeyWarning}" IsVisible="{Binding Settings.HotkeyWarning, Converter={x:Static ObjectConverters.IsNotNull}}"
                            TextWrapping="Wrap" FontSize="12" Foreground="#C77C00" />
               </StackPanel>

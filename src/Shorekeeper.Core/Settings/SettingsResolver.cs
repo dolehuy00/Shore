@@ -94,6 +94,7 @@ public static class SettingsResolver
             ReconnectWindow = reconnectWindow,
             AlwaysSnapshotBeforeSend = user.AlwaysSnapshotBeforeSend,
             QuickSendHotkey = user.QuickSendHotkey ?? true,
+            QuickSendShortcut = Hotkey.Parse(user.QuickSendShortcut) ?? Hotkey.Default,
             DiscoveryPort = discoveryPort,
             ApiPort = apiPort,
             BridgeEnabled = bridgeEnabled,

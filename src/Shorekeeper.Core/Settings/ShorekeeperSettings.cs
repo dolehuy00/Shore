@@ -22,8 +22,11 @@ public sealed record ShorekeeperSettings
     /// <summary>"vi" or "en"; null follows the system language (docs/10-ux.md §1). Takes effect at the next start.</summary>
     public string? Language { get; init; }
 
-    /// <summary>Ctrl+Alt+S opens "Gửi nhanh" from anywhere (on by default).</summary>
+    /// <summary>The shortcut opens "Gửi nhanh" from anywhere (on by default).</summary>
     public bool? QuickSendHotkey { get; init; }
+
+    /// <summary>That shortcut, e.g. "Ctrl+Alt+S" (the default when null or not a valid shortcut).</summary>
+    public string? QuickSendShortcut { get; init; }
 
     public int? DiscoveryPort { get; init; }
 

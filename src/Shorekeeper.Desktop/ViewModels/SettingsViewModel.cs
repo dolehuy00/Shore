@@ -69,14 +69,20 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     public partial bool QuickSendHotkey { get; set; }
 
+    /// <summary>"Ctrl+Alt+S"; saved with the rest.</summary>
+    [ObservableProperty]
+    public partial string QuickSendShortcut { get; set; } = "";
+
+    /// <summary>The shortcut button waits for keys; the current shortcut is let go meanwhile.</summary>
+    [ObservableProperty]
+    public partial bool IsRecordingShortcut { get; set; }
+
     [ObservableProperty]
     public partial LanguageChoice Language { get; set; }
 
-    public string HotkeyText => L.F("Phím tắt {0} mở cửa sổ Gửi nhanh", quickSend.HotkeyText);
-
     /// <summary>Null unless the shortcut is on but another program already took it.</summary>
     public string? HotkeyWarning => quickSend.IsHotkeyTaken
-        ? L.F("{0} đang được ứng dụng khác dùng nên chưa bật được. Vẫn mở Gửi nhanh được từ icon ở khay hệ thống.", quickSend.HotkeyText)
+        ? L.F("{0} đang được ứng dụng khác dùng nên chưa bật được. Chọn phím tắt khác, hoặc mở Gửi nhanh từ icon ở khay hệ thống.", settings.Current.QuickSendShortcut)
         : null;
 
     [ObservableProperty]
@@ -231,6 +237,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             ReconnectWindowSeconds = IsReconnectWindowLocked ? current.ReconnectWindowSeconds : ReconnectWindow.Value,
             AlwaysSnapshotBeforeSend = AlwaysSnapshotBeforeSend,
             QuickSendHotkey = QuickSendHotkey,
+            QuickSendShortcut = QuickSendShortcut,
             Language = Language.Code,
         });
         Load(saved);
@@ -290,12 +297,16 @@ public sealed partial class SettingsViewModel : ObservableObject
         CreateSenderSubfolders = current.CreateSenderSubfolders;
         AlwaysSnapshotBeforeSend = current.AlwaysSnapshotBeforeSend;
         QuickSendHotkey = current.QuickSendHotkey;
+        QuickSendShortcut = current.QuickSendShortcut.ToString();
+        OnPropertyChanged(nameof(HotkeyWarning));
         Language = LanguageChoice.Of(settings.User.Language);
         OfferLifetime = Closest(OfferLifetimeChoices, settings.User.OfferLifetimeHours ?? (int)current.OfferLifetime.TotalHours);
         ReconnectWindow = Closest(ReconnectChoices, (int)current.ReconnectWindow.TotalSeconds);
         IsDownloadDirectoryLocked = current.IsLocked(nameof(ShorekeeperSettings.DownloadDirectory));
         IsReconnectWindowLocked = current.IsLocked(nameof(ShorekeeperSettings.ReconnectWindowSeconds));
     }
+
+    partial void OnIsRecordingShortcutChanged(bool value) => quickSend.PauseHotkey(value);
 
     private static SettingChoice Closest(IReadOnlyList<SettingChoice> choices, int value) =>
         choices.MinBy(c => Math.Abs(c.Value - value))!;

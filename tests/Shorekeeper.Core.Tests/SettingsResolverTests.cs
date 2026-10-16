@@ -20,6 +20,7 @@ public class SettingsResolverTests
         Assert.Equal(47470, settings.DiscoveryPort);
         Assert.Equal(47471, settings.ApiPort);
         Assert.True(settings.QuickSendHotkey);
+        Assert.Equal(Hotkey.Default, settings.QuickSendShortcut);
         Assert.Empty(settings.LockedSettings);
     }
 
@@ -33,9 +34,11 @@ public class SettingsResolverTests
             OfferLifetimeHours = 6,
             ReconnectWindowSeconds = 120,
             QuickSendHotkey = false,
+            QuickSendShortcut = "alt+shift+d",
         });
 
         Assert.False(settings.QuickSendHotkey);
+        Assert.Equal("Alt+Shift+D", settings.QuickSendShortcut.ToString());
         Assert.Equal("Lê Huy", settings.DisplayName);
         Assert.Equal(@"D:\Nhan", settings.DownloadDirectory);
         Assert.Equal(TimeSpan.FromHours(6), settings.OfferLifetime);

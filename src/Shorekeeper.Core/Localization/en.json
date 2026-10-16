@@ -228,8 +228,6 @@
   "1 phút": "1 minute",
   "2 phút": "2 minutes",
   "5 phút": "5 minutes",
-  "Phím tắt {0} mở cửa sổ Gửi nhanh": "Shortcut {0} opens the Quick Send window",
-  "{0} đang được ứng dụng khác dùng nên chưa bật được. Vẫn mở Gửi nhanh được từ icon ở khay hệ thống.": "{0} is used by another app, so it couldn't be turned on. You can still open Quick Send from the tray icon.",
   "Đặt mật khẩu cho bản sao lưu (ít nhất {0} ký tự):": "Set a password for the backup (at least {0} characters):",
   "Tiếp": "Next",
   "Không có quyền ghi vào thư mục đã chọn.": "No permission to write to the chosen folder.",
@@ -404,5 +402,10 @@
   "File được lưu vào Download/Shorekeeper.": "The file goes to Download/Shorekeeper.",
   "Mật khẩu": "Password",
   "\nChưa thấy máy nào. Nếu máy tính đã mở Shorekeeper cùng Wi-Fi mà vẫn không thấy, Wi-Fi có thể đang cách ly các thiết bị (mạng khách, mạng công ty): thử thêm máy bằng địa chỉ (nút + ở tab Xóm), hoặc dùng điểm phát Wi-Fi của điện thoại.": "\nNo devices seen yet. If a computer on the same Wi-Fi has Shorekeeper open and still doesn't show up, the Wi-Fi may be isolating devices (guest or company network): try adding it by address (the + on the Nearby tab), or use the phone's hotspot.",
-  "Dùng khi Wi-Fi không cho các máy thấy nhau: nhập tên hoặc IP của máy tính đang mở Shorekeeper.": "For Wi-Fi that hides devices from each other: enter the name or IP of a computer that has Shorekeeper open."
+  "Dùng khi Wi-Fi không cho các máy thấy nhau: nhập tên hoặc IP của máy tính đang mở Shorekeeper.": "For Wi-Fi that hides devices from each other: enter the name or IP of a computer that has Shorekeeper open.",
+  "{0} đang được ứng dụng khác dùng nên chưa bật được. Chọn phím tắt khác, hoặc mở Gửi nhanh từ icon ở khay hệ thống.": "{0} is already used by another app, so it couldn't be turned on. Pick another shortcut, or open Quick Send from the tray icon.",
+  "Phím tắt mở cửa sổ Gửi nhanh": "Shortcut to open the Quick Send window",
+  "Bấm rồi nhấn tổ hợp phím mới": "Click, then press the new key combination",
+  "Nhấn phím…": "Press keys…",
+  "Nhấn Ctrl hoặc Alt (thêm Shift nếu muốn) cùng một chữ cái, số hoặc F1–F12. Esc để hủy.": "Press Ctrl or Alt (plus Shift if you like) with a letter, digit or F1–F12. Esc to cancel."
 }

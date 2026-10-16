@@ -28,13 +28,22 @@ public sealed class QuickSendService(
     IGlobalHotkey hotkey)
 {
     private QuickSendWindow? window;
+    private bool paused;
 
     /// <summary>The shortcut is on in Settings but another program already uses it.</summary>
     public bool IsHotkeyTaken { get; private set; }
 
-    public string HotkeyText => hotkey.DisplayText;
-
     public event EventHandler? HotkeyChanged;
+
+    /// <summary>
+    /// Lets go of the shortcut while Settings records a new one, so pressing the current one there is seen
+    /// by the window instead of opening "Gửi nhanh".
+    /// </summary>
+    public void PauseHotkey(bool pause)
+    {
+        paused = pause;
+        ApplyHotkey(settings.Current);
+    }
 
     /// <summary>Registers the shortcut (when turned on) and follows the setting.</summary>
     public void Start()
@@ -74,7 +83,13 @@ public sealed class QuickSendService(
 
     private void ApplyHotkey(EffectiveSettings current)
     {
-        bool taken = !hotkey.SetEnabled(current.QuickSendHotkey) && current.QuickSendHotkey;
+        if (paused)
+        {
+            hotkey.Register(null);
+            return;
+        }
+
+        bool taken = !hotkey.Register(current.QuickSendHotkey ? current.QuickSendShortcut : null) && current.QuickSendHotkey;
         if (taken != IsHotkeyTaken)
         {
             IsHotkeyTaken = taken;

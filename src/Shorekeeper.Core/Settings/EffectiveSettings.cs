@@ -1,3 +1,5 @@
+using Shorekeeper.Core.Platform;
+
 namespace Shorekeeper.Core.Settings;
 
 /// <summary>
@@ -26,6 +28,8 @@ public sealed record EffectiveSettings
     public bool AlwaysSnapshotBeforeSend { get; init; }
 
     public bool QuickSendHotkey { get; init; } = true;
+
+    public Hotkey QuickSendShortcut { get; init; } = Hotkey.Default;
 
     public int DiscoveryPort { get; init; } = DefaultDiscoveryPort;
 

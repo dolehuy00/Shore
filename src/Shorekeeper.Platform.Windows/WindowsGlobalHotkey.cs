@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
 using Shorekeeper.Core.Platform;
@@ -5,7 +6,7 @@ using Shorekeeper.Core.Platform;
 namespace Shorekeeper.Platform.Windows;
 
 /// <summary>
-/// Ctrl+Alt+S through <c>RegisterHotKey</c>. The shortcut belongs to a small thread with its own message loop,
+/// The "Gửi nhanh" shortcut through <c>RegisterHotKey</c>. The shortcut belongs to a small thread with its own message loop,
 /// so it works while every window is hidden in the tray.
 /// </summary>
 public sealed partial class WindowsGlobalHotkey(ILogger<WindowsGlobalHotkey> logger) : IGlobalHotkey, IDisposable
@@ -13,8 +14,9 @@ public sealed partial class WindowsGlobalHotkey(ILogger<WindowsGlobalHotkey> log
     private const int HotkeyId = 1;
     private const uint ModAlt = 0x1;
     private const uint ModControl = 0x2;
+    private const uint ModShift = 0x4;
     private const uint ModNoRepeat = 0x4000;
-    private const uint KeyS = 0x53;
+    private const uint KeyF1 = 0x70;
     private const uint WmHotkey = 0x0312;
     private const uint WmQuit = 0x0012;
     private const uint PmNoRemove = 0x0;
@@ -22,26 +24,27 @@ public sealed partial class WindowsGlobalHotkey(ILogger<WindowsGlobalHotkey> log
     private readonly Lock gate = new();
     private Thread? thread;
     private uint threadId;
-
-    public string DisplayText => "Ctrl+Alt+S";
+    private Hotkey? current;
 
     public event EventHandler? Pressed;
 
-    public bool SetEnabled(bool enabled)
+    public bool Register(Hotkey? hotkey)
     {
         lock (gate)
         {
-            if (enabled == thread is not null)
+            if (hotkey == current && (hotkey is null || thread is not null))
             {
-                return enabled;
+                return thread is not null;
             }
 
-            if (!enabled)
+            Stop();
+            current = hotkey;
+            if (hotkey is null)
             {
-                Stop();
                 return false;
             }
 
+            (uint modifiers, uint key) = Win32(hotkey);
             using var started = new ManualResetEventSlim();
             bool registered = false;
             var loop = new Thread(() =>
@@ -49,7 +52,7 @@ public sealed partial class WindowsGlobalHotkey(ILogger<WindowsGlobalHotkey> log
                 // Creates this thread's message queue before anyone posts to it.
                 PeekMessage(out _, IntPtr.Zero, 0, 0, PmNoRemove);
                 threadId = GetCurrentThreadId();
-                registered = RegisterHotKey(IntPtr.Zero, HotkeyId, ModControl | ModAlt | ModNoRepeat, KeyS);
+                registered = RegisterHotKey(IntPtr.Zero, HotkeyId, modifiers | ModNoRepeat, key);
                 started.Set();
                 if (registered)
                 {
@@ -66,7 +69,7 @@ public sealed partial class WindowsGlobalHotkey(ILogger<WindowsGlobalHotkey> log
             if (!registered)
             {
                 loop.Join();
-                logger.LogWarning("{Hotkey} is already used by another program", DisplayText);
+                logger.LogWarning("{Hotkey} is already used by another program", hotkey);
                 return false;
             }
 
@@ -81,6 +84,16 @@ public sealed partial class WindowsGlobalHotkey(ILogger<WindowsGlobalHotkey> log
         {
             Stop();
         }
+    }
+
+    private static (uint Modifiers, uint Key) Win32(Hotkey hotkey)
+    {
+        uint modifiers = (hotkey.Modifiers.HasFlag(HotkeyModifiers.Ctrl) ? ModControl : 0)
+            | (hotkey.Modifiers.HasFlag(HotkeyModifiers.Alt) ? ModAlt : 0)
+            | (hotkey.Modifiers.HasFlag(HotkeyModifiers.Shift) ? ModShift : 0);
+        // Letters and digits are their own virtual-key codes; F1–F12 follow one another from 0x70.
+        uint key = hotkey.Key.Length == 1 ? hotkey.Key[0] : KeyF1 + uint.Parse(hotkey.Key.AsSpan(1), CultureInfo.InvariantCulture) - 1;
+        return (modifiers, key);
     }
 
     private void Run()
