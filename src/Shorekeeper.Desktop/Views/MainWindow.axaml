@@ -263,8 +263,10 @@
               </DataTemplate>
             </ComboBox.ItemTemplate>
           </ComboBox>
-          <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" VerticalAlignment="Center" />
-          <TextBlock Text="{Binding DeviceIdShort}" Opacity="0.55" FontFamily="Consolas,monospace" VerticalAlignment="Center" />
+          <StackPanel VerticalAlignment="Center">
+            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
+            <TextBlock Classes="muted" Text="{Binding DeviceIdShort}" FontSize="12" FontFamily="Consolas,monospace" />
+          </StackPanel>
         </StackPanel>
       </Grid>
     </Border>
@@ -816,7 +818,7 @@
                 <DataTemplate x:DataType="vm:DiagnosticItem">
                   <Grid ColumnDefinitions="Auto,170,*" Margin="0,4">
                     <Ellipse Classes="dot" Classes.muted="{Binding !IsOk}" Classes.busy="{Binding IsWarning}" Classes.error="{Binding IsError}"
-                             Margin="0,0,10,0" VerticalAlignment="Top" />
+                             Margin="0,5,10,0" VerticalAlignment="Top" />
                     <TextBlock Classes="muted" Grid.Column="1" Text="{Binding Label}" TextTrimming="CharacterEllipsis" Margin="0,0,12,0" />
                     <SelectableTextBlock Grid.Column="2" Text="{Binding Value}" TextWrapping="Wrap" />
                   </Grid>
