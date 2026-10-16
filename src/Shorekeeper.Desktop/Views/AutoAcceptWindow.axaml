@@ -9,7 +9,6 @@
         Width="420" SizeToContent="Height" CanResize="False"
         WindowStartupLocation="CenterOwner">
   <StackPanel Margin="24" Spacing="10">
-    <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" />
     <TextBlock Text="{l:T 'File gửi đến từ máy này, nếu không quá giới hạn, sẽ tự tải về mà không hỏi.'}" Opacity="0.75" TextWrapping="Wrap" />
     <RadioButton GroupName="AutoAccept" IsChecked="{Binding IsOff}" Content="{l:T 'Tắt (luôn hỏi trước khi tải)'}" />
     <RadioButton GroupName="AutoAccept" IsChecked="{Binding IsFollow}" Content="{Binding FollowText}" />

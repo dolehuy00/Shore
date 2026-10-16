@@ -9,7 +9,6 @@
         Width="420" SizeToContent="Height" CanResize="False"
         WindowStartupLocation="CenterOwner">
   <StackPanel Margin="24" Spacing="14">
-    <TextBlock Text="{Binding Title}" FontSize="18" FontWeight="SemiBold" />
     <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />
 
     <StackPanel IsVisible="{Binding HasCode}" Spacing="4">

@@ -9,7 +9,6 @@
         Width="460" SizeToContent="Height" CanResize="False"
         WindowStartupLocation="CenterOwner">
   <StackPanel Margin="24" Spacing="14">
-    <TextBlock Text="{l:T 'Thêm máy ở mạng khác'}" FontSize="18" FontWeight="SemiBold" />
     <TextBlock Text="{l:T 'Nhập tên máy hoặc địa chỉ IP (có thể kèm cổng, vd PC-DEV-11 hoặc 10.1.5.12:47471).'}"
                Opacity="0.75" TextWrapping="Wrap" />
 
