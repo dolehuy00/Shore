@@ -31,6 +31,7 @@
     <ProjectReference Include="..\Shorekeeper.Engine\Shorekeeper.Engine.csproj" />
     <!-- Same wording for sizes and file lists, the same AXAML translation and language choices as the desktop. -->
     <Compile Include="..\Shorekeeper.Desktop\ViewModels\TransferText.cs" Link="ViewModels\TransferText.cs" />
+    <Compile Include="..\Shorekeeper.Desktop\ViewModels\OfferContents.cs" Link="ViewModels\OfferContents.cs" />
     <Compile Include="..\Shorekeeper.Desktop\ViewModels\BlockedPeersViewModel.cs" Link="ViewModels\BlockedPeersViewModel.cs" />
     <Compile Include="..\Shorekeeper.Desktop\Localization\TExtension.cs" Link="Localization\TExtension.cs" />
     <Compile Include="..\Shorekeeper.Desktop\Localization\LanguageChoice.cs" Link="Localization\LanguageChoice.cs" />

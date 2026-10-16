@@ -77,6 +77,9 @@ public sealed partial class SentItemViewModel(string offerId, SentViewModel owne
     /// <summary>Every file and folder of the offer (the title shows only the first).</summary>
     public IReadOnlyList<string> Paths { get; private set; } = [];
 
+    /// <summary>"Xem cả N mục".</summary>
+    public OfferContents Contents { get; } = new([]);
+
     [ObservableProperty]
     public partial IReadOnlyList<SentRecipientItem> Recipients { get; set; } = [];
 
@@ -91,6 +94,7 @@ public sealed partial class SentItemViewModel(string offerId, SentViewModel owne
         DateTimeOffset now = owner.TimeProvider.GetUtcNow();
         Paths = offer.Paths;
         Title = TransferText.Summary(offer.Paths);
+        Contents.Update(offer.Paths);
         Summary = $"{Title} · {TransferText.Size(offer.TotalBytes)}";
         string[] files = [.. offer.Paths.Where(p => !p.EndsWith('/'))];
         Details = $"{TransferText.FileCount(files.Length)} · {TransferText.Size(offer.TotalBytes)} · {TransferText.Ago(offer.CreatedAt, now)}";

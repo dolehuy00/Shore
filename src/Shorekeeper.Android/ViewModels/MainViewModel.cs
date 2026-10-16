@@ -38,6 +38,9 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly SettingsService settings;
     private readonly LocalDevice device;
     private readonly AppPaths paths;
+
+    /// <summary>Offers whose "Xem cả N mục" list is open, as the inbox and sent lists are rebuilt on every change.</summary>
+    private readonly HashSet<string> expandedOffers = [];
     private readonly ManualPeerFinder finder;
     private readonly DispatcherTimer progressTimer;
 
@@ -162,6 +165,19 @@ public sealed partial class MainViewModel : ObservableObject
         Question = new QuestionViewModel(L.F("Chặn {0}?", peer.Name),
             L.T("Máy này sẽ không gửi được yêu cầu kết nối hay file cho bạn nữa. Bỏ chặn trong Cài đặt."), L.T("Chặn"), null,
             _ => trust.BlockAsync(peer.DeviceId, peer.Name, peer.Host), this);
+
+    internal OfferContents ContentsOf(string offerId, IReadOnlyCollection<string> relativePaths) =>
+        new(relativePaths, expandedOffers.Contains(offerId), expanded =>
+        {
+            if (expanded)
+            {
+                expandedOffers.Add(offerId);
+            }
+            else
+            {
+                expandedOffers.Remove(offerId);
+            }
+        });
 
     internal string NameOf(DeviceId id) =>
         trust.Get(id)?.ShownName ?? directory.Snapshot().FirstOrDefault(p => p.DeviceId == id)?.DisplayName ?? id.ShortForm;
@@ -458,6 +474,8 @@ public sealed partial class OfferItemViewModel(ReceivedOffer offer, string sende
 
     public string Summary { get; } = $"{TransferText.Summary(offer.Files.Select(f => f.RelativePath))} · {TransferText.Size(offer.TotalBytes)}";
 
+    public OfferContents Contents { get; } = owner.ContentsOf(offer.OfferId, [.. offer.Files.Select(f => f.RelativePath)]);
+
     public string? Note { get; } = offer.Note;
 
     public bool HasNote => Note is not null;
@@ -549,6 +567,8 @@ public sealed partial class SentItemViewModel(SentOffer offer, MainViewModel own
     public string OfferId { get; } = offer.OfferId;
 
     public string Summary { get; } = $"{TransferText.Summary(offer.Paths)} · {TransferText.Size(offer.TotalBytes)}";
+
+    public OfferContents Contents { get; } = owner.ContentsOf(offer.OfferId, offer.Paths);
 
     public string Recipients { get; } = string.Join("\n", offer.Recipients.Select(r => $"{owner.NameOf(r.DeviceId)}: {State(r.State)}"));
 

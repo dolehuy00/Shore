@@ -216,6 +216,18 @@
                         <StackPanel Grid.Column="1" Spacing="3" Margin="12,0,0,0">
                           <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
                           <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" />
+                          <!-- "app.zip + 2 mục" names only the first: the button opens the whole list. -->
+                          <StackPanel DataContext="{Binding Contents}" x:DataType="dvm:OfferContents" IsVisible="{Binding CanExpand}" Spacing="2">
+                            <Button Content="{Binding ToggleText}" Command="{Binding ToggleCommand}" Padding="0,2" FontSize="13" HorizontalAlignment="Left"
+                                    Background="Transparent" BorderThickness="0" Foreground="{DynamicResource AccentButtonBackground}" />
+                            <ItemsControl ItemsSource="{Binding Items}" IsVisible="{Binding IsExpanded}">
+                              <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="x:String">
+                                  <TextBlock Text="{Binding StringFormat='• {0}'}" FontSize="14" TextWrapping="Wrap" />
+                                </DataTemplate>
+                              </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                          </StackPanel>
                           <TextBlock Text="{Binding Note}" IsVisible="{Binding HasNote}" FontStyle="Italic" TextWrapping="Wrap" />
                           <ProgressBar Value="{Binding Progress}" IsVisible="{Binding IsDownloading}" MinWidth="0" Margin="0,4" />
                           <StackPanel Orientation="Horizontal" Spacing="5">
@@ -264,6 +276,18 @@
                         </Border>
                         <StackPanel Grid.Column="1" Spacing="3" Margin="12,0,0,0">
                           <TextBlock Text="{Binding Summary}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                          <!-- "app.zip + 2 mục" names only the first: the button opens the whole list. -->
+                          <StackPanel DataContext="{Binding Contents}" x:DataType="dvm:OfferContents" IsVisible="{Binding CanExpand}" Spacing="2">
+                            <Button Content="{Binding ToggleText}" Command="{Binding ToggleCommand}" Padding="0,2" FontSize="13" HorizontalAlignment="Left"
+                                    Background="Transparent" BorderThickness="0" Foreground="{DynamicResource AccentButtonBackground}" />
+                            <ItemsControl ItemsSource="{Binding Items}" IsVisible="{Binding IsExpanded}">
+                              <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="x:String">
+                                  <TextBlock Text="{Binding StringFormat='• {0}'}" FontSize="14" TextWrapping="Wrap" />
+                                </DataTemplate>
+                              </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                          </StackPanel>
                           <TextBlock Classes="muted" Text="{Binding Status}" FontSize="12" />
                           <TextBlock Text="{Binding Recipients}" FontSize="13" TextWrapping="Wrap" />
                           <Button Content="{l:T 'Thu hồi'}" Command="{Binding WithdrawCommand}" IsVisible="{Binding CanWithdraw}" Margin="0,6,0,0" />

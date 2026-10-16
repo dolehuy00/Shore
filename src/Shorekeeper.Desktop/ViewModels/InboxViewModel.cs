@@ -120,6 +120,9 @@ public sealed partial class InboxItemViewModel(OfferKey key, InboxViewModel owne
     private const int ThumbnailWidth = 112;
 
     private ReceivedOffer? offer;
+
+    /// <summary>Everything in the offer, for "Xem cả N mục".</summary>
+    public OfferContents Contents { get; } = new([]);
     private string? thumbnailPath;
     private long lastBytes;
     private DateTimeOffset lastAt;
@@ -204,6 +207,7 @@ public sealed partial class InboxItemViewModel(OfferKey key, InboxViewModel owne
 
         SenderName = owner.Names.Of(value.SenderId);
         Title = TransferText.Summary(value.Files.Select(f => f.RelativePath));
+        Contents.Update([.. value.Files.Select(f => f.RelativePath)]);
         Summary = $"{Title} · {TransferText.Size(value.TotalBytes)}";
         Details = $"{TransferText.FileCount(value.Files.Count(f => !f.IsDirectory))} · {TransferText.Size(value.TotalBytes)}";
         Ago = TransferText.Ago(value.ReceivedAt, now);

@@ -407,5 +407,8 @@
   "Phím tắt mở cửa sổ Gửi nhanh": "Shortcut to open the Quick Send window",
   "Bấm rồi nhấn tổ hợp phím mới": "Click, then press the new key combination",
   "Nhấn phím…": "Press keys…",
-  "Nhấn Ctrl hoặc Alt (thêm Shift nếu muốn) cùng một chữ cái, số hoặc F1–F12. Esc để hủy.": "Press Ctrl or Alt (plus Shift if you like) with a letter, digit or F1–F12. Esc to cancel."
+  "Nhấn Ctrl hoặc Alt (thêm Shift nếu muốn) cùng một chữ cái, số hoặc F1–F12. Esc để hủy.": "Press Ctrl or Alt (plus Shift if you like) with a letter, digit or F1–F12. Esc to cancel.",
+  "Ẩn danh sách": "Hide list",
+  "Xem cả {0} mục": "Show all {0} items",
+  "{0} (thư mục · {1})": "{0} (folder · {1})"
 }

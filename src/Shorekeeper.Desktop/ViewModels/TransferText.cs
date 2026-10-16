@@ -36,6 +36,29 @@ public static class TransferText
         return topLevel.Length == 1 ? first : L.F("{0} + {1} mục", first, topLevel.Length - 1);
     }
 
+    /// <summary>"app.zip", "project (thư mục · 5 file)": the files and folders at the top of an offer, in its order.</summary>
+    public static IReadOnlyList<string> TopLevel(IEnumerable<string> relativePaths)
+    {
+        List<string> entries = [];
+        Dictionary<string, int> filesIn = new(StringComparer.Ordinal);
+        foreach (string path in relativePaths)
+        {
+            int slash = path.IndexOf('/');
+            string entry = slash < 0 ? path : path[..(slash + 1)];
+            if (filesIn.TryAdd(entry, 0))
+            {
+                entries.Add(entry);
+            }
+
+            if (slash >= 0 && !path.EndsWith('/'))
+            {
+                filesIn[entry]++;
+            }
+        }
+
+        return [.. entries.Select(e => e.EndsWith('/') ? L.F("{0} (thư mục · {1})", e[..^1], FileCount(filesIn[e])) : e)];
+    }
+
     public static string Remaining(TimeSpan left) => left switch
     {
         { TotalSeconds: <= 0 } => L.T("hết hạn"),

@@ -433,6 +433,18 @@
                     <StackPanel Grid.Column="1" Margin="14,0,12,0" Spacing="3" VerticalAlignment="Center">
                       <TextBlock Text="{Binding SenderName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                       <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+                      <!-- "app.zip + 2 mục" names only the first: the button opens the whole list. -->
+                      <StackPanel DataContext="{Binding Contents}" x:DataType="vm:OfferContents" IsVisible="{Binding CanExpand}" Spacing="2">
+                        <Button Content="{Binding ToggleText}" Command="{Binding ToggleCommand}" Padding="0,2" FontSize="12" HorizontalAlignment="Left"
+                                Background="Transparent" BorderThickness="0" Foreground="{DynamicResource AccentButtonBackground}" />
+                        <ItemsControl ItemsSource="{Binding Items}" IsVisible="{Binding IsExpanded}">
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="x:String">
+                              <TextBlock Text="{Binding StringFormat='• {0}'}" FontSize="13" TextWrapping="Wrap" />
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </StackPanel>
                       <TextBlock Text="{Binding Note}" IsVisible="{Binding HasNote}" FontStyle="Italic" Opacity="0.75" TextWrapping="Wrap" />
                       <WrapPanel>
                         <TextBlock Classes="muted" Text="{Binding Details}" FontSize="12" Margin="0,0,12,0" VerticalAlignment="Center" />
@@ -486,6 +498,18 @@
 
                     <StackPanel Grid.Column="1" Margin="14,0,12,0" Spacing="3" VerticalAlignment="Center">
                       <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                      <!-- "app.zip + 2 mục" names only the first: the button opens the whole list. -->
+                      <StackPanel DataContext="{Binding Contents}" x:DataType="vm:OfferContents" IsVisible="{Binding CanExpand}" Spacing="2">
+                        <Button Content="{Binding ToggleText}" Command="{Binding ToggleCommand}" Padding="0,2" FontSize="12" HorizontalAlignment="Left"
+                                Background="Transparent" BorderThickness="0" Foreground="{DynamicResource AccentButtonBackground}" />
+                        <ItemsControl ItemsSource="{Binding Items}" IsVisible="{Binding IsExpanded}">
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="x:String">
+                              <TextBlock Text="{Binding StringFormat='• {0}'}" FontSize="13" TextWrapping="Wrap" />
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </StackPanel>
                       <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap">
                         <Run Text="{Binding Details}" />
                         <Run Text=" · " />
