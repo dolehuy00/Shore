@@ -194,6 +194,19 @@ Chia làm A5a (Android) và A5b (tiếng Anh cho cả desktop lẫn Android, chu
 
 APK ký bằng keystore riêng (miễn phí, không cần mua chứng chỉ như Authenticode), phát hành trên GitHub Releases. Play Store tùy chọn (phí đăng ký một lần, phải khai báo lý do dùng foreground service và quyền mạng LAN).
 
+Quyết định (2026-10-16): build bằng script trên máy và bằng workflow khi push tag; một Release gồm cả APK và MSI.
+
+**A6 — kết quả (2026-10-16):**
+
+- **Keystore phát hành** `shorekeeper-release.keystore` (PKCS12, RSA 4096, alias `shorekeeper`, hạn đến 2054), chứng chỉ SHA-256 `96:3A:5C:4A:C4:2A:5E:A0:0C:84:82:27:F1:AC:8C:EB:99:D7:95:03:48:34:D7:03:00:D5:F0:75:11:DE:40:26` (in trong ghi chú Release để người tải kiểm tra). Keystore và mật khẩu **không nằm trong repo** (`.gitignore` chặn `*.keystore`, `*.jks`). **Mất keystore là không cập nhật được app nữa**: Android chỉ cho cài đè bản ký cùng khóa, người dùng phải gỡ app (mất danh tính nếu chưa sao lưu). Giữ một bản sao keystore + mật khẩu ở nơi an toàn ngoài máy build.
+- **Version**: `ApplicationDisplayVersion` lấy `Version` trong `Directory.Build.props`; versionCode = major·10000 + minor·100 + patch (0.1.0 → 100), luôn tăng khi tăng version.
+- **`deploy/build-apk.ps1`**: `dotnet publish` có ký, mật khẩu đọc qua `env:SHOREKEEPER_KEYSTORE_PASSWORD` (không lộ trên dòng lệnh), ra `artifacts/apk/Shorekeeper-<version>.apk` (≈ 36 MB, arm64-v8a + x86_64, chữ ký APK v3).
+- **`.github/workflows/release.yml`**: push tag `v<Version>` (sai version thì dừng) → build MSI + APK trên `windows-latest`, `SHA256SUMS.txt`, `gh release create` với `deploy/release-notes.md`. Chạy tay (workflow_dispatch) thì chỉ build và đính kèm file vào lần chạy, không tạo Release. Cần hai secret: `SHOREKEEPER_KEYSTORE_BASE64`, `SHOREKEEPER_KEYSTORE_PASSWORD`.
+- Thử trên máy: script ra APK, `apksigner verify` đúng chứng chỉ trên, versionCode 100; MSI 75 MB; bước tính checksum chạy được. Điện thoại: gỡ bản ký debug (khác khóa nên không cài đè được), cài bản phát hành, app tạo danh tính mới và chạy.
+- Chưa kiểm chứng: workflow trên GitHub (cần thêm secret rồi chạy tay hoặc push tag).
+
+Phát hành một bản mới: tăng `Version` trong `Directory.Build.props` → sửa `deploy/release-notes.md` nếu cần → commit, push → `git tag v<Version>` và push tag.
+
 ## 5. Quyết định
 
 | Câu hỏi | Chốt (2026-10-15) |

@@ -11,8 +11,12 @@
     <RootNamespace>Shorekeeper.Android</RootNamespace>
     <ApplicationId>dev.shorekeeper.app</ApplicationId>
     <ApplicationTitle>Shorekeeper</ApplicationTitle>
-    <ApplicationVersion>1</ApplicationVersion>
-    <ApplicationDisplayVersion>0.1.0</ApplicationDisplayVersion>
+    <!-- Version from Directory.Build.props; versionCode must grow with each release: 0.1.0 -> 100, 1.2.3 -> 10203. -->
+    <ApplicationDisplayVersion>$(Version)</ApplicationDisplayVersion>
+    <_VersionMajor>$([System.Version]::Parse($(Version)).Major)</_VersionMajor>
+    <_VersionMinor>$([System.Version]::Parse($(Version)).Minor)</_VersionMinor>
+    <_VersionPatch>$([System.Version]::Parse($(Version)).Build)</_VersionPatch>
+    <ApplicationVersion>$([MSBuild]::Add($([MSBuild]::Multiply($(_VersionMajor), 10000)), $([MSBuild]::Add($([MSBuild]::Multiply($(_VersionMinor), 100)), $(_VersionPatch)))))</ApplicationVersion>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
 

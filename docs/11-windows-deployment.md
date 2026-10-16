@@ -89,6 +89,7 @@ MSI ghi `HKLM\Software\Microsoft\Windows\CurrentVersion\Run\Shorekeeper = "C:\Pr
 
 - **Hiện chưa ký** (dự án cá nhân mã nguồn mở, chưa có chứng chỉ). Hệ quả: SmartScreen cảnh báo "Unknown publisher" khi mở MSI tải về; AppLocker/WDAC phải whitelist theo hash hoặc đường dẫn thay vì publisher.
 - Khi cần: ký **Authenticode** cho exe/dll/msi. Dự án mã nguồn mở có thể xin chứng chỉ miễn phí qua SignPath Foundation; thêm bước ký vào `deploy/build-msi.ps1` (ký file trong thư mục publish trước, rồi ký MSI).
+- Phát hành: push tag `v<Version>` thì workflow `.github/workflows/release.yml` build MSI + APK và tạo GitHub Release (cách làm: [14 A6](14-android.md)).
 - Cập nhật: phát hành MSI mới qua GPO/Intune (WiX Major Upgrade). App báo khi thấy peer dùng bản mới hơn: *"Có phiên bản mới 0.3.0 trong mạng"*.
 
 ## 8. Tương thích bảo mật doanh nghiệp

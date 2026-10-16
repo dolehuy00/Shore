@@ -1,0 +1,74 @@
+name: Release
+
+# Push a tag v<Version> (Version from Directory.Build.props) to build the MSI and the signed APK and publish a GitHub Release.
+# Run it by hand (workflow_dispatch) to build the same files as a workflow artifact, without a release.
+# Secrets: SHOREKEEPER_KEYSTORE_BASE64 (the release keystore, base64), SHOREKEEPER_KEYSTORE_PASSWORD.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: microsoft
+          java-version: '21'
+
+      - name: Android workload and SDK
+        run: |
+          dotnet workload install android
+          dotnet build src/Shorekeeper.Android -t:InstallAndroidDependencies "-p:AndroidSdkDirectory=$env:ANDROID_HOME" -p:AcceptAndroidSDKLicenses=True
+
+      - name: Version
+        id: version
+        run: |
+          $version = (dotnet msbuild src/Shorekeeper.Core -getProperty:Version).Trim()
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne "v$version") {
+            throw "Tag $env:GITHUB_REF_NAME does not match Version $version in Directory.Build.props."
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: MSI
+        run: deploy/build-msi.ps1
+
+      - name: APK
+        env:
+          SHOREKEEPER_KEYSTORE_BASE64: ${{ secrets.SHOREKEEPER_KEYSTORE_BASE64 }}
+          SHOREKEEPER_KEYSTORE_PASSWORD: ${{ secrets.SHOREKEEPER_KEYSTORE_PASSWORD }}
+        run: |
+          $env:SHOREKEEPER_KEYSTORE = Join-Path $env:RUNNER_TEMP 'release.keystore'
+          [IO.File]::WriteAllBytes($env:SHOREKEEPER_KEYSTORE, [Convert]::FromBase64String($env:SHOREKEEPER_KEYSTORE_BASE64))
+          try { deploy/build-apk.ps1 } finally { Remove-Item $env:SHOREKEEPER_KEYSTORE -Force }
+
+      - name: Checksums
+        run: |
+          New-Item -ItemType Directory -Force artifacts/release | Out-Null
+          Copy-Item artifacts/msi/*.msi, artifacts/apk/*.apk artifacts/release
+          Get-ChildItem artifacts/release | ForEach-Object { "{0} *{1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant(), $_.Name } |
+            Set-Content artifacts/release/SHA256SUMS.txt -Encoding ascii
+
+      - name: Publish release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create $env:GITHUB_REF_NAME (Get-ChildItem artifacts/release).FullName --title "Shorekeeper ${{ steps.version.outputs.version }}" --notes-file deploy/release-notes.md
+
+      - name: Upload build
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v4
+        with:
+          name: shorekeeper-${{ steps.version.outputs.version }}
+          path: artifacts/release

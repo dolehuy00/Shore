@@ -13,6 +13,10 @@ TestResults/
 artifacts/
 publish/
 
+## Release signing (the keystore stays outside the repo: docs/14-android.md A6)
+*.keystore
+*.jks
+
 ## OS
 Thumbs.db
 .DS_Store

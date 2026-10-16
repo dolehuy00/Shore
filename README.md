@@ -39,6 +39,14 @@ Bộ cài MSI (per-machine, cần admin để cài) và template GPO: xem [docs/
 powershell -ExecutionPolicy Bypass -File deploy/build-msi.ps1
 ```
 
+APK ký bằng keystore phát hành (keystore và mật khẩu nằm ngoài repo; xem [docs/14-android.md A6](docs/14-android.md)):
+
+```bash
+powershell -ExecutionPolicy Bypass -File deploy/build-apk.ps1
+```
+
+Phát hành: tăng `Version` trong `Directory.Build.props`, push tag `v<Version>`; workflow `Release` build MSI + APK và tạo GitHub Release.
+
 ## Cấu trúc
 
 | Project | Vai trò |
@@ -51,6 +59,7 @@ powershell -ExecutionPolicy Bypass -File deploy/build-msi.ps1
 | `src/Shorekeeper.Desktop` | App Avalonia: cửa sổ chính, khay hệ thống, chỉ chạy một instance |
 | `tests/*` | xUnit v3 |
 | `deploy/msi` | Bộ cài WiX v5 (không nằm trong solution) |
+| `deploy/build-apk.ps1`, `deploy/release-notes.md` | APK ký bằng keystore phát hành, nội dung GitHub Release |
 | `deploy/admx` | Template Group Policy (ADMX/ADML) |
 
 ## Dữ liệu trên máy
