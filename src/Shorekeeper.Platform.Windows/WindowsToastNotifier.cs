@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Xml.Linq;
 using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
@@ -19,6 +20,9 @@ public sealed class WindowsToastNotifier(ILogger<WindowsToastNotifier> logger) :
 {
     public const string AppId = "Shorekeeper";
 
+    /// <summary>HRESULT_FROM_WIN32(ERROR_NOT_FOUND).</summary>
+    private const int ElementNotFound = unchecked((int)0x80070490);
+
     // Toasts stay referenced until they are gone, so their event handlers keep working from the Action Center.
     private readonly ConcurrentDictionary<int, ToastNotification> shown = new();
     private ToastNotifier? notifier;
@@ -29,7 +33,7 @@ public sealed class WindowsToastNotifier(ILogger<WindowsToastNotifier> logger) :
         try
         {
             notifier ??= CreateNotifier();
-            if (notifier.Setting != NotificationSetting.Enabled)
+            if (SettingOf(notifier) != NotificationSetting.Enabled)
             {
                 return false;
             }
@@ -106,6 +110,22 @@ public sealed class WindowsToastNotifier(ILogger<WindowsToastNotifier> logger) :
         }
 
         return toast.ToString(SaveOptions.DisableFormatting);
+    }
+
+    /// <summary>
+    /// Whether the user lets Shorekeeper notify. Windows answers "element not found" while it has no notification
+    /// settings for the app (none shown yet, or the settings were reset); showing a toast creates them, so that means yes.
+    /// </summary>
+    private static NotificationSetting SettingOf(ToastNotifier notifier)
+    {
+        try
+        {
+            return notifier.Setting;
+        }
+        catch (COMException ex) when (ex.HResult == ElementNotFound)
+        {
+            return NotificationSetting.Enabled;
+        }
     }
 
     private static ToastNotifier CreateNotifier()
