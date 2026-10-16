@@ -1,28 +1,66 @@
 <UserControl xmlns="https://github.com/avaloniaui"
-        xmlns:l="using:Shorekeeper.Desktop.Localization"
+             xmlns:l="using:Shorekeeper.Desktop.Localization"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Shorekeeper.Android.ViewModels"
+             xmlns:dvm="using:Shorekeeper.Desktop.ViewModels"
              x:Class="Shorekeeper.Android.Views.MainView"
-             x:DataType="vm:MainViewModel">
+             x:DataType="vm:MainViewModel"
+             Background="{DynamicResource Sk.WindowBackground}">
   <UserControl.Styles>
+    <!-- Touch scrolling needs no bar, and on a phone the bar sits on top of the content. -->
+    <Style Selector="ScrollViewer">
+      <Setter Property="VerticalScrollBarVisibility" Value="Hidden" />
+    </Style>
     <Style Selector="Border.card">
-      <Setter Property="Padding" Value="14,10" />
-      <Setter Property="Margin" Value="0,0,0,8" />
-      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="14,12" />
+      <Setter Property="Margin" Value="0,0,0,10" />
+      <Setter Property="CornerRadius" Value="10" />
       <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="BorderBrush" Value="#33808080" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Sk.CardBorder}" />
+      <Setter Property="Background" Value="{DynamicResource Sk.CardBackground}" />
+    </Style>
+    <!-- Square behind a device, file or group icon. -->
+    <Style Selector="Border.tile">
+      <Setter Property="Width" Value="44" />
+      <Setter Property="Height" Value="44" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Background" Value="{DynamicResource Sk.TileBackground}" />
+      <Setter Property="VerticalAlignment" Value="Top" />
     </Style>
     <Style Selector="Border.overlay">
       <Setter Property="Background" Value="#99000000" />
     </Style>
-    <!-- Five tabs must fit across a phone. -->
-    <Style Selector="TabItem">
-      <Setter Property="FontSize" Value="17" />
-      <Setter Property="Padding" Value="8,0" />
+    <Style Selector="Border.dialog">
+      <Setter Property="Background" Value="{DynamicResource Sk.CardBackground}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Sk.CardBorder}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="14" />
+      <Setter Property="Margin" Value="20" />
+      <Setter Property="Padding" Value="20" />
+      <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
     <Style Selector="TextBlock.h3">
       <Setter Property="FontWeight" Value="SemiBold" />
-      <Setter Property="Margin" Value="0,12,0,4" />
+      <Setter Property="Margin" Value="0,14,0,4" />
+    </Style>
+    <Style Selector="TextBlock.muted">
+      <Setter Property="Foreground" Value="{DynamicResource Sk.MutedText}" />
+    </Style>
+    <Style Selector="PathIcon.done">
+      <Setter Property="Foreground" Value="#22C55E" />
+    </Style>
+    <!-- Bottom navigation: icon above a short label, the current tab in the accent color, no underline. -->
+    <Style Selector="TabControl.nav TabItem">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Padding" Value="0,8" />
+      <Setter Property="MinHeight" Value="56" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TabControl.nav TabItem /template/ Border#PART_SelectedPipe">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="TabControl.nav TabItem:selected">
+      <Setter Property="Foreground" Value="{DynamicResource AccentButtonBackground}" />
     </Style>
   </UserControl.Styles>
 
@@ -32,12 +70,12 @@
                IsVisible="{Binding $parent[UserControl].DataContext, Converter={x:Static ObjectConverters.IsNull}}" />
 
     <DockPanel Margin="0,28,0,0" IsVisible="{Binding $parent[UserControl].DataContext, Converter={x:Static ObjectConverters.IsNotNull}}">
-      <StackPanel DockPanel.Dock="Top" Margin="16,12,16,4" Spacing="2">
+      <StackPanel DockPanel.Dock="Top" Margin="16,12,16,8" Spacing="2">
         <StackPanel Orientation="Horizontal" Spacing="10">
           <Image Source="/Assets/shorekeeper.png" Width="28" Height="28" />
           <TextBlock Text="{Binding Title}" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center" />
         </StackPanel>
-        <TextBlock Text="{Binding Subtitle}" FontSize="12" Opacity="0.6" TextWrapping="Wrap" />
+        <TextBlock Classes="muted" Text="{Binding Subtitle}" FontSize="12" TextWrapping="Wrap" />
       </StackPanel>
 
       <!-- Short messages, e.g. "2 mục không đọc được đã bị bỏ qua". -->
@@ -45,25 +83,52 @@
         <TextBlock Text="{Binding Notice}" TextWrapping="Wrap" />
       </Border>
 
-      <TabControl Padding="12,4" SelectedIndex="{Binding SelectedTab}">
-        <TabItem Header="{l:T 'Xóm'}">
+      <TabControl Classes="nav" TabStripPlacement="Bottom" Padding="12,4,12,0" SelectedIndex="{Binding SelectedTab}">
+        <TabControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <UniformGrid Rows="1" />
+          </ItemsPanelTemplate>
+        </TabControl.ItemsPanel>
+
+        <TabItem AutomationProperties.Name="{l:T 'Xóm'}">
+          <TabItem.Header>
+            <StackPanel Spacing="3">
+              <PathIcon Data="{StaticResource Icon.People}" Width="22" Height="22" HorizontalAlignment="Center" />
+              <TextBlock Text="{l:T 'Xóm'}" HorizontalAlignment="Center" />
+            </StackPanel>
+          </TabItem.Header>
           <Panel>
-            <TextBlock Text="{l:T 'Chưa thấy ai trong mạng. Mở Shorekeeper trên máy tính cùng Wi-Fi.'}"
-                       IsVisible="{Binding HasNoPeers}" Opacity="0.65" TextWrapping="Wrap" Margin="4,12" />
+            <StackPanel IsVisible="{Binding HasNoPeers}" Spacing="6" Margin="16,48" HorizontalAlignment="Center">
+              <PathIcon Data="{StaticResource Icon.People}" Width="40" Height="40" Opacity="0.5" HorizontalAlignment="Center" />
+              <TextBlock Classes="muted" Text="{l:T 'Chưa thấy ai trong mạng. Mở Shorekeeper trên máy tính cùng Wi-Fi.'}"
+                         TextWrapping="Wrap" TextAlignment="Center" />
+            </StackPanel>
             <ScrollViewer>
               <ItemsControl ItemsSource="{Binding Peers}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:PeerItemViewModel">
                     <Border Classes="card">
-                      <Grid ColumnDefinitions="*,Auto">
-                        <StackPanel Spacing="2">
+                      <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
+                        <Border Classes="tile">
+                          <Panel>
+                            <PathIcon Data="{StaticResource Icon.Laptop}" IsVisible="{Binding !IsPhone}" Width="22" Height="22" />
+                            <PathIcon Data="{StaticResource Icon.Phone}" IsVisible="{Binding IsPhone}" Width="22" Height="22" />
+                          </Panel>
+                        </Border>
+                        <StackPanel Grid.Column="1" Spacing="2" Margin="12,0,0,0" VerticalAlignment="Center">
                           <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                          <TextBlock Text="{Binding Detail}" FontSize="12" Opacity="0.65" TextTrimming="CharacterEllipsis" />
-                          <TextBlock Text="{Binding Badge}" FontSize="12" />
+                          <TextBlock Classes="muted" Text="{Binding Detail}" FontSize="12" TextTrimming="CharacterEllipsis" />
+                          <TextBlock Classes="muted" Text="{Binding Badge}" FontSize="12" />
                         </StackPanel>
-                        <Button Grid.Column="1" Content="{l:T 'Kết nối'}" Command="{Binding ConnectCommand}" IsVisible="{Binding CanConnect}"
-                                VerticalAlignment="Center" Classes="accent" />
-                        <Button Grid.Column="1" Content="{l:T 'Gửi file…'}" Click="OnSendFiles" IsVisible="{Binding CanSend}" VerticalAlignment="Center" />
+                        <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="12,10,0,0">
+                          <Button Content="{l:T 'Kết nối'}" Command="{Binding ConnectCommand}" IsVisible="{Binding CanConnect}" Classes="accent" />
+                          <Button Click="OnSendFiles" IsVisible="{Binding CanSend}" Classes="accent" AutomationProperties.Name="{l:T 'Gửi file…'}">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                              <PathIcon Data="{StaticResource Icon.Send}" Width="16" Height="16" />
+                              <TextBlock Text="{l:T 'Gửi file…'}" />
+                            </StackPanel>
+                          </Button>
+                        </StackPanel>
                       </Grid>
                     </Border>
                   </DataTemplate>
@@ -73,25 +138,46 @@
           </Panel>
         </TabItem>
 
-        <TabItem Header="{l:T 'Hộp nhận'}">
+        <TabItem AutomationProperties.Name="{l:T 'Hộp nhận'}">
+          <TabItem.Header>
+            <StackPanel Spacing="3">
+              <PathIcon Data="{StaticResource Icon.Download}" Width="22" Height="22" HorizontalAlignment="Center" />
+              <TextBlock Text="{l:T 'Hộp nhận'}" HorizontalAlignment="Center" />
+            </StackPanel>
+          </TabItem.Header>
           <Panel>
-            <TextBlock Text="{l:T 'Chưa có ai gửi gì cho bạn.'}" IsVisible="{Binding HasNoOffers}" Opacity="0.65" Margin="4,12" />
+            <StackPanel IsVisible="{Binding HasNoOffers}" Spacing="6" Margin="16,48" HorizontalAlignment="Center">
+              <PathIcon Data="{StaticResource Icon.Download}" Width="40" Height="40" Opacity="0.5" HorizontalAlignment="Center" />
+              <TextBlock Classes="muted" Text="{l:T 'Chưa có ai gửi gì cho bạn.'}" TextAlignment="Center" />
+            </StackPanel>
             <ScrollViewer>
               <ItemsControl ItemsSource="{Binding Offers}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:OfferItemViewModel">
                     <Border Classes="card">
-                      <StackPanel Spacing="4">
-                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
-                        <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" />
-                        <TextBlock Text="{Binding Note}" IsVisible="{Binding HasNote}" FontStyle="Italic" TextWrapping="Wrap" />
-                        <ProgressBar Value="{Binding Progress}" IsVisible="{Binding IsDownloading}" />
-                        <TextBlock Text="{Binding Status}" FontSize="12" Opacity="0.75" TextWrapping="Wrap" />
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                          <Button Content="{l:T 'Tải'}" Command="{Binding DownloadCommand}" IsVisible="{Binding CanDownload}" Classes="accent" />
-                          <Button Content="{l:T 'Bỏ qua'}" Command="{Binding DeclineCommand}" IsVisible="{Binding CanDecline}" />
+                      <Grid ColumnDefinitions="Auto,*">
+                        <Border Classes="tile">
+                          <Panel>
+                            <PathIcon Data="{StaticResource Icon.Document}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static dvm:TransferKind.Files}}" Width="22" Height="22" />
+                            <PathIcon Data="{StaticResource Icon.Image}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static dvm:TransferKind.Images}}" Width="22" Height="22" />
+                            <PathIcon Data="{StaticResource Icon.FolderOpen}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static dvm:TransferKind.Folder}}" Width="22" Height="22" />
+                          </Panel>
+                        </Border>
+                        <StackPanel Grid.Column="1" Spacing="3" Margin="12,0,0,0">
+                          <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                          <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" />
+                          <TextBlock Text="{Binding Note}" IsVisible="{Binding HasNote}" FontStyle="Italic" TextWrapping="Wrap" />
+                          <ProgressBar Value="{Binding Progress}" IsVisible="{Binding IsDownloading}" MinWidth="0" Margin="0,4" />
+                          <StackPanel Orientation="Horizontal" Spacing="5">
+                            <PathIcon Classes="done" Data="{StaticResource Icon.CheckCircle}" IsVisible="{Binding IsCompleted}" Width="14" Height="14" />
+                            <TextBlock Classes="muted" Text="{Binding Status}" FontSize="12" TextWrapping="Wrap" />
+                          </StackPanel>
+                          <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,6,0,0">
+                            <Button Content="{l:T 'Tải'}" Command="{Binding DownloadCommand}" IsVisible="{Binding CanDownload}" Classes="accent" />
+                            <Button Content="{l:T 'Bỏ qua'}" Command="{Binding DeclineCommand}" IsVisible="{Binding CanDecline}" />
+                          </StackPanel>
                         </StackPanel>
-                      </StackPanel>
+                      </Grid>
                     </Border>
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
@@ -99,21 +185,40 @@
             </ScrollViewer>
           </Panel>
         </TabItem>
-        <TabItem Header="{l:T 'Đã gửi'}">
+
+        <TabItem AutomationProperties.Name="{l:T 'Đã gửi'}">
+          <TabItem.Header>
+            <StackPanel Spacing="3">
+              <PathIcon Data="{StaticResource Icon.Upload}" Width="22" Height="22" HorizontalAlignment="Center" />
+              <TextBlock Text="{l:T 'Đã gửi'}" HorizontalAlignment="Center" />
+            </StackPanel>
+          </TabItem.Header>
           <Panel>
-            <TextBlock Text="{l:T 'Chưa gửi gì. Chạm Gửi file… ở một người đã kết nối, hoặc Chia sẻ từ Thư viện ảnh / Files.'}"
-                       IsVisible="{Binding HasNoSent}" Opacity="0.65" TextWrapping="Wrap" Margin="4,12" />
+            <StackPanel IsVisible="{Binding HasNoSent}" Spacing="6" Margin="16,48" HorizontalAlignment="Center">
+              <PathIcon Data="{StaticResource Icon.Upload}" Width="40" Height="40" Opacity="0.5" HorizontalAlignment="Center" />
+              <TextBlock Classes="muted" Text="{l:T 'Chưa gửi gì. Chạm Gửi file… ở một người đã kết nối, hoặc Chia sẻ từ Thư viện ảnh / Files.'}"
+                         TextWrapping="Wrap" TextAlignment="Center" />
+            </StackPanel>
             <ScrollViewer>
               <ItemsControl ItemsSource="{Binding Sent}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:SentItemViewModel">
                     <Border Classes="card">
-                      <StackPanel Spacing="4">
-                        <TextBlock Text="{Binding Summary}" FontWeight="SemiBold" TextWrapping="Wrap" />
-                        <TextBlock Text="{Binding Recipients}" TextWrapping="Wrap" />
-                        <TextBlock Text="{Binding Status}" FontSize="12" Opacity="0.75" />
-                        <Button Content="{l:T 'Thu hồi'}" Command="{Binding WithdrawCommand}" IsVisible="{Binding CanWithdraw}" />
-                      </StackPanel>
+                      <Grid ColumnDefinitions="Auto,*">
+                        <Border Classes="tile">
+                          <Panel>
+                            <PathIcon Data="{StaticResource Icon.Document}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static dvm:TransferKind.Files}}" Width="22" Height="22" />
+                            <PathIcon Data="{StaticResource Icon.Image}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static dvm:TransferKind.Images}}" Width="22" Height="22" />
+                            <PathIcon Data="{StaticResource Icon.FolderOpen}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static dvm:TransferKind.Folder}}" Width="22" Height="22" />
+                          </Panel>
+                        </Border>
+                        <StackPanel Grid.Column="1" Spacing="3" Margin="12,0,0,0">
+                          <TextBlock Text="{Binding Summary}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                          <TextBlock Classes="muted" Text="{Binding Status}" FontSize="12" />
+                          <TextBlock Text="{Binding Recipients}" FontSize="13" TextWrapping="Wrap" />
+                          <Button Content="{l:T 'Thu hồi'}" Command="{Binding WithdrawCommand}" IsVisible="{Binding CanWithdraw}" Margin="0,6,0,0" />
+                        </StackPanel>
+                      </Grid>
                     </Border>
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
@@ -121,16 +226,23 @@
             </ScrollViewer>
           </Panel>
         </TabItem>
-        <TabItem Header="{l:T 'Nhóm'}">
+
+        <TabItem AutomationProperties.Name="{l:T 'Nhóm'}">
+          <TabItem.Header>
+            <StackPanel Spacing="3">
+              <PathIcon Data="{StaticResource Icon.Team}" Width="22" Height="22" HorizontalAlignment="Center" />
+              <TextBlock Text="{l:T 'Nhóm'}" HorizontalAlignment="Center" />
+            </StackPanel>
+          </TabItem.Header>
           <ScrollViewer DataContext="{Binding Groups}" x:DataType="vm:GroupsTabViewModel">
-            <StackPanel Spacing="4" Margin="0,0,14,24">
-              <TextBlock Text="{l:T 'Quản trị viên đã tắt tính năng nhóm.'}" IsVisible="{Binding !IsEnabled}" Opacity="0.65" Margin="4,12" />
+            <StackPanel Spacing="4" Margin="0,0,0,24">
+              <TextBlock Classes="muted" Text="{l:T 'Quản trị viên đã tắt tính năng nhóm.'}" IsVisible="{Binding !IsEnabled}" Margin="4,12" />
 
               <ItemsControl ItemsSource="{Binding Invitations}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:InvitationItemViewModel">
                     <Border Classes="card" Background="#1A3B82F6">
-                      <StackPanel Spacing="6">
+                      <StackPanel Spacing="8">
                         <TextBlock Text="{Binding Text}" TextWrapping="Wrap" />
                         <StackPanel Orientation="Horizontal" Spacing="8">
                           <Button Content="{l:T 'Đồng ý'}" Command="{Binding AcceptCommand}" Classes="accent" />
@@ -143,20 +255,30 @@
               </ItemsControl>
 
               <TextBlock Classes="h3" Text="{l:T 'Nhóm của bạn'}" />
-              <TextBlock Text="{l:T 'Chưa ở nhóm nào. Xin vào một nhóm bên dưới, hoặc nhờ Host mời bạn.'}" IsVisible="{Binding !HasMyGroups}" Opacity="0.65" TextWrapping="Wrap" />
+              <TextBlock Classes="muted" Text="{l:T 'Chưa ở nhóm nào. Xin vào một nhóm bên dưới, hoặc nhờ Host mời bạn.'}" IsVisible="{Binding !HasMyGroups}" TextWrapping="Wrap" />
               <ItemsControl ItemsSource="{Binding MyGroups}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:GroupItemViewModel">
                     <Border Classes="card">
-                      <StackPanel Spacing="4">
-                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
-                        <TextBlock Text="{Binding Detail}" FontSize="12" Opacity="0.7" TextWrapping="Wrap" />
-                        <TextBlock Text="{Binding Members}" FontSize="12" TextWrapping="Wrap" />
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                          <Button Content="{l:T 'Gửi file cho nhóm…'}" Click="OnSendToGroup" IsVisible="{Binding CanSend}" Classes="accent" />
-                          <Button Content="{Binding LeaveText}" Command="{Binding LeaveCommand}" IsVisible="{Binding CanLeave}" />
+                      <Grid ColumnDefinitions="Auto,*">
+                        <Border Classes="tile">
+                          <PathIcon Data="{StaticResource Icon.Team}" Width="22" Height="22" />
+                        </Border>
+                        <StackPanel Grid.Column="1" Spacing="3" Margin="12,0,0,0">
+                          <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                          <TextBlock Classes="muted" Text="{Binding Detail}" FontSize="12" TextWrapping="Wrap" />
+                          <TextBlock Text="{Binding Members}" FontSize="12" TextWrapping="Wrap" />
+                          <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,6,0,0">
+                            <Button Click="OnSendToGroup" IsVisible="{Binding CanSend}" Classes="accent" AutomationProperties.Name="{l:T 'Gửi file cho nhóm…'}">
+                              <StackPanel Orientation="Horizontal" Spacing="8">
+                                <PathIcon Data="{StaticResource Icon.Send}" Width="16" Height="16" />
+                                <TextBlock Text="{l:T 'Gửi file cho nhóm…'}" />
+                              </StackPanel>
+                            </Button>
+                            <Button Content="{Binding LeaveText}" Command="{Binding LeaveCommand}" IsVisible="{Binding CanLeave}" />
+                          </StackPanel>
                         </StackPanel>
-                      </StackPanel>
+                      </Grid>
                     </Border>
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
@@ -167,12 +289,15 @@
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:NetworkGroupItemViewModel">
                     <Border Classes="card">
-                      <Grid ColumnDefinitions="*,Auto">
-                        <StackPanel>
+                      <Grid ColumnDefinitions="Auto,*,Auto">
+                        <Border Classes="tile">
+                          <PathIcon Data="{StaticResource Icon.Team}" Width="22" Height="22" />
+                        </Border>
+                        <StackPanel Grid.Column="1" Margin="12,0,8,0" VerticalAlignment="Center">
                           <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
-                          <TextBlock Text="{Binding Detail}" FontSize="12" Opacity="0.7" />
+                          <TextBlock Classes="muted" Text="{Binding Detail}" FontSize="12" />
                         </StackPanel>
-                        <Button Grid.Column="1" Content="{l:T 'Xin vào'}" Command="{Binding JoinCommand}" VerticalAlignment="Center" />
+                        <Button Grid.Column="2" Content="{l:T 'Xin vào'}" Command="{Binding JoinCommand}" VerticalAlignment="Center" />
                       </Grid>
                     </Border>
                   </DataTemplate>
@@ -183,7 +308,7 @@
               <ItemsControl ItemsSource="{Binding Notices}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="x:String">
-                    <TextBlock Text="{Binding}" FontSize="12" Opacity="0.75" TextWrapping="Wrap" Margin="0,2" />
+                    <TextBlock Classes="muted" Text="{Binding}" FontSize="12" TextWrapping="Wrap" Margin="0,2" />
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
@@ -191,9 +316,15 @@
           </ScrollViewer>
         </TabItem>
 
-        <TabItem Header="{l:T 'Cài đặt'}">
+        <TabItem AutomationProperties.Name="{l:T 'Cài đặt'}">
+          <TabItem.Header>
+            <StackPanel Spacing="3">
+              <PathIcon Data="{StaticResource Icon.Settings}" Width="22" Height="22" HorizontalAlignment="Center" />
+              <TextBlock Text="{l:T 'Cài đặt'}" HorizontalAlignment="Center" />
+            </StackPanel>
+          </TabItem.Header>
           <ScrollViewer DataContext="{Binding Settings}" x:DataType="vm:SettingsTabViewModel">
-            <StackPanel Spacing="6" Margin="0,0,14,24">
+            <StackPanel Spacing="6" Margin="0,0,0,24">
               <TextBlock Classes="h3" Text="{l:T 'Tên hiển thị'}" />
               <Grid ColumnDefinitions="*,Auto">
                 <TextBox Text="{Binding DisplayName}" Margin="0,0,8,0" />
@@ -209,18 +340,18 @@
                 </ComboBox.ItemTemplate>
               </ComboBox>
               <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding NeedsRestart}">
-                <TextBlock Text="{l:T 'Ngôn ngữ mới có hiệu lực sau khi khởi động lại Shorekeeper.'}" FontSize="12" Opacity="0.7" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <TextBlock Classes="muted" Text="{l:T 'Ngôn ngữ mới có hiệu lực sau khi khởi động lại Shorekeeper.'}" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,8,0" />
                 <Button Grid.Column="1" Content="{l:T 'Khởi động lại'}" Command="{Binding RestartAppCommand}" Classes="accent" />
               </Grid>
 
               <TextBlock Classes="h3" Text="{l:T 'Chạy nền'}" />
               <ToggleSwitch IsChecked="{Binding AlwaysReceive}" OnContent="{l:T 'Luôn nhận file (kể cả khi tắt màn hình)'}" OffContent="{l:T 'Luôn nhận file (kể cả khi tắt màn hình)'}" />
-              <TextBlock Text="{l:T 'Giữ một thông báo thường trực để máy tính gửi được file bất cứ lúc nào. Tốn pin hơn một chút.'}"
-                         FontSize="12" Opacity="0.7" TextWrapping="Wrap" />
+              <TextBlock Classes="muted" Text="{l:T 'Giữ một thông báo thường trực để máy tính gửi được file bất cứ lúc nào. Tốn pin hơn một chút.'}"
+                         FontSize="12" TextWrapping="Wrap" />
 
               <TextBlock Classes="h3" Text="{l:T 'Sao lưu danh tính'}" />
-              <TextBlock Text="{l:T 'Giữ DeviceId, liên hệ và nhóm khi đổi điện thoại: không phải Kết nối lại với ai.'}"
-                         FontSize="12" Opacity="0.7" TextWrapping="Wrap" />
+              <TextBlock Classes="muted" Text="{l:T 'Giữ DeviceId, liên hệ và nhóm khi đổi điện thoại: không phải Kết nối lại với ai.'}"
+                         FontSize="12" TextWrapping="Wrap" />
               <TextBox Text="{Binding BackupPassword}" PasswordChar="•" PlaceholderText="{l:T 'Mật khẩu (ít nhất 8 ký tự)'}" />
               <TextBox Text="{Binding BackupPasswordAgain}" PasswordChar="•" PlaceholderText="{l:T 'Nhập lại mật khẩu'}" />
               <Button Content="{l:T 'Sao lưu vào Download/Shorekeeper'}" Command="{Binding BackupCommand}" />
@@ -255,8 +386,7 @@
 
     <!-- Shared from another app: pick the recipients. -->
     <Border Classes="overlay" IsVisible="{Binding HasShare}">
-      <Border Background="{DynamicResource SystemControlBackgroundAltHighBrush}" CornerRadius="12" Margin="24" Padding="20"
-              VerticalAlignment="Center" DataContext="{Binding Share}" x:DataType="vm:ShareViewModel">
+      <Border Classes="dialog" DataContext="{Binding Share}" x:DataType="vm:ShareViewModel">
         <StackPanel Spacing="10">
           <TextBlock Text="{Binding Title}" FontSize="18" FontWeight="SemiBold" />
           <TextBlock Text="{l:T 'Chưa kết nối với ai. Kết nối với máy tính trong tab Xóm trước.'}" IsVisible="{Binding HasNobody}" TextWrapping="Wrap" />
@@ -267,7 +397,7 @@
                   <CheckBox IsChecked="{Binding IsChecked}" Margin="0,4">
                     <StackPanel>
                       <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
-                      <TextBlock Text="{Binding Detail}" FontSize="12" Opacity="0.65" />
+                      <TextBlock Classes="muted" Text="{Binding Detail}" FontSize="12" />
                     </StackPanel>
                   </CheckBox>
                 </DataTemplate>
@@ -285,11 +415,10 @@
 
     <!-- Someone wants to connect: compare the code with theirs. -->
     <Border Classes="overlay" IsVisible="{Binding HasIncoming}">
-      <Border Background="{DynamicResource SystemControlBackgroundAltHighBrush}" CornerRadius="12" Margin="24" Padding="20"
-              VerticalAlignment="Center" DataContext="{Binding Incoming}" x:DataType="vm:IncomingPairingViewModel">
+      <Border Classes="dialog" DataContext="{Binding Incoming}" x:DataType="vm:IncomingPairingViewModel">
         <StackPanel Spacing="10">
           <TextBlock Text="{Binding Title}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
-          <TextBlock Text="{Binding Host}" Opacity="0.65" />
+          <TextBlock Classes="muted" Text="{Binding Host}" />
           <TextBlock Text="{l:T 'Chỉ chấp nhận nếu mã này giống mã trên máy kia:'}" TextWrapping="Wrap" />
           <TextBlock Text="{Binding Code}" FontSize="32" FontWeight="Bold" HorizontalAlignment="Center" />
           <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
@@ -302,8 +431,7 @@
 
     <!-- We asked to connect: the other side compares this code. -->
     <Border Classes="overlay" IsVisible="{Binding HasOutgoing}">
-      <Border Background="{DynamicResource SystemControlBackgroundAltHighBrush}" CornerRadius="12" Margin="24" Padding="20"
-              VerticalAlignment="Center" DataContext="{Binding Outgoing}" x:DataType="vm:OutgoingPairingViewModel">
+      <Border Classes="dialog" DataContext="{Binding Outgoing}" x:DataType="vm:OutgoingPairingViewModel">
         <StackPanel Spacing="10">
           <TextBlock Text="{Binding Title}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
           <TextBlock Text="{Binding Code}" FontSize="32" FontWeight="Bold" HorizontalAlignment="Center" />

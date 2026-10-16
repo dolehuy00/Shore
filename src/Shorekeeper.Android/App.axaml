@@ -2,6 +2,21 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="Shorekeeper.Android.App"
              RequestedThemeVariant="Default">
+  <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <!-- The desktop's look (linked from Shorekeeper.Desktop/Themes). -->
+        <ResourceInclude Source="/Themes/Theme.axaml" />
+      </ResourceDictionary.MergedDictionaries>
+
+      <!-- Touch: taller controls than on the desktop. -->
+      <Thickness x:Key="ButtonPadding">16,10,16,10</Thickness>
+      <x:Double x:Key="TextControlThemeMinHeight">44</x:Double>
+      <Thickness x:Key="TextControlThemePadding">12,11,8,10</Thickness>
+      <x:Double x:Key="ComboBoxMinHeight">44</x:Double>
+    </ResourceDictionary>
+  </Application.Resources>
+
   <Application.Styles>
     <FluentTheme />
   </Application.Styles>

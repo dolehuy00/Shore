@@ -245,10 +245,11 @@ public sealed partial class MainViewModel : ObservableObject
         List<PeerItemViewModel> items =
         [
             .. trust.GetAll(TrustLevel.Trusted).Select(record => new PeerItemViewModel(
-                record.DeviceId, record.ShownName, Detail(live.GetValueOrDefault(record.DeviceId), record.HostName), true, live.ContainsKey(record.DeviceId), this)),
+                record.DeviceId, record.ShownName, Detail(live.GetValueOrDefault(record.DeviceId), record.HostName), true, live.ContainsKey(record.DeviceId),
+                IsPhone(live.GetValueOrDefault(record.DeviceId)), this)),
             .. live.Values
                 .Where(peer => trust.GetLevel(peer.DeviceId) == TrustLevel.Unknown)
-                .Select(peer => new PeerItemViewModel(peer.DeviceId, peer.DisplayName, Detail(peer, peer.HostName), false, true, this)),
+                .Select(peer => new PeerItemViewModel(peer.DeviceId, peer.DisplayName, Detail(peer, peer.HostName), false, true, IsPhone(peer), this)),
         ];
         items.Sort((x, y) => x.IsTrusted != y.IsTrusted ? (x.IsTrusted ? -1 : 1) : CultureInfo.CurrentCulture.CompareInfo.Compare(x.Name, y.Name, CompareOptions.IgnoreCase));
 
@@ -289,11 +290,16 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     private static string Detail(PeerInfo? live, string host) =>
-        live is null ? $"{host} · offline" : $"{live.HostName} · {live.Address}{(live.IsBusy ? " · bận" : "")}";
+        live is null ? $"{host} · offline" : $"{live.HostName} · {live.Address}{(live.IsBusy ? " · " + L.T("Bận") : "")}";
+
+    /// <summary>Offline contacts show as computers: presence is the only place the OS is known.</summary>
+    private static bool IsPhone(PeerInfo? live) => live?.Os.Equals("android", StringComparison.OrdinalIgnoreCase) == true;
 }
 
-public sealed partial class PeerItemViewModel(DeviceId deviceId, string name, string detail, bool isTrusted, bool isOnline, MainViewModel owner)
+public sealed partial class PeerItemViewModel(DeviceId deviceId, string name, string detail, bool isTrusted, bool isOnline, bool isPhone, MainViewModel owner)
 {
+    public bool IsPhone { get; } = isPhone;
+
     public DeviceId DeviceId { get; } = deviceId;
 
     public string Name { get; } = name;
@@ -326,6 +332,10 @@ public sealed partial class OfferItemViewModel(ReceivedOffer offer, string sende
     public string? Note { get; } = offer.Note;
 
     public bool HasNote => Note is not null;
+
+    public TransferKind Kind { get; } = TransferText.KindOf([.. offer.Files.Where(f => !f.IsDirectory).Select(f => f.RelativePath)]);
+
+    public bool IsCompleted { get; } = offer.State == InboxState.Completed;
 
     public double Progress { get; } = offer.TotalBytes == 0 ? 0 : 100.0 * offer.BytesReceived / offer.TotalBytes;
 
@@ -413,12 +423,14 @@ public sealed partial class SentItemViewModel(SentOffer offer, MainViewModel own
 
     public string Recipients { get; } = string.Join("\n", offer.Recipients.Select(r => $"{owner.NameOf(r.DeviceId)}: {State(r.State)}"));
 
+    public TransferKind Kind { get; } = TransferText.KindOf([.. offer.Paths.Where(p => !p.EndsWith('/'))]);
+
     public string Status { get; } = offer.State switch
     {
         OfferState.Open => offer.HasChangedFiles ? L.T("Đang mở · có file đã bị sửa") : L.T("Đang mở"),
         OfferState.Withdrawn => L.T("Đã thu hồi"),
         OfferState.Expired => L.T("Đã hết hạn"),
-        _ => "Xong",
+        _ => L.T("Hoàn tất"),
     };
 
     public bool CanWithdraw { get; } = offer.State == OfferState.Open;

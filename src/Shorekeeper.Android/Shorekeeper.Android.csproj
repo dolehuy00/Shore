@@ -22,6 +22,9 @@
 
   <ItemGroup>
     <AvaloniaResource Include="Assets\**" />
+    <!-- The desktop's look: icons, control sizes, colors. -->
+    <AvaloniaXaml Include="..\Shorekeeper.Desktop\Themes\Theme.axaml" Link="Themes\Theme.axaml" />
+    <AvaloniaXaml Include="..\Shorekeeper.Desktop\Themes\Icons.axaml" Link="Themes\Icons.axaml" />
   </ItemGroup>
 
   <ItemGroup>
