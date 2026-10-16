@@ -32,7 +32,7 @@ public sealed class WindowsFirewallInspector : IFirewallInspector
             }
 
             string target = Normalize(programPath);
-            bool allow = false;
+            NetworkProfiles allowed = NetworkProfiles.None;
             bool block = false;
             foreach (dynamic rule in policy.Rules)
             {
@@ -46,11 +46,15 @@ public sealed class WindowsFirewallInspector : IFirewallInspector
                 }
 
                 int action = (int)rule.Action;
-                allow |= action == ActionAllow;
+                if (action == ActionAllow)
+                {
+                    allowed |= (NetworkProfiles)((int)rule.Profiles & (int)active);
+                }
+
                 block |= action == ActionBlock;
             }
 
-            return new FirewallStatus(active, enabled, allow, block);
+            return new FirewallStatus(active, enabled, allowed, block);
         }
         catch (COMException)
         {

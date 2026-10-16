@@ -11,9 +11,12 @@ public enum NetworkProfiles
 
 /// <param name="ActiveProfiles">Network profiles (Domain/Private/Public) currently active on this machine.</param>
 /// <param name="FirewallEnabled">Whether the firewall is on for any active profile.</param>
-/// <param name="HasAllowRule">An enabled inbound allow rule exists for this program on an active profile.</param>
+/// <param name="AllowedProfiles">Active profiles on which an enabled inbound allow rule exists for this program.</param>
 /// <param name="HasBlockRule">An enabled inbound block rule exists for this program on an active profile (e.g. the user clicked "Cancel" on the Windows prompt).</param>
-public sealed record FirewallStatus(NetworkProfiles ActiveProfiles, bool FirewallEnabled, bool HasAllowRule, bool HasBlockRule);
+public sealed record FirewallStatus(NetworkProfiles ActiveProfiles, bool FirewallEnabled, NetworkProfiles AllowedProfiles, bool HasBlockRule)
+{
+    public bool HasAllowRule => AllowedProfiles != NetworkProfiles.None;
+}
 
 /// <summary>Reads (never changes) the OS firewall state for the network diagnostics screen.</summary>
 public interface IFirewallInspector

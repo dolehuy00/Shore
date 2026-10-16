@@ -49,7 +49,7 @@ Nguyên nhân số 1 của "không thấy nhau".
 | Shorekeeper (Private) | Inbound | Mọi giao thức, mọi cổng | như trên | Private |
 
 - Rule gắn theo **đường dẫn chương trình**, không theo cổng: cổng động (phiên người dùng thứ 2) và cổng đổi qua GPO vẫn được phép. Một rule cho mỗi profile vì WiX chỉ nhận một profile mỗi rule.
-- **Không** mở cho Public. Mạng hiện tại là Public thì app cảnh báo và hướng dẫn. App **không tự đổi** cài đặt hệ thống.
+- **Không** mở cho Public. Mạng hiện tại là Public mà không rule nào cho Shorekeeper vào trên Public thì Chẩn đoán báo lỗi (đỏ nếu chỉ có mạng Public, vàng nếu còn mạng khác) và hướng dẫn. Người dùng đã cho phép Public (hộp thoại firewall của Windows tạo thêm rule Public) thì báo xanh. App **không tự đổi** cài đặt hệ thống.
 - `IFirewallInspector` đọc trạng thái qua COM `INetFwPolicy2` để hiển thị trong màn hình Chẩn đoán.
 - IT có thể tự đẩy rule qua GPO (`FIREWALL_RULES=0`).
 

@@ -19,6 +19,7 @@ public class WindowsFirewallInspectorTests
         FirewallStatus? status = new WindowsFirewallInspector().Inspect(@"C:\does-not-exist\nothing.exe");
 
         Assert.NotNull(status);
+        Assert.Equal(NetworkProfiles.None, status.AllowedProfiles);
         Assert.False(status.HasAllowRule);
         Assert.False(status.HasBlockRule);
     }

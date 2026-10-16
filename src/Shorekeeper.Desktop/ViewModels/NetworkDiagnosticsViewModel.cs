@@ -121,9 +121,18 @@ public sealed partial class NetworkDiagnosticsViewModel(
             return;
         }
 
-        Items.Add(status.ActiveProfiles.HasFlag(NetworkProfiles.Public)
-            ? new DiagnosticItem(L.T("Loại mạng Windows"), L.T("Public: Windows chặn kết nối từ máy khác. Hãy chuyển mạng sang Private."), DiagnosticLevel.Error)
-            : new DiagnosticItem(L.T("Loại mạng Windows"), status.ActiveProfiles.ToString(), DiagnosticLevel.Ok));
+        // Public only matters when nothing lets Shorekeeper in there (the MSI opens Domain/Private only; the Windows
+        // prompt can add a Public rule).
+        bool onPublic = status.ActiveProfiles.HasFlag(NetworkProfiles.Public);
+        bool openOnPublic = !status.FirewallEnabled || (status.AllowedProfiles.HasFlag(NetworkProfiles.Public) && !status.HasBlockRule);
+        Items.Add(!onPublic
+            ? new DiagnosticItem(L.T("Loại mạng Windows"), status.ActiveProfiles.ToString(), DiagnosticLevel.Ok)
+            : openOnPublic
+                ? new DiagnosticItem(L.T("Loại mạng Windows"), L.F("{0} · Shorekeeper được phép nhận kết nối trên mạng Public", status.ActiveProfiles), DiagnosticLevel.Ok)
+                : new DiagnosticItem(
+                    L.T("Loại mạng Windows"),
+                    L.T("Public: Windows chặn máy khác kết nối tới Shorekeeper trên mạng này. Chuyển mạng sang Private, hoặc cho phép Shorekeeper trên mạng Public trong Windows Security → Firewall."),
+                    status.ActiveProfiles == NetworkProfiles.Public ? DiagnosticLevel.Error : DiagnosticLevel.Warning));
 
         Items.Add(status switch
         {
