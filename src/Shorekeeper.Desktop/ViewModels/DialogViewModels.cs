@@ -369,15 +369,72 @@ public sealed partial class IncomingOfferViewModel(ReceivedOffer offer, string s
     }
 }
 
-/// <summary>Single-line text input, e.g. "Đặt tên gợi nhớ".</summary>
-/// <param name="isPassword">Typed characters are hidden.</param>
-public sealed partial class TextPromptViewModel(string title, string label, string initialText, bool isPassword = false, string? okText = null) : DialogViewModel
+/// <summary>
+/// A password, typed twice when <paramref name="confirm"/> is set (a new backup), checked before the dialog closes:
+/// problems show inside it, so the user fixes them without starting over.
+/// </summary>
+/// <param name="check">The problem to show for this password (it may open the file), or null to accept it.</param>
+public sealed partial class PasswordPromptViewModel(string title, string label, string okText, bool confirm, Func<string, Task<string?>> check)
+    : DialogViewModel
 {
     public string Title { get; } = title;
 
     public string Label { get; } = label;
 
-    public char PasswordChar { get; } = isPassword ? '•' : '\0';
+    public string OkText { get; } = okText;
+
+    public bool IsConfirm { get; } = confirm;
+
+    [ObservableProperty]
+    public partial string Password { get; set; } = "";
+
+    [ObservableProperty]
+    public partial string PasswordAgain { get; set; } = "";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasError))]
+    public partial string? Error { get; set; }
+
+    public bool HasError => Error is not null;
+
+    /// <summary>Opening a backup takes a moment (key derivation).</summary>
+    [ObservableProperty]
+    public partial bool IsBusy { get; set; }
+
+    /// <summary>The accepted password; null when cancelled.</summary>
+    public string? Result { get; private set; }
+
+    [RelayCommand]
+    private async Task OkAsync()
+    {
+        IsBusy = true;
+        try
+        {
+            Error = await check(Password);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+
+        Error ??= IsConfirm && Password != PasswordAgain ? L.T("Hai lần nhập mật khẩu không khớp.") : null;
+        if (Error is null)
+        {
+            Result = Password;
+            RequestClose();
+        }
+    }
+
+    [RelayCommand]
+    private void Cancel() => RequestClose();
+}
+
+/// <summary>Single-line text input, e.g. "Đặt tên gợi nhớ".</summary>
+public sealed partial class TextPromptViewModel(string title, string label, string initialText, string? okText = null) : DialogViewModel
+{
+    public string Title { get; } = title;
+
+    public string Label { get; } = label;
 
     public string OkText { get; } = okText ?? L.T("Lưu");
 

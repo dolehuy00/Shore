@@ -111,31 +111,16 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     public partial string? NetworkStatusText { get; set; }
 
-    /// <summary>"Sao lưu danh tính…" (docs/04-identity-security.md §1.1): password twice, then where to save.</summary>
+    /// <summary>"Sao lưu danh tính…" (docs/04-identity-security.md §1.1): password twice in one dialog, then where to save.</summary>
     [RelayCommand]
     private async Task BackupAsync()
     {
         string title = L.T("Sao lưu danh tính");
-        string? password = await DialogService.PromptAsync(title, L.F("Đặt mật khẩu cho bản sao lưu (ít nhất {0} ký tự):", IdentityBackup.MinPasswordLength), "", isPassword: true, okText: L.T("Tiếp"));
-        if (password is null)
+        if (await DialogService.PromptPasswordAsync(
+                title, L.F("Đặt mật khẩu cho bản sao lưu (ít nhất {0} ký tự):", IdentityBackup.MinPasswordLength), L.T("Tiếp"), confirm: true,
+                p => Task.FromResult(p.Length < IdentityBackup.MinPasswordLength ? L.F("Mật khẩu phải có ít nhất {0} ký tự.", IdentityBackup.MinPasswordLength) : null))
+            is not { } password)
         {
-            return;
-        }
-
-        if (password.Length < IdentityBackup.MinPasswordLength)
-        {
-            await DialogService.ChooseAsync(title, L.F("Mật khẩu phải có ít nhất {0} ký tự.", IdentityBackup.MinPasswordLength), [L.T("Đóng")]);
-            return;
-        }
-
-        if (await DialogService.PromptAsync(title, L.T("Nhập lại mật khẩu:"), "", isPassword: true, okText: L.T("Tiếp")) is not { } again)
-        {
-            return;
-        }
-
-        if (again != password)
-        {
-            await DialogService.ChooseAsync(title, L.T("Hai lần nhập mật khẩu không khớp."), [L.T("Đóng")]);
             return;
         }
 
@@ -166,30 +151,37 @@ public sealed partial class SettingsViewModel : ObservableObject
             [L.T("Đóng")]);
     }
 
-    /// <summary>"Khôi phục…": the backup replaces the identity, contacts and groups at the next start.</summary>
+    /// <summary>
+    /// "Khôi phục…": the file, then its password (a wrong one is said in the same dialog), then what restoring would do.
+    /// The backup replaces the identity, contacts and groups at the next start.
+    /// </summary>
     [RelayCommand]
     private async Task RestoreAsync()
     {
         string title = L.T("Khôi phục danh tính");
-        if (await DialogService.PickFileAsync(title, BackupFileType) is not { } path
-            || await DialogService.PromptAsync(title, L.T("Mật khẩu của bản sao lưu:"), "", isPassword: true, okText: L.T("Mở")) is not { } password)
+        if (await DialogService.PickFileAsync(title, BackupFileType) is not { } path)
         {
             return;
         }
 
-        OpenedBackup opened;
-        try
+        OpenedBackup? opened = null;
+        if (await DialogService.PromptPasswordAsync(title, L.T("Mật khẩu của bản sao lưu:"), L.T("Mở"), confirm: false, async password =>
+            {
+                try
+                {
+                    opened = await Task.Run(async () => IdentityBackup.Open(await File.ReadAllBytesAsync(path), password));
+                    return null;
+                }
+                catch (CryptographicException)
+                {
+                    return L.T("Sai mật khẩu, hoặc file đã bị thay đổi.");
+                }
+                catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
+                {
+                    return L.T("Không đọc được: file này không phải bản sao lưu Shorekeeper, hoặc đã hỏng.");
+                }
+            }) is null || opened is null)
         {
-            opened = await Task.Run(async () => IdentityBackup.Open(await File.ReadAllBytesAsync(path), password));
-        }
-        catch (CryptographicException)
-        {
-            await DialogService.ChooseAsync(title, L.T("Sai mật khẩu, hoặc file đã bị thay đổi."), [L.T("Đóng")]);
-            return;
-        }
-        catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
-        {
-            await DialogService.ChooseAsync(title, L.T("Không đọc được: file này không phải bản sao lưu Shorekeeper, hoặc đã hỏng."), [L.T("Đóng")]);
             return;
         }
 

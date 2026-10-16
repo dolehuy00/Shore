@@ -234,7 +234,6 @@
   "{0} đang được ứng dụng khác dùng nên chưa bật được. Vẫn mở Gửi nhanh được từ icon ở khay hệ thống.": "{0} is used by another app, so it couldn't be turned on. You can still open Quick Send from the tray icon.",
   "Đặt mật khẩu cho bản sao lưu (ít nhất {0} ký tự):": "Set a password for the backup (at least {0} characters):",
   "Tiếp": "Next",
-  "Nhập lại mật khẩu:": "Repeat the password:",
   "Không có quyền ghi vào thư mục đã chọn.": "No permission to write to the chosen folder.",
   "Đã sao lưu": "Backed up",
   "Cất file và mật khẩu ở nơi an toàn: ai có cả hai có thể giả làm máy này.\n\nKhi cài lại Windows hoặc chuyển sang máy mới, vào Cài đặt → Khôi phục để giữ nguyên danh tính, liên hệ và nhóm.": "Keep the file and the password somewhere safe: anyone with both can pretend to be this computer.\n\nWhen you reinstall Windows or move to a new computer, use Settings → Restore to keep your identity, contacts and groups.",
@@ -404,5 +403,6 @@
   "Chặn {0}?": "Block {0}?",
   "Máy này sẽ không gửi được yêu cầu kết nối hay file cho bạn nữa. Bỏ chặn trong Cài đặt.": "This device won't be able to send you connection requests or files anymore. Unblock it in Settings.",
   "Sao lưu": "Back up",
-  "File được lưu vào Download/Shorekeeper.": "The file goes to Download/Shorekeeper."
+  "File được lưu vào Download/Shorekeeper.": "The file goes to Download/Shorekeeper.",
+  "Mật khẩu": "Password"
 }

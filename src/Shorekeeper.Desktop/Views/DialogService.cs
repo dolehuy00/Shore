@@ -287,9 +287,17 @@ public sealed class DialogService(
         return ShowAsync(new AddPeerWindow { DataContext = viewModel }, viewModel);
     }
 
-    public static async Task<string?> PromptAsync(string title, string label, string initialText, bool isPassword = false, string? okText = null)
+    /// <inheritdoc cref="PasswordPromptViewModel"/>
+    public static async Task<string?> PromptPasswordAsync(string title, string label, string okText, bool confirm, Func<string, Task<string?>> check)
     {
-        var viewModel = new TextPromptViewModel(title, label, initialText, isPassword, okText);
+        var viewModel = new PasswordPromptViewModel(title, label, okText, confirm, check);
+        await ShowAsync(new PasswordPromptWindow { DataContext = viewModel }, viewModel);
+        return viewModel.Result;
+    }
+
+    public static async Task<string?> PromptAsync(string title, string label, string initialText, string? okText = null)
+    {
+        var viewModel = new TextPromptViewModel(title, label, initialText, okText);
         await ShowAsync(new TextPromptWindow { DataContext = viewModel }, viewModel);
         return viewModel.Confirmed ? viewModel.Text : null;
     }
