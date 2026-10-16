@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Shorekeeper.Core.Discovery;
 using Shorekeeper.Core.Localization;
 using Shorekeeper.Desktop.Views;
@@ -205,6 +206,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public partial string? StorageText { get; set; }
 
     public bool HasStorage => StorageText is not null;
+
+    [RelayCommand]
+    private void ShowPage(NavPage page) => SelectedNavItem = NavItems.First(i => i.Page == page);
 
     partial void OnSelectedStatusChanged(StatusOption value) => presence.Status = value.Status;
 

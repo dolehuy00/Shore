@@ -27,6 +27,7 @@
           <SolidColorBrush x:Key="Sk.Divider" Color="#E3E7ED" />
           <SolidColorBrush x:Key="Sk.MutedText" Color="#5B6472" />
           <SolidColorBrush x:Key="Sk.Track" Color="#DDE2E9" />
+          <SolidColorBrush x:Key="Sk.TileBackground" Color="#E6ECF5" />
           <!-- Buttons, text boxes and combo boxes share one look. -->
           <SolidColorBrush x:Key="ButtonBackground" Color="#FFFFFF" />
           <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#F3F5F8" />
@@ -54,6 +55,7 @@
           <SolidColorBrush x:Key="Sk.Divider" Color="#262C35" />
           <SolidColorBrush x:Key="Sk.MutedText" Color="#9AA4B2" />
           <SolidColorBrush x:Key="Sk.Track" Color="#2B323C" />
+          <SolidColorBrush x:Key="Sk.TileBackground" Color="#252C37" />
           <!-- Buttons, text boxes and combo boxes share one look. -->
           <SolidColorBrush x:Key="ButtonBackground" Color="#20262E" />
           <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#272E38" />

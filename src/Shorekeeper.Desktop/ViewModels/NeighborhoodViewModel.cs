@@ -52,6 +52,8 @@ public sealed partial class NeighborhoodViewModel : ObservableObject
 
     public bool IsEmpty => Contacts.Count == 0 && Others.Count == 0;
 
+    public bool HasOthers => Others.Count > 0;
+
     public string ContactsHeader => L.F("Đã kết nối ({0})", Contacts.Count);
 
     public string OthersHeader => L.F("Đang online trong mạng ({0})", Others.Count);
@@ -84,6 +86,7 @@ public sealed partial class NeighborhoodViewModel : ObservableObject
         Sync(Others, others);
         OnPropertyChanged(nameof(HasContacts));
         OnPropertyChanged(nameof(IsEmpty));
+        OnPropertyChanged(nameof(HasOthers));
         OnPropertyChanged(nameof(ContactsHeader));
         OnPropertyChanged(nameof(OthersHeader));
     }
@@ -257,6 +260,10 @@ public sealed partial class PeerCardViewModel(DeviceId deviceId, NeighborhoodVie
     [ObservableProperty]
     public partial bool IsBusy { get; set; }
 
+    /// <summary>Android phone (from presence); computers otherwise. Offline contacts keep what was last seen.</summary>
+    [ObservableProperty]
+    public partial bool IsPhone { get; set; }
+
     /// <summary>Stale or offline: shown dimmed with a gray dot.</summary>
     [ObservableProperty]
     public partial bool IsInactive { get; set; }
@@ -331,6 +338,7 @@ public sealed partial class PeerCardViewModel(DeviceId deviceId, NeighborhoodVie
         IsOnline = live is not null;
         // Offline contacts keep what was last seen.
         Department = live is null ? Department : live.Department;
+        IsPhone = live is null ? IsPhone : live.Os.Equals("android", StringComparison.OrdinalIgnoreCase);
         IsBusy = live?.IsBusy == true;
         IsInactive = live is null || live.State == PeerState.Stale;
         Subtitle = live is null ? HostName

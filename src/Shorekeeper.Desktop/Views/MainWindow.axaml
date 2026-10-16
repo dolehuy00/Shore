@@ -43,9 +43,8 @@
     </Style>
 
     <Style Selector="Border.card">
-      <Setter Property="Width" Value="230" />
-      <Setter Property="Margin" Value="0,0,12,12" />
-      <Setter Property="Padding" Value="14,12" />
+      <Setter Property="Margin" Value="0,0,0,8" />
+      <Setter Property="Padding" Value="14,10" />
       <Setter Property="CornerRadius" Value="8" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="BorderBrush" Value="{DynamicResource Sk.CardBorder}" />
@@ -104,6 +103,17 @@
       <Setter Property="Background" Value="{DynamicResource AccentButtonBackgroundPressed}" />
       <Setter Property="Foreground" Value="{DynamicResource AccentButtonForeground}" />
     </Style>
+    <!-- Square behind a device or file icon. -->
+    <Style Selector="Border.tile">
+      <Setter Property="Width" Value="44" />
+      <Setter Property="Height" Value="44" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Background" Value="{DynamicResource Sk.TileBackground}" />
+    </Style>
+    <Style Selector="TextBlock.section">
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
     <Style Selector="TextBlock.muted">
       <Setter Property="Foreground" Value="{DynamicResource Sk.MutedText}" />
     </Style>
@@ -132,25 +142,49 @@
             <MenuItem Header="{l:T 'Chặn'}" Command="{Binding BlockCommand}" />
           </ContextMenu>
         </Border.ContextMenu>
-        <StackPanel Spacing="4">
-          <StackPanel Orientation="Horizontal" Spacing="8">
-            <Border Width="28" Height="28" CornerRadius="14" ClipToBounds="True" IsVisible="{Binding HasAvatar}">
+        <Grid ColumnDefinitions="Auto,*,Auto">
+          <Panel>
+            <Border Classes="tile">
+              <Panel>
+                <PathIcon Data="{StaticResource Icon.Laptop}" IsVisible="{Binding !IsPhone}" Width="22" Height="22" />
+                <PathIcon Data="{StaticResource Icon.Phone}" IsVisible="{Binding IsPhone}" Width="22" Height="22" />
+              </Panel>
+            </Border>
+            <Border Classes="tile" ClipToBounds="True" IsVisible="{Binding HasAvatar}">
               <Image Source="{Binding Avatar}" Stretch="UniformToFill" />
             </Border>
-            <Ellipse Classes="dot" Classes.busy="{Binding IsBusy}" Classes.muted="{Binding IsInactive}" VerticalAlignment="Center" />
-            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" MaxWidth="180" VerticalAlignment="Center" />
+          </Panel>
+
+          <StackPanel Grid.Column="1" Margin="14,0,12,0" Spacing="2" VerticalAlignment="Center">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+              <Border Classes="tag" IsVisible="{Binding CanConnect}" VerticalAlignment="Center">
+                <TextBlock Text="{l:T 'Chưa kết nối'}" FontSize="11" />
+              </Border>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <Ellipse Classes="dot" Classes.busy="{Binding IsBusy}" Classes.muted="{Binding IsInactive}" Width="8" Height="8" />
+              <TextBlock Classes="muted" Text="{Binding StatusText}" FontSize="12" />
+              <TextBlock Classes="muted" Text="·" FontSize="12" />
+              <TextBlock Classes="muted" Text="{Binding Subtitle}" FontSize="12" TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+            <TextBlock Classes="muted" Text="{Binding Department}" IsVisible="{Binding HasDepartment}" FontSize="12" TextTrimming="CharacterEllipsis" />
+            <TextBlock Text="{Binding GroupText}" IsVisible="{Binding HasGroup}" FontSize="12" Foreground="{DynamicResource AccentButtonBackground}" TextTrimming="CharacterEllipsis" />
           </StackPanel>
-          <TextBlock Text="{Binding Department}" IsVisible="{Binding HasDepartment}" FontSize="12" TextTrimming="CharacterEllipsis" />
-          <TextBlock Text="{Binding Subtitle}" Opacity="0.65" FontSize="12" TextTrimming="CharacterEllipsis" />
-          <TextBlock Text="{Binding StatusText}" Opacity="0.8" FontSize="12" />
-          <TextBlock Text="{Binding GroupText}" IsVisible="{Binding HasGroup}" FontSize="12" Foreground="#3B82F6" TextTrimming="CharacterEllipsis" />
-          <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding CanConnect}" Margin="0,4,0,0">
-            <Border Classes="tag" VerticalAlignment="Center">
-              <TextBlock Text="{l:T 'Chưa kết nối'}" FontSize="11" />
-            </Border>
-            <Button Grid.Column="1" Content="{l:T 'Kết nối'}" Command="{Binding ConnectCommand}" Padding="10,3" />
-          </Grid>
-        </StackPanel>
+
+          <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <Button Command="{Binding SendFilesCommand}" IsVisible="{Binding CanSend}" AutomationProperties.Name="{l:T 'Gửi file…'}">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <PathIcon Data="{StaticResource Icon.Send}" Width="16" Height="16" />
+                <TextBlock Text="{l:T 'Gửi file…'}" />
+              </StackPanel>
+            </Button>
+            <Button Classes="accent" Content="{l:T 'Kết nối'}" Command="{Binding ConnectCommand}" IsVisible="{Binding CanConnect}" />
+            <Button Click="OnPeerMore" ToolTip.Tip="{l:T 'Thêm'}" AutomationProperties.Name="{l:T 'Thêm'}" Padding="9,7">
+              <PathIcon Data="{StaticResource Icon.More}" Width="16" Height="16" />
+            </Button>
+          </StackPanel>
+        </Grid>
       </Border>
     </DataTemplate>
   </Window.Resources>
@@ -233,40 +267,75 @@
         </Border>
 
         <!-- Xóm -->
-        <StackPanel IsVisible="{Binding IsNeighborhoodVisible}" Spacing="14">
+        <StackPanel IsVisible="{Binding IsNeighborhoodVisible}" Spacing="14" MaxWidth="860" HorizontalAlignment="Stretch">
           <Grid ColumnDefinitions="*,Auto,Auto">
-            <TextBlock Classes="h2" Text="{l:T 'Xóm'}" />
+            <TextBlock Classes="h2" Text="{l:T 'Xóm'}" VerticalAlignment="Center" />
             <TextBox Grid.Column="1" Text="{Binding Neighborhood.Search}" PlaceholderText="{l:T 'Tìm người, máy, phòng ban…'}" Width="240" Margin="0,0,8,0" />
-            <Button Grid.Column="2" Content="{l:T '+ Thêm máy khác'}" Command="{Binding Neighborhood.AddPeerCommand}" />
+            <Button Grid.Column="2" Classes="accent" Command="{Binding Neighborhood.AddPeerCommand}" AutomationProperties.Name="{l:T 'Thêm máy khác'}">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <PathIcon Data="{StaticResource Icon.Add}" Width="16" Height="16" />
+                <TextBlock Text="{l:T 'Thêm máy khác'}" />
+              </StackPanel>
+            </Button>
           </Grid>
 
-          <TextBlock IsVisible="{Binding Neighborhood.IsEmpty}" Opacity="0.65" TextWrapping="Wrap" MaxWidth="560" HorizontalAlignment="Left"
-                     Text="{l:T 'Chưa thấy ai trong mạng. Nếu máy khác đã mở Shorekeeper mà vẫn không thấy, xem Cài đặt → Mạng. Máy ở mạng khác thì dùng nút Thêm máy khác.'}" />
+          <!-- Mới nhận: the latest offers, with their main action, without leaving the page. -->
+          <StackPanel IsVisible="{Binding Inbox.HasRecent}" Spacing="8">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+              <PathIcon Data="{StaticResource Icon.Download}" Width="16" Height="16" Margin="0,0,8,0" />
+              <TextBlock Grid.Column="1" Classes="section" Text="{l:T 'Mới nhận'}" />
+              <Button Grid.Column="2" Content="{l:T 'Xem tất cả'}" Command="{Binding ShowPageCommand}" CommandParameter="{x:Static vm:NavPage.Inbox}"
+                      Background="Transparent" BorderThickness="0" Foreground="{DynamicResource AccentButtonBackground}" />
+            </Grid>
+            <ItemsControl ItemsSource="{Binding Inbox.Recent}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:InboxItemViewModel">
+                  <Border Classes="card">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                      <Border Classes="tile" Width="36" Height="36" CornerRadius="8">
+                        <PathIcon Data="{StaticResource Icon.Document}" Width="18" Height="18" />
+                      </Border>
+                      <StackPanel Grid.Column="1" Margin="12,0" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Summary}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                          <TextBlock Classes="muted" Text="{Binding SenderName}" FontSize="12" />
+                          <TextBlock Classes="muted" Text="·" FontSize="12" />
+                          <TextBlock Classes="muted" Classes.error="{Binding IsError}" Text="{Binding StatusText}" FontSize="12" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                      </StackPanel>
+                      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <Button Classes="accent" Content="{Binding DownloadText}" Command="{Binding DownloadCommand}" IsVisible="{Binding CanDownload}" />
+                        <Button Content="{l:T 'Mở'}" Command="{Binding OpenCommand}" IsVisible="{Binding CanOpen}" />
+                      </StackPanel>
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+
+          <!-- Nobody at all -->
+          <StackPanel IsVisible="{Binding Neighborhood.IsEmpty}" Spacing="6" Margin="0,40" HorizontalAlignment="Center">
+            <PathIcon Data="{StaticResource Icon.People}" Width="40" Height="40" Opacity="0.5" HorizontalAlignment="Center" />
+            <TextBlock Text="{l:T 'Chưa thấy ai trong mạng'}" FontWeight="SemiBold" HorizontalAlignment="Center" />
+            <TextBlock Classes="muted" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="460"
+                       Text="{l:T 'Nếu máy khác đã mở Shorekeeper mà vẫn không thấy, xem Cài đặt → Mạng. Máy ở mạng khác thì dùng nút Thêm máy khác.'}" />
+          </StackPanel>
 
           <StackPanel IsVisible="{Binding Neighborhood.HasContacts}" Spacing="8">
-            <TextBlock Text="{Binding Neighborhood.ContactsHeader}" FontWeight="SemiBold" Opacity="0.7" />
-            <ItemsControl ItemsSource="{Binding Neighborhood.Contacts}" ItemTemplate="{StaticResource PeerCard}">
-              <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                  <WrapPanel />
-                </ItemsPanelTemplate>
-              </ItemsControl.ItemsPanel>
-            </ItemsControl>
+            <TextBlock Classes="section" Text="{Binding Neighborhood.ContactsHeader}" />
+            <ItemsControl ItemsSource="{Binding Neighborhood.Contacts}" ItemTemplate="{StaticResource PeerCard}" />
           </StackPanel>
 
-          <StackPanel Spacing="8">
-            <TextBlock Text="{Binding Neighborhood.OthersHeader}" FontWeight="SemiBold" Opacity="0.7" />
-            <ItemsControl ItemsSource="{Binding Neighborhood.Others}" ItemTemplate="{StaticResource PeerCard}">
-              <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                  <WrapPanel />
-                </ItemsPanelTemplate>
-              </ItemsControl.ItemsPanel>
-            </ItemsControl>
+          <StackPanel IsVisible="{Binding !Neighborhood.IsEmpty}" Spacing="8">
+            <TextBlock Classes="section" Text="{Binding Neighborhood.OthersHeader}" />
+            <ItemsControl ItemsSource="{Binding Neighborhood.Others}" ItemTemplate="{StaticResource PeerCard}" />
+            <TextBlock Classes="muted" IsVisible="{Binding !Neighborhood.HasOthers}" FontSize="12"
+                       Text="{l:T 'Không có máy nào khác đang online.'}" />
           </StackPanel>
 
-          <TextBlock Opacity="0.55" FontSize="12" TextWrapping="Wrap"
-                     Text="{l:T 'Kéo file hoặc thư mục vào một người đã kết nối (hoặc cùng nhóm) để gửi, hoặc click chọn người rồi nhấn Ctrl+V để gửi file đã copy. Ctrl+click để chọn nhiều người. Chuột phải để gửi file, tự nhận file, đặt tên gợi nhớ, ngắt kết nối hoặc chặn.'}" />
+          <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
+                     Text="{l:T 'Kéo file hoặc thư mục vào một người để gửi. Click chọn người rồi nhấn Ctrl+V để gửi file đã copy; Ctrl+click để chọn nhiều người.'}" />
         </StackPanel>
 
         <!-- Hộp nhận -->

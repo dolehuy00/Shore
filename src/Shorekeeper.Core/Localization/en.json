@@ -286,9 +286,6 @@
   "Ngắt kết nối": "Disconnect",
   "Chưa kết nối": "Not connected",
   "Tìm người, máy, phòng ban…": "Search people, devices, departments…",
-  "+ Thêm máy khác": "+ Add another device",
-  "Chưa thấy ai trong mạng. Nếu máy khác đã mở Shorekeeper mà vẫn không thấy, xem Cài đặt → Mạng. Máy ở mạng khác thì dùng nút Thêm máy khác.": "No one on the network yet. If another computer has Shorekeeper open and still doesn't show up, see Settings → Network. For a device on another network, use Add another device.",
-  "Kéo file hoặc thư mục vào một người đã kết nối (hoặc cùng nhóm) để gửi, hoặc click chọn người rồi nhấn Ctrl+V để gửi file đã copy. Ctrl+click để chọn nhiều người. Chuột phải để gửi file, tự nhận file, đặt tên gợi nhớ, ngắt kết nối hoặc chặn.": "Drag files or folders onto a connected person (or a group member) to send them, or click a person and press Ctrl+V to send copied files. Ctrl+click to select several people. Right-click to send files, auto-accept files, set a nickname, disconnect or block.",
   "Chọn file…": "Choose files…",
   "Mở thư mục": "Open folder",
   "Bạn chưa gửi gì. Kéo file vào một người ở trang Xóm để gửi.": "You haven't sent anything yet. Drag files onto a person on the Nearby page to send them.",
@@ -386,5 +383,13 @@
   "Ngôn ngữ": "Language",
   "Ngôn ngữ mới có hiệu lực sau khi khởi động lại Shorekeeper.": "The new language takes effect after Shorekeeper restarts.",
   "Khởi động lại": "Restart",
-  "Trống {0} / {1}": "{0} free of {1}"
+  "Trống {0} / {1}": "{0} free of {1}",
+  "Thêm": "More",
+  "Thêm máy khác": "Add another device",
+  "Mới nhận": "Just received",
+  "Xem tất cả": "View all",
+  "Chưa thấy ai trong mạng": "No one on the network yet",
+  "Nếu máy khác đã mở Shorekeeper mà vẫn không thấy, xem Cài đặt → Mạng. Máy ở mạng khác thì dùng nút Thêm máy khác.": "If another computer has Shorekeeper open and still doesn't show up, see Settings → Network. For a device on another network, use Add another device.",
+  "Không có máy nào khác đang online.": "No other devices are online.",
+  "Kéo file hoặc thư mục vào một người để gửi. Click chọn người rồi nhấn Ctrl+V để gửi file đã copy; Ctrl+click để chọn nhiều người.": "Drag files or folders onto a person to send them. Click a person and press Ctrl+V to send copied files; Ctrl+click to select several people."
 }

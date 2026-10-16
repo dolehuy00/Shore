@@ -37,6 +37,15 @@ public sealed partial class InboxViewModel : ObservableObject
 
     public bool IsEmpty => Items.Count == 0;
 
+    /// <summary>"Mới nhận" on the Xóm page: the latest offers of the last day.</summary>
+    public ObservableCollection<InboxItemViewModel> Recent { get; } = [];
+
+    public bool HasRecent => Recent.Count > 0;
+
+    private const int RecentCount = 3;
+
+    private static readonly TimeSpan RecentWindow = TimeSpan.FromDays(1);
+
     /// <summary>Offers waiting for a decision; shown as a badge in the navigation.</summary>
     [ObservableProperty]
     public partial int NewCount { get; set; }
@@ -54,6 +63,7 @@ public sealed partial class InboxViewModel : ObservableObject
 
         NewCount = Items.Count(i => i.IsNew);
         OnPropertyChanged(nameof(IsEmpty));
+        UpdateRecent();
     }
 
     private void Refresh(OfferKey key)
@@ -63,6 +73,23 @@ public sealed partial class InboxViewModel : ObservableObject
             Apply(offer);
             NewCount = Items.Count(i => i.IsNew);
             OnPropertyChanged(nameof(IsEmpty));
+            UpdateRecent();
+        }
+    }
+
+    private void UpdateRecent()
+    {
+        DateTimeOffset since = TimeProvider.GetUtcNow() - RecentWindow;
+        InboxItemViewModel[] latest = [.. Items.Where(i => i.ReceivedAt >= since).Take(RecentCount)];
+        if (!latest.SequenceEqual(Recent))
+        {
+            Recent.Clear();
+            foreach (InboxItemViewModel item in latest)
+            {
+                Recent.Add(item);
+            }
+
+            OnPropertyChanged(nameof(HasRecent));
         }
     }
 

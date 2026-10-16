@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
+using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Avalonia.VisualTree;
 using Shorekeeper.Core.Localization;
@@ -56,6 +57,17 @@ public partial class MainWindow : Window
 
         string[] paths = [.. (e.DataTransfer.TryGetFiles() ?? []).Select(f => f.TryGetLocalPath()).OfType<string>()];
         await target.DropAsync(paths);
+    }
+
+    /// <summary>"…" on a person: the same menu as a right-click on the row.</summary>
+    private void OnPeerMore(object? sender, RoutedEventArgs e)
+    {
+        // A context menu only opens on the control it belongs to; it shows at the pointer, which is on the button.
+        if (sender is Control button
+            && button.GetVisualAncestors().OfType<Control>().FirstOrDefault(c => c.ContextMenu is not null) is { ContextMenu: { } menu } row)
+        {
+            menu.Open(row);
+        }
     }
 
     private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
