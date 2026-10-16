@@ -114,6 +114,16 @@
       <Setter Property="FontWeight" Value="SemiBold" />
       <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
+    <!-- A recipient of a sent offer. -->
+    <Style Selector="Border.chip">
+      <Setter Property="Padding" Value="8,3" />
+      <Setter Property="Margin" Value="0,0,6,6" />
+      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="Background" Value="{DynamicResource Sk.TileBackground}" />
+    </Style>
+    <Style Selector="PathIcon.done">
+      <Setter Property="Foreground" Value="#22C55E" />
+    </Style>
     <Style Selector="TextBlock.muted">
       <Setter Property="Foreground" Value="{DynamicResource Sk.MutedText}" />
     </Style>
@@ -292,9 +302,18 @@
                 <DataTemplate x:DataType="vm:InboxItemViewModel">
                   <Border Classes="card">
                     <Grid ColumnDefinitions="Auto,*,Auto">
-                      <Border Classes="tile" Width="36" Height="36" CornerRadius="8">
-                        <PathIcon Data="{StaticResource Icon.Document}" Width="18" Height="18" />
-                      </Border>
+                      <Panel>
+                        <Border Classes="tile" Width="36" Height="36" CornerRadius="8">
+                          <Panel>
+                            <PathIcon Data="{StaticResource Icon.Document}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Files}}" Width="18" Height="18" />
+                            <PathIcon Data="{StaticResource Icon.Image}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Images}}" Width="18" Height="18" />
+                            <PathIcon Data="{StaticResource Icon.FolderOpen}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Folder}}" Width="18" Height="18" />
+                          </Panel>
+                        </Border>
+                        <Border Width="36" Height="36" CornerRadius="8" ClipToBounds="True" IsVisible="{Binding HasThumbnail}">
+                          <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" />
+                        </Border>
+                      </Panel>
                       <StackPanel Grid.Column="1" Margin="12,0" VerticalAlignment="Center">
                         <TextBlock Text="{Binding Summary}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                         <StackPanel Orientation="Horizontal" Spacing="6">
@@ -341,26 +360,53 @@
         <!-- Hộp nhận -->
         <StackPanel IsVisible="{Binding IsInboxVisible}" Spacing="14" MaxWidth="860" HorizontalAlignment="Stretch">
           <TextBlock Classes="h2" Text="{l:T 'Hộp nhận'}" />
-          <TextBlock IsVisible="{Binding Inbox.IsEmpty}" Opacity="0.65" Text="{l:T 'Chưa có ai gửi gì cho bạn.'}" />
+          <StackPanel IsVisible="{Binding Inbox.IsEmpty}" Spacing="6" Margin="0,40" HorizontalAlignment="Center">
+            <PathIcon Data="{StaticResource Icon.Download}" Width="40" Height="40" Opacity="0.5" HorizontalAlignment="Center" />
+            <TextBlock Text="{l:T 'Chưa có ai gửi gì cho bạn.'}" FontWeight="SemiBold" HorizontalAlignment="Center" />
+          </StackPanel>
           <ItemsControl ItemsSource="{Binding Inbox.Items}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:InboxItemViewModel">
                 <Border Classes="panel">
-                  <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto,Auto">
-                    <TextBlock Text="{Binding SenderName}" FontWeight="SemiBold" />
-                    <TextBlock Grid.Row="1" Text="{Binding Summary}" TextWrapping="Wrap" />
-                    <TextBlock Grid.Row="2" Text="{Binding Note}" IsVisible="{Binding HasNote}" FontStyle="Italic" Opacity="0.75" TextWrapping="Wrap" />
-                    <StackPanel Grid.Row="3" Spacing="4" Margin="0,4,0,0">
-                      <ProgressBar Value="{Binding Progress}" Maximum="100" IsVisible="{Binding IsDownloading}" />
-                      <TextBlock Text="{Binding StatusText}" Classes.error="{Binding IsError}" Opacity="0.85" FontSize="12" TextWrapping="Wrap" />
+                  <Grid ColumnDefinitions="Auto,*,Auto">
+                    <Panel VerticalAlignment="Top">
+                      <Border Classes="tile" Width="56" Height="56" VerticalAlignment="Top">
+                        <Panel>
+                          <PathIcon Data="{StaticResource Icon.Document}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Files}}" Width="24" Height="24" />
+                          <PathIcon Data="{StaticResource Icon.Image}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Images}}" Width="24" Height="24" />
+                          <PathIcon Data="{StaticResource Icon.FolderOpen}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Folder}}" Width="24" Height="24" />
+                        </Panel>
+                      </Border>
+                      <Border Width="56" Height="56" CornerRadius="10" ClipToBounds="True" IsVisible="{Binding HasThumbnail}" VerticalAlignment="Top">
+                        <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" />
+                      </Border>
+                    </Panel>
+
+                    <StackPanel Grid.Column="1" Margin="14,0,12,0" Spacing="3" VerticalAlignment="Center">
+                      <TextBlock Text="{Binding SenderName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Text="{Binding Note}" IsVisible="{Binding HasNote}" FontStyle="Italic" Opacity="0.75" TextWrapping="Wrap" />
+                      <WrapPanel>
+                        <TextBlock Classes="muted" Text="{Binding Details}" FontSize="12" Margin="0,0,12,0" VerticalAlignment="Center" />
+                        <PathIcon Classes="done" Data="{StaticResource Icon.CheckCircle}" IsVisible="{Binding IsCompleted}" Width="14" Height="14" Margin="0,0,5,0" VerticalAlignment="Center" />
+                        <TextBlock Classes="muted" Classes.error="{Binding IsError}" Text="{Binding StatusText}" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" />
+                        <TextBlock Classes="muted" Text="{Binding Ago, StringFormat=' · {0}'}" FontSize="12" VerticalAlignment="Center" />
+                      </WrapPanel>
+                      <ProgressBar Value="{Binding Progress}" Maximum="100" IsVisible="{Binding IsDownloading}" MinWidth="0" Margin="0,4,0,0" />
                     </StackPanel>
-                    <StackPanel Grid.Column="1" Grid.RowSpan="4" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="12,0,0,0">
+
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                       <Button Content="{Binding DownloadText}" Command="{Binding DownloadCommand}" IsVisible="{Binding CanDownload}" Classes="accent" />
                       <Button Content="{l:T 'Chọn file…'}" Command="{Binding PickFilesCommand}" IsVisible="{Binding CanPick}" />
                       <Button Content="{l:T 'Bỏ qua'}" Command="{Binding DeclineCommand}" IsVisible="{Binding IsNew}" />
                       <Button Content="{l:T 'Hủy'}" Command="{Binding CancelCommand}" IsVisible="{Binding IsDownloading}" />
                       <Button Content="{l:T 'Mở'}" Command="{Binding OpenCommand}" IsVisible="{Binding CanOpen}" />
-                      <Button Content="{l:T 'Mở thư mục'}" Command="{Binding OpenFolderCommand}" IsVisible="{Binding CanOpen}" />
+                      <Button Command="{Binding OpenFolderCommand}" IsVisible="{Binding CanOpen}" AutomationProperties.Name="{l:T 'Mở thư mục'}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                          <PathIcon Data="{StaticResource Icon.FolderOpen}" Width="16" Height="16" />
+                          <TextBlock Text="{l:T 'Mở thư mục'}" />
+                        </StackPanel>
+                      </Button>
                     </StackPanel>
                   </Grid>
                 </Border>
@@ -372,19 +418,54 @@
         <!-- Đã gửi -->
         <StackPanel IsVisible="{Binding IsSentVisible}" Spacing="14" MaxWidth="860" HorizontalAlignment="Stretch">
           <TextBlock Classes="h2" Text="{l:T 'Đã gửi'}" />
-          <TextBlock IsVisible="{Binding !Sent.Items.Count}" Opacity="0.65" Text="{l:T 'Bạn chưa gửi gì. Kéo file vào một người ở trang Xóm để gửi.'}" />
+          <StackPanel IsVisible="{Binding !Sent.Items.Count}" Spacing="6" Margin="0,40" HorizontalAlignment="Center">
+            <PathIcon Data="{StaticResource Icon.Upload}" Width="40" Height="40" Opacity="0.5" HorizontalAlignment="Center" />
+            <TextBlock Text="{l:T 'Bạn chưa gửi gì.'}" FontWeight="SemiBold" HorizontalAlignment="Center" />
+            <TextBlock Classes="muted" Text="{l:T 'Kéo file vào một người ở trang Xóm để gửi.'}" HorizontalAlignment="Center" />
+          </StackPanel>
           <ItemsControl ItemsSource="{Binding Sent.Items}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:SentItemViewModel">
                 <Border Classes="panel">
-                  <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto,Auto">
-                    <TextBlock Text="{Binding Summary}" FontWeight="SemiBold" TextWrapping="Wrap" />
-                    <TextBlock Grid.Row="1" Text="{Binding StatusText}" Opacity="0.7" FontSize="12" />
-                    <TextBlock Grid.Row="2" Text="{Binding RecipientsText}" Margin="0,6,0,0" TextWrapping="Wrap" />
-                    <TextBlock Grid.Row="3" IsVisible="{Binding HasChangedFiles}" Classes="error" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0"
-                               Text="{l:T 'File gốc đã bị sửa sau khi gửi: ai chưa tải sẽ không tải được bản cũ. Hãy gửi lại.'}" />
-                    <Button Grid.Column="1" Grid.RowSpan="4" Content="{l:T 'Thu hồi'}" Command="{Binding WithdrawCommand}" IsVisible="{Binding CanWithdraw}"
-                            VerticalAlignment="Center" Margin="12,0,0,0" />
+                  <Grid ColumnDefinitions="Auto,*,Auto">
+                    <Border Classes="tile" Width="56" Height="56" VerticalAlignment="Top">
+                        <Panel>
+                          <PathIcon Data="{StaticResource Icon.Document}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Files}}" Width="24" Height="24" />
+                          <PathIcon Data="{StaticResource Icon.Image}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Images}}" Width="24" Height="24" />
+                          <PathIcon Data="{StaticResource Icon.FolderOpen}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Folder}}" Width="24" Height="24" />
+                        </Panel>
+                      </Border>
+
+                    <StackPanel Grid.Column="1" Margin="14,0,12,0" Spacing="3" VerticalAlignment="Center">
+                      <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap">
+                        <Run Text="{Binding Details}" />
+                        <Run Text=" · " />
+                        <Run Text="{Binding StatusText}" />
+                      </TextBlock>
+                      <ItemsControl ItemsSource="{Binding Recipients}" Margin="0,4,0,0">
+                        <ItemsControl.ItemsPanel>
+                          <ItemsPanelTemplate>
+                            <WrapPanel />
+                          </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="vm:SentRecipientItem">
+                            <Border Classes="chip">
+                              <StackPanel Orientation="Horizontal" Spacing="5">
+                                <PathIcon Classes="done" Data="{StaticResource Icon.CheckCircle}" IsVisible="{Binding IsDone}" Width="13" Height="13" />
+                                <TextBlock Text="{Binding Name}" FontSize="12" FontWeight="SemiBold" />
+                                <TextBlock Classes="muted" Classes.error="{Binding IsFailed}" Text="{Binding State}" FontSize="12" />
+                              </StackPanel>
+                            </Border>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                      <TextBlock IsVisible="{Binding HasChangedFiles}" Classes="error" FontSize="12" TextWrapping="Wrap"
+                                 Text="{l:T 'File gốc đã bị sửa sau khi gửi: ai chưa tải sẽ không tải được bản cũ. Hãy gửi lại.'}" />
+                    </StackPanel>
+
+                    <Button Grid.Column="2" Content="{l:T 'Thu hồi'}" Command="{Binding WithdrawCommand}" IsVisible="{Binding CanWithdraw}" VerticalAlignment="Center" />
                   </Grid>
                 </Border>
               </DataTemplate>

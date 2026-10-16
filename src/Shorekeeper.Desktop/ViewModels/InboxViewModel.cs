@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -116,7 +117,10 @@ public sealed partial class InboxViewModel : ObservableObject
 
 public sealed partial class InboxItemViewModel(OfferKey key, InboxViewModel owner) : ObservableObject
 {
+    private const int ThumbnailWidth = 112;
+
     private ReceivedOffer? offer;
+    private string? thumbnailPath;
     private long lastBytes;
     private DateTimeOffset lastAt;
     private double speed;
@@ -133,6 +137,30 @@ public sealed partial class InboxItemViewModel(OfferKey key, InboxViewModel owne
 
     [ObservableProperty]
     public partial string? Note { get; set; }
+
+    /// <summary>The file names alone ("app.zip + 2 mục").</summary>
+    [ObservableProperty]
+    public partial string Title { get; set; } = "";
+
+    /// <summary>"6 file · 2,7 MB".</summary>
+    [ObservableProperty]
+    public partial string Details { get; set; } = "";
+
+    [ObservableProperty]
+    public partial string Ago { get; set; } = "";
+
+    [ObservableProperty]
+    public partial bool IsCompleted { get; set; }
+
+    [ObservableProperty]
+    public partial TransferKind Kind { get; set; }
+
+    /// <summary>The first received picture, small.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasThumbnail))]
+    public partial Bitmap? Thumbnail { get; set; }
+
+    public bool HasThumbnail => Thumbnail is not null;
 
     [ObservableProperty]
     public partial string StatusText { get; set; } = "";
@@ -172,7 +200,13 @@ public sealed partial class InboxItemViewModel(OfferKey key, InboxViewModel owne
         bool open = value.ExpiresAt > now;
 
         SenderName = owner.Names.Of(value.SenderId);
-        Summary = $"{TransferText.Summary(value.Files.Select(f => f.RelativePath))} · {TransferText.Size(value.TotalBytes)}";
+        Title = TransferText.Summary(value.Files.Select(f => f.RelativePath));
+        Summary = $"{Title} · {TransferText.Size(value.TotalBytes)}";
+        Details = $"{TransferText.FileCount(value.Files.Count(f => !f.IsDirectory))} · {TransferText.Size(value.TotalBytes)}";
+        Ago = TransferText.Ago(value.ReceivedAt, now);
+        Kind = TransferText.KindOf([.. value.Files.Where(f => !f.IsDirectory).Select(f => f.RelativePath)]);
+        IsCompleted = value.State == InboxState.Completed;
+        LoadThumbnail(value);
         Note = value.Note is null ? null : $"\"{value.Note}\"";
         OnPropertyChanged(nameof(HasNote));
         IsNew = value.State == InboxState.New && open;
@@ -225,6 +259,31 @@ public sealed partial class InboxItemViewModel(OfferKey key, InboxViewModel owne
 
     [RelayCommand]
     private void Cancel() => owner.Inbox.Cancel(Key);
+
+    /// <summary>Decodes the first received picture once, off the UI thread.</summary>
+    private void LoadThumbnail(ReceivedOffer value)
+    {
+        string? path = value.Files.FirstOrDefault(f => f.FinalPath is not null && !f.IsDirectory && TransferText.IsImage(f.FinalPath))?.FinalPath;
+        if (path is null || path == thumbnailPath)
+        {
+            return;
+        }
+
+        thumbnailPath = path;
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                using FileStream stream = File.OpenRead(path);
+                return Bitmap.DecodeToWidth(stream, ThumbnailWidth, BitmapInterpolationMode.MediumQuality);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or InvalidOperationException)
+            {
+                // Moved, deleted or not really a picture: keep the icon.
+                return null;
+            }
+        }).ContinueWith(t => Dispatcher.UIThread.Post(() => Thumbnail = t.Result), TaskScheduler.Default);
+    }
 
     /// <summary>Opens the received file, or the folder for several files.</summary>
     [RelayCommand]

@@ -2,9 +2,19 @@ using Shorekeeper.Core.Localization;
 
 namespace Shorekeeper.Desktop.ViewModels;
 
+/// <summary>What an offer mostly holds, for its icon.</summary>
+public enum TransferKind
+{
+    Files,
+    Images,
+    Folder,
+}
+
 /// <summary>Wording shared by the inbox, the sent list and the incoming-offer popup.</summary>
 public static class TransferText
 {
+    private static readonly string[] ImageExtensions = [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"];
+
     public static string Size(long bytes) => bytes switch
     {
         >= 1L << 30 => string.Format(L.Culture, "{0:0.0} GB", bytes / (double)(1L << 30)),
@@ -33,6 +43,27 @@ public static class TransferText
         { TotalMinutes: >= 1 } => L.F("còn {0} phút", (int)left.TotalMinutes),
         _ => L.T("sắp hết hạn"),
     };
+
+    public static string FileCount(int count) => count == 1 ? L.T("1 file") : L.F("{0} file", count);
+
+    /// <summary>"vừa xong", "5 phút trước", "3 giờ trước", "hôm qua", then the date.</summary>
+    public static string Ago(DateTimeOffset at, DateTimeOffset now) => (now - at) switch
+    {
+        { TotalMinutes: < 1 } => L.T("vừa xong"),
+        { TotalHours: < 1 } span => L.F("{0} phút trước", (int)span.TotalMinutes),
+        { TotalDays: < 1 } span => L.F("{0} giờ trước", (int)span.TotalHours),
+        { TotalDays: < 2 } => L.T("hôm qua"),
+        _ => L.F("{0:dd/MM}", at.ToLocalTime()),
+    };
+
+    /// <summary>A folder at the top, only pictures, or anything else.</summary>
+    public static TransferKind KindOf(IReadOnlyCollection<string> relativePaths) =>
+        relativePaths.Any(p => p.Contains('/', StringComparison.Ordinal)) ? TransferKind.Folder
+        : relativePaths.Count > 0 && relativePaths.All(IsImage) ? TransferKind.Images
+        : TransferKind.Files;
+
+    /// <summary>A picture the app can show as a thumbnail.</summary>
+    public static bool IsImage(string path) => ImageExtensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase);
 
     private static bool IsTopLevel(string path)
     {

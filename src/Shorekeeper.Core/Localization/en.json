@@ -219,7 +219,6 @@
   "Thả file hoặc thư mục vào đây": "Drop files or folders here",
   "{0} mục sẽ gửi": "{0} item(s) to send",
   "Đã chọn {0} người": "{0} selected",
-  "Gửi lúc {0:HH:mm dd/MM} · mở {1}": "Sent {0:MMM d, HH:mm} · open, {1}",
   "Hoàn tất": "Done",
   "đang gửi thông báo…": "notifying…",
   "chưa nhận được thông báo (đang offline)": "not notified yet (offline)",
@@ -288,7 +287,6 @@
   "Tìm người, máy, phòng ban…": "Search people, devices, departments…",
   "Chọn file…": "Choose files…",
   "Mở thư mục": "Open folder",
-  "Bạn chưa gửi gì. Kéo file vào một người ở trang Xóm để gửi.": "You haven't sent anything yet. Drag files onto a person on the Nearby page to send them.",
   "File gốc đã bị sửa sau khi gửi: ai chưa tải sẽ không tải được bản cũ. Hãy gửi lại.": "The original file was changed after sending: anyone who hasn't downloaded it can't get the old version. Send it again.",
   "+ Tạo nhóm": "+ Create group",
   "Quản trị viên đã tắt tính năng nhóm trên máy này.": "Your administrator has turned off groups on this computer.",
@@ -391,5 +389,15 @@
   "Chưa thấy ai trong mạng": "No one on the network yet",
   "Nếu máy khác đã mở Shorekeeper mà vẫn không thấy, xem Cài đặt → Mạng. Máy ở mạng khác thì dùng nút Thêm máy khác.": "If another computer has Shorekeeper open and still doesn't show up, see Settings → Network. For a device on another network, use Add another device.",
   "Không có máy nào khác đang online.": "No other devices are online.",
-  "Kéo file hoặc thư mục vào một người để gửi. Click chọn người rồi nhấn Ctrl+V để gửi file đã copy; Ctrl+click để chọn nhiều người.": "Drag files or folders onto a person to send them. Click a person and press Ctrl+V to send copied files; Ctrl+click to select several people."
+  "Kéo file hoặc thư mục vào một người để gửi. Click chọn người rồi nhấn Ctrl+V để gửi file đã copy; Ctrl+click để chọn nhiều người.": "Drag files or folders onto a person to send them. Click a person and press Ctrl+V to send copied files; Ctrl+click to select several people.",
+  "1 file": "1 file",
+  "{0} file": "{0} files",
+  "vừa xong": "just now",
+  "{0} phút trước": "{0} min ago",
+  "{0} giờ trước": "{0} h ago",
+  "hôm qua": "yesterday",
+  "{0:dd/MM}": "{0:MMM d}",
+  "Đang mở · {0}": "Open · {0}",
+  "Bạn chưa gửi gì.": "You haven't sent anything yet.",
+  "Kéo file vào một người ở trang Xóm để gửi.": "Drag files onto a person on the Nearby page to send them."
 }

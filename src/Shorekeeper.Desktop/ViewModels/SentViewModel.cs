@@ -51,6 +51,9 @@ public sealed class SentViewModel
     }
 }
 
+/// <summary>One recipient of a sent offer, as a chip.</summary>
+public sealed record SentRecipientItem(string Name, string State, bool IsDone, bool IsFailed);
+
 public sealed partial class SentItemViewModel(string offerId, SentViewModel owner) : ObservableObject
 {
     public string OfferId { get; } = offerId;
@@ -62,7 +65,17 @@ public sealed partial class SentItemViewModel(string offerId, SentViewModel owne
     public partial string StatusText { get; set; } = "";
 
     [ObservableProperty]
-    public partial string RecipientsText { get; set; } = "";
+    public partial string Title { get; set; } = "";
+
+    /// <summary>"6 file · 2,7 MB · 5 phút trước".</summary>
+    [ObservableProperty]
+    public partial string Details { get; set; } = "";
+
+    [ObservableProperty]
+    public partial TransferKind Kind { get; set; }
+
+    [ObservableProperty]
+    public partial IReadOnlyList<SentRecipientItem> Recipients { get; set; } = [];
 
     [ObservableProperty]
     public partial bool CanWithdraw { get; set; }
@@ -73,17 +86,22 @@ public sealed partial class SentItemViewModel(string offerId, SentViewModel owne
     public void Update(SentOffer offer)
     {
         DateTimeOffset now = owner.TimeProvider.GetUtcNow();
-        Summary = $"{TransferText.Summary(offer.Paths)} · {TransferText.Size(offer.TotalBytes)}";
+        Title = TransferText.Summary(offer.Paths);
+        Summary = $"{Title} · {TransferText.Size(offer.TotalBytes)}";
+        string[] files = [.. offer.Paths.Where(p => !p.EndsWith('/'))];
+        Details = $"{TransferText.FileCount(files.Length)} · {TransferText.Size(offer.TotalBytes)} · {TransferText.Ago(offer.CreatedAt, now)}";
+        Kind = TransferText.KindOf(files);
         CanWithdraw = offer.State == OfferState.Open;
         HasChangedFiles = offer.HasChangedFiles && offer.State == OfferState.Open;
         StatusText = offer.State switch
         {
-            OfferState.Open => L.F("Gửi lúc {0:HH:mm dd/MM} · mở {1}", offer.CreatedAt.ToLocalTime(), TransferText.Remaining(offer.ExpiresAt - now)),
+            OfferState.Open => L.F("Đang mở · {0}", TransferText.Remaining(offer.ExpiresAt - now)),
             OfferState.Withdrawn => L.T("Đã thu hồi"),
             OfferState.Expired => L.T("Đã hết hạn"),
             _ => L.T("Hoàn tất"),
         };
-        RecipientsText = string.Join("\n", offer.Recipients.Select(r => $"{owner.Names.Of(r.DeviceId)}: {Describe(r, offer.TotalBytes)}"));
+        Recipients = [.. offer.Recipients.Select(r => new SentRecipientItem(
+            owner.Names.Of(r.DeviceId), Describe(r, offer.TotalBytes), r.State == RecipientState.Completed, r.State == RecipientState.Failed))];
     }
 
     [RelayCommand]
