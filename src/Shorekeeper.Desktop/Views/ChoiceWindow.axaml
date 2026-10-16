@@ -8,8 +8,8 @@
         Icon="/Assets/shorekeeper.png"
         Width="440" SizeToContent="Height" CanResize="False"
         WindowStartupLocation="CenterOwner">
+  <!-- The title is on the title bar only. -->
   <StackPanel Margin="24" Spacing="16">
-    <TextBlock Text="{Binding Title}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
     <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />
     <ItemsControl ItemsSource="{Binding Buttons}" HorizontalAlignment="Right">
       <ItemsControl.ItemsPanel>
