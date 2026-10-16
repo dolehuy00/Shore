@@ -20,6 +20,9 @@ public sealed record PeerRecord(DeviceId DeviceId, string DisplayName, string Ho
 /// </summary>
 public sealed class TrustStore(SqliteDatabase database, TimeProvider timeProvider)
 {
+    /// <summary>"Tự nhận file": offers from such a contact download by themselves up to this size.</summary>
+    public const long DefaultAutoAcceptLimit = 2L * 1024 * 1024 * 1024;
+
     private static readonly TimeSpan EndpointRetention = TimeSpan.FromDays(14);
 
     private readonly Lock gate = new();

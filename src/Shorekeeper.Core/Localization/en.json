@@ -33,7 +33,6 @@
   "{0} · nhóm {1}": "{0} · group {1}",
   "Không đọc được file nào trong số đã chọn.": "None of the chosen files could be read.",
   "{0} mục không đọc được đã bị bỏ qua.": "Skipped {0} item(s) that couldn't be read.",
-  "✔ Đã kết nối": "✔ Connected",
   "⚠ Chưa kết nối": "⚠ Not connected",
   "Mới": "New",
   "Mất kết nối, đang thử lại…": "Connection lost, retrying…",
@@ -402,5 +401,9 @@
   "Tìm kiếm": "Search",
   "Không tìm thấy kết quả.": "No results.",
   "Từ {0} · {1}": "From {0} · {1}",
-  "{0} · nhận vào {1}": "{0} · saving to {1}"
+  "{0} · nhận vào {1}": "{0} · saving to {1}",
+  "Ngắt kết nối với {0}?": "Disconnect from {0}?",
+  "Muốn gửi file cho nhau lại thì phải Kết nối lại.": "To send files to each other again, you will have to Connect again.",
+  "Chặn {0}?": "Block {0}?",
+  "Máy này sẽ không gửi được yêu cầu kết nối hay file cho bạn nữa. Bỏ chặn trong Cài đặt.": "This device won't be able to send you connection requests or files anymore. Unblock it in Settings."
 }

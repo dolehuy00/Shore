@@ -129,6 +129,28 @@ public sealed partial class MainViewModel : ObservableObject
 
     public bool HasOutgoing => Outgoing is not null;
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasQuestion))]
+    public partial QuestionViewModel? Question { get; set; }
+
+    public bool HasQuestion => Question is not null;
+
+    internal Task SetAutoAcceptAsync(PeerItemViewModel peer, bool on) =>
+        trust.SetAutoAcceptAsync(peer.DeviceId, on ? TrustStore.DefaultAutoAcceptLimit : null);
+
+    internal void AskAlias(PeerItemViewModel peer) =>
+        Question = new QuestionViewModel(L.T("Đặt tên gợi nhớ"), L.F("Tên gợi nhớ cho {0}:", peer.Host), L.T("Lưu"), peer.Name,
+            alias => trust.SetAliasAsync(peer.DeviceId, alias), this);
+
+    internal void ConfirmDisconnect(PeerItemViewModel peer) =>
+        Question = new QuestionViewModel(L.F("Ngắt kết nối với {0}?", peer.Name), L.T("Muốn gửi file cho nhau lại thì phải Kết nối lại."), L.T("Ngắt kết nối"), null,
+            _ => pairing.DisconnectAsync(peer.DeviceId), this);
+
+    internal void ConfirmBlock(PeerItemViewModel peer) =>
+        Question = new QuestionViewModel(L.F("Chặn {0}?", peer.Name),
+            L.T("Máy này sẽ không gửi được yêu cầu kết nối hay file cho bạn nữa. Bỏ chặn trong Cài đặt."), L.T("Chặn"), null,
+            _ => trust.BlockAsync(peer.DeviceId, peer.Name, peer.Host), this);
+
     internal string NameOf(DeviceId id) =>
         trust.Get(id)?.ShownName ?? directory.Snapshot().FirstOrDefault(p => p.DeviceId == id)?.DisplayName ?? id.ShortForm;
 
@@ -251,11 +273,12 @@ public sealed partial class MainViewModel : ObservableObject
         List<PeerItemViewModel> items =
         [
             .. trust.GetAll(TrustLevel.Trusted).Select(record => new PeerItemViewModel(
-                record.DeviceId, record.ShownName, Detail(live.GetValueOrDefault(record.DeviceId), record.HostName), true, live.ContainsKey(record.DeviceId),
-                IsPhone(live.GetValueOrDefault(record.DeviceId)), this)),
+                record.DeviceId, record.ShownName, record.HostName, Detail(live.GetValueOrDefault(record.DeviceId), record.HostName), true,
+                live.GetValueOrDefault(record.DeviceId), record.AutoAcceptMaxBytes is not null, this)),
             .. live.Values
                 .Where(peer => trust.GetLevel(peer.DeviceId) == TrustLevel.Unknown)
-                .Select(peer => new PeerItemViewModel(peer.DeviceId, peer.DisplayName, Detail(peer, peer.HostName), false, true, IsPhone(peer), this)),
+                .Select(peer => new PeerItemViewModel(
+                    peer.DeviceId, peer.DisplayName, peer.HostName, Detail(peer, peer.HostName), false, peer, false, this)),
         ];
         items.Sort((x, y) => x.IsTrusted != y.IsTrusted ? (x.IsTrusted ? -1 : 1) : CultureInfo.CurrentCulture.CompareInfo.Compare(x.Name, y.Name, CompareOptions.IgnoreCase));
 
@@ -295,16 +318,27 @@ public sealed partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(HasNoSent));
     }
 
-    private static string Detail(PeerInfo? live, string host) =>
-        live is null ? $"{host} · offline" : $"{live.HostName} · {live.Address}{(live.IsBusy ? " · " + L.T("Bận") : "")}";
-
-    /// <summary>Offline contacts show as computers: presence is the only place the OS is known.</summary>
-    private static bool IsPhone(PeerInfo? live) => live?.Os.Equals("android", StringComparison.OrdinalIgnoreCase) == true;
+    private static string Detail(PeerInfo? live, string host) => live is null ? host : $"{live.HostName} · {live.Address}";
 }
 
-public sealed partial class PeerItemViewModel(DeviceId deviceId, string name, string detail, bool isTrusted, bool isOnline, bool isPhone, MainViewModel owner)
+/// <param name="live">Set while the peer is on the network.</param>
+public sealed partial class PeerItemViewModel(
+    DeviceId deviceId, string name, string host, string detail, bool isTrusted, PeerInfo? live, bool isAutoAccept, MainViewModel owner)
 {
-    public bool IsPhone { get; } = isPhone;
+    /// <summary>Offline contacts show as computers: presence is the only place the OS is known.</summary>
+    public bool IsPhone { get; } = live?.Os.Equals("android", StringComparison.OrdinalIgnoreCase) == true;
+
+    public bool IsOnline { get; } = live is not null;
+
+    public bool IsBusy { get; } = live?.IsBusy == true;
+
+    /// <summary>Where a contact is at, next to its dot (people not connected show "Chưa kết nối" instead).</summary>
+    public string StatusText { get; } = live is null ? "Offline" : live.IsBusy ? L.T("Bận") : "Online";
+
+    public string Host { get; } = host;
+
+    /// <summary>"Tự nhận file" is on for this contact.</summary>
+    public bool IsAutoAccept { get; } = isAutoAccept;
 
     public DeviceId DeviceId { get; } = deviceId;
 
@@ -314,9 +348,7 @@ public sealed partial class PeerItemViewModel(DeviceId deviceId, string name, st
 
     public bool IsTrusted { get; } = isTrusted;
 
-    public bool CanConnect { get; } = !isTrusted && isOnline;
-
-    public string Badge { get; } = isTrusted ? L.T("✔ Đã kết nối") : L.T("⚠ Chưa kết nối");
+    public bool CanConnect { get; } = !isTrusted && live is not null;
 
     /// <summary>Contacts receive files; the picker is opened by the view (it needs the window).</summary>
     public bool CanSend { get; } = isTrusted;
@@ -325,6 +357,46 @@ public sealed partial class PeerItemViewModel(DeviceId deviceId, string name, st
 
     [RelayCommand]
     private Task ConnectAsync() => owner.ConnectAsync(DeviceId, Name);
+
+    [RelayCommand]
+    private Task ToggleAutoAcceptAsync() => owner.SetAutoAcceptAsync(this, !IsAutoAccept);
+
+    [RelayCommand]
+    private void Rename() => owner.AskAlias(this);
+
+    [RelayCommand]
+    private void Disconnect() => owner.ConfirmDisconnect(this);
+
+    [RelayCommand]
+    private void Block() => owner.ConfirmBlock(this);
+}
+
+/// <summary>A question over the page: a confirmation, or a name to type when <paramref name="input"/> is set.</summary>
+public sealed partial class QuestionViewModel(string title, string? message, string okText, string? input, Func<string, Task> ok, MainViewModel owner)
+    : ObservableObject
+{
+    public string Title { get; } = title;
+
+    public string? Message { get; } = message;
+
+    public bool HasMessage => Message is not null;
+
+    public string OkText { get; } = okText;
+
+    public bool HasInput { get; } = input is not null;
+
+    [ObservableProperty]
+    public partial string Input { get; set; } = input ?? "";
+
+    [RelayCommand]
+    private async Task OkAsync()
+    {
+        owner.Question = null;
+        await ok(Input.Trim());
+    }
+
+    [RelayCommand]
+    private void Cancel() => owner.Question = null;
 }
 
 public sealed partial class OfferItemViewModel(ReceivedOffer offer, string senderName, MainViewModel owner)

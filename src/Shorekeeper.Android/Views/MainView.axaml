@@ -46,6 +46,19 @@
     <Style Selector="TextBlock.muted">
       <Setter Property="Foreground" Value="{DynamicResource Sk.MutedText}" />
     </Style>
+    <!-- Presence dots: green online, amber busy, gray offline. -->
+    <Style Selector="Ellipse.dot">
+      <Setter Property="Width" Value="8" />
+      <Setter Property="Height" Value="8" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Fill" Value="#22C55E" />
+    </Style>
+    <Style Selector="Ellipse.dot.busy">
+      <Setter Property="Fill" Value="#F59E0B" />
+    </Style>
+    <Style Selector="Ellipse.dot.muted">
+      <Setter Property="Fill" Value="#9CA3AF" />
+    </Style>
     <Style Selector="PathIcon.done">
       <Setter Property="Foreground" Value="#22C55E" />
     </Style>
@@ -119,7 +132,11 @@
                         <StackPanel Grid.Column="1" Spacing="2" Margin="12,0,0,0" VerticalAlignment="Center">
                           <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                           <TextBlock Classes="muted" Text="{Binding Detail}" FontSize="12" TextTrimming="CharacterEllipsis" />
-                          <TextBlock Classes="muted" Text="{Binding Badge}" FontSize="12" />
+                          <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsTrusted}">
+                            <Ellipse Classes="dot" Classes.busy="{Binding IsBusy}" Classes.muted="{Binding !IsOnline}" />
+                            <TextBlock Classes="muted" Text="{Binding StatusText}" FontSize="12" />
+                          </StackPanel>
+                          <TextBlock Classes="muted" Text="{l:T '⚠ Chưa kết nối'}" IsVisible="{Binding !IsTrusted}" FontSize="12" />
                         </StackPanel>
                         <WrapPanel Grid.Row="1" Grid.Column="1" ItemSpacing="8" LineSpacing="8" Margin="12,10,0,0">
                           <Button Content="{l:T 'Kết nối'}" Command="{Binding ConnectCommand}" IsVisible="{Binding CanConnect}" Classes="accent" />
@@ -128,6 +145,18 @@
                               <PathIcon Data="{StaticResource Icon.Send}" Width="16" Height="16" />
                               <TextBlock Text="{l:T 'Gửi file…'}" />
                             </StackPanel>
+                          </Button>
+                          <Button Padding="12,10" AutomationProperties.Name="{l:T 'Thêm'}">
+                            <PathIcon Data="{StaticResource Icon.More}" Width="18" Height="18" />
+                            <Button.Flyout>
+                              <MenuFlyout>
+                                <MenuItem Header="{l:T 'Tự nhận file (tối đa 2 GB)'}" Command="{Binding ToggleAutoAcceptCommand}" IsVisible="{Binding IsTrusted}"
+                                          ToggleType="CheckBox" IsChecked="{Binding IsAutoAccept, Mode=OneWay}" />
+                                <MenuItem Header="{l:T 'Đặt tên gợi nhớ…'}" Command="{Binding RenameCommand}" IsVisible="{Binding IsTrusted}" />
+                                <MenuItem Header="{l:T 'Ngắt kết nối'}" Command="{Binding DisconnectCommand}" IsVisible="{Binding IsTrusted}" />
+                                <MenuItem Header="{l:T 'Chặn'}" Command="{Binding BlockCommand}" />
+                              </MenuFlyout>
+                            </Button.Flyout>
                           </Button>
                         </WrapPanel>
                       </Grid>
@@ -371,6 +400,24 @@
                 </StackPanel>
               </Border>
 
+              <TextBlock Classes="h3" Text="{l:T 'Đã chặn'}" />
+              <TextBlock Classes="muted" Text="{l:T 'Chưa chặn ai.'}" IsVisible="{Binding !Blocked.Items.Count}" FontSize="12" />
+              <ItemsControl ItemsSource="{Binding Blocked.Items}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="dvm:BlockedPeerItem">
+                    <Border Classes="card">
+                      <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel VerticalAlignment="Center">
+                          <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                          <TextBlock Classes="muted" Text="{Binding HostName}" FontSize="12" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Content="{l:T 'Bỏ chặn'}" Command="{Binding UnblockCommand}" VerticalAlignment="Center" />
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+
               <TextBlock Classes="h3" Text="{l:T 'Mạng'}" />
               <TextBlock Text="{Binding NetworkText}" FontSize="13" TextWrapping="Wrap" />
               <TextBlock Classes="h3" Text="{l:T 'Thêm máy bằng địa chỉ'}" />
@@ -426,6 +473,21 @@
             <Button Content="{l:T 'Từ chối'}" Command="{Binding DeclineCommand}" />
             <Button Content="{l:T 'Chấp nhận'}" Command="{Binding AcceptCommand}" Classes="accent" />
           </StackPanel>
+        </StackPanel>
+      </Border>
+    </Border>
+
+    <!-- A confirmation, or a name to type ("Đặt tên gợi nhớ"). -->
+    <Border Classes="overlay" IsVisible="{Binding HasQuestion}">
+      <Border Classes="dialog" DataContext="{Binding Question}" x:DataType="vm:QuestionViewModel">
+        <StackPanel Spacing="12">
+          <TextBlock Text="{Binding Title}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
+          <TextBlock Text="{Binding Message}" IsVisible="{Binding HasMessage}" TextWrapping="Wrap" />
+          <TextBox Text="{Binding Input}" IsVisible="{Binding HasInput}" />
+          <WrapPanel ItemSpacing="8" LineSpacing="8" HorizontalAlignment="Right">
+            <Button Content="{l:T 'Hủy'}" Command="{Binding CancelCommand}" />
+            <Button Content="{Binding OkText}" Command="{Binding OkCommand}" Classes="accent" />
+          </WrapPanel>
         </StackPanel>
       </Border>
     </Border>

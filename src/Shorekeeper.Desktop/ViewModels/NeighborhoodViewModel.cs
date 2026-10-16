@@ -298,7 +298,7 @@ public sealed partial class PeerCardViewModel(DeviceId deviceId, NeighborhoodVie
     public bool CanConnect => !IsTrusted && IsOnline;
 
     /// <summary>Offers from a contact with "Tự nhận file" on download by themselves up to this size.</summary>
-    public const long AutoAcceptLimit = 2L * 1024 * 1024 * 1024;
+    public const long AutoAcceptLimit = TrustStore.DefaultAutoAcceptLimit;
 
     [ObservableProperty]
     public partial bool IsAutoAccept { get; set; }

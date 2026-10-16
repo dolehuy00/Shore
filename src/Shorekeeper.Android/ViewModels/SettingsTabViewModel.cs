@@ -9,11 +9,13 @@ using Shorekeeper.Core.Discovery;
 using Shorekeeper.Core.Localization;
 using Shorekeeper.Core.Platform;
 using Shorekeeper.Desktop.Localization;
+using Shorekeeper.Desktop.ViewModels;
 using Shorekeeper.Engine;
 using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Identity;
 using Shorekeeper.Engine.Settings;
+using Shorekeeper.Engine.Trust;
 
 namespace Shorekeeper.Android.ViewModels;
 
@@ -46,6 +48,7 @@ public sealed partial class SettingsTabViewModel : ObservableObject
         api = services.GetRequiredService<ApiServer>();
         device = services.GetRequiredService<LocalDevice>();
         paths = services.GetRequiredService<AppPaths>();
+        Blocked = new BlockedPeersViewModel(services.GetRequiredService<TrustStore>());
         this.main = main;
         DisplayName = settings.Current.DisplayName;
         startLanguage = settings.User.Language;
@@ -71,6 +74,9 @@ public sealed partial class SettingsTabViewModel : ObservableObject
             }
         }
     }
+
+    /// <summary>"Đã chặn": the only place to undo a block.</summary>
+    public BlockedPeersViewModel Blocked { get; }
 
     // ───────────── Language ─────────────
 
