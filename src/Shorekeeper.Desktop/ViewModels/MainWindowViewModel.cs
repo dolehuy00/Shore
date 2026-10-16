@@ -220,8 +220,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     {
         if (result.Item is PeerCardViewModel person)
         {
-            // The page's own filter could hide the person; selecting lets Ctrl+V send to them right away.
-            Neighborhood.Search = "";
+            // Selecting lets Ctrl+V send to them right away.
             Neighborhood.Select(person, toggle: false);
         }
 

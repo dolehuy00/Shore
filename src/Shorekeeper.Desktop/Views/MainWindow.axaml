@@ -324,10 +324,9 @@
 
         <!-- Xóm -->
         <StackPanel IsVisible="{Binding IsNeighborhoodVisible}" Spacing="14" MaxWidth="860" HorizontalAlignment="Stretch">
-          <Grid ColumnDefinitions="*,Auto,Auto">
+          <Grid ColumnDefinitions="*,Auto">
             <TextBlock Classes="h2" Text="{l:T 'Xóm'}" VerticalAlignment="Center" />
-            <TextBox Grid.Column="1" Text="{Binding Neighborhood.Search}" PlaceholderText="{l:T 'Tìm người, máy, phòng ban…'}" Width="240" Margin="0,0,8,0" />
-            <Button Grid.Column="2" Classes="accent" Command="{Binding Neighborhood.AddPeerCommand}" AutomationProperties.Name="{l:T 'Thêm máy khác'}">
+            <Button Grid.Column="1" Classes="accent" Command="{Binding Neighborhood.AddPeerCommand}" AutomationProperties.Name="{l:T 'Thêm máy khác'}">
               <StackPanel Orientation="Horizontal" Spacing="8">
                 <PathIcon Data="{StaticResource Icon.Add}" Width="16" Height="16" />
                 <TextBlock Text="{l:T 'Thêm máy khác'}" />
