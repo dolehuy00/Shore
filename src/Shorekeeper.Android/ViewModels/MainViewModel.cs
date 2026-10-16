@@ -16,6 +16,8 @@ using Shorekeeper.Engine.Groups;
 using Shorekeeper.Engine.Settings;
 using Shorekeeper.Engine.Transfers;
 using Shorekeeper.Engine.Trust;
+using GeneratedRegexAttribute = System.Text.RegularExpressions.GeneratedRegexAttribute;
+using Regex = System.Text.RegularExpressions.Regex;
 
 namespace Shorekeeper.Android.ViewModels;
 
@@ -81,7 +83,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     public string Title => device.DisplayName;
 
-    public string Subtitle => L.F("{0} · {1} · nhận vào {2}", LocalDevice.HostName, device.DeviceId.ShortForm, paths.DefaultDownloadDirectory);
+    public string Subtitle => L.F("{0} · nhận vào {1}", device.DeviceId.ShortForm, SharedStoragePrefix().Replace(paths.DefaultDownloadDirectory, ""));
 
     public GroupsTabViewModel Groups { get; }
 
@@ -235,6 +237,10 @@ public sealed partial class MainViewModel : ObservableObject
     internal void Download(OfferItemViewModel offer) => inbox.Download(offer.Key);
 
     internal Task DeclineAsync(OfferItemViewModel offer) => inbox.DeclineAsync(offer.Key);
+
+    /// <summary>"/storage/emulated/0/" before "Download/Shorekeeper": the shared storage is all the user sees of it.</summary>
+    [GeneratedRegex(@"^/storage/emulated/\d+/")]
+    private static partial Regex SharedStoragePrefix();
 
     /// <summary>"482913" → "482 913", as the desktop shows it.</summary>
     internal static string Format(string code) => code.Length == 6 ? $"{code[..3]} {code[3..]}" : code;

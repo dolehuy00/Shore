@@ -25,7 +25,6 @@
   "Rời nhóm": "Leave group",
   "Host: {0} · {1} thành viên": "Host: {0} · {1} members",
   "{0} mời bạn vào nhóm {1}": "{0} invited you to the group {1}",
-  "{0} · {1} · nhận vào {2}": "{0} · {1} · saving to {2}",
   "Không liên lạc được với {0}.": "Couldn't reach {0}.",
   "Đã kết nối với {0}.": "Connected to {0}.",
   "{0} đã từ chối.": "{0} declined.",
@@ -402,5 +401,6 @@
   "Tìm người, máy, nhóm, file…": "Search people, devices, groups, files…",
   "Tìm kiếm": "Search",
   "Không tìm thấy kết quả.": "No results.",
-  "Từ {0} · {1}": "From {0} · {1}"
+  "Từ {0} · {1}": "From {0} · {1}",
+  "{0} · nhận vào {1}": "{0} · saving to {1}"
 }
