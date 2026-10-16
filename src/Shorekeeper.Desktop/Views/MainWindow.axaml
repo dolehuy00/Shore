@@ -440,7 +440,11 @@
                         <ItemsControl ItemsSource="{Binding Items}" IsVisible="{Binding IsExpanded}">
                           <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="x:String">
-                              <TextBlock Text="{Binding StringFormat='• {0}'}" FontSize="13" TextWrapping="Wrap" />
+                              <!-- The bullet keeps its own column, so a long name wraps under itself, not below the bullet. -->
+                              <Grid ColumnDefinitions="Auto,*">
+                                <TextBlock Text="•" FontSize="13" Margin="0,0,6,0" />
+                                <TextBlock Grid.Column="1" Text="{Binding}" FontSize="13" TextWrapping="Wrap" />
+                              </Grid>
                             </DataTemplate>
                           </ItemsControl.ItemTemplate>
                         </ItemsControl>
@@ -505,7 +509,11 @@
                         <ItemsControl ItemsSource="{Binding Items}" IsVisible="{Binding IsExpanded}">
                           <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="x:String">
-                              <TextBlock Text="{Binding StringFormat='• {0}'}" FontSize="13" TextWrapping="Wrap" />
+                              <!-- The bullet keeps its own column, so a long name wraps under itself, not below the bullet. -->
+                              <Grid ColumnDefinitions="Auto,*">
+                                <TextBlock Text="•" FontSize="13" Margin="0,0,6,0" />
+                                <TextBlock Grid.Column="1" Text="{Binding}" FontSize="13" TextWrapping="Wrap" />
+                              </Grid>
                             </DataTemplate>
                           </ItemsControl.ItemTemplate>
                         </ItemsControl>
