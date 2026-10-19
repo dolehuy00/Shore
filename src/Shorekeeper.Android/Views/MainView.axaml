@@ -97,7 +97,9 @@
         <TextBlock Text="{Binding Notice}" TextWrapping="Wrap" />
       </Border>
 
-      <TabControl Classes="nav" TabStripPlacement="Bottom" Padding="12,4,12,0" SelectedIndex="{Binding SelectedTab}">
+      <!-- The tab strip only: the pages below stay built and are just shown or hidden, as rebuilding one on every
+           switch (what TabControl does with its content) took up to 200 ms on a phone. -->
+      <TabControl Classes="nav" DockPanel.Dock="Bottom" TabStripPlacement="Bottom" Padding="0" SelectedIndex="{Binding SelectedTab}">
         <TabControl.ItemsPanel>
           <ItemsPanelTemplate>
             <UniformGrid Rows="1" />
@@ -111,83 +113,7 @@
               <TextBlock Text="{l:T 'Xóm'}" HorizontalAlignment="Center" />
             </StackPanel>
           </TabItem.Header>
-          <Panel>
-            <StackPanel IsVisible="{Binding HasNoPeers}" Spacing="6" Margin="16,48" HorizontalAlignment="Center">
-              <PathIcon Data="{StaticResource Icon.People}" Width="40" Height="40" Opacity="0.5" HorizontalAlignment="Center" />
-              <TextBlock Classes="muted" Text="{l:T 'Chưa thấy ai trong mạng. Mở Shorekeeper trên máy tính cùng Wi-Fi.'}"
-                         TextWrapping="Wrap" TextAlignment="Center" />
-            </StackPanel>
-            <ScrollViewer>
-              <!-- Room at the end so the last card can scroll above the + button. -->
-              <ItemsControl ItemsSource="{Binding Peers}" Margin="0,0,0,80">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="vm:PeerItemViewModel">
-                    <Border Classes="card">
-                      <!-- Tall enough that ⋮ (top) and the main action (bottom) do not crowd each other. -->
-                      <Grid ColumnDefinitions="Auto,*,Auto" MinHeight="96">
-                        <Border Classes="tile" VerticalAlignment="Center">
-                          <Panel>
-                            <PathIcon Data="{StaticResource Icon.Laptop}" IsVisible="{Binding !IsPhone}" Width="22" Height="22" />
-                            <PathIcon Data="{StaticResource Icon.Phone}" IsVisible="{Binding IsPhone}" Width="22" Height="22" />
-                          </Panel>
-                        </Border>
-                        <StackPanel Grid.Column="1" Spacing="2" Margin="12,0,8,0" VerticalAlignment="Center">
-                          <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                          <TextBlock Classes="muted" Text="{Binding Detail}" FontSize="12" TextTrimming="CharacterEllipsis" />
-                          <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsTrusted}">
-                            <Ellipse Classes="dot" Classes.busy="{Binding IsBusy}" Classes.muted="{Binding !IsOnline}" />
-                            <TextBlock Classes="muted" Text="{Binding StatusText}" FontSize="12" />
-                          </StackPanel>
-                          <TextBlock Classes="muted" Text="{l:T '⚠ Chưa kết nối'}" IsVisible="{Binding !IsTrusted}" FontSize="12" />
-                        </StackPanel>
-
-                        <!-- ⋮ in the corner, the main action below it. -->
-                        <Grid Grid.Column="2" RowDefinitions="Auto,*,Auto">
-                          <Button HorizontalAlignment="Right" Padding="6" Margin="0,-4,-6,0" Background="Transparent" BorderThickness="0"
-                                  AutomationProperties.Name="{l:T 'Thêm'}">
-                            <PathIcon Data="{StaticResource Icon.More}" Width="16" Height="16">
-                              <PathIcon.RenderTransform>
-                                <RotateTransform Angle="90" />
-                              </PathIcon.RenderTransform>
-                            </PathIcon>
-                            <Button.Flyout>
-                              <MenuFlyout>
-                                <MenuItem Header="{l:T 'Tự nhận file…'}" Command="{Binding ChooseAutoAcceptCommand}" IsVisible="{Binding IsTrusted}"
-                                          ToggleType="CheckBox" IsChecked="{Binding IsAutoAccept, Mode=OneWay}" />
-                                <MenuItem Header="{l:T 'Đặt tên gợi nhớ…'}" Command="{Binding RenameCommand}" IsVisible="{Binding IsTrusted}" />
-                                <MenuItem Header="{l:T 'Ngắt kết nối'}" Command="{Binding DisconnectCommand}" IsVisible="{Binding IsTrusted}" />
-                                <MenuItem Header="{l:T 'Chặn'}" Command="{Binding BlockCommand}" />
-                              </MenuFlyout>
-                            </Button.Flyout>
-                          </Button>
-                          <Panel Grid.Row="2" HorizontalAlignment="Right">
-                            <Button Content="{l:T 'Kết nối'}" Command="{Binding ConnectCommand}" IsVisible="{Binding CanConnect}" Classes="accent"
-                                    Padding="12,6" FontSize="13" />
-                            <Button Click="OnSendFiles" IsVisible="{Binding CanSend}" Classes="accent" Padding="12,6" FontSize="13"
-                                    AutomationProperties.Name="{l:T 'Gửi file…'}">
-                              <StackPanel Orientation="Horizontal" Spacing="6">
-                                <PathIcon Data="{StaticResource Icon.Send}" Width="14" Height="14" />
-                                <TextBlock Text="{l:T 'Gửi file…'}" />
-                              </StackPanel>
-                            </Button>
-                          </Panel>
-                        </Grid>
-                      </Grid>
-                    </Border>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-            </ScrollViewer>
-            <!-- "Thêm máy bằng địa chỉ", for devices the phone cannot see by itself. -->
-            <Button Classes="accent" Command="{Binding OpenAddPeerCommand}" HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                    Width="44" Height="44" CornerRadius="22" Padding="0" Margin="0,0,6,14"
-                    HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
-                    AutomationProperties.Name="{l:T 'Thêm máy bằng địa chỉ'}">
-              <PathIcon Data="{StaticResource Icon.Add}" Width="20" Height="20" />
-            </Button>
-          </Panel>
         </TabItem>
-
         <TabItem AutomationProperties.Name="{l:T 'Hộp nhận'}">
           <TabItem.Header>
             <StackPanel Spacing="3">
@@ -195,63 +121,7 @@
               <TextBlock Text="{l:T 'Hộp nhận'}" HorizontalAlignment="Center" />
             </StackPanel>
           </TabItem.Header>
-          <Panel>
-            <StackPanel IsVisible="{Binding HasNoOffers}" Spacing="6" Margin="16,48" HorizontalAlignment="Center">
-              <PathIcon Data="{StaticResource Icon.Download}" Width="40" Height="40" Opacity="0.5" HorizontalAlignment="Center" />
-              <TextBlock Classes="muted" Text="{l:T 'Chưa có ai gửi gì cho bạn.'}" TextAlignment="Center" />
-            </StackPanel>
-            <ScrollViewer>
-              <ItemsControl ItemsSource="{Binding Offers}">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="vm:OfferItemViewModel">
-                    <Border Classes="card">
-                      <Grid ColumnDefinitions="Auto,*">
-                        <Border Classes="tile">
-                          <Panel>
-                            <PathIcon Data="{StaticResource Icon.Document}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static dvm:TransferKind.Files}}" Width="22" Height="22" />
-                            <PathIcon Data="{StaticResource Icon.Image}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static dvm:TransferKind.Images}}" Width="22" Height="22" />
-                            <PathIcon Data="{StaticResource Icon.FolderOpen}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static dvm:TransferKind.Folder}}" Width="22" Height="22" />
-                          </Panel>
-                        </Border>
-                        <StackPanel Grid.Column="1" Spacing="3" Margin="12,0,0,0">
-                          <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
-                          <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" />
-                          <!-- "app.zip + 2 mục" names only the first: the button opens the whole list. -->
-                          <StackPanel DataContext="{Binding Contents}" x:DataType="dvm:OfferContents" IsVisible="{Binding CanExpand}" Spacing="2">
-                            <Button Content="{Binding ToggleText}" Command="{Binding ToggleCommand}" Padding="0,2" FontSize="13" HorizontalAlignment="Left"
-                                    Background="Transparent" BorderThickness="0" Foreground="{DynamicResource AccentButtonBackground}" />
-                            <ItemsControl ItemsSource="{Binding Items}" IsVisible="{Binding IsExpanded}">
-                              <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="x:String">
-                                  <!-- The bullet keeps its own column, so a long name wraps under itself, not below the bullet. -->
-                                  <Grid ColumnDefinitions="Auto,*">
-                                    <TextBlock Text="•" FontSize="14" Margin="0,0,6,0" />
-                                    <TextBlock Grid.Column="1" Text="{Binding}" FontSize="14" TextWrapping="Wrap" />
-                                  </Grid>
-                                </DataTemplate>
-                              </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                          </StackPanel>
-                          <TextBlock Text="{Binding Note}" IsVisible="{Binding HasNote}" FontStyle="Italic" TextWrapping="Wrap" />
-                          <ProgressBar Value="{Binding Progress}" IsVisible="{Binding IsDownloading}" MinWidth="0" Margin="0,4" />
-                          <StackPanel Orientation="Horizontal" Spacing="5">
-                            <PathIcon Classes="done" Data="{StaticResource Icon.CheckCircle}" IsVisible="{Binding IsCompleted}" Width="14" Height="14" />
-                            <TextBlock Classes="muted" Text="{Binding Status}" FontSize="12" TextWrapping="Wrap" />
-                          </StackPanel>
-                          <WrapPanel ItemSpacing="8" LineSpacing="8" Margin="0,6,0,0">
-                            <Button Content="{l:T 'Tải'}" Command="{Binding DownloadCommand}" IsVisible="{Binding CanDownload}" Classes="accent" />
-                            <Button Content="{l:T 'Bỏ qua'}" Command="{Binding DeclineCommand}" IsVisible="{Binding CanDecline}" />
-                          </WrapPanel>
-                        </StackPanel>
-                      </Grid>
-                    </Border>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-            </ScrollViewer>
-          </Panel>
         </TabItem>
-
         <TabItem AutomationProperties.Name="{l:T 'Đã gửi'}">
           <TabItem.Header>
             <StackPanel Spacing="3">
@@ -259,56 +129,7 @@
               <TextBlock Text="{l:T 'Đã gửi'}" HorizontalAlignment="Center" />
             </StackPanel>
           </TabItem.Header>
-          <Panel>
-            <StackPanel IsVisible="{Binding HasNoSent}" Spacing="6" Margin="16,48" HorizontalAlignment="Center">
-              <PathIcon Data="{StaticResource Icon.Upload}" Width="40" Height="40" Opacity="0.5" HorizontalAlignment="Center" />
-              <TextBlock Classes="muted" Text="{l:T 'Chưa gửi gì. Chạm Gửi file… ở một người đã kết nối, hoặc Chia sẻ từ Thư viện ảnh / Files.'}"
-                         TextWrapping="Wrap" TextAlignment="Center" />
-            </StackPanel>
-            <ScrollViewer>
-              <ItemsControl ItemsSource="{Binding Sent}">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="vm:SentItemViewModel">
-                    <Border Classes="card">
-                      <Grid ColumnDefinitions="Auto,*">
-                        <Border Classes="tile">
-                          <Panel>
-                            <PathIcon Data="{StaticResource Icon.Document}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static dvm:TransferKind.Files}}" Width="22" Height="22" />
-                            <PathIcon Data="{StaticResource Icon.Image}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static dvm:TransferKind.Images}}" Width="22" Height="22" />
-                            <PathIcon Data="{StaticResource Icon.FolderOpen}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static dvm:TransferKind.Folder}}" Width="22" Height="22" />
-                          </Panel>
-                        </Border>
-                        <StackPanel Grid.Column="1" Spacing="3" Margin="12,0,0,0">
-                          <TextBlock Text="{Binding Summary}" FontWeight="SemiBold" TextWrapping="Wrap" />
-                          <!-- "app.zip + 2 mục" names only the first: the button opens the whole list. -->
-                          <StackPanel DataContext="{Binding Contents}" x:DataType="dvm:OfferContents" IsVisible="{Binding CanExpand}" Spacing="2">
-                            <Button Content="{Binding ToggleText}" Command="{Binding ToggleCommand}" Padding="0,2" FontSize="13" HorizontalAlignment="Left"
-                                    Background="Transparent" BorderThickness="0" Foreground="{DynamicResource AccentButtonBackground}" />
-                            <ItemsControl ItemsSource="{Binding Items}" IsVisible="{Binding IsExpanded}">
-                              <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="x:String">
-                                  <!-- The bullet keeps its own column, so a long name wraps under itself, not below the bullet. -->
-                                  <Grid ColumnDefinitions="Auto,*">
-                                    <TextBlock Text="•" FontSize="14" Margin="0,0,6,0" />
-                                    <TextBlock Grid.Column="1" Text="{Binding}" FontSize="14" TextWrapping="Wrap" />
-                                  </Grid>
-                                </DataTemplate>
-                              </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                          </StackPanel>
-                          <TextBlock Classes="muted" Text="{Binding Status}" FontSize="12" />
-                          <TextBlock Text="{Binding Recipients}" FontSize="13" TextWrapping="Wrap" />
-                          <Button Content="{l:T 'Thu hồi'}" Command="{Binding WithdrawCommand}" IsVisible="{Binding CanWithdraw}" Margin="0,6,0,0" />
-                        </StackPanel>
-                      </Grid>
-                    </Border>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-            </ScrollViewer>
-          </Panel>
         </TabItem>
-
         <TabItem AutomationProperties.Name="{l:T 'Nhóm'}">
           <TabItem.Header>
             <StackPanel Spacing="3">
@@ -316,88 +137,7 @@
               <TextBlock Text="{l:T 'Nhóm'}" HorizontalAlignment="Center" />
             </StackPanel>
           </TabItem.Header>
-          <ScrollViewer DataContext="{Binding Groups}" x:DataType="vm:GroupsTabViewModel">
-            <StackPanel Spacing="4" Margin="0,0,0,24">
-              <TextBlock Classes="muted" Text="{l:T 'Quản trị viên đã tắt tính năng nhóm.'}" IsVisible="{Binding !IsEnabled}" Margin="4,12" />
-
-              <ItemsControl ItemsSource="{Binding Invitations}">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="vm:InvitationItemViewModel">
-                    <Border Classes="card" Background="#1A3B82F6">
-                      <StackPanel Spacing="8">
-                        <TextBlock Text="{Binding Text}" TextWrapping="Wrap" />
-                        <WrapPanel ItemSpacing="8" LineSpacing="8">
-                          <Button Content="{l:T 'Đồng ý'}" Command="{Binding AcceptCommand}" Classes="accent" />
-                          <Button Content="{l:T 'Từ chối'}" Command="{Binding DeclineCommand}" />
-                        </WrapPanel>
-                      </StackPanel>
-                    </Border>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-
-              <TextBlock Classes="h3" Text="{l:T 'Nhóm của bạn'}" />
-              <TextBlock Classes="muted" Text="{l:T 'Chưa ở nhóm nào. Xin vào một nhóm bên dưới, hoặc nhờ Host mời bạn.'}" IsVisible="{Binding !HasMyGroups}" TextWrapping="Wrap" />
-              <ItemsControl ItemsSource="{Binding MyGroups}">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="vm:GroupItemViewModel">
-                    <Border Classes="card">
-                      <Grid ColumnDefinitions="Auto,*">
-                        <Border Classes="tile">
-                          <PathIcon Data="{StaticResource Icon.Team}" Width="22" Height="22" />
-                        </Border>
-                        <StackPanel Grid.Column="1" Spacing="3" Margin="12,0,0,0">
-                          <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
-                          <TextBlock Classes="muted" Text="{Binding Detail}" FontSize="12" TextWrapping="Wrap" />
-                          <TextBlock Text="{Binding Members}" FontSize="12" TextWrapping="Wrap" />
-                          <WrapPanel ItemSpacing="8" LineSpacing="8" Margin="0,6,0,0">
-                            <Button Click="OnSendToGroup" IsVisible="{Binding CanSend}" Classes="accent" AutomationProperties.Name="{l:T 'Gửi file cho nhóm…'}">
-                              <StackPanel Orientation="Horizontal" Spacing="8">
-                                <PathIcon Data="{StaticResource Icon.Send}" Width="16" Height="16" />
-                                <TextBlock Text="{l:T 'Gửi file cho nhóm…'}" />
-                              </StackPanel>
-                            </Button>
-                            <Button Content="{Binding LeaveText}" Command="{Binding LeaveCommand}" IsVisible="{Binding CanLeave}" />
-                          </WrapPanel>
-                        </StackPanel>
-                      </Grid>
-                    </Border>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-
-              <TextBlock Classes="h3" Text="{l:T 'Nhóm trong mạng'}" IsVisible="{Binding HasNetworkGroups}" />
-              <ItemsControl ItemsSource="{Binding NetworkGroups}">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="vm:NetworkGroupItemViewModel">
-                    <Border Classes="card">
-                      <Grid ColumnDefinitions="Auto,*,Auto">
-                        <Border Classes="tile">
-                          <PathIcon Data="{StaticResource Icon.Team}" Width="22" Height="22" />
-                        </Border>
-                        <StackPanel Grid.Column="1" Margin="12,0,8,0" VerticalAlignment="Center">
-                          <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
-                          <TextBlock Classes="muted" Text="{Binding Detail}" FontSize="12" />
-                        </StackPanel>
-                        <Button Grid.Column="2" Content="{l:T 'Xin vào'}" Command="{Binding JoinCommand}" VerticalAlignment="Center" />
-                      </Grid>
-                    </Border>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-
-              <TextBlock Classes="h3" Text="{l:T 'Gần đây'}" IsVisible="{Binding HasNotices}" />
-              <ItemsControl ItemsSource="{Binding Notices}">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="x:String">
-                    <TextBlock Classes="muted" Text="{Binding}" FontSize="12" TextWrapping="Wrap" Margin="0,2" />
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-            </StackPanel>
-          </ScrollViewer>
         </TabItem>
-
         <TabItem AutomationProperties.Name="{l:T 'Cài đặt'}">
           <TabItem.Header>
             <StackPanel Spacing="3">
@@ -405,73 +145,344 @@
               <TextBlock Text="{l:T 'Cài đặt'}" HorizontalAlignment="Center" />
             </StackPanel>
           </TabItem.Header>
-          <ScrollViewer DataContext="{Binding Settings}" x:DataType="vm:SettingsTabViewModel">
-            <StackPanel Spacing="6" Margin="0,0,0,24">
-              <TextBlock Classes="h3" Text="{l:T 'Tên hiển thị'}" />
-              <Grid ColumnDefinitions="*,Auto">
-                <TextBox Text="{Binding DisplayName}" Margin="0,0,8,0" />
-                <Button Grid.Column="1" Content="{l:T 'Lưu'}" Command="{Binding SaveNameCommand}" />
-              </Grid>
-
-              <TextBlock Classes="h3" Text="{l:T 'Ngôn ngữ'}" />
-              <ComboBox ItemsSource="{x:Static l:LanguageChoice.All}" SelectedItem="{Binding Language}" HorizontalAlignment="Stretch">
-                <ComboBox.ItemTemplate>
-                  <DataTemplate x:DataType="l:LanguageChoice">
-                    <TextBlock Text="{Binding Label}" />
-                  </DataTemplate>
-                </ComboBox.ItemTemplate>
-              </ComboBox>
-              <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding NeedsRestart}">
-                <TextBlock Classes="muted" Text="{l:T 'Ngôn ngữ mới có hiệu lực sau khi khởi động lại Shorekeeper.'}" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,8,0" />
-                <Button Grid.Column="1" Content="{l:T 'Khởi động lại'}" Command="{Binding RestartAppCommand}" Classes="accent" />
-              </Grid>
-
-              <TextBlock Classes="h3" Text="{l:T 'Tự nhận file tối đa'}" />
-              <Grid ColumnDefinitions="*,Auto,Auto">
-                <NumericUpDown Value="{Binding AutoAcceptLimitGb}" Minimum="0.1" Maximum="10000" Increment="1" FormatString="0.##" ShowButtonSpinner="False" />
-                <TextBlock Grid.Column="1" Text="GB" VerticalAlignment="Center" Margin="8,0" />
-                <Button Grid.Column="2" Content="{l:T 'Lưu'}" Command="{Binding SaveAutoAcceptLimitCommand}" />
-              </Grid>
-              <TextBlock Classes="muted" Text="{l:T 'Cho máy đã kết nối có Tự nhận file theo cài đặt chung; từng máy có thể đặt riêng ở menu ⋮.'}" FontSize="12" TextWrapping="Wrap" />
-
-              <TextBlock Classes="h3" Text="{l:T 'Chạy nền'}" />
-              <ToggleSwitch IsChecked="{Binding AlwaysReceive}" OnContent="{l:T 'Luôn nhận file (kể cả khi tắt màn hình)'}" OffContent="{l:T 'Luôn nhận file (kể cả khi tắt màn hình)'}" />
-              <TextBlock Classes="muted" Text="{l:T 'Giữ một thông báo thường trực để máy tính gửi được file bất cứ lúc nào. Tốn pin hơn một chút.'}"
-                         FontSize="12" TextWrapping="Wrap" />
-
-              <TextBlock Classes="h3" Text="{l:T 'Sao lưu danh tính'}" />
-              <TextBlock Classes="muted" Text="{l:T 'Giữ DeviceId, liên hệ và nhóm khi đổi điện thoại: không phải Kết nối lại với ai.'}"
-                         FontSize="12" TextWrapping="Wrap" />
-              <WrapPanel ItemSpacing="8" LineSpacing="8" Margin="0,4,0,0">
-                <Button Content="{l:T 'Sao lưu danh tính…'}" Command="{Binding StartBackupCommand}" />
-                <Button Content="{l:T 'Khôi phục…'}" Click="OnPickBackup" />
-              </WrapPanel>
-              <TextBlock Text="{Binding BackupStatus}" IsVisible="{Binding HasBackupStatus}" FontSize="13" TextWrapping="Wrap" />
-
-              <TextBlock Classes="h3" Text="{l:T 'Đã chặn'}" />
-              <TextBlock Classes="muted" Text="{l:T 'Chưa chặn ai.'}" IsVisible="{Binding !Blocked.Items.Count}" FontSize="12" />
-              <ItemsControl ItemsSource="{Binding Blocked.Items}">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="dvm:BlockedPeerItem">
-                    <Border Classes="card">
-                      <Grid ColumnDefinitions="*,Auto">
-                        <StackPanel VerticalAlignment="Center">
-                          <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                          <TextBlock Classes="muted" Text="{Binding HostName}" FontSize="12" />
-                        </StackPanel>
-                        <Button Grid.Column="1" Content="{l:T 'Bỏ chặn'}" Command="{Binding UnblockCommand}" VerticalAlignment="Center" />
-                      </Grid>
-                    </Border>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-
-              <TextBlock Classes="h3" Text="{l:T 'Mạng'}" />
-              <TextBlock Text="{Binding NetworkText}" FontSize="13" TextWrapping="Wrap" />
-            </StackPanel>
-          </ScrollViewer>
         </TabItem>
       </TabControl>
+
+      <Panel Margin="12,4,12,0">
+        <Panel IsVisible="{Binding IsNearbyTab}">
+        <Panel>
+          <StackPanel IsVisible="{Binding HasNoPeers}" Spacing="6" Margin="16,48" HorizontalAlignment="Center">
+            <PathIcon Data="{StaticResource Icon.People}" Width="40" Height="40" Opacity="0.5" HorizontalAlignment="Center" />
+            <TextBlock Classes="muted" Text="{l:T 'Chưa thấy ai trong mạng. Mở Shorekeeper trên máy tính cùng Wi-Fi.'}"
+                       TextWrapping="Wrap" TextAlignment="Center" />
+          </StackPanel>
+          <ScrollViewer>
+            <!-- Room at the end so the last card can scroll above the + button. -->
+            <ItemsControl ItemsSource="{Binding Peers}" Margin="0,0,0,80">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:PeerItemViewModel">
+                  <Border Classes="card">
+                    <!-- Tall enough that ⋮ (top) and the main action (bottom) do not crowd each other. -->
+                    <Grid ColumnDefinitions="Auto,*,Auto" MinHeight="96">
+                      <Border Classes="tile" VerticalAlignment="Center">
+                        <Panel>
+                          <PathIcon Data="{StaticResource Icon.Laptop}" IsVisible="{Binding !IsPhone}" Width="22" Height="22" />
+                          <PathIcon Data="{StaticResource Icon.Phone}" IsVisible="{Binding IsPhone}" Width="22" Height="22" />
+                        </Panel>
+                      </Border>
+                      <StackPanel Grid.Column="1" Spacing="2" Margin="12,0,8,0" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Classes="muted" Text="{Binding Detail}" FontSize="12" TextTrimming="CharacterEllipsis" />
+                        <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsTrusted}">
+                          <Ellipse Classes="dot" Classes.busy="{Binding IsBusy}" Classes.muted="{Binding !IsOnline}" />
+                          <TextBlock Classes="muted" Text="{Binding StatusText}" FontSize="12" />
+                        </StackPanel>
+                        <TextBlock Classes="muted" Text="{l:T '⚠ Chưa kết nối'}" IsVisible="{Binding !IsTrusted}" FontSize="12" />
+                      </StackPanel>
+
+                      <!-- ⋮ in the corner, the main action below it. -->
+                      <Grid Grid.Column="2" RowDefinitions="Auto,*,Auto">
+                        <Button HorizontalAlignment="Right" Padding="6" Margin="0,-4,-6,0" Background="Transparent" BorderThickness="0"
+                                AutomationProperties.Name="{l:T 'Thêm'}">
+                          <PathIcon Data="{StaticResource Icon.More}" Width="16" Height="16">
+                            <PathIcon.RenderTransform>
+                              <RotateTransform Angle="90" />
+                            </PathIcon.RenderTransform>
+                          </PathIcon>
+                          <Button.Flyout>
+                            <MenuFlyout>
+                              <MenuItem Header="{l:T 'Tự nhận file…'}" Command="{Binding ChooseAutoAcceptCommand}" IsVisible="{Binding IsTrusted}"
+                                        ToggleType="CheckBox" IsChecked="{Binding IsAutoAccept, Mode=OneWay}" />
+                              <MenuItem Header="{l:T 'Đặt tên gợi nhớ…'}" Command="{Binding RenameCommand}" IsVisible="{Binding IsTrusted}" />
+                              <MenuItem Header="{l:T 'Ngắt kết nối'}" Command="{Binding DisconnectCommand}" IsVisible="{Binding IsTrusted}" />
+                              <MenuItem Header="{l:T 'Chặn'}" Command="{Binding BlockCommand}" />
+                            </MenuFlyout>
+                          </Button.Flyout>
+                        </Button>
+                        <Panel Grid.Row="2" HorizontalAlignment="Right">
+                          <Button Content="{l:T 'Kết nối'}" Command="{Binding ConnectCommand}" IsVisible="{Binding CanConnect}" Classes="accent"
+                                  Padding="12,6" FontSize="13" />
+                          <Button Click="OnSendFiles" IsVisible="{Binding CanSend}" Classes="accent" Padding="12,6" FontSize="13"
+                                  AutomationProperties.Name="{l:T 'Gửi file…'}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                              <PathIcon Data="{StaticResource Icon.Send}" Width="14" Height="14" />
+                              <TextBlock Text="{l:T 'Gửi file…'}" />
+                            </StackPanel>
+                          </Button>
+                        </Panel>
+                      </Grid>
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+          <!-- "Thêm máy bằng địa chỉ", for devices the phone cannot see by itself. -->
+          <Button Classes="accent" Command="{Binding OpenAddPeerCommand}" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                  Width="44" Height="44" CornerRadius="22" Padding="0" Margin="0,0,6,14"
+                  HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                  AutomationProperties.Name="{l:T 'Thêm máy bằng địa chỉ'}">
+            <PathIcon Data="{StaticResource Icon.Add}" Width="20" Height="20" />
+          </Button>
+        </Panel>
+        </Panel>
+        <Panel IsVisible="{Binding IsInboxTab}">
+        <Panel>
+          <StackPanel IsVisible="{Binding HasNoOffers}" Spacing="6" Margin="16,48" HorizontalAlignment="Center">
+            <PathIcon Data="{StaticResource Icon.Download}" Width="40" Height="40" Opacity="0.5" HorizontalAlignment="Center" />
+            <TextBlock Classes="muted" Text="{l:T 'Chưa có ai gửi gì cho bạn.'}" TextAlignment="Center" />
+          </StackPanel>
+          <ScrollViewer>
+            <ItemsControl ItemsSource="{Binding Offers}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:OfferItemViewModel">
+                  <Border Classes="card">
+                    <Grid ColumnDefinitions="Auto,*">
+                      <Border Classes="tile">
+                        <Panel>
+                          <PathIcon Data="{StaticResource Icon.Document}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static dvm:TransferKind.Files}}" Width="22" Height="22" />
+                          <PathIcon Data="{StaticResource Icon.Image}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static dvm:TransferKind.Images}}" Width="22" Height="22" />
+                          <PathIcon Data="{StaticResource Icon.FolderOpen}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static dvm:TransferKind.Folder}}" Width="22" Height="22" />
+                        </Panel>
+                      </Border>
+                      <StackPanel Grid.Column="1" Spacing="3" Margin="12,0,0,0">
+                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" />
+                        <!-- "app.zip + 2 mục" names only the first: the button opens the whole list. -->
+                        <StackPanel DataContext="{Binding Contents}" x:DataType="dvm:OfferContents" IsVisible="{Binding CanExpand}" Spacing="2">
+                          <Button Content="{Binding ToggleText}" Command="{Binding ToggleCommand}" Padding="0,2" FontSize="13" HorizontalAlignment="Left"
+                                  Background="Transparent" BorderThickness="0" Foreground="{DynamicResource AccentButtonBackground}" />
+                          <ItemsControl ItemsSource="{Binding Items}" IsVisible="{Binding IsExpanded}">
+                            <ItemsControl.ItemTemplate>
+                              <DataTemplate x:DataType="x:String">
+                                <!-- The bullet keeps its own column, so a long name wraps under itself, not below the bullet. -->
+                                <Grid ColumnDefinitions="Auto,*">
+                                  <TextBlock Text="•" FontSize="14" Margin="0,0,6,0" />
+                                  <TextBlock Grid.Column="1" Text="{Binding}" FontSize="14" TextWrapping="Wrap" />
+                                </Grid>
+                              </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                          </ItemsControl>
+                        </StackPanel>
+                        <TextBlock Text="{Binding Note}" IsVisible="{Binding HasNote}" FontStyle="Italic" TextWrapping="Wrap" />
+                        <ProgressBar Value="{Binding Progress}" IsVisible="{Binding IsDownloading}" MinWidth="0" Margin="0,4" />
+                        <StackPanel Orientation="Horizontal" Spacing="5">
+                          <PathIcon Classes="done" Data="{StaticResource Icon.CheckCircle}" IsVisible="{Binding IsCompleted}" Width="14" Height="14" />
+                          <TextBlock Classes="muted" Text="{Binding Status}" FontSize="12" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <WrapPanel ItemSpacing="8" LineSpacing="8" Margin="0,6,0,0">
+                          <Button Content="{l:T 'Tải'}" Command="{Binding DownloadCommand}" IsVisible="{Binding CanDownload}" Classes="accent" />
+                          <Button Content="{l:T 'Bỏ qua'}" Command="{Binding DeclineCommand}" IsVisible="{Binding CanDecline}" />
+                        </WrapPanel>
+                      </StackPanel>
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </Panel>
+        </Panel>
+        <Panel IsVisible="{Binding IsSentTab}">
+        <Panel>
+          <StackPanel IsVisible="{Binding HasNoSent}" Spacing="6" Margin="16,48" HorizontalAlignment="Center">
+            <PathIcon Data="{StaticResource Icon.Upload}" Width="40" Height="40" Opacity="0.5" HorizontalAlignment="Center" />
+            <TextBlock Classes="muted" Text="{l:T 'Chưa gửi gì. Chạm Gửi file… ở một người đã kết nối, hoặc Chia sẻ từ Thư viện ảnh / Files.'}"
+                       TextWrapping="Wrap" TextAlignment="Center" />
+          </StackPanel>
+          <ScrollViewer>
+            <ItemsControl ItemsSource="{Binding Sent}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:SentItemViewModel">
+                  <Border Classes="card">
+                    <Grid ColumnDefinitions="Auto,*">
+                      <Border Classes="tile">
+                        <Panel>
+                          <PathIcon Data="{StaticResource Icon.Document}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static dvm:TransferKind.Files}}" Width="22" Height="22" />
+                          <PathIcon Data="{StaticResource Icon.Image}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static dvm:TransferKind.Images}}" Width="22" Height="22" />
+                          <PathIcon Data="{StaticResource Icon.FolderOpen}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static dvm:TransferKind.Folder}}" Width="22" Height="22" />
+                        </Panel>
+                      </Border>
+                      <StackPanel Grid.Column="1" Spacing="3" Margin="12,0,0,0">
+                        <TextBlock Text="{Binding Summary}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <!-- "app.zip + 2 mục" names only the first: the button opens the whole list. -->
+                        <StackPanel DataContext="{Binding Contents}" x:DataType="dvm:OfferContents" IsVisible="{Binding CanExpand}" Spacing="2">
+                          <Button Content="{Binding ToggleText}" Command="{Binding ToggleCommand}" Padding="0,2" FontSize="13" HorizontalAlignment="Left"
+                                  Background="Transparent" BorderThickness="0" Foreground="{DynamicResource AccentButtonBackground}" />
+                          <ItemsControl ItemsSource="{Binding Items}" IsVisible="{Binding IsExpanded}">
+                            <ItemsControl.ItemTemplate>
+                              <DataTemplate x:DataType="x:String">
+                                <!-- The bullet keeps its own column, so a long name wraps under itself, not below the bullet. -->
+                                <Grid ColumnDefinitions="Auto,*">
+                                  <TextBlock Text="•" FontSize="14" Margin="0,0,6,0" />
+                                  <TextBlock Grid.Column="1" Text="{Binding}" FontSize="14" TextWrapping="Wrap" />
+                                </Grid>
+                              </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                          </ItemsControl>
+                        </StackPanel>
+                        <TextBlock Classes="muted" Text="{Binding Status}" FontSize="12" />
+                        <TextBlock Text="{Binding Recipients}" FontSize="13" TextWrapping="Wrap" />
+                        <Button Content="{l:T 'Thu hồi'}" Command="{Binding WithdrawCommand}" IsVisible="{Binding CanWithdraw}" Margin="0,6,0,0" />
+                      </StackPanel>
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </Panel>
+        </Panel>
+        <Panel IsVisible="{Binding IsGroupsTab}">
+        <ScrollViewer DataContext="{Binding Groups}" x:DataType="vm:GroupsTabViewModel">
+          <StackPanel Spacing="4" Margin="0,0,0,24">
+            <TextBlock Classes="muted" Text="{l:T 'Quản trị viên đã tắt tính năng nhóm.'}" IsVisible="{Binding !IsEnabled}" Margin="4,12" />
+
+            <ItemsControl ItemsSource="{Binding Invitations}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:InvitationItemViewModel">
+                  <Border Classes="card" Background="#1A3B82F6">
+                    <StackPanel Spacing="8">
+                      <TextBlock Text="{Binding Text}" TextWrapping="Wrap" />
+                      <WrapPanel ItemSpacing="8" LineSpacing="8">
+                        <Button Content="{l:T 'Đồng ý'}" Command="{Binding AcceptCommand}" Classes="accent" />
+                        <Button Content="{l:T 'Từ chối'}" Command="{Binding DeclineCommand}" />
+                      </WrapPanel>
+                    </StackPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <TextBlock Classes="h3" Text="{l:T 'Nhóm của bạn'}" />
+            <TextBlock Classes="muted" Text="{l:T 'Chưa ở nhóm nào. Xin vào một nhóm bên dưới, hoặc nhờ Host mời bạn.'}" IsVisible="{Binding !HasMyGroups}" TextWrapping="Wrap" />
+            <ItemsControl ItemsSource="{Binding MyGroups}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:GroupItemViewModel">
+                  <Border Classes="card">
+                    <Grid ColumnDefinitions="Auto,*">
+                      <Border Classes="tile">
+                        <PathIcon Data="{StaticResource Icon.Team}" Width="22" Height="22" />
+                      </Border>
+                      <StackPanel Grid.Column="1" Spacing="3" Margin="12,0,0,0">
+                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                        <TextBlock Classes="muted" Text="{Binding Detail}" FontSize="12" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding Members}" FontSize="12" TextWrapping="Wrap" />
+                        <WrapPanel ItemSpacing="8" LineSpacing="8" Margin="0,6,0,0">
+                          <Button Click="OnSendToGroup" IsVisible="{Binding CanSend}" Classes="accent" AutomationProperties.Name="{l:T 'Gửi file cho nhóm…'}">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                              <PathIcon Data="{StaticResource Icon.Send}" Width="16" Height="16" />
+                              <TextBlock Text="{l:T 'Gửi file cho nhóm…'}" />
+                            </StackPanel>
+                          </Button>
+                          <Button Content="{Binding LeaveText}" Command="{Binding LeaveCommand}" IsVisible="{Binding CanLeave}" />
+                        </WrapPanel>
+                      </StackPanel>
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <TextBlock Classes="h3" Text="{l:T 'Nhóm trong mạng'}" IsVisible="{Binding HasNetworkGroups}" />
+            <ItemsControl ItemsSource="{Binding NetworkGroups}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:NetworkGroupItemViewModel">
+                  <Border Classes="card">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                      <Border Classes="tile">
+                        <PathIcon Data="{StaticResource Icon.Team}" Width="22" Height="22" />
+                      </Border>
+                      <StackPanel Grid.Column="1" Margin="12,0,8,0" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                        <TextBlock Classes="muted" Text="{Binding Detail}" FontSize="12" />
+                      </StackPanel>
+                      <Button Grid.Column="2" Content="{l:T 'Xin vào'}" Command="{Binding JoinCommand}" VerticalAlignment="Center" />
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <TextBlock Classes="h3" Text="{l:T 'Gần đây'}" IsVisible="{Binding HasNotices}" />
+            <ItemsControl ItemsSource="{Binding Notices}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="x:String">
+                  <TextBlock Classes="muted" Text="{Binding}" FontSize="12" TextWrapping="Wrap" Margin="0,2" />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </ScrollViewer>
+        </Panel>
+        <Panel IsVisible="{Binding IsSettingsTab}">
+        <ScrollViewer DataContext="{Binding Settings}" x:DataType="vm:SettingsTabViewModel">
+          <StackPanel Spacing="6" Margin="0,0,0,24">
+            <TextBlock Classes="h3" Text="{l:T 'Tên hiển thị'}" />
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBox Text="{Binding DisplayName}" Margin="0,0,8,0" />
+              <Button Grid.Column="1" Content="{l:T 'Lưu'}" Command="{Binding SaveNameCommand}" />
+            </Grid>
+
+            <TextBlock Classes="h3" Text="{l:T 'Ngôn ngữ'}" />
+            <ComboBox ItemsSource="{x:Static l:LanguageChoice.All}" SelectedItem="{Binding Language}" HorizontalAlignment="Stretch">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="l:LanguageChoice">
+                  <TextBlock Text="{Binding Label}" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+            <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding NeedsRestart}">
+              <TextBlock Classes="muted" Text="{l:T 'Ngôn ngữ mới có hiệu lực sau khi khởi động lại Shorekeeper.'}" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,8,0" />
+              <Button Grid.Column="1" Content="{l:T 'Khởi động lại'}" Command="{Binding RestartAppCommand}" Classes="accent" />
+            </Grid>
+
+            <TextBlock Classes="h3" Text="{l:T 'Tự nhận file tối đa'}" />
+            <Grid ColumnDefinitions="*,Auto,Auto">
+              <NumericUpDown Value="{Binding AutoAcceptLimitGb}" Minimum="0.1" Maximum="10000" Increment="1" FormatString="0.##" ShowButtonSpinner="False" />
+              <TextBlock Grid.Column="1" Text="GB" VerticalAlignment="Center" Margin="8,0" />
+              <Button Grid.Column="2" Content="{l:T 'Lưu'}" Command="{Binding SaveAutoAcceptLimitCommand}" />
+            </Grid>
+            <TextBlock Classes="muted" Text="{l:T 'Cho máy đã kết nối có Tự nhận file theo cài đặt chung; từng máy có thể đặt riêng ở menu ⋮.'}" FontSize="12" TextWrapping="Wrap" />
+
+            <TextBlock Classes="h3" Text="{l:T 'Chạy nền'}" />
+            <ToggleSwitch IsChecked="{Binding AlwaysReceive}" OnContent="{l:T 'Luôn nhận file (kể cả khi tắt màn hình)'}" OffContent="{l:T 'Luôn nhận file (kể cả khi tắt màn hình)'}" />
+            <TextBlock Classes="muted" Text="{l:T 'Giữ một thông báo thường trực để máy tính gửi được file bất cứ lúc nào. Tốn pin hơn một chút.'}"
+                       FontSize="12" TextWrapping="Wrap" />
+
+            <TextBlock Classes="h3" Text="{l:T 'Sao lưu danh tính'}" />
+            <TextBlock Classes="muted" Text="{l:T 'Giữ DeviceId, liên hệ và nhóm khi đổi điện thoại: không phải Kết nối lại với ai.'}"
+                       FontSize="12" TextWrapping="Wrap" />
+            <WrapPanel ItemSpacing="8" LineSpacing="8" Margin="0,4,0,0">
+              <Button Content="{l:T 'Sao lưu danh tính…'}" Command="{Binding StartBackupCommand}" />
+              <Button Content="{l:T 'Khôi phục…'}" Click="OnPickBackup" />
+            </WrapPanel>
+            <TextBlock Text="{Binding BackupStatus}" IsVisible="{Binding HasBackupStatus}" FontSize="13" TextWrapping="Wrap" />
+
+            <TextBlock Classes="h3" Text="{l:T 'Đã chặn'}" />
+            <TextBlock Classes="muted" Text="{l:T 'Chưa chặn ai.'}" IsVisible="{Binding !Blocked.Items.Count}" FontSize="12" />
+            <ItemsControl ItemsSource="{Binding Blocked.Items}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="dvm:BlockedPeerItem">
+                  <Border Classes="card">
+                    <Grid ColumnDefinitions="*,Auto">
+                      <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Classes="muted" Text="{Binding HostName}" FontSize="12" />
+                      </StackPanel>
+                      <Button Grid.Column="1" Content="{l:T 'Bỏ chặn'}" Command="{Binding UnblockCommand}" VerticalAlignment="Center" />
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <TextBlock Classes="h3" Text="{l:T 'Mạng'}" />
+            <TextBlock Text="{Binding NetworkText}" FontSize="13" TextWrapping="Wrap" />
+          </StackPanel>
+        </ScrollViewer>
+        </Panel>
+      </Panel>
     </DockPanel>
 
     <!-- Shared from another app: pick the recipients. -->

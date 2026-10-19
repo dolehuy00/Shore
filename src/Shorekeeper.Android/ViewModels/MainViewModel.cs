@@ -104,7 +104,18 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>0 Xóm, 1 Hộp nhận, 2 Đã gửi, 3 Nhóm, 4 Cài đặt.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsNearbyTab), nameof(IsInboxTab), nameof(IsSentTab), nameof(IsGroupsTab), nameof(IsSettingsTab))]
     public partial int SelectedTab { get; set; }
+
+    public bool IsNearbyTab => SelectedTab == 0;
+
+    public bool IsInboxTab => SelectedTab == 1;
+
+    public bool IsSentTab => SelectedTab == 2;
+
+    public bool IsGroupsTab => SelectedTab == 3;
+
+    public bool IsSettingsTab => SelectedTab == 4;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasShare))]
@@ -513,7 +524,8 @@ public sealed partial class OfferItemViewModel(ReceivedOffer offer, string sende
         InboxState.Failed => L.F("Lỗi: {0}", offer.Error),
         InboxState.Cancelled => L.T("Đã dừng"),
         InboxState.Declined => L.T("Đã bỏ qua"),
-        _ => offer.State.ToString(),
+        InboxState.Withdrawn => L.T("Người gửi đã thu hồi"),
+        _ => L.T("Đã hết hạn"),
     };
 
     public bool CanDownload { get; } = offer.State is InboxState.New or InboxState.Failed or InboxState.Partial or InboxState.Cancelled;

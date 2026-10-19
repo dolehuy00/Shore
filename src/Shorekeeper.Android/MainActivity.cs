@@ -1,5 +1,6 @@
 using Android.Content;
 using Android.Content.PM;
+using Android.Views;
 using Avalonia.Android;
 using AndroidUri = Android.Net.Uri;
 
@@ -21,6 +22,7 @@ public sealed class MainActivity : AvaloniaMainActivity
     protected override void OnCreate(Bundle? savedInstanceState)
     {
         base.OnCreate(savedInstanceState);
+        PreferFastestRefreshRate();
         // Android 13+: without it, offers arrive silently.
         if (OperatingSystem.IsAndroidVersionAtLeast(33))
         {
@@ -39,6 +41,34 @@ public sealed class MainActivity : AvaloniaMainActivity
         base.OnNewIntent(intent);
         HandleShare(intent);
         HandleTab(intent);
+    }
+
+    /// <summary>
+    /// Asks for the display's fastest mode (120 Hz on many phones): Avalonia draws on its own surface, which the system
+    /// otherwise runs at 60 Hz.
+    /// </summary>
+    private void PreferFastestRefreshRate()
+    {
+        if (Window is not { } window || (OperatingSystem.IsAndroidVersionAtLeast(30) ? Display : WindowManager?.DefaultDisplay) is not { } display)
+        {
+            return;
+        }
+
+        if (display.GetMode() is not { } current)
+        {
+            return;
+        }
+
+        Display.Mode? fastest = display.GetSupportedModes()?
+            .OfType<Display.Mode>()
+            .Where(m => m.PhysicalWidth == current.PhysicalWidth && m.PhysicalHeight == current.PhysicalHeight)
+            .MaxBy(m => m.RefreshRate);
+        if (fastest is not null && fastest.ModeId != current.ModeId)
+        {
+            WindowManagerLayoutParams attributes = window.Attributes!;
+            attributes.PreferredDisplayModeId = fastest.ModeId;
+            window.Attributes = attributes;
+        }
     }
 
     private static void HandleTab(Intent? intent)
