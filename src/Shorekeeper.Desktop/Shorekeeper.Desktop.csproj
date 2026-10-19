@@ -17,6 +17,8 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <!-- The exe's own icon: Explorer, the Start menu, a pinned taskbar button. -->
     <ApplicationIcon>Assets\shorekeeper.ico</ApplicationIcon>
+    <!-- Published builds ship precompiled code, so less is compiled while the window opens. -->
+    <PublishReadyToRun>true</PublishReadyToRun>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
   </PropertyGroup>
