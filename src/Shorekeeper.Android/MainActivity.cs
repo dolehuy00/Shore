@@ -23,8 +23,10 @@ public sealed class MainActivity : AvaloniaMainActivity
     {
         base.OnCreate(savedInstanceState);
         PreferFastestRefreshRate();
-        // Android 13+: without it, offers arrive silently.
-        if (OperatingSystem.IsAndroidVersionAtLeast(33))
+        // Android 13+: without it, offers arrive silently. Asking again once granted still opens the system's
+        // permission screen over the app for a moment, which slowed every start.
+        if (OperatingSystem.IsAndroidVersionAtLeast(33)
+            && CheckSelfPermission(global::Android.Manifest.Permission.PostNotifications) != Permission.Granted)
         {
             RequestPermissions([global::Android.Manifest.Permission.PostNotifications], 1);
         }

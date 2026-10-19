@@ -20,9 +20,14 @@
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
 
-  <!-- Release APKs are for phones only (arm64): the emulator's x86_64 libraries were almost half the APK. Debug keeps both. -->
+  <!--
+    Release APKs are for phones only (arm64): the emulator's x86_64 libraries were almost half the APK. Debug keeps both.
+    All code is compiled ahead of time rather than only the parts in .NET's start-up profile: on an OPPO Reno10 the app
+    opens in about 1.9 s instead of 2.9 s, for 9 MB more APK.
+  -->
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
     <RuntimeIdentifiers>android-arm64</RuntimeIdentifiers>
+    <AndroidEnableProfiledAot>false</AndroidEnableProfiledAot>
   </PropertyGroup>
 
   <ItemGroup>
