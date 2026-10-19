@@ -19,6 +19,9 @@ dotnet publish (Join-Path $root 'src\Shorekeeper.Desktop\Shorekeeper.Desktop.csp
     -c $Configuration -r win-x64 --self-contained -o $publish -p:DebugType=None
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed ($LASTEXITCODE)" }
 
+# DebugType=None covers our own code only: SkiaSharp and HarfBuzz bring native debug symbols (~105 MB) nobody needs installed.
+Get-ChildItem $publish -Filter *.pdb | Remove-Item
+
 dotnet build (Join-Path $PSScriptRoot 'msi\Shorekeeper.Installer.wixproj') `
     -c $Configuration -o $output "-p:AppPublishDir=$publish\"
 if ($LASTEXITCODE -ne 0) { throw "WiX build failed ($LASTEXITCODE)" }
