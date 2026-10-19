@@ -592,12 +592,9 @@ public sealed partial class OfferItemViewModel(ReceivedOffer offer, MainViewMode
     [ObservableProperty]
     public partial bool IsLink { get; set; }
 
+    /// <summary>Android 13+ confirms the copy itself, so no notice of ours.</summary>
     [RelayCommand]
-    private void Copy()
-    {
-        TextActions.Copy(global::Android.App.Application.Context, Text);
-        owner.Notice = L.T("Đã chép");
-    }
+    private void Copy() => TextActions.Copy(global::Android.App.Application.Context, Text);
 
     [RelayCommand]
     private void OpenLink() => TextActions.Open(global::Android.App.Application.Context, Text);
