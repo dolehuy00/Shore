@@ -12,9 +12,13 @@ namespace Shorekeeper.Engine.Trust;
 /// When set, offers from this contact up to this size download without asking; <see cref="TrustStore.FollowSettingsLimit"/>
 /// means up to the limit in Settings.
 /// </param>
-public sealed record PeerRecord(DeviceId DeviceId, string DisplayName, string HostName, string? Alias, TrustLevel TrustLevel, long? AutoAcceptMaxBytes = null)
+/// <param name="Os">The OS it last announced ("windows", "android"); null until seen.</param>
+public sealed record PeerRecord(
+    DeviceId DeviceId, string DisplayName, string HostName, string? Alias, TrustLevel TrustLevel, long? AutoAcceptMaxBytes = null, string? Os = null)
 {
     public string ShownName => string.IsNullOrWhiteSpace(Alias) ? DisplayName : Alias;
+
+    public bool IsPhone => string.Equals(Os, "android", StringComparison.OrdinalIgnoreCase);
 }
 
 /// <summary>
@@ -43,7 +47,7 @@ public sealed class TrustStore(SqliteDatabase database, TimeProvider timeProvide
             "DELETE FROM PeerEndpoints WHERE COALESCE(LastSuccessAt, LastSeenAt, 0) < @cutoff;", new { cutoff });
 
         var rows = await connection.QueryAsync<PeerRow>(
-            "SELECT DeviceId AS Id, DisplayName, HostName, Alias, TrustLevel AS Level, AutoAcceptMaxBytes FROM Peers WHERE TrustLevel <> 0;");
+            "SELECT DeviceId AS Id, DisplayName, HostName, Alias, TrustLevel AS Level, AutoAcceptMaxBytes, Os FROM Peers WHERE TrustLevel <> 0;");
         var targets = await connection.QueryAsync<string>("SELECT Target FROM ManualTargets ORDER BY Id;");
 
         lock (gate)
@@ -149,6 +153,27 @@ public sealed class TrustStore(SqliteDatabase database, TimeProvider timeProvide
     }
 
     /// <summary>Remembers where a peer was reachable so it can be found again after a restart, even in another subnet.</summary>
+    /// <summary>Remembers the OS a contact (or blocked peer) announces, so its icon is right while it is offline.</summary>
+    public async Task RecordOsAsync(DeviceId id, string os, CancellationToken cancellationToken = default)
+    {
+        lock (gate)
+        {
+            if (!peers.TryGetValue(id, out PeerRecord? record) || string.Equals(record.Os, os, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            peers[id] = record with { Os = os };
+        }
+
+        await using (SqliteConnection connection = await database.OpenAsync(cancellationToken))
+        {
+            await connection.ExecuteAsync("UPDATE Peers SET Os = @os WHERE DeviceId = @Id;", new { os, Id = id.Value });
+        }
+
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
     public async Task RecordEndpointAsync(DeviceId id, IPEndPoint endpoint, string source, CancellationToken cancellationToken = default)
     {
         long now = timeProvider.GetUtcNow().ToUnixTimeMilliseconds();
@@ -240,7 +265,8 @@ public sealed class TrustStore(SqliteDatabase database, TimeProvider timeProvide
         lock (gate)
         {
             PeerRecord? previous = peers.GetValueOrDefault(id);
-            peers[id] = new PeerRecord(id, displayName, hostName, previous?.Alias, level, level == TrustLevel.Trusted ? previous?.AutoAcceptMaxBytes : null);
+            peers[id] = new PeerRecord(
+                id, displayName, hostName, previous?.Alias, level, level == TrustLevel.Trusted ? previous?.AutoAcceptMaxBytes : null, previous?.Os);
         }
 
         Changed?.Invoke(this, EventArgs.Empty);
@@ -260,6 +286,8 @@ public sealed class TrustStore(SqliteDatabase database, TimeProvider timeProvide
 
         public long? AutoAcceptMaxBytes { get; init; }
 
-        public PeerRecord ToRecord() => new(DeviceId.Parse(Id), DisplayName, HostName ?? "", Alias, (TrustLevel)Level, AutoAcceptMaxBytes);
+        public string? Os { get; init; }
+
+        public PeerRecord ToRecord() => new(DeviceId.Parse(Id), DisplayName, HostName ?? "", Alias, (TrustLevel)Level, AutoAcceptMaxBytes, Os);
     }
 }

@@ -311,7 +311,12 @@ public sealed partial class MainViewModel : ObservableObject
         [
             .. trust.GetAll(TrustLevel.Trusted).Select(record => new PeerItemViewModel(
                 record.DeviceId, record.ShownName, record.HostName, Detail(live.GetValueOrDefault(record.DeviceId), record.HostName), true,
-                live.GetValueOrDefault(record.DeviceId), record.AutoAcceptMaxBytes is not null, this)),
+                live.GetValueOrDefault(record.DeviceId), record.AutoAcceptMaxBytes is not null, this)
+            {
+                IsPhone = live.TryGetValue(record.DeviceId, out PeerInfo? peer)
+                    ? peer.Os.Equals("android", StringComparison.OrdinalIgnoreCase)
+                    : record.IsPhone,
+            }),
             .. live.Values
                 .Where(peer => trust.GetLevel(peer.DeviceId) == TrustLevel.Unknown)
                 .Select(peer => new PeerItemViewModel(
@@ -363,7 +368,8 @@ public sealed partial class PeerItemViewModel(
     DeviceId deviceId, string name, string host, string detail, bool isTrusted, PeerInfo? live, bool isAutoAccept, MainViewModel owner)
 {
     /// <summary>Offline contacts show as computers: presence is the only place the OS is known.</summary>
-    public bool IsPhone { get; } = live?.Os.Equals("android", StringComparison.OrdinalIgnoreCase) == true;
+    /// <summary>As it says on the network or, while offline, as it last said.</summary>
+    public bool IsPhone { get; init; } = live?.Os.Equals("android", StringComparison.OrdinalIgnoreCase) == true;
 
     public bool IsOnline { get; } = live is not null;
 

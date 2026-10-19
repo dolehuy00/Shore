@@ -14,6 +14,10 @@ public sealed class PeerNames(TrustStore trust, PeerDirectory directory)
 
     public bool IsOnline(DeviceId id) => directory.Snapshot().Any(p => p.DeviceId == id && p.State == PeerState.Online);
 
+    /// <summary>A phone, as it says on the network or, while offline, as it last said (contacts only).</summary>
+    public bool IsPhone(DeviceId id) =>
+        Live(id) is { } live ? live.Os.Equals("android", StringComparison.OrdinalIgnoreCase) : trust.Get(id)?.IsPhone == true;
+
     /// <summary>The peer as seen on the network right now; null while it is not.</summary>
     public PeerInfo? Live(DeviceId id) => directory.Snapshot().FirstOrDefault(p => p.DeviceId == id);
 }

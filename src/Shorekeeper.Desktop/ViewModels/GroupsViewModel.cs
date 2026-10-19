@@ -436,7 +436,7 @@ public sealed partial class GroupCardViewModel(string id, GroupsViewModel owner)
             member.IsHost, isOnline, IsHost && !isMe, this, owner)
         {
             IsMe = isMe,
-            IsPhone = live?.Os.Equals("android", StringComparison.OrdinalIgnoreCase) == true,
+            IsPhone = !isMe && owner.Names.IsPhone(member.DeviceId),
             IsBusy = live?.IsBusy == true,
             StatusText = isOnline ? live?.IsBusy == true ? L.T("Bận") : "Online" : live is null ? "Offline" : L.T("Mất tín hiệu…"),
             Detail = detail,

@@ -160,7 +160,7 @@ public sealed class QuickSendService(
 
         return new QuickSendPerson(id, name, group?.Id)
         {
-            IsPhone = live?.Os.Equals("android", StringComparison.OrdinalIgnoreCase) == true,
+            IsPhone = names.IsPhone(id),
             IsBusy = live?.IsBusy == true,
             IsInactive = live is null || live.State == PeerState.Stale,
             StatusText = live is null ? "Offline" : live.IsBusy ? L.T("Bận") : "Online",

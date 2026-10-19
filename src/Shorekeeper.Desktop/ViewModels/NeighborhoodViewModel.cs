@@ -328,7 +328,7 @@ public sealed partial class PeerCardViewModel(DeviceId deviceId, NeighborhoodVie
         IsOnline = live is not null;
         // Offline contacts keep what was last seen.
         Department = live is null ? Department : live.Department;
-        IsPhone = live is null ? IsPhone : live.Os.Equals("android", StringComparison.OrdinalIgnoreCase);
+        IsPhone = live is null ? record?.IsPhone ?? IsPhone : live.Os.Equals("android", StringComparison.OrdinalIgnoreCase);
         IsBusy = live?.IsBusy == true;
         IsInactive = live is null || live.State == PeerState.Stale;
         Subtitle = live is null ? HostName

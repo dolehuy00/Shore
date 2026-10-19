@@ -57,6 +57,23 @@ public sealed class TrustStoreTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_contacts_os_is_remembered_for_when_it_is_offline()
+    {
+        TrustStore store = await LoadAsync();
+        await store.SetTrustedAsync(Mai, "Mai", "OPPO", Ct);
+        await store.RecordOsAsync(Mai, "android", Ct);
+        // Only contacts and blocked peers are remembered.
+        await store.RecordOsAsync(Tuan, "android", Ct);
+
+        TrustStore reloaded = await LoadAsync();
+        Assert.True(reloaded.Get(Mai)!.IsPhone);
+        Assert.Null(reloaded.Get(Tuan));
+
+        await store.SetTrustedAsync(Mai, "Mai", "OPPO", Ct);
+        Assert.True((await LoadAsync()).Get(Mai)!.IsPhone);
+    }
+
+    [Fact]
     public async Task Forget_returns_peer_to_unknown_and_drops_alias()
     {
         TrustStore store = await LoadAsync();
