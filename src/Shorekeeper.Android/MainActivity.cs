@@ -1,5 +1,6 @@
 using Android.Content;
 using Android.Content.PM;
+using Android.Content.Res;
 using Android.Views;
 using Avalonia.Android;
 using Shorekeeper.Android.Platform;
@@ -27,6 +28,13 @@ public sealed class MainActivity : AvaloniaMainActivity
     {
         base.OnCreate(savedInstanceState);
         Current = this;
+        FindViewById(global::Android.Resource.Id.Content)!.LayoutChange += (_, e) =>
+        {
+            if (e.Bottom - e.Top != e.OldBottom - e.OldTop || e.Right - e.Left != e.OldRight - e.OldLeft)
+            {
+                LayoutLog.Event("content resized", this);
+            }
+        };
         PreferFastestRefreshRate();
         // Android 13+: without it, offers arrive silently. Asking again once granted still opens the system's
         // permission screen over the app for a moment, which slowed every start.
@@ -41,6 +49,30 @@ public sealed class MainActivity : AvaloniaMainActivity
             HandleShare(Intent);
             HandleTab(Intent);
         }
+    }
+
+    protected override void OnResume()
+    {
+        base.OnResume();
+        LayoutLog.Event("resume", this);
+    }
+
+    public override void OnWindowFocusChanged(bool hasFocus)
+    {
+        base.OnWindowFocusChanged(hasFocus);
+        LayoutLog.Event(hasFocus ? "focus" : "focus lost", this);
+    }
+
+    public override void OnConfigurationChanged(Configuration newConfig)
+    {
+        base.OnConfigurationChanged(newConfig);
+        LayoutLog.Event("configuration", this);
+    }
+
+    public override void OnMultiWindowModeChanged(bool isInMultiWindowMode, Configuration? newConfig)
+    {
+        base.OnMultiWindowModeChanged(isInMultiWindowMode, newConfig);
+        LayoutLog.Event(isInMultiWindowMode ? "multi-window" : "full window", this);
     }
 
     protected override void OnDestroy()

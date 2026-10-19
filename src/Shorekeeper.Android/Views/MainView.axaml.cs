@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using Shorekeeper.Android.Platform;
 using Shorekeeper.Android.ViewModels;
 using Shorekeeper.Core.Localization;
 
@@ -9,7 +10,12 @@ namespace Shorekeeper.Android.Views;
 /// <summary>Pickers need the window, so the buttons that open one are handled here.</summary>
 public partial class MainView : UserControl
 {
-    public MainView() => InitializeComponent();
+    public MainView()
+    {
+        InitializeComponent();
+        LayoutLog.View = this;
+        SizeChanged += (_, e) => LayoutLog.Event($"size {e.PreviousSize.Width:0}x{e.PreviousSize.Height:0} -> {e.NewSize.Width:0}x{e.NewSize.Height:0}");
+    }
 
     /// <summary>"Gửi file…" on a contact.</summary>
     private async void OnSendFiles(object? sender, RoutedEventArgs e)

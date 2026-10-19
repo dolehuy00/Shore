@@ -103,7 +103,7 @@
 
     <DockPanel Margin="0,28,0,0" IsVisible="{Binding $parent[UserControl].DataContext, Converter={x:Static ObjectConverters.IsNotNull}}">
       <!-- This phone: name, then its short id and where files land. -->
-      <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*" Margin="16,12,16,8">
+      <Grid x:Name="Header" DockPanel.Dock="Top" ColumnDefinitions="Auto,*" Margin="16,12,16,8">
         <Image Source="/Assets/shorekeeper.png" Width="40" Height="40" VerticalAlignment="Center" />
         <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
           <TextBlock Text="{Binding Title}" FontSize="20" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
@@ -132,7 +132,7 @@
 
       <!-- The tab strip only: the pages below stay built and are just shown or hidden, as rebuilding one on every
            switch (what TabControl does with its content) took up to 200 ms on a phone. -->
-      <TabControl Classes="nav" DockPanel.Dock="Bottom" TabStripPlacement="Bottom" Padding="0" SelectedIndex="{Binding SelectedTab}">
+      <TabControl x:Name="Tabs" Classes="nav" DockPanel.Dock="Bottom" TabStripPlacement="Bottom" Padding="0" SelectedIndex="{Binding SelectedTab}">
         <TabControl.ItemsPanel>
           <ItemsPanelTemplate>
             <UniformGrid Rows="1" />
