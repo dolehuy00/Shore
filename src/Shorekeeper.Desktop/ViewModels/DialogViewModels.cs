@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Shorekeeper.Core.Identity;
 using Shorekeeper.Core.Localization;
+using Shorekeeper.Desktop.Views;
 using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Transfers;
@@ -345,7 +346,30 @@ public sealed partial class IncomingOfferViewModel(ReceivedOffer offer, string s
 
     public string? Note { get; } = offer.Note is null ? null : $"\"{offer.Note}\"";
 
-    public bool HasNote => offer.Note is not null;
+    public bool HasNote => offer.Note is not null && !IsText;
+
+    /// <summary>Text alone ("Gửi văn bản"), already received.</summary>
+    public bool IsText { get; } = offer.Files.Count == 0;
+
+    public bool IsFiles => !IsText;
+
+    public string Text { get; } = offer.Note ?? "";
+
+    public bool IsLink => TransferText.LinkOf(Text) is not null;
+
+    [RelayCommand]
+    private async Task CopyAsync()
+    {
+        await DialogService.CopyTextAsync(Text);
+        RequestClose();
+    }
+
+    [RelayCommand]
+    private void OpenLink()
+    {
+        DialogService.OpenLink(Text);
+        RequestClose();
+    }
 
     [RelayCommand]
     private void Download()
@@ -437,6 +461,8 @@ public sealed partial class TextPromptViewModel(string title, string label, stri
     public string Label { get; } = label;
 
     public string OkText { get; } = okText ?? L.T("Lưu");
+
+    public bool IsMultiline { get; init; }
 
     [ObservableProperty]
     public partial string Text { get; set; } = initialText;

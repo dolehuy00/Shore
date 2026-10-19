@@ -40,6 +40,12 @@ internal static class Notifications
     public static void ShowOffer(Context context, ReceivedOffer offer, string senderName)
     {
         var key = new OfferKey(offer.SenderId, offer.OfferId);
+        if (offer.Files.Count == 0 && offer.Note is { } text)
+        {
+            ShowText(context, key, text, senderName);
+            return;
+        }
+
         string summary = $"{TransferText.Summary(offer.Files.Select(f => f.RelativePath))} · {TransferText.Size(offer.TotalBytes)}";
         Notification notification = new Notification.Builder(context, OffersChannel)
             .SetContentTitle(L.F("{0} gửi cho bạn", senderName))!
@@ -52,6 +58,26 @@ internal static class Notifications
             .AddAction(Action(context, L.T("Bỏ qua"), TransferService.ActionDecline, key))!
             .Build()!;
         Manager(context).Notify(Tag(key), OfferNotificationId, notification);
+    }
+
+    /// <summary>"Huy gửi cho bạn · https://…" with [Sao chép] and, for a link, [Mở].</summary>
+    private static void ShowText(Context context, OfferKey key, string text, string senderName)
+    {
+        Notification.Builder builder = new Notification.Builder(context, OffersChannel)
+            .SetContentTitle(L.F("{0} gửi cho bạn", senderName))!
+            .SetContentText(TransferText.Preview(text, 200))!
+            .SetStyle(new Notification.BigTextStyle().BigText(text.Length > 1000 ? text[..1000] + "…" : text))!
+            .SetSmallIcon(Resource.Drawable.ic_stat_shorekeeper)!
+            .SetAutoCancel(true)!
+            .SetContentIntent(OpenApp(context, tab: 1))!
+            .AddAction(Action(context, L.T("Sao chép"), TransferService.ActionCopy, key))!;
+        if (TextActions.ViewIntent(text) is { } view)
+        {
+            PendingIntent open = PendingIntent.GetActivity(context, Tag(key).GetHashCode(), view, PendingIntentFlags.Immutable | PendingIntentFlags.UpdateCurrent)!;
+            builder.AddAction(new Notification.Action.Builder(Icon.CreateWithResource(context, AndroidResource.Drawable.IcMenuView), L.T("Mở"), open).Build());
+        }
+
+        Manager(context).Notify(Tag(key), OfferNotificationId, builder.Build());
     }
 
     public static void CancelOffer(Context context, OfferKey key) => Manager(context).Cancel(Tag(key), OfferNotificationId);

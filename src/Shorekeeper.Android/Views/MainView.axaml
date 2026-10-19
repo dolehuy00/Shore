@@ -218,6 +218,7 @@
                             <MenuFlyout>
                               <MenuItem Header="{l:T 'Tự nhận file…'}" Command="{Binding ChooseAutoAcceptCommand}" IsVisible="{Binding IsTrusted}"
                                         ToggleType="CheckBox" IsChecked="{Binding IsAutoAccept, Mode=OneWay}" />
+                              <MenuItem Header="{l:T 'Gửi văn bản…'}" Command="{Binding SendTextCommand}" IsVisible="{Binding IsTrusted}" />
                               <MenuItem Header="{l:T 'Đặt tên gợi nhớ…'}" Command="{Binding RenameCommand}" IsVisible="{Binding IsTrusted}" />
                               <MenuItem Header="{l:T 'Ngắt kết nối'}" Command="{Binding DisconnectCommand}" IsVisible="{Binding IsTrusted}" />
                               <MenuItem Header="{l:T 'Chặn'}" Command="{Binding BlockCommand}" />
@@ -268,11 +269,13 @@
                           <PathIcon Data="{StaticResource Icon.Document}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static dvm:TransferKind.Files}}" Width="22" Height="22" />
                           <PathIcon Data="{StaticResource Icon.Image}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static dvm:TransferKind.Images}}" Width="22" Height="22" />
                           <PathIcon Data="{StaticResource Icon.FolderOpen}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static dvm:TransferKind.Folder}}" Width="22" Height="22" />
+                          <PathIcon Data="{StaticResource Icon.Text}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static dvm:TransferKind.Text}}" Width="22" Height="22" />
                         </Panel>
                       </Border>
                       <StackPanel Grid.Column="1" Spacing="3" Margin="12,0,0,0">
                         <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
-                        <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding Summary}" IsVisible="{Binding IsFiles}" TextWrapping="Wrap" />
+                        <SelectableTextBlock Text="{Binding Text}" IsVisible="{Binding IsText}" TextWrapping="Wrap" MaxLines="8" />
                         <!-- "app.zip + 2 mục" names only the first: the button opens the whole list. -->
                         <StackPanel DataContext="{Binding Contents}" x:DataType="dvm:OfferContents" IsVisible="{Binding CanExpand}" Spacing="2">
                           <Button Content="{Binding ToggleText}" Command="{Binding ToggleCommand}" Padding="0,2" FontSize="13" HorizontalAlignment="Left"
@@ -298,6 +301,8 @@
                         <WrapPanel ItemSpacing="8" LineSpacing="8" Margin="0,6,0,0">
                           <Button Content="{l:T 'Tải'}" Command="{Binding DownloadCommand}" IsVisible="{Binding CanDownload}" Classes="accent" />
                           <Button Content="{l:T 'Bỏ qua'}" Command="{Binding DeclineCommand}" IsVisible="{Binding CanDecline}" />
+                          <Button Content="{l:T 'Sao chép'}" Command="{Binding CopyCommand}" IsVisible="{Binding IsText}" Classes="accent" />
+                          <Button Content="{l:T 'Mở'}" Command="{Binding OpenLinkCommand}" IsVisible="{Binding IsLink}" />
                         </WrapPanel>
                       </StackPanel>
                     </Grid>
@@ -326,6 +331,7 @@
                           <PathIcon Data="{StaticResource Icon.Document}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static dvm:TransferKind.Files}}" Width="22" Height="22" />
                           <PathIcon Data="{StaticResource Icon.Image}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static dvm:TransferKind.Images}}" Width="22" Height="22" />
                           <PathIcon Data="{StaticResource Icon.FolderOpen}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static dvm:TransferKind.Folder}}" Width="22" Height="22" />
+                          <PathIcon Data="{StaticResource Icon.Text}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static dvm:TransferKind.Text}}" Width="22" Height="22" />
                         </Panel>
                       </Border>
                       <StackPanel Grid.Column="1" Spacing="3" Margin="12,0,0,0">
@@ -519,6 +525,7 @@
         <StackPanel Spacing="10">
           <TextBlock Text="{Binding Title}" FontSize="18" FontWeight="SemiBold" />
           <TextBlock Text="{l:T 'Chưa kết nối với ai. Kết nối với máy tính trong tab Xóm trước.'}" IsVisible="{Binding HasNobody}" TextWrapping="Wrap" />
+          <TextBox Text="{Binding Text}" IsVisible="{Binding HasText}" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="140" />
           <ScrollViewer MaxHeight="360">
             <ItemsControl ItemsSource="{Binding People}">
               <ItemsControl.ItemTemplate>
@@ -631,7 +638,7 @@
         <StackPanel Spacing="12">
           <TextBlock Text="{Binding Title}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
           <TextBlock Text="{Binding Message}" IsVisible="{Binding HasMessage}" TextWrapping="Wrap" />
-          <TextBox Text="{Binding Input}" IsVisible="{Binding HasInput}" />
+          <TextBox Text="{Binding Input}" IsVisible="{Binding HasInput}" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="160" />
           <WrapPanel ItemSpacing="8" LineSpacing="8" HorizontalAlignment="Right">
             <Button Content="{l:T 'Hủy'}" Command="{Binding CancelCommand}" />
             <Button Content="{Binding OkText}" Command="{Binding OkCommand}" Classes="accent" />

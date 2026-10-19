@@ -198,7 +198,11 @@ public sealed class InboxService(
         }
 
         var key = new OfferKey(sender, manifest.OfferId);
-        var item = new Item(key, manifest.Note, timeProvider.GetUtcNow(), manifest.ExpiresAt) { State = InboxState.New };
+        // Text alone ("Gửi văn bản") has nothing to download: it is received with the offer.
+        var item = new Item(key, manifest.Note, timeProvider.GetUtcNow(), manifest.ExpiresAt)
+        {
+            State = files.Count == 0 ? InboxState.Completed : InboxState.New,
+        };
         item.Files.AddRange(files);
         lock (gate)
         {
@@ -213,7 +217,7 @@ public sealed class InboxService(
         logger.LogInformation("Offer {Offer} received from {Sender}: {Files} entries, {Bytes} bytes", key.OfferId, sender, files.Count, item.TotalBytes);
 
         // "Tự nhận file" for this contact (docs/06-file-transfer.md §10).
-        if (trust.Get(sender) is { TrustLevel: TrustLevel.Trusted, AutoAcceptMaxBytes: { } limit }
+        if (files.Count > 0 && trust.Get(sender) is { TrustLevel: TrustLevel.Trusted, AutoAcceptMaxBytes: { } limit }
             && item.TotalBytes <= (limit == TrustStore.FollowSettingsLimit ? settings.Current.AutoAcceptMaxBytes : limit))
         {
             Download(key);
@@ -491,9 +495,10 @@ public sealed class InboxService(
     {
         files = [];
         if (manifest.OfferId is not { Length: > 0 and <= 64 }
-            || manifest.Files is not { Count: > 0 and <= OfferService.MaxEntries }
+            || manifest.Files is not { Count: <= OfferService.MaxEntries }
+            || (manifest.Files.Count == 0 && string.IsNullOrWhiteSpace(manifest.Note))
             || manifest.Files.Count(f => !f.RelativePath.EndsWith('/')) > OfferService.MaxFiles
-            || manifest.Note is { Length: > 500 })
+            || manifest.Note is { Length: > OfferService.MaxNoteLength })
         {
             return false;
         }
@@ -604,12 +609,13 @@ public sealed class InboxService(
         await connection.ExecuteAsync(
             """
             INSERT INTO InboxOffers (SenderId, OfferId, Note, TotalBytes, ReceivedAt, ExpiresAt, State)
-            VALUES (@sender, @offerId, @note, @total, @receivedAt, @expiresAt, 'new');
+            VALUES (@sender, @offerId, @note, @total, @receivedAt, @expiresAt, @state);
             """,
             new
             {
                 sender = item.Key.SenderId.Value, offerId = item.Key.OfferId, note = item.Note, total = item.TotalBytes,
                 receivedAt = item.ReceivedAt.ToUnixTimeMilliseconds(), expiresAt = item.ExpiresAt.ToUnixTimeMilliseconds(),
+                state = Name(item.State),
             },
             transaction);
         await connection.ExecuteAsync(

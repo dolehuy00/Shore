@@ -1,6 +1,10 @@
+using System.ComponentModel;
+using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Shorekeeper.Core.Identity;
@@ -34,18 +38,37 @@ public sealed class DialogService(
     public event EventHandler<NavPage>? PageRequested;
 
     /// <summary>Sends files/folders to contacts, or to members of <paramref name="groupId"/> (docs/06-file-transfer.md §6).</summary>
-    public Task SendAsync(IReadOnlyList<string> paths, IReadOnlyList<(DeviceId Id, string Name)> recipients, string? groupId = null) =>
-        SendAsync(paths, [new OfferBatch([.. recipients.Select(r => r.Id)], groupId)]);
+    public Task SendAsync(IReadOnlyList<string> paths, IReadOnlyList<(DeviceId Id, string Name)> recipients, string? groupId = null, string? text = null) =>
+        SendAsync(paths, [new OfferBatch([.. recipients.Select(r => r.Id)], groupId)], text);
 
     /// <summary>
     /// One selection sent as one offer per batch: contacts together, fellow group members per group they share.
     /// Files another program is writing can only go as a temporary copy, so the user is asked first.
     /// </summary>
-    public async Task SendAsync(IReadOnlyList<string> paths, IReadOnlyList<OfferBatch> batches)
+    /// <param name="text">"Gửi văn bản": sent alone when there are no files, as the offer's note with them.</param>
+    public async Task SendAsync(IReadOnlyList<string> paths, IReadOnlyList<OfferBatch> batches, string? text = null)
     {
         batches = [.. batches.Where(b => b.Recipients.Count > 0)];
-        if (paths.Count == 0 || batches.Count == 0)
+        text = string.IsNullOrWhiteSpace(text) ? null : text.Trim();
+        if ((paths.Count == 0 && text is null) || batches.Count == 0)
         {
+            return;
+        }
+
+        if (text?.Length > OfferService.MaxNoteLength)
+        {
+            await ChooseAsync(L.T("Không gửi được"), L.F("Văn bản dài quá {0} ký tự.", OfferService.MaxNoteLength.ToString("N0", L.Culture)), [L.T("Đóng")]);
+            return;
+        }
+
+        if (paths.Count == 0)
+        {
+            foreach (OfferBatch batch in batches)
+            {
+                await offers.CreateAsync(new PreparedOffer([], []), batch.Recipients, text, snapshotLocked: false, batch.GroupId, CancellationToken.None);
+            }
+
+            OfferSent?.Invoke(this, EventArgs.Empty);
             return;
         }
 
@@ -86,7 +109,7 @@ public sealed class DialogService(
         {
             foreach (OfferBatch batch in batches)
             {
-                await offers.CreateAsync(prepared, batch.Recipients, null, snapshotLocked, batch.GroupId, CancellationToken.None);
+                await offers.CreateAsync(prepared, batch.Recipients, text, snapshotLocked, batch.GroupId, CancellationToken.None);
             }
         }
         catch (IOException ex)
@@ -231,9 +254,32 @@ public sealed class DialogService(
     {
         var key = new OfferKey(offer.SenderId, offer.OfferId);
         var viewModel = new IncomingOfferViewModel(offer, senderName, () => inbox.Download(key), () => inbox.DeclineAsync(key), () => PageRequested?.Invoke(this, NavPage.Inbox));
-        string[] lines = viewModel.Note is { } note ? [viewModel.Summary, note] : [viewModel.Summary];
-        bool toasted = notifier.TryShow(viewModel.Title, lines, [L.T("Tải"), L.T("Bỏ qua"), "Xem"], choice => Dispatcher.UIThread.Post(() =>
+        string[] lines = viewModel.IsText ? [TransferText.Preview(viewModel.Text, 200)]
+            : viewModel.Note is { } note ? [viewModel.Summary, note]
+            : [viewModel.Summary];
+        string[] actions = !viewModel.IsText ? [L.T("Tải"), L.T("Bỏ qua"), "Xem"]
+            : viewModel.IsLink ? [L.T("Sao chép"), L.T("Mở"), "Xem"]
+            : [L.T("Sao chép"), "Xem"];
+        bool toasted = notifier.TryShow(viewModel.Title, lines, actions, choice => Dispatcher.UIThread.Post(() =>
         {
+            if (viewModel.IsText)
+            {
+                if (choice == 0)
+                {
+                    viewModel.CopyCommand.Execute(null);
+                }
+                else if (choice == 1 && viewModel.IsLink)
+                {
+                    viewModel.OpenLinkCommand.Execute(null);
+                }
+                else
+                {
+                    viewModel.ShowCommand.Execute(null);
+                }
+
+                return;
+            }
+
             switch (choice)
             {
                 case 0:
@@ -295,9 +341,10 @@ public sealed class DialogService(
         return viewModel.Result;
     }
 
-    public static async Task<string?> PromptAsync(string title, string label, string initialText, string? okText = null)
+    /// <param name="multiline">A larger box where Enter starts a new line, e.g. for "Gửi văn bản".</param>
+    public static async Task<string?> PromptAsync(string title, string label, string initialText, string? okText = null, bool multiline = false)
     {
-        var viewModel = new TextPromptViewModel(title, label, initialText, okText);
+        var viewModel = new TextPromptViewModel(title, label, initialText, okText) { IsMultiline = multiline };
         await ShowAsync(new TextPromptWindow { DataContext = viewModel }, viewModel);
         return viewModel.Confirmed ? viewModel.Text : null;
     }
@@ -352,6 +399,31 @@ public sealed class DialogService(
         else
         {
             window.Show();
+        }
+    }
+
+    /// <summary>Puts text on the clipboard, through the main window (it exists while hidden in the tray).</summary>
+    public static async Task CopyTextAsync(string text)
+    {
+        if (MainWindow?.Clipboard is { } clipboard)
+        {
+            await clipboard.SetValueAsync(DataFormat.Text, text);
+        }
+    }
+
+    /// <summary>Opens <paramref name="text"/> in the browser when it is a web address; anything else is left alone.</summary>
+    public static void OpenLink(string text)
+    {
+        if (TransferText.LinkOf(text) is { } link)
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo(link.AbsoluteUri) { UseShellExecute = true })?.Dispose();
+            }
+            catch (Win32Exception)
+            {
+                // No browser registered: nothing better to do than leave it on the card.
+            }
         }
     }
 

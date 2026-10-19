@@ -60,8 +60,8 @@ public partial class App : Application
             var names = Services.GetRequiredService<PeerNames>();
             inbox.OfferArrived += (_, offer) => Dispatcher.UIThread.Post(() =>
             {
-                // Auto-accepted offers are already downloading; no need to ask.
-                if (presence.Status != MyStatus.Busy && offer.State == InboxState.New)
+                // Auto-accepted offers are already downloading; no need to ask. Text arrives received, with [Sao chép].
+                if (presence.Status != MyStatus.Busy && (offer.State == InboxState.New || offer.Files.Count == 0))
                 {
                     dialogs.ShowIncomingOffer(offer, names.Of(offer.SenderId));
                 }

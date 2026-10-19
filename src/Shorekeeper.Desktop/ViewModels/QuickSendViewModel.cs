@@ -88,10 +88,14 @@ public sealed partial class QuickSendViewModel : DialogViewModel
 
     public string SummaryText => L.F("Đã chọn {0} người", everyone.Count(p => p.IsChecked));
 
-    public bool CanSend => Files.Count > 0 && everyone.Any(p => p.IsChecked);
+    /// <summary>A link or a few lines, sent alone or with the files.</summary>
+    [ObservableProperty]
+    public partial string Text { get; set; } = "";
+
+    public bool CanSend => (Files.Count > 0 || !string.IsNullOrWhiteSpace(Text)) && everyone.Any(p => p.IsChecked);
 
     /// <summary>Set when the user presses "Gửi": what to send, one offer per batch.</summary>
-    public (IReadOnlyList<string> Paths, IReadOnlyList<OfferBatch> Batches)? Result { get; private set; }
+    public (IReadOnlyList<string> Paths, IReadOnlyList<OfferBatch> Batches, string? Text)? Result { get; private set; }
 
     public void Add(IReadOnlyList<string> paths)
     {
@@ -105,6 +109,8 @@ public sealed partial class QuickSendViewModel : DialogViewModel
     }
 
     partial void OnSearchChanged(string value) => Filter();
+
+    partial void OnTextChanged(string value) => OnPropertyChanged(nameof(CanSend));
 
     [RelayCommand]
     private void Clear() => Files.Clear();
@@ -127,7 +133,7 @@ public sealed partial class QuickSendViewModel : DialogViewModel
                 .GroupBy(p => p.GroupId)
                 .Select(g => new OfferBatch([.. g.Select(p => p.DeviceId)], g.Key)),
         ];
-        Result = ([.. Files.Select(f => f.Path)], batches);
+        Result = ([.. Files.Select(f => f.Path)], batches, Text);
         RequestClose();
     }
 

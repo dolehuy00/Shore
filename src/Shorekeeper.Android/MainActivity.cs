@@ -108,9 +108,11 @@ public sealed class MainActivity : AvaloniaMainActivity
             locations.AddRange(Streams(intent).Select(uri => uri.ToString()!));
         }
 
-        if (locations.Count > 0)
+        // A link or text shared from a browser, a chat app…: EXTRA_TEXT, alone or with files.
+        string? text = intent.GetStringExtra(Intent.ExtraText);
+        if (locations.Count > 0 || !string.IsNullOrWhiteSpace(text))
         {
-            App.Share(locations);
+            App.Share(locations, string.IsNullOrWhiteSpace(text) ? null : text);
         }
     }
 

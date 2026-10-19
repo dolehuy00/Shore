@@ -117,6 +117,8 @@
 }
 ```
 
+`note` dài tối đa 20 000 ký tự. **Gửi văn bản** (một link, một đoạn chữ) là offer có `note` và `files` rỗng: người nhận coi như đã nhận ngay khi offer tới (không có gì để tải, không gửi receipt), người gửi đánh dấu người nhận là `completed` khi giao offer thành công. Offer không có cả file lẫn `note` bị từ chối.
+
 ### 4.3 Gửi file — endpoint trên **máy người gửi**
 
 | Method | Path | Quyền | Mô tả |

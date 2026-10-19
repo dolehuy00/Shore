@@ -47,8 +47,8 @@ internal static class BackgroundTransfers
 
         inbox.OfferArrived += (_, offer) =>
         {
-            // Auto-accepted offers are already downloading; nothing to ask.
-            if (offer.State == InboxState.New)
+            // Auto-accepted offers are already downloading; nothing to ask. Text arrives received, with [Sao chép].
+            if (offer.State == InboxState.New || offer.Files.Count == 0)
             {
                 Notifications.ShowOffer(appContext, offer, trust.Get(offer.SenderId)?.ShownName ?? offer.SenderId.ShortForm);
             }
@@ -57,7 +57,8 @@ internal static class BackgroundTransfers
         };
         inbox.Changed += (_, key) =>
         {
-            if (inbox.Get(key)?.State is not InboxState.New)
+            // Answered offers lose their [Tải] [Bỏ qua]; text keeps its notification, as it arrives already received.
+            if (inbox.Get(key) is { State: not InboxState.New, Files.Count: > 0 })
             {
                 Notifications.CancelOffer(appContext, key);
             }

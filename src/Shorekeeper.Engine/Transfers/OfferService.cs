@@ -36,6 +36,12 @@ public sealed class OfferService(
 
     /// <summary>Files plus folders, which bounds the manifest size.</summary>
     public const int MaxEntries = 20_000;
+
+    /// <summary>
+    /// The note, which is also how text is sent ("Gửi văn bản": an offer with a note and no files), e.g. a link or a
+    /// pasted paragraph.
+    /// </summary>
+    public const int MaxNoteLength = 20_000;
     public const int MaxConcurrentStreams = 16;
 
     /// <summary>How long a hash request waits for the background hash before answering 202 (must stay below the client timeout).</summary>
@@ -248,6 +254,11 @@ public sealed class OfferService(
             throw new ArgumentException("At least one recipient is required.", nameof(recipients));
         }
 
+        if (note?.Trim().Length > MaxNoteLength)
+        {
+            throw new ArgumentException($"The note is longer than {MaxNoteLength} characters.", nameof(note));
+        }
+
         DateTimeOffset now = timeProvider.GetUtcNow();
         var offer = new Offer(Guid.NewGuid().ToString("N"), now, now + settings.Current.OfferLifetime, string.IsNullOrWhiteSpace(note) ? null : note.Trim(), OfferState.Open)
         {
@@ -269,6 +280,11 @@ public sealed class OfferService(
             }
 
             offer.Files.Add(entry);
+        }
+
+        if (offer.Files.Count == 0 && offer.Note is null)
+        {
+            throw new ArgumentException("Nothing to send: no files and no text.", nameof(prepared));
         }
 
         foreach (DeviceId recipient in recipients.Distinct())
@@ -383,7 +399,9 @@ public sealed class OfferService(
                 TimeSpan.FromSeconds(15),
                 cancellationToken);
             await PeerClient.EnsureSuccessAsync(response, cancellationToken);
-            await SetRecipientStateAsync(offer.Id, recipient, RecipientState.Delivered, onlyIf: RecipientState.Pending);
+            // Text alone travels in the offer itself: delivered is received.
+            await SetRecipientStateAsync(
+                offer.Id, recipient, offer.Files.Count == 0 ? RecipientState.Completed : RecipientState.Delivered, onlyIf: RecipientState.Pending);
         }
         catch (PeerUnreachableException)
         {

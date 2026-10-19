@@ -182,11 +182,13 @@ public partial class MainWindow : Window
 
         e.Handled = true;
         string[] paths = [.. (await clipboard.TryGetFilesAsync() ?? []).Select(f => f.TryGetLocalPath()).OfType<string>()];
-        if (paths.Length == 0)
+        // No files: a copied link or paragraph goes as text, shown first so nothing is sent by surprise.
+        string? text = paths.Length == 0 ? await clipboard.TryGetTextAsync() : null;
+        if (paths.Length == 0 && string.IsNullOrWhiteSpace(text))
         {
-            await DialogService.ChooseAsync(L.T("Không có file để gửi"), L.T("Hãy copy file hoặc thư mục (vd trong Explorer) rồi nhấn Ctrl+V."), [L.T("Đóng")]);
+            await DialogService.ChooseAsync(L.T("Không có gì để gửi"), L.T("Hãy copy file, thư mục hoặc một đoạn chữ rồi nhấn Ctrl+V."), [L.T("Đóng")]);
         }
-        else if (!await main.Neighborhood.SendToSelectedAsync(paths))
+        else if (!(paths.Length > 0 ? await main.Neighborhood.SendToSelectedAsync(paths) : await main.Neighborhood.SendTextToSelectedAsync(text!)))
         {
             await DialogService.ChooseAsync(L.T("Chưa chọn người nhận"), L.T("Click vào thẻ một người đã kết nối rồi nhấn Ctrl+V."), [L.T("Đóng")]);
         }

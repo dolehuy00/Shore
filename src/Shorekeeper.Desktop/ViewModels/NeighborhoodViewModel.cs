@@ -157,7 +157,7 @@ public sealed partial class NeighborhoodViewModel : ObservableObject
     /// (docs/10-ux.md §2). Contacts can receive files, and so can fellow group members (one at a time,
     /// as the offer belongs to the group they share).
     /// </summary>
-    public async Task SendAsync(PeerCardViewModel card, IReadOnlyList<string> paths)
+    public async Task SendAsync(PeerCardViewModel card, IReadOnlyList<string> paths, string? text = null)
     {
         PeerCardViewModel[] targets = card.IsSelected
             ? [.. Contacts.Where(c => c.IsSelected)]
@@ -169,11 +169,36 @@ public sealed partial class NeighborhoodViewModel : ObservableObject
 
         if (!card.IsTrusted && card.SharedGroupId is { } groupId)
         {
-            await dialogs.SendAsync(paths, [(card.DeviceId, card.DisplayName)], groupId);
+            await dialogs.SendAsync(paths, [(card.DeviceId, card.DisplayName)], groupId, text);
             return;
         }
 
-        await dialogs.SendAsync(paths, [.. targets.Where(t => t.IsTrusted).Select(t => (t.DeviceId, t.DisplayName))]);
+        await dialogs.SendAsync(paths, [.. targets.Where(t => t.IsTrusted).Select(t => (t.DeviceId, t.DisplayName))], text: text);
+    }
+
+    /// <summary>"Gửi văn bản…": a link or a few lines, to the card or to every selected card.</summary>
+    internal async Task SendTextAsync(PeerCardViewModel card, string initialText = "")
+    {
+        int count = card.IsSelected ? Contacts.Count(c => c.IsSelected) : 1;
+        string label = count > 1 ? L.F("Văn bản hoặc link gửi cho {0} người:", count) : L.F("Văn bản hoặc link gửi cho {0}:", card.DisplayName);
+        if (await DialogService.PromptAsync(L.T("Gửi văn bản"), label, initialText, L.T("Gửi"), multiline: true) is { } text
+            && !string.IsNullOrWhiteSpace(text))
+        {
+            await SendAsync(card, [], text);
+        }
+    }
+
+    /// <summary>Ctrl+V with text on the clipboard: confirms it, then sends it to the selected contacts.</summary>
+    /// <returns>False when no contact is selected.</returns>
+    public async Task<bool> SendTextToSelectedAsync(string text)
+    {
+        if (Contacts.FirstOrDefault(c => c.IsSelected) is not { } first)
+        {
+            return false;
+        }
+
+        await SendTextAsync(first, text);
+        return true;
     }
 
     /// <summary>Ctrl+V: sends what is on the clipboard to the selected contacts.</summary>
@@ -352,6 +377,9 @@ public sealed partial class PeerCardViewModel(DeviceId deviceId, NeighborhoodVie
 
     [RelayCommand]
     private Task SendFolderAsync() => owner.SendFolderAsync(this);
+
+    [RelayCommand]
+    private Task SendTextAsync() => owner.SendTextAsync(this);
 
     [RelayCommand]
     private Task RenameAsync() => owner.RenameAsync(this);

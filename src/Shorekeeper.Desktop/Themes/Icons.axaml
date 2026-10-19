@@ -1,7 +1,7 @@
 <!--
   Icons from Fluent UI System Icons 1.1.344 (https://github.com/microsoft/fluentui-system-icons),
   Copyright (c) 2020 Microsoft Corporation, MIT License (THIRD-PARTY-NOTICES.md). Path data only, 24x24.
-  F1 = nonzero fill, as in the SVGs. Icon.Dismiss is drawn in the same style (a 1.5-wide X).
+  F1 = nonzero fill, as in the SVGs. Icon.Dismiss and Icon.Text are drawn in the same style (1.5-wide strokes).
 -->
 <ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
@@ -22,4 +22,5 @@
   <StreamGeometry x:Key="Icon.Add">F1 M12 3.25c.41 0 .75.34.75.75v7.25H20a.75.75 0 0 1 0 1.5h-7.25V20a.75.75 0 0 1-1.5 0v-7.25H4a.75.75 0 0 1 0-1.5h7.25V4c0-.41.34-.75.75-.75</StreamGeometry>
   <StreamGeometry x:Key="Icon.Search">F1 M16.1 17.16a8 8 0 1 1 1.06-1.06l4.62 4.62a.75.75 0 1 1-1.06 1.06zM17.5 11a6.5 6.5 0 1 0-13 0 6.5 6.5 0 0 0 13 0</StreamGeometry>
   <StreamGeometry x:Key="Icon.Dismiss">F1 M4.47 4.47a.75.75 0 0 1 1.06 0L12 10.94l6.47-6.47a.75.75 0 1 1 1.06 1.06L13.06 12l6.47 6.47a.75.75 0 1 1-1.06 1.06L12 13.06l-6.47 6.47a.75.75 0 0 1-1.06-1.06L10.94 12 4.47 5.53a.75.75 0 0 1 0-1.06z</StreamGeometry>
+  <StreamGeometry x:Key="Icon.Text">F1 M4 5.75A.75.75 0 0 1 4.75 5h14.5a.75.75 0 0 1 0 1.5H4.75A.75.75 0 0 1 4 5.75m0 4.5A.75.75 0 0 1 4.75 9.5h14.5a.75.75 0 0 1 0 1.5H4.75A.75.75 0 0 1 4 10.25m0 4.5A.75.75 0 0 1 4.75 14h14.5a.75.75 0 0 1 0 1.5H4.75A.75.75 0 0 1 4 14.75m0 4.5a.75.75 0 0 1 .75-.75h9.5a.75.75 0 0 1 0 1.5h-9.5a.75.75 0 0 1-.75-.75z</StreamGeometry>
 </ResourceDictionary>

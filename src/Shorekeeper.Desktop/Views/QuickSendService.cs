@@ -73,7 +73,7 @@ public sealed class QuickSendService(
             // Sent once the window is gone, so questions about locked files are not hidden behind it.
             if (viewModel.Result is { } result)
             {
-                _ = dialogs.SendAsync(result.Paths, result.Batches);
+                _ = dialogs.SendAsync(result.Paths, result.Batches, result.Text);
             }
         };
 

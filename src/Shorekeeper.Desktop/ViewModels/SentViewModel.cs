@@ -99,6 +99,14 @@ public sealed partial class SentItemViewModel(string offerId, SentViewModel owne
         string[] files = [.. offer.Paths.Where(p => !p.EndsWith('/'))];
         Details = $"{TransferText.FileCount(files.Length)} · {TransferText.Size(offer.TotalBytes)} · {TransferText.Ago(offer.CreatedAt, now)}";
         Kind = TransferText.KindOf(files);
+        if (offer.Paths.Count == 0 && offer.Note is { } text)
+        {
+            Title = TransferText.Preview(text);
+            Summary = Title;
+            Details = $"{L.T("Văn bản")} · {TransferText.Ago(offer.CreatedAt, now)}";
+            Kind = TransferKind.Text;
+        }
+
         CanWithdraw = offer.State == OfferState.Open;
         HasChangedFiles = offer.HasChangedFiles && offer.State == OfferState.Open;
         StatusText = offer.State switch

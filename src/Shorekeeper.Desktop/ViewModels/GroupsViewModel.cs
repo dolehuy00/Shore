@@ -93,9 +93,9 @@ public sealed partial class GroupsViewModel : ObservableObject
 
     // ───────────── Actions used by the cards ─────────────
 
-    internal async Task SendAsync(GroupCardViewModel card, IReadOnlyList<string> paths)
+    internal async Task SendAsync(GroupCardViewModel card, IReadOnlyList<string> paths, string? text = null)
     {
-        if (paths.Count == 0 || store.Get(card.Id) is not { Role: not GroupRole.Pending } group)
+        if ((paths.Count == 0 && string.IsNullOrWhiteSpace(text)) || store.Get(card.Id) is not { Role: not GroupRole.Pending } group)
         {
             return;
         }
@@ -105,7 +105,15 @@ public sealed partial class GroupsViewModel : ObservableObject
             L.F("Gửi cho nhóm {0}", group.Name), L.T("Gửi"), L.T("Nhóm chưa có ai khác ngoài bạn."), members);
         if (picked is not null)
         {
-            await dialogs.SendAsync(paths, [.. picked.Select(p => (p.DeviceId, p.Name))], group.Id);
+            await dialogs.SendAsync(paths, [.. picked.Select(p => (p.DeviceId, p.Name))], group.Id, text);
+        }
+    }
+
+    internal async Task SendTextAsync(GroupCardViewModel card)
+    {
+        if (await DialogService.PromptAsync(L.T("Gửi văn bản"), L.F("Văn bản hoặc link gửi cho nhóm {0}:", card.Name), "", L.T("Tiếp"), multiline: true) is { } text)
+        {
+            await SendAsync(card, [], text);
         }
     }
 
@@ -455,6 +463,9 @@ public sealed partial class GroupCardViewModel(string id, GroupsViewModel owner)
 
     [RelayCommand]
     private async Task SendFolderAsync() => await owner.SendAsync(this, await DialogService.PickFolderAsync());
+
+    [RelayCommand]
+    private Task SendTextAsync() => owner.SendTextAsync(this);
 
     [RelayCommand]
     private Task InviteAsync() => owner.InviteAsync(this);

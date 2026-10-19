@@ -200,6 +200,30 @@ public sealed class TransferTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Text_alone_arrives_received_and_completes_the_offer()
+    {
+        const string link = "https://example.com/build/1234?ref=chat";
+        string offerId = await SendAsync(a, [], b.Id, link);
+
+        ReceivedOffer offer = await WaitForOfferAsync(b, offerId);
+        Assert.Equal(link, offer.Note);
+        Assert.Empty(offer.Files);
+        Assert.Equal(InboxState.Completed, offer.State);
+        await WaitUntil(() => a.Offers.GetOffers().Single().State == OfferState.Done);
+        Assert.Equal(RecipientState.Completed, a.Offers.GetOffers().Single().Recipients.Single().State);
+    }
+
+    [Fact]
+    public async Task Text_up_to_the_limit_is_sent_and_nothing_at_all_is_refused()
+    {
+        string text = new('x', OfferService.MaxNoteLength);
+        Assert.Equal(text, (await WaitForOfferAsync(b, await SendAsync(a, [], b.Id, text))).Note);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => SendAsync(a, [], b.Id, text + "x"));
+        await Assert.ThrowsAsync<ArgumentException>(() => SendAsync(a, [], b.Id, "   "));
+    }
+
+    [Fact]
     public async Task Auto_accept_downloads_offers_within_the_limit_without_asking()
     {
         await b.Trust.SetAutoAcceptAsync(a.Id, 1024, Ct);

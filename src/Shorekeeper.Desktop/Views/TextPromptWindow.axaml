@@ -8,9 +8,16 @@
         Icon="/Assets/shorekeeper.png"
         Width="400" SizeToContent="Height" CanResize="False"
         WindowStartupLocation="CenterOwner">
+  <Window.Styles>
+    <Style Selector="TextBox.multiline">
+      <Setter Property="TextWrapping" Value="Wrap" />
+      <Setter Property="Height" Value="140" />
+      <Setter Property="VerticalContentAlignment" Value="Top" />
+    </Style>
+  </Window.Styles>
   <StackPanel Margin="24" Spacing="12">
     <TextBlock Text="{Binding Label}" />
-    <TextBox Text="{Binding Text}" />
+    <TextBox Text="{Binding Text}" AcceptsReturn="{Binding IsMultiline}" Classes.multiline="{Binding IsMultiline}" />
     <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
       <Button Content="{l:T 'Hủy'}" Command="{Binding CancelCommand}" IsCancel="True" />
       <Button Content="{Binding OkText}" Command="{Binding OkCommand}" IsDefault="True" Classes="accent" />

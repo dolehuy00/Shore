@@ -185,6 +185,16 @@ public sealed partial class MainViewModel : ObservableObject
             peer.Name, trust.Get(peer.DeviceId)?.AutoAcceptMaxBytes, settings.Current.AutoAcceptLimitGb,
             maxBytes => trust.SetAutoAcceptAsync(peer.DeviceId, maxBytes), () => AutoAccept = null);
 
+    internal void AskText(PeerItemViewModel peer) =>
+        Question = new QuestionViewModel(L.T("Gửi văn bản"), L.F("Văn bản hoặc link gửi cho {0}:", peer.Name), L.T("Gửi"), "",
+            async text =>
+            {
+                if (!string.IsNullOrWhiteSpace(text) && await SendAsync([], [(peer.DeviceId, null)], text) is { } error)
+                {
+                    Notice = error;
+                }
+            }, this);
+
     internal void AskAlias(PeerItemViewModel peer) =>
         Question = new QuestionViewModel(L.T("Đặt tên gợi nhớ"), L.F("Tên gợi nhớ cho {0}:", peer.Host), L.T("Lưu"), peer.Name,
             alias => trust.SetAliasAsync(peer.DeviceId, alias), this);
@@ -245,7 +255,7 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     /// <summary>Items from the share sheet: ask whom to send them to — contacts, and fellow group members through their group.</summary>
-    public void ShowShare(IReadOnlyList<string> locations)
+    public void ShowShare(IReadOnlyList<string> locations, string? text = null)
     {
         IReadOnlyList<PeerInfo> live = directory.Snapshot();
         List<PickablePerson> people =
@@ -266,7 +276,7 @@ public sealed partial class MainViewModel : ObservableObject
             }
         }
 
-        Share = new ShareViewModel(locations, [.. people.OrderBy(p => p.Detail.Contains("offline", StringComparison.Ordinal)).ThenBy(p => p.Name, StringComparer.CurrentCultureIgnoreCase)], this);
+        Share = new ShareViewModel(locations, text, [.. people.OrderBy(p => p.Detail.Contains("offline", StringComparison.Ordinal)).ThenBy(p => p.Name, StringComparer.CurrentCultureIgnoreCase)], this);
     }
 
     internal void CloseShare() => Share = null;
@@ -275,8 +285,30 @@ public sealed partial class MainViewModel : ObservableObject
     /// Sends files picked in the app or shared from another app; locations may be paths or content:// URIs.
     /// One offer for contacts, one per group for fellow members who are not contacts (docs/07-groups.md §4).
     /// </summary>
-    internal async Task<string?> SendAsync(IReadOnlyList<string> locations, IReadOnlyList<(DeviceId Id, string? GroupId)> recipients)
+    /// <param name="text">"Gửi văn bản": sent alone when there are no files, as the offer's note with them.</param>
+    internal async Task<string?> SendAsync(IReadOnlyList<string> locations, IReadOnlyList<(DeviceId Id, string? GroupId)> recipients, string? text = null)
     {
+        text = string.IsNullOrWhiteSpace(text) ? null : text.Trim();
+        if (text?.Length > OfferService.MaxNoteLength)
+        {
+            return L.F("Văn bản dài quá {0} ký tự.", OfferService.MaxNoteLength.ToString("N0", L.Culture));
+        }
+
+        if (locations.Count == 0)
+        {
+            if (text is not null)
+            {
+                foreach (var batch in recipients.GroupBy(r => r.GroupId))
+                {
+                    await offers.CreateAsync(new PreparedOffer([], []), [.. batch.Select(r => r.Id)], text, snapshotLocked: false, groupId: batch.Key, CancellationToken.None);
+                }
+
+                SelectedTab = 2;
+            }
+
+            return null;
+        }
+
         PreparedOffer prepared;
         try
         {
@@ -294,7 +326,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         foreach (var batch in recipients.GroupBy(r => r.GroupId))
         {
-            await offers.CreateAsync(prepared, [.. batch.Select(r => r.Id)], null, snapshotLocked: false, groupId: batch.Key, CancellationToken.None);
+            await offers.CreateAsync(prepared, [.. batch.Select(r => r.Id)], text, snapshotLocked: false, groupId: batch.Key, CancellationToken.None);
         }
 
         SelectedTab = 2;
@@ -460,6 +492,9 @@ public sealed partial class PeerItemViewModel(
     private void Rename() => owner.AskAlias(this);
 
     [RelayCommand]
+    private void SendText() => owner.AskText(this);
+
+    [RelayCommand]
     private void Disconnect() => owner.ConfirmDisconnect(this);
 
     [RelayCommand]
@@ -538,11 +573,34 @@ public sealed partial class OfferItemViewModel(ReceivedOffer offer, MainViewMode
 {
     public OfferKey Key { get; } = new(offer.SenderId, offer.OfferId);
 
-    public string? Note { get; } = offer.Note;
+    public string? Note { get; } = offer.Files.Count == 0 ? null : offer.Note;
 
     public bool HasNote => Note is not null;
 
     public OfferContents Contents { get; } = new([]);
+
+    /// <summary>Text alone ("Gửi văn bản"): shown on the card, with [Sao chép] and [Mở] for a link.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsFiles))]
+    public partial bool IsText { get; set; }
+
+    public bool IsFiles => !IsText;
+
+    [ObservableProperty]
+    public partial string Text { get; set; } = "";
+
+    [ObservableProperty]
+    public partial bool IsLink { get; set; }
+
+    [RelayCommand]
+    private void Copy()
+    {
+        TextActions.Copy(global::Android.App.Application.Context, Text);
+        owner.Notice = L.T("Đã chép");
+    }
+
+    [RelayCommand]
+    private void OpenLink() => TextActions.Open(global::Android.App.Application.Context, Text);
 
     [ObservableProperty]
     public partial string Title { get; set; } = "";
@@ -595,6 +653,15 @@ public sealed partial class OfferItemViewModel(ReceivedOffer offer, MainViewMode
         };
         CanDownload = value.State is InboxState.New or InboxState.Failed or InboxState.Partial or InboxState.Cancelled;
         CanDecline = value.State == InboxState.New;
+        IsText = value.Files.Count == 0;
+        Text = IsText ? value.Note ?? "" : "";
+        IsLink = TransferText.LinkOf(Text) is not null;
+        if (IsText)
+        {
+            Summary = L.T("Văn bản");
+            Kind = TransferKind.Text;
+            Status = L.T("Đã nhận");
+        }
     }
 
     [RelayCommand]
@@ -682,6 +749,11 @@ public sealed partial class SentItemViewModel(SentOffer offer, MainViewModel own
         Contents.Update(value.Paths);
         Recipients = string.Join("\n", value.Recipients.Select(r => $"{owner.NameOf(r.DeviceId)}: {State(r.State)}"));
         Kind = TransferText.KindOf([.. value.Paths.Where(p => !p.EndsWith('/'))]);
+        if (value.Paths.Count == 0 && value.Note is { } text)
+        {
+            Summary = TransferText.Preview(text);
+            Kind = TransferKind.Text;
+        }
         Status = value.State switch
         {
             OfferState.Open => value.HasChangedFiles ? L.T("Đang mở · có file đã bị sửa") : L.T("Đang mở"),
@@ -728,10 +800,12 @@ public sealed partial class ShareViewModel : ObservableObject
     private readonly IReadOnlyList<string> locations;
     private readonly MainViewModel owner;
 
-    public ShareViewModel(IReadOnlyList<string> locations, IReadOnlyList<PickablePerson> people, MainViewModel owner)
+    public ShareViewModel(IReadOnlyList<string> locations, string? text, IReadOnlyList<PickablePerson> people, MainViewModel owner)
     {
         this.locations = locations;
         this.owner = owner;
+        Text = text ?? "";
+        HasText = text is not null;
         People = people;
         foreach (PickablePerson person in people)
         {
@@ -739,7 +813,13 @@ public sealed partial class ShareViewModel : ObservableObject
         }
     }
 
-    public string Title => L.F("Gửi {0} mục cho…", locations.Count);
+    public string Title => locations.Count == 0 ? L.T("Gửi văn bản cho…") : L.F("Gửi {0} mục cho…", locations.Count);
+
+    /// <summary>A shared link or text, sent alone or as the note of the shared files; can be edited first.</summary>
+    [ObservableProperty]
+    public partial string Text { get; set; }
+
+    public bool HasText { get; }
 
     public IReadOnlyList<PickablePerson> People { get; }
 
@@ -761,7 +841,7 @@ public sealed partial class ShareViewModel : ObservableObject
     private async Task SendAsync()
     {
         IsSending = true;
-        Error = await owner.SendAsync(locations, [.. People.Where(p => p.IsChecked).Select(p => (p.DeviceId, p.GroupId))]);
+        Error = await owner.SendAsync(locations, [.. People.Where(p => p.IsChecked).Select(p => (p.DeviceId, p.GroupId))], Text);
         IsSending = false;
         if (Error is null)
         {

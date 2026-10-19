@@ -24,6 +24,7 @@ public sealed class TransferService : Service
     public const string ActionKeep = "dev.shorekeeper.KEEP";
     public const string ActionDownload = "dev.shorekeeper.DOWNLOAD";
     public const string ActionDecline = "dev.shorekeeper.DECLINE";
+    public const string ActionCopy = "dev.shorekeeper.COPY";
     public const string ExtraSender = "sender";
     public const string ExtraOffer = "offer";
 
@@ -91,6 +92,10 @@ public sealed class TransferService : Service
             else if (intent.Action == ActionDecline)
             {
                 await inbox.DeclineAsync(key);
+            }
+            else if (intent.Action == ActionCopy && inbox.Get(key)?.Note is { } text)
+            {
+                TextActions.Copy(this, text);
             }
         }
 

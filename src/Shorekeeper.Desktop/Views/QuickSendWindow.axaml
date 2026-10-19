@@ -71,6 +71,9 @@
           <Button Content="{l:T 'Thêm thư mục…'}" Click="OnAddFolder" />
           <Button Content="{l:T 'Xóa hết'}" Command="{Binding ClearCommand}" IsVisible="{Binding HasPaths}" />
         </StackPanel>
+        <!-- A link or a few lines, sent alone or with the files. -->
+        <TextBox Text="{Binding Text}" PlaceholderText="{l:T 'Văn bản hoặc link (không bắt buộc)'}" AcceptsReturn="True" TextWrapping="Wrap"
+                 MinHeight="40" MaxHeight="110" />
       </StackPanel>
     </Border>
 

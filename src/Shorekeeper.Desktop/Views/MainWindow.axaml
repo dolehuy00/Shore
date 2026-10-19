@@ -168,6 +168,7 @@
           <ContextMenu>
             <MenuItem Header="{l:T 'Gửi file…'}" Command="{Binding SendFilesCommand}" IsVisible="{Binding CanSend}" />
             <MenuItem Header="{l:T 'Gửi thư mục…'}" Command="{Binding SendFolderCommand}" IsVisible="{Binding CanSend}" />
+            <MenuItem Header="{l:T 'Gửi văn bản…'}" Command="{Binding SendTextCommand}" IsVisible="{Binding CanSend}" />
             <MenuItem Header="{l:T 'Tự nhận file…'}" Command="{Binding ChooseAutoAcceptCommand}" IsVisible="{Binding IsTrusted}"
                       ToggleType="CheckBox" IsChecked="{Binding IsAutoAccept, Mode=OneWay}" />
             <MenuItem Header="{l:T 'Kết nối'}" Command="{Binding ConnectCommand}" IsVisible="{Binding CanConnect}" />
@@ -375,6 +376,7 @@
                             <PathIcon Data="{StaticResource Icon.Document}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Files}}" Width="18" Height="18" />
                             <PathIcon Data="{StaticResource Icon.Image}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Images}}" Width="18" Height="18" />
                             <PathIcon Data="{StaticResource Icon.FolderOpen}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Folder}}" Width="18" Height="18" />
+                            <PathIcon Data="{StaticResource Icon.Text}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Text}}" Width="18" Height="18" />
                           </Panel>
                         </Border>
                         <Border Width="36" Height="36" CornerRadius="8" ClipToBounds="True" IsVisible="{Binding HasThumbnail}">
@@ -392,6 +394,8 @@
                       <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                         <Button Classes="accent" Content="{Binding DownloadText}" Command="{Binding DownloadCommand}" IsVisible="{Binding CanDownload}" />
                         <Button Content="{l:T 'Mở'}" Command="{Binding OpenCommand}" IsVisible="{Binding CanOpen}" />
+                        <Button Content="{l:T 'Mở'}" Command="{Binding OpenLinkCommand}" IsVisible="{Binding IsLink}" />
+                        <Button Content="{Binding CopyText}" Command="{Binding CopyCommand}" IsVisible="{Binding IsText}" />
                       </StackPanel>
                     </Grid>
                   </Border>
@@ -421,7 +425,7 @@
           </StackPanel>
 
           <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
-                     Text="{l:T 'Kéo file hoặc thư mục vào một người để gửi. Click chọn người rồi nhấn Ctrl+V để gửi file đã copy; Ctrl+click để chọn nhiều người.'}" />
+                     Text="{l:T 'Kéo file hoặc thư mục vào một người để gửi. Click chọn người rồi nhấn Ctrl+V để gửi file hoặc đoạn chữ đã copy; Ctrl+click để chọn nhiều người.'}" />
         </StackPanel>
 
         <!-- Hộp nhận -->
@@ -442,6 +446,7 @@
                           <PathIcon Data="{StaticResource Icon.Document}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Files}}" Width="24" Height="24" />
                           <PathIcon Data="{StaticResource Icon.Image}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Images}}" Width="24" Height="24" />
                           <PathIcon Data="{StaticResource Icon.FolderOpen}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Folder}}" Width="24" Height="24" />
+                          <PathIcon Data="{StaticResource Icon.Text}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Text}}" Width="24" Height="24" />
                         </Panel>
                       </Border>
                       <Border Width="56" Height="56" CornerRadius="10" ClipToBounds="True" IsVisible="{Binding HasThumbnail}" VerticalAlignment="Top">
@@ -451,7 +456,8 @@
 
                     <StackPanel Grid.Column="1" Margin="14,0,12,0" Spacing="3" VerticalAlignment="Center">
                       <TextBlock Text="{Binding SenderName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                      <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Text="{Binding Title}" IsVisible="{Binding IsFiles}" TextTrimming="CharacterEllipsis" />
+                      <SelectableTextBlock Text="{Binding Text}" IsVisible="{Binding IsText}" TextWrapping="Wrap" MaxLines="8" />
                       <!-- "app.zip + 2 mục" names only the first: the button opens the whole list. -->
                       <StackPanel DataContext="{Binding Contents}" x:DataType="vm:OfferContents" IsVisible="{Binding CanExpand}" Spacing="2">
                         <Button Content="{Binding ToggleText}" Command="{Binding ToggleCommand}" Padding="0,2" FontSize="12" HorizontalAlignment="Left"
@@ -480,6 +486,8 @@
 
                     <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                       <Button Content="{Binding DownloadText}" Command="{Binding DownloadCommand}" IsVisible="{Binding CanDownload}" Classes="accent" />
+                      <Button Content="{l:T 'Mở'}" Command="{Binding OpenLinkCommand}" IsVisible="{Binding IsLink}" />
+                      <Button Content="{Binding CopyText}" Command="{Binding CopyCommand}" IsVisible="{Binding IsText}" Classes="accent" />
                       <Button Content="{l:T 'Chọn file…'}" Command="{Binding PickFilesCommand}" IsVisible="{Binding CanPick}" />
                       <Button Content="{l:T 'Bỏ qua'}" Command="{Binding DeclineCommand}" IsVisible="{Binding IsNew}" />
                       <Button Content="{l:T 'Hủy'}" Command="{Binding CancelCommand}" IsVisible="{Binding IsDownloading}" />
@@ -516,6 +524,7 @@
                           <PathIcon Data="{StaticResource Icon.Document}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Files}}" Width="24" Height="24" />
                           <PathIcon Data="{StaticResource Icon.Image}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Images}}" Width="24" Height="24" />
                           <PathIcon Data="{StaticResource Icon.FolderOpen}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Folder}}" Width="24" Height="24" />
+                          <PathIcon Data="{StaticResource Icon.Text}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Text}}" Width="24" Height="24" />
                         </Panel>
                       </Border>
 
@@ -651,6 +660,7 @@
                           <Button.Flyout>
                             <MenuFlyout>
                               <MenuItem Header="{l:T 'Gửi thư mục cho nhóm…'}" Command="{Binding SendFolderCommand}" IsVisible="{Binding CanDrop}" />
+                              <MenuItem Header="{l:T 'Gửi văn bản cho nhóm…'}" Command="{Binding SendTextCommand}" IsVisible="{Binding CanDrop}" />
                               <MenuItem Header="{l:T 'Đổi tên nhóm…'}" Command="{Binding RenameCommand}" IsVisible="{Binding IsHost}" />
                               <MenuItem Header="{l:T 'Đóng nhóm…'}" Command="{Binding CloseCommand}" IsVisible="{Binding IsHost}" />
                               <MenuItem Header="{Binding LeaveText}" Command="{Binding LeaveCommand}" IsVisible="{Binding CanLeave}" />

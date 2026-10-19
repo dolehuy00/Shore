@@ -8,6 +8,9 @@ public enum TransferKind
     Files,
     Images,
     Folder,
+
+    /// <summary>Text alone ("Gửi văn bản"): a link or a few lines, no files.</summary>
+    Text,
 }
 
 /// <summary>Wording shared by the inbox, the sent list and the incoming-offer popup.</summary>
@@ -57,6 +60,20 @@ public static class TransferText
         }
 
         return [.. entries.Select(e => e.EndsWith('/') ? L.F("{0} (thư mục · {1})", e[..^1], FileCount(filesIn[e])) : e)];
+    }
+
+    /// <summary>The text when it is a single web address (http or https), so it can be opened; null otherwise.</summary>
+    public static Uri? LinkOf(string? text) =>
+        text?.Trim() is { Length: > 0 } trimmed && !trimmed.Any(char.IsWhiteSpace)
+        && Uri.TryCreate(trimmed, UriKind.Absolute, out Uri? uri) && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
+            ? uri
+            : null;
+
+    /// <summary>The first line of a text, shortened for a title or a notification.</summary>
+    public static string Preview(string text, int maxLength = 80)
+    {
+        string line = text.Trim().Split('\n', 2)[0].Trim();
+        return line.Length <= maxLength ? line : line[..(maxLength - 1)].TrimEnd() + "…";
     }
 
     public static string Remaining(TimeSpan left) => left switch

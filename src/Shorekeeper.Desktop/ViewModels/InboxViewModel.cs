@@ -199,6 +199,33 @@ public sealed partial class InboxItemViewModel(OfferKey key, InboxViewModel owne
 
     public bool HasNote => Note is not null;
 
+    /// <summary>Text alone ("Gửi văn bản"): shown on the card, with [Sao chép] and [Mở] for a link.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsFiles))]
+    public partial bool IsText { get; set; }
+
+    public bool IsFiles => !IsText;
+
+    [ObservableProperty]
+    public partial string Text { get; set; } = "";
+
+    [ObservableProperty]
+    public partial bool IsLink { get; set; }
+
+    [ObservableProperty]
+    public partial string CopyText { get; set; } = L.T("Sao chép");
+
+    [RelayCommand]
+    private async Task CopyAsync()
+    {
+        await DialogService.CopyTextAsync(Text);
+        CopyText = L.T("Đã chép");
+        DispatcherTimer.RunOnce(() => CopyText = L.T("Sao chép"), TimeSpan.FromSeconds(2));
+    }
+
+    [RelayCommand]
+    private void OpenLink() => DialogService.OpenLink(Text);
+
     public void Update(ReceivedOffer value)
     {
         offer = value;
@@ -215,8 +242,19 @@ public sealed partial class InboxItemViewModel(OfferKey key, InboxViewModel owne
         Kind = TransferText.KindOf([.. value.Files.Where(f => !f.IsDirectory).Select(f => f.RelativePath)]);
         IsCompleted = value.State == InboxState.Completed;
         LoadThumbnail(value);
-        Note = value.Note is null ? null : $"\"{value.Note}\"";
+        IsText = value.Files.Count == 0;
+        Text = IsText ? value.Note ?? "" : "";
+        IsLink = TransferText.LinkOf(Text) is not null;
+        Note = value.Note is null || IsText ? null : $"\"{value.Note}\"";
         OnPropertyChanged(nameof(HasNote));
+        if (IsText)
+        {
+            Title = TransferText.Preview(Text);
+            Summary = Title;
+            Details = L.T("Văn bản");
+            Kind = TransferKind.Text;
+        }
+
         IsNew = value.State == InboxState.New && open;
         IsDownloading = value.State == InboxState.Downloading;
         CanDownload = open && senderOnline && value.State is InboxState.New or InboxState.Partial or InboxState.Failed or InboxState.Cancelled;
