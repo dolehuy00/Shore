@@ -67,10 +67,21 @@ public sealed partial class GroupsTabViewModel : ObservableObject
 
     public bool HasNotices => Notices.Count > 0;
 
-    internal Task<string?> SendAsync(GroupItemViewModel group, IReadOnlyList<string> locations) =>
+    internal Task<string?> SendAsync(GroupItemViewModel group, IReadOnlyList<string> locations, string? text = null) =>
         store.Get(group.Id) is { Role: not GroupRole.Pending } current
-            ? main.SendAsync(locations, [.. current.Members.Where(m => m.DeviceId != device.DeviceId).Select(m => (m.DeviceId, (string?)current.Id))])
+            ? main.SendAsync(locations, [.. current.Members.Where(m => m.DeviceId != device.DeviceId).Select(m => (m.DeviceId, (string?)current.Id))], text)
             : Task.FromResult<string?>(L.T("Chưa ở trong nhóm này."));
+
+    /// <summary>"Gửi văn bản cho nhóm…": a link or a few lines to every other member.</summary>
+    internal void AskText(GroupItemViewModel group) =>
+        main.Question = new QuestionViewModel(L.T("Gửi văn bản"), L.F("Văn bản hoặc link gửi cho nhóm {0}:", group.Name), L.T("Gửi"), "",
+            async text =>
+            {
+                if (!string.IsNullOrWhiteSpace(text) && await SendAsync(group, [], text) is { } error)
+                {
+                    main.Notice = error;
+                }
+            }, main);
 
     internal Task LeaveAsync(GroupItemViewModel group) => RunAsync(L.T("Không rời nhóm được"), () => groups.LeaveAsync(group.Id));
 
@@ -227,6 +238,9 @@ public sealed partial class GroupItemViewModel(Group group, string detail, IRead
 
     [RelayCommand]
     private Task LeaveAsync() => owner.LeaveAsync(this);
+
+    [RelayCommand]
+    private void SendText() => owner.AskText(this);
 }
 
 public sealed partial class NetworkGroupItemViewModel(PresenceGroup group, DeviceId hostId, string hostName, GroupsTabViewModel owner)
