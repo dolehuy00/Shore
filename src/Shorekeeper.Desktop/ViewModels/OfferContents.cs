@@ -7,9 +7,7 @@ namespace Shorekeeper.Desktop.ViewModels;
 /// <summary>
 /// "Xem cả 3 mục": every file and folder at the top of an offer, as the title ("app.zip + 2 mục") names only the first.
 /// </summary>
-/// <param name="expandedChanged">For lists rebuilt on every change, to keep the list open across rebuilds.</param>
-public sealed partial class OfferContents(IReadOnlyCollection<string> relativePaths, bool expanded = false, Action<bool>? expandedChanged = null)
-    : ObservableObject
+public sealed partial class OfferContents(IReadOnlyCollection<string> relativePaths) : ObservableObject
 {
     public IReadOnlyList<string> Items { get; private set; } = TransferText.TopLevel(relativePaths);
 
@@ -17,7 +15,7 @@ public sealed partial class OfferContents(IReadOnlyCollection<string> relativePa
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ToggleText))]
-    public partial bool IsExpanded { get; set; } = expanded;
+    public partial bool IsExpanded { get; set; }
 
     public string ToggleText => IsExpanded ? L.T("Ẩn danh sách") : L.F("Xem cả {0} mục", Items.Count);
 
@@ -34,9 +32,5 @@ public sealed partial class OfferContents(IReadOnlyCollection<string> relativePa
     }
 
     [RelayCommand]
-    private void Toggle()
-    {
-        IsExpanded = !IsExpanded;
-        expandedChanged?.Invoke(IsExpanded);
-    }
+    private void Toggle() => IsExpanded = !IsExpanded;
 }

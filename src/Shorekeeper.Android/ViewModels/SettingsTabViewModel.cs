@@ -82,7 +82,6 @@ public sealed partial class SettingsTabViewModel : ObservableObject
             if (value)
             {
                 BatteryOptimization.RequestExemption(global::Android.App.Application.Context);
-                main.Notice = L.T("Máy OPPO, Xiaomi, Vivo… còn có trình tiết kiệm pin riêng: vào Cài đặt → Pin → Shorekeeper và cho phép hoạt động nền, nếu không hệ thống vẫn có thể tắt app.");
             }
         }
     }

@@ -38,9 +38,7 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly SettingsService settings;
     private readonly LocalDevice device;
     private readonly AppPaths paths;
-
-    /// <summary>Offers whose "Xem cả N mục" list is open, as the inbox and sent lists are rebuilt on every change.</summary>
-    private readonly HashSet<string> expandedOffers = [];
+    private DispatcherTimer? noticeTimer;
     private readonly ManualPeerFinder finder;
     private readonly DispatcherTimer progressTimer;
 
@@ -123,11 +121,25 @@ public sealed partial class MainViewModel : ObservableObject
 
     public bool HasShare => Share is not null;
 
+    /// <summary>A short message at the bottom; it goes away by itself after a few seconds, or with its ✕.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasNotice))]
     public partial string? Notice { get; set; }
 
     public bool HasNotice => Notice is not null;
+
+    partial void OnNoticeChanged(string? value)
+    {
+        noticeTimer?.Stop();
+        if (value is not null)
+        {
+            noticeTimer ??= new DispatcherTimer(TimeSpan.FromSeconds(6), DispatcherPriority.Background, (_, _) => Notice = null);
+            noticeTimer.Start();
+        }
+    }
+
+    [RelayCommand]
+    private void CloseNotice() => Notice = null;
 
     public bool HasNoPeers => Peers.Count == 0;
 
@@ -185,19 +197,6 @@ public sealed partial class MainViewModel : ObservableObject
         Question = new QuestionViewModel(L.F("Chặn {0}?", peer.Name),
             L.T("Máy này sẽ không gửi được yêu cầu kết nối hay file cho bạn nữa. Bỏ chặn trong Cài đặt."), L.T("Chặn"), null,
             _ => trust.BlockAsync(peer.DeviceId, peer.Name, peer.Host), this);
-
-    internal OfferContents ContentsOf(string offerId, IReadOnlyCollection<string> relativePaths) =>
-        new(relativePaths, expandedOffers.Contains(offerId), expanded =>
-        {
-            if (expanded)
-            {
-                expandedOffers.Add(offerId);
-            }
-            else
-            {
-                expandedOffers.Remove(offerId);
-            }
-        });
 
     internal string NameOf(DeviceId id) =>
         trust.Get(id)?.ShownName ?? directory.Snapshot().FirstOrDefault(p => p.DeviceId == id)?.DisplayName ?? id.ShortForm;
@@ -347,11 +346,8 @@ public sealed partial class MainViewModel : ObservableObject
     private void RefreshOffers()
     {
         IReadOnlyList<ReceivedOffer> current = inbox.GetOffers();
-        Offers.Clear();
-        foreach (ReceivedOffer offer in current.OrderByDescending(o => o.ReceivedAt))
-        {
-            Offers.Add(new OfferItemViewModel(offer, NameOf(offer.SenderId), this));
-        }
+        Sync(Offers, current.OrderByDescending(o => o.ReceivedAt), o => new OfferKey(o.SenderId, o.OfferId), item => item.Key,
+            o => new OfferItemViewModel(o, this), (item, o) => item.Update(o, NameOf(o.SenderId)));
 
         progressTimer.IsEnabled = current.Any(o => o.State == InboxState.Downloading)
             || offers.GetOffers().Any(o => o.Recipients.Any(r => r.State == RecipientState.Downloading));
@@ -361,14 +357,59 @@ public sealed partial class MainViewModel : ObservableObject
     private void RefreshSent()
     {
         IReadOnlyList<SentOffer> current = offers.GetOffers();
-        Sent.Clear();
-        foreach (SentOffer offer in current.OrderByDescending(o => o.CreatedAt))
-        {
-            Sent.Add(new SentItemViewModel(offer, this));
-        }
+        Sync(Sent, current.OrderByDescending(o => o.CreatedAt), o => o.OfferId, item => item.OfferId,
+            o => new SentItemViewModel(o, this), (item, o) => item.Update(o));
 
         progressTimer.IsEnabled |= current.Any(o => o.Recipients.Any(r => r.State == RecipientState.Downloading));
         OnPropertyChanged(nameof(HasNoSent));
+    }
+
+    /// <summary>
+    /// Makes <paramref name="items"/> match <paramref name="data"/> in order, updating the items it already has: rebuilding
+    /// the list (as on every progress tick) made scrolling stutter on phones.
+    /// </summary>
+    private static void Sync<TItem, TData, TKey>(
+        ObservableCollection<TItem> items, IEnumerable<TData> data, Func<TData, TKey> keyOf, Func<TItem, TKey> itemKey,
+        Func<TData, TItem> create, Action<TItem, TData> update)
+        where TKey : notnull
+    {
+        int index = 0;
+        foreach (TData value in data)
+        {
+            TKey key = keyOf(value);
+            int existing = -1;
+            for (int i = index; i < items.Count; i++)
+            {
+                if (EqualityComparer<TKey>.Default.Equals(itemKey(items[i]), key))
+                {
+                    existing = i;
+                    break;
+                }
+            }
+
+            if (existing < 0)
+            {
+                TItem item = create(value);
+                update(item, value);
+                items.Insert(index, item);
+            }
+            else
+            {
+                if (existing != index)
+                {
+                    items.Move(existing, index);
+                }
+
+                update(items[index], value);
+            }
+
+            index++;
+        }
+
+        while (items.Count > index)
+        {
+            items.RemoveAt(items.Count - 1);
+        }
     }
 
     private static string Detail(PeerInfo? live, string host) => live is null ? host : $"{live.HostName} · {live.Address}";
@@ -492,45 +533,69 @@ public sealed partial class QuestionViewModel(string title, string? message, str
     private void Cancel() => owner.Question = null;
 }
 
-public sealed partial class OfferItemViewModel(ReceivedOffer offer, string senderName, MainViewModel owner)
+/// <summary>An offer in "Hộp nhận"; kept and updated as it changes, so the list is not rebuilt while scrolling.</summary>
+public sealed partial class OfferItemViewModel(ReceivedOffer offer, MainViewModel owner) : ObservableObject
 {
     public OfferKey Key { get; } = new(offer.SenderId, offer.OfferId);
-
-    public string Title { get; } = L.F("{0} gửi cho bạn", senderName);
-
-    public string Summary { get; } = $"{TransferText.Summary(offer.Files.Select(f => f.RelativePath))} · {TransferText.Size(offer.TotalBytes)}";
-
-    public OfferContents Contents { get; } = owner.ContentsOf(offer.OfferId, [.. offer.Files.Select(f => f.RelativePath)]);
 
     public string? Note { get; } = offer.Note;
 
     public bool HasNote => Note is not null;
 
-    public TransferKind Kind { get; } = TransferText.KindOf([.. offer.Files.Where(f => !f.IsDirectory).Select(f => f.RelativePath)]);
+    public OfferContents Contents { get; } = new([]);
 
-    public bool IsCompleted { get; } = offer.State == InboxState.Completed;
+    [ObservableProperty]
+    public partial string Title { get; set; } = "";
 
-    public double Progress { get; } = offer.TotalBytes == 0 ? 0 : 100.0 * offer.BytesReceived / offer.TotalBytes;
+    [ObservableProperty]
+    public partial string Summary { get; set; } = "";
 
-    public bool IsDownloading { get; } = offer.State == InboxState.Downloading;
+    [ObservableProperty]
+    public partial TransferKind Kind { get; set; }
 
-    public string Status { get; } = offer.State switch
+    [ObservableProperty]
+    public partial bool IsCompleted { get; set; }
+
+    [ObservableProperty]
+    public partial double Progress { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsDownloading { get; set; }
+
+    [ObservableProperty]
+    public partial string Status { get; set; } = "";
+
+    [ObservableProperty]
+    public partial bool CanDownload { get; set; }
+
+    [ObservableProperty]
+    public partial bool CanDecline { get; set; }
+
+    public void Update(ReceivedOffer value, string senderName)
     {
-        InboxState.New => L.T("Mới"),
-        InboxState.Downloading when offer.ReconnectingUntil is not null => L.T("Mất kết nối, đang thử lại…"),
-        InboxState.Downloading => L.F("Đang tải {0} / {1}", TransferText.Size(offer.BytesReceived), TransferText.Size(offer.TotalBytes)),
-        InboxState.Completed => L.T("Đã tải xong"),
-        InboxState.Partial => L.T("Đã tải một phần"),
-        InboxState.Failed => L.F("Lỗi: {0}", offer.Error),
-        InboxState.Cancelled => L.T("Đã dừng"),
-        InboxState.Declined => L.T("Đã bỏ qua"),
-        InboxState.Withdrawn => L.T("Người gửi đã thu hồi"),
-        _ => L.T("Đã hết hạn"),
-    };
-
-    public bool CanDownload { get; } = offer.State is InboxState.New or InboxState.Failed or InboxState.Partial or InboxState.Cancelled;
-
-    public bool CanDecline { get; } = offer.State == InboxState.New;
+        Title = L.F("{0} gửi cho bạn", senderName);
+        Summary = $"{TransferText.Summary(value.Files.Select(f => f.RelativePath))} · {TransferText.Size(value.TotalBytes)}";
+        Contents.Update([.. value.Files.Select(f => f.RelativePath)]);
+        Kind = TransferText.KindOf([.. value.Files.Where(f => !f.IsDirectory).Select(f => f.RelativePath)]);
+        IsCompleted = value.State == InboxState.Completed;
+        Progress = value.TotalBytes == 0 ? 0 : 100.0 * value.BytesReceived / value.TotalBytes;
+        IsDownloading = value.State == InboxState.Downloading;
+        Status = value.State switch
+        {
+            InboxState.New => L.T("Mới"),
+            InboxState.Downloading when value.ReconnectingUntil is not null => L.T("Mất kết nối, đang thử lại…"),
+            InboxState.Downloading => L.F("Đang tải {0} / {1}", TransferText.Size(value.BytesReceived), TransferText.Size(value.TotalBytes)),
+            InboxState.Completed => L.T("Đã tải xong"),
+            InboxState.Partial => L.T("Đã tải một phần"),
+            InboxState.Failed => L.F("Lỗi: {0}", value.Error),
+            InboxState.Cancelled => L.T("Đã dừng"),
+            InboxState.Declined => L.T("Đã bỏ qua"),
+            InboxState.Withdrawn => L.T("Người gửi đã thu hồi"),
+            _ => L.T("Đã hết hạn"),
+        };
+        CanDownload = value.State is InboxState.New or InboxState.Failed or InboxState.Partial or InboxState.Cancelled;
+        CanDecline = value.State == InboxState.New;
+    }
 
     [RelayCommand]
     private void Download() => owner.Download(this);
@@ -589,27 +654,43 @@ public sealed partial class OutgoingPairingViewModel(string name, MainViewModel 
     }
 }
 
-public sealed partial class SentItemViewModel(SentOffer offer, MainViewModel owner)
+/// <summary>An offer in "Đã gửi"; kept and updated as it changes, so the list is not rebuilt while scrolling.</summary>
+public sealed partial class SentItemViewModel(SentOffer offer, MainViewModel owner) : ObservableObject
 {
     public string OfferId { get; } = offer.OfferId;
 
-    public string Summary { get; } = $"{TransferText.Summary(offer.Paths)} · {TransferText.Size(offer.TotalBytes)}";
+    public OfferContents Contents { get; } = new([]);
 
-    public OfferContents Contents { get; } = owner.ContentsOf(offer.OfferId, offer.Paths);
+    [ObservableProperty]
+    public partial string Summary { get; set; } = "";
 
-    public string Recipients { get; } = string.Join("\n", offer.Recipients.Select(r => $"{owner.NameOf(r.DeviceId)}: {State(r.State)}"));
+    [ObservableProperty]
+    public partial string Recipients { get; set; } = "";
 
-    public TransferKind Kind { get; } = TransferText.KindOf([.. offer.Paths.Where(p => !p.EndsWith('/'))]);
+    [ObservableProperty]
+    public partial TransferKind Kind { get; set; }
 
-    public string Status { get; } = offer.State switch
+    [ObservableProperty]
+    public partial string Status { get; set; } = "";
+
+    [ObservableProperty]
+    public partial bool CanWithdraw { get; set; }
+
+    public void Update(SentOffer value)
     {
-        OfferState.Open => offer.HasChangedFiles ? L.T("Đang mở · có file đã bị sửa") : L.T("Đang mở"),
-        OfferState.Withdrawn => L.T("Đã thu hồi"),
-        OfferState.Expired => L.T("Đã hết hạn"),
-        _ => L.T("Hoàn tất"),
-    };
-
-    public bool CanWithdraw { get; } = offer.State == OfferState.Open;
+        Summary = $"{TransferText.Summary(value.Paths)} · {TransferText.Size(value.TotalBytes)}";
+        Contents.Update(value.Paths);
+        Recipients = string.Join("\n", value.Recipients.Select(r => $"{owner.NameOf(r.DeviceId)}: {State(r.State)}"));
+        Kind = TransferText.KindOf([.. value.Paths.Where(p => !p.EndsWith('/'))]);
+        Status = value.State switch
+        {
+            OfferState.Open => value.HasChangedFiles ? L.T("Đang mở · có file đã bị sửa") : L.T("Đang mở"),
+            OfferState.Withdrawn => L.T("Đã thu hồi"),
+            OfferState.Expired => L.T("Đã hết hạn"),
+            _ => L.T("Hoàn tất"),
+        };
+        CanWithdraw = value.State == OfferState.Open;
+    }
 
     [RelayCommand]
     private Task WithdrawAsync() => owner.WithdrawAsync(this);

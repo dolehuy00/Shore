@@ -93,8 +93,14 @@
       </Grid>
 
       <!-- Short messages, e.g. "2 mục không đọc được đã bị bỏ qua". -->
-      <Border DockPanel.Dock="Bottom" IsVisible="{Binding HasNotice}" Background="#33F59E0B" Padding="16,10">
-        <TextBlock Text="{Binding Notice}" TextWrapping="Wrap" />
+      <Border DockPanel.Dock="Bottom" IsVisible="{Binding HasNotice}" Background="#33F59E0B" Padding="16,6,4,6">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Text="{Binding Notice}" TextWrapping="Wrap" VerticalAlignment="Center" />
+          <Button Grid.Column="1" Command="{Binding CloseNoticeCommand}" Background="Transparent" BorderThickness="0" Padding="10"
+                  VerticalAlignment="Center" AutomationProperties.Name="{l:T 'Đóng'}">
+            <PathIcon Data="{StaticResource Icon.Dismiss}" Width="12" Height="12" />
+          </Button>
+        </Grid>
       </Border>
 
       <!-- The tab strip only: the pages below stay built and are just shown or hidden, as rebuilding one on every
@@ -449,6 +455,9 @@
             <ToggleSwitch IsChecked="{Binding AlwaysReceive}" OnContent="{l:T 'Luôn nhận file (kể cả khi tắt màn hình)'}" OffContent="{l:T 'Luôn nhận file (kể cả khi tắt màn hình)'}" />
             <TextBlock Classes="muted" Text="{l:T 'Giữ một thông báo thường trực để máy tính gửi được file bất cứ lúc nào. Tốn pin hơn một chút.'}"
                        FontSize="12" TextWrapping="Wrap" />
+            <!-- Only while it is on: the system's own battery saver can still stop the app on these phones. -->
+            <TextBlock Classes="muted" IsVisible="{Binding AlwaysReceive}" FontSize="12" TextWrapping="Wrap"
+                       Text="{l:T 'Máy OPPO, Xiaomi, Vivo… còn có trình tiết kiệm pin riêng: vào Cài đặt → Pin → Shorekeeper và cho phép hoạt động nền, nếu không hệ thống vẫn có thể tắt app.'}" />
 
             <TextBlock Classes="h3" Text="{l:T 'Sao lưu danh tính'}" />
             <TextBlock Classes="muted" Text="{l:T 'Giữ DeviceId, liên hệ và nhóm khi đổi điện thoại: không phải Kết nối lại với ai.'}"
