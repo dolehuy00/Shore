@@ -121,6 +121,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
         dialogs.OfferSent += (_, _) => SelectedNavItem = NavItems[2];
         dialogs.PageRequested += (_, page) => SelectedNavItem = NavItems.First(i => i.Page == page);
         audio.Notice += (_, message) => dialogs.Ask(L.T("Âm thanh"), [message], [], NavPage.Audio, _ => { });
+        audio.AskPassword = question => question.Masked
+            ? DialogService.PromptPasswordAsync(question.Title, question.Label, question.OkText, confirm: false, _ => Task.FromResult<string?>(null))
+            : DialogService.PromptAsync(question.Title, question.Label, "", question.OkText);
     }
 
     public NeighborhoodViewModel Neighborhood { get; }

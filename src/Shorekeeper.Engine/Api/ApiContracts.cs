@@ -98,7 +98,8 @@ public sealed record GroupInvitationBody(string GroupId, string GroupName, strin
 /// Body of <c>POST /api/v1/audio/listeners</c>: the caller wants to hear the callee's sound, sealed with
 /// <paramref name="Key"/> (32 bytes, base64) and sent to <paramref name="Port"/> (UDP) at the caller's address.
 /// </summary>
-public sealed record AudioListenBody(string SessionId, string Key, int Port);
+/// <param name="Password">The source's password, when it has one.</param>
+public sealed record AudioListenBody(string SessionId, string Key, int Port, string? Password = null);
 
 /// <summary>Stable error codes in problem+json responses (docs/05-protocol.md §3).</summary>
 public static class ApiErrorCodes
@@ -111,5 +112,7 @@ public static class ApiErrorCodes
     public const string OfferClosed = "offer_closed";
     public const string SourceChanged = "source_changed";
     public const string Busy = "busy";
+    public const string PasswordRequired = "password_required";
+    public const string WrongPassword = "wrong_password";
     public const string Internal = "internal_error";
 }

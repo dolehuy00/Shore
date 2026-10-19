@@ -162,9 +162,11 @@ Bridge chỉ trả thông tin **vốn đã công khai** qua presence (tên, đ�
 
 Máy (máy tính hay điện thoại) bật **Phát âm thanh** thì presence có capability `audio`; liên hệ thấy và tự bấm **Nghe**. Hai hành động đó là sự đồng ý của hai bên, không có hộp hỏi thêm.
 
+Máy phát có thể đặt **mật khẩu nghe** (tùy chọn, nhớ lâu dài). Khi đó presence thêm `audio-locked`. Máy phát chỉ lưu `audioPasswordHash` trong settings.json: PBKDF2-SHA256 100 000 vòng, `base64(salt 16 byte · hash 32 byte)`. Máy nghe nhập một lần; mật khẩu dùng được thì lưu theo từng máy phát trong `audio-passwords.bin` (mã hóa bằng `ISecretProtector`), lần sau gửi kèm tự động; bị từ chối thì xóa và hỏi lại. Đổi hay bỏ mật khẩu không ngắt máy đang nghe.
+
 | Method | Path | Quyền | Mô tả |
 |---|---|---|---|
-| POST | `/audio/listeners` | Trusted | Trên máy phát. `{ sessionId, key, port }`: `key` là 32 byte (base64) máy nghe vừa tạo, `port` là cổng UDP máy nghe đang mở ở địa chỉ gọi tới → `204`. Chưa bật phát (hoặc không thu được loa) `404`; đủ 4 máy nghe `503 busy`. Gọi lại thì thay phiên cũ |
+| POST | `/audio/listeners` | Trusted | Trên máy phát. `{ sessionId, key, port, password? }`: `key` là 32 byte (base64) máy nghe vừa tạo, `port` là cổng UDP máy nghe đang mở ở địa chỉ gọi tới → `204`. Chưa bật phát (hoặc không thu được loa) `404`; có mật khẩu mà không gửi `403 password_required`, sai `403 wrong_password`; sai 5 lần trong một phút thì `429 rate_limited` đến hết phút đó; đủ 4 máy nghe `503 busy`. Gọi lại thì thay phiên cũ |
 | DELETE | `/audio/listeners/{sessionId}` | Trusted | Máy nghe dừng nghe |
 | POST | `/audio/listening/{sessionId}/ended` | Trusted | Trên máy nghe: máy phát đã tắt phát |
 

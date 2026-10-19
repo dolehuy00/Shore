@@ -523,6 +523,21 @@
                   <ToggleSwitch Grid.Column="2" IsChecked="{Binding IsPlaying}" IsEnabled="{Binding CanPlay}" OnContent="" OffContent=""
                                 MinWidth="0" VerticalAlignment="Center" AutomationProperties.Name="{l:T 'Phát âm thanh'}" />
                 </Grid>
+                <!-- Optional password: a listener types it once, then its device remembers it. -->
+                <StackPanel Spacing="6">
+                  <Grid ColumnDefinitions="Auto,*">
+                    <PathIcon Data="{StaticResource Icon.Lock}" Width="14" Height="14" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="1" Classes="muted" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" Margin="8,0,0,0"
+                               Text="{l:T 'Không có mật khẩu: máy đã kết nối nào cũng nghe được.'}" IsVisible="{Binding !HasPassword}" />
+                    <TextBlock Grid.Column="1" Classes="muted" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" Margin="8,0,0,0"
+                               Text="{l:T 'Có mật khẩu: máy muốn nghe nhập một lần, sau đó tự nhớ.'}" IsVisible="{Binding HasPassword}" />
+                  </Grid>
+                  <WrapPanel ItemSpacing="8" LineSpacing="8">
+                    <Button Content="{l:T 'Đặt mật khẩu…'}" Command="{Binding SetPasswordCommand}" IsVisible="{Binding !HasPassword}" Padding="12,6" FontSize="13" />
+                    <Button Content="{l:T 'Đổi mật khẩu…'}" Command="{Binding SetPasswordCommand}" IsVisible="{Binding HasPassword}" Padding="12,6" FontSize="13" />
+                    <Button Content="{l:T 'Bỏ mật khẩu'}" Command="{Binding RemovePasswordCommand}" IsVisible="{Binding HasPassword}" Padding="12,6" FontSize="13" />
+                  </WrapPanel>
+                </StackPanel>
                 <StackPanel Spacing="4" IsVisible="{Binding IsPlaying}">
                   <TextBlock Text="{l:T 'Đang nghe'}" FontWeight="SemiBold" FontSize="13" />
                   <TextBlock Classes="muted" Text="{l:T 'Chưa ai nghe'}" IsVisible="{Binding !HasListeners}" FontSize="12" />
@@ -561,7 +576,10 @@
                       </Border>
                       <StackPanel Grid.Column="1" Spacing="2" Margin="12,0,8,0" VerticalAlignment="Center">
                         <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                        <TextBlock Classes="muted" Text="{l:T 'Đang phát âm thanh'}" IsVisible="{Binding !IsListening}" FontSize="12" />
+                        <StackPanel Orientation="Horizontal" Spacing="4" IsVisible="{Binding !IsListening}">
+                          <PathIcon Data="{StaticResource Icon.Lock}" Width="12" Height="12" IsVisible="{Binding IsLocked}" VerticalAlignment="Center" />
+                          <TextBlock Classes="muted" Text="{l:T 'Đang phát âm thanh'}" FontSize="12" />
+                        </StackPanel>
                         <TextBlock Text="{l:T 'Đang nghe'}" IsVisible="{Binding IsListening}" FontSize="12"
                                    Foreground="{DynamicResource AccentButtonBackground}" />
                       </StackPanel>
@@ -777,7 +795,8 @@
         <StackPanel Spacing="12">
           <TextBlock Text="{Binding Title}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
           <TextBlock Text="{Binding Message}" IsVisible="{Binding HasMessage}" TextWrapping="Wrap" />
-          <TextBox Text="{Binding Input}" IsVisible="{Binding HasInput}" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="160" />
+          <TextBox Text="{Binding Input}" IsVisible="{Binding HasTextInput}" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="160" />
+          <TextBox Text="{Binding Input}" IsVisible="{Binding HasPasswordInput}" PasswordChar="●" Classes="revealPasswordButton" />
           <WrapPanel ItemSpacing="8" LineSpacing="8" HorizontalAlignment="Right">
             <Button Content="{l:T 'Hủy'}" Command="{Binding CancelCommand}" />
             <Button Content="{Binding OkText}" Command="{Binding OkCommand}" Classes="accent" />

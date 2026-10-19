@@ -17,8 +17,11 @@ namespace Shorekeeper.Desktop.ViewModels;
 /// <summary>A device listening to ours.</summary>
 public sealed record AudioListenerItem(string Name, bool IsPhone);
 
+/// <summary>What <see cref="AudioViewModel.AskPassword"/> shows; <paramref name="Masked"/> hides what is typed.</summary>
+public sealed record PasswordQuestion(string Title, string Label, string OkText, bool Masked);
+
 /// <summary>A contact with "Phát âm thanh" on, as the "Nghe" list shows it.</summary>
-public sealed partial class AudioSourceItem(AudioViewModel owner, DeviceId deviceId, string name, bool isPhone, bool isListening)
+public sealed partial class AudioSourceItem(AudioViewModel owner, DeviceId deviceId, string name, bool isPhone, bool isListening, bool isLocked)
 {
     public DeviceId DeviceId { get; } = deviceId;
 
@@ -31,6 +34,9 @@ public sealed partial class AudioSourceItem(AudioViewModel owner, DeviceId devic
 
     public bool CanListen => !IsListening;
 
+    /// <summary>Listening needs its password (asked once, then remembered).</summary>
+    public bool IsLocked { get; } = isLocked;
+
     [RelayCommand]
     private Task ListenAsync() => owner.ListenAsync(this);
 
@@ -38,12 +44,12 @@ public sealed partial class AudioSourceItem(AudioViewModel owner, DeviceId devic
     private Task StopListeningAsync() => owner.StopListeningAsync();
 
     internal bool SameAs(AudioSourceItem other) =>
-        DeviceId == other.DeviceId && Name == other.Name && IsPhone == other.IsPhone && IsListening == other.IsListening;
+        DeviceId == other.DeviceId && Name == other.Name && IsPhone == other.IsPhone && IsListening == other.IsListening && IsLocked == other.IsLocked;
 }
 
 /// <summary>
 /// The "Âm thanh" page on the computer and the tab on the phone (docs/10-ux.md §12): this device's sound for contacts
-/// that choose to listen, the contacts playing theirs, and how much delay listening allows.
+/// that choose to listen (optionally with a password), the contacts playing theirs, and how much delay listening allows.
 /// </summary>
 public sealed partial class AudioViewModel : ObservableObject
 {
@@ -76,6 +82,9 @@ public sealed partial class AudioViewModel : ObservableObject
     /// </summary>
     public Func<Task<bool>>? AllowPlaying { get; set; }
 
+    /// <summary>Asks the user for a password; null when cancelled. Set by the platform's views.</summary>
+    public Func<PasswordQuestion, Task<string?>>? AskPassword { get; set; }
+
     public bool CanPlay => audio.CanPlay;
 
     public bool CanListen => audio.CanListen;
@@ -89,6 +98,10 @@ public sealed partial class AudioViewModel : ObservableObject
     public partial IReadOnlyList<AudioListenerItem> Listeners { get; set; } = [];
 
     public bool HasListeners => Listeners.Count > 0;
+
+    /// <summary>Listeners must give the password (set on this page).</summary>
+    [ObservableProperty]
+    public partial bool HasPassword { get; set; }
 
     /// <summary>Contacts playing their sound now, and the one we listen to.</summary>
     [ObservableProperty]
@@ -114,7 +127,23 @@ public sealed partial class AudioViewModel : ObservableObject
     [RelayCommand]
     internal Task StopListeningAsync() => audio.StopListeningAsync();
 
-    internal async Task ListenAsync(AudioSourceItem source)
+    /// <summary>"Đặt mật khẩu…" / "Đổi…": shown while typed, as it is meant to be told to the listeners.</summary>
+    [RelayCommand]
+    private async Task SetPasswordAsync()
+    {
+        if (AskPassword is { } ask
+            && await ask(new PasswordQuestion(L.T("Mật khẩu nghe"), L.T("Máy muốn nghe phải nhập mật khẩu này một lần, sau đó máy đó tự nhớ:"), L.T("Lưu"), Masked: false))
+                is { } typed && typed.Trim() is { Length: > 0 } password)
+        {
+            audio.SetPassword(password);
+        }
+    }
+
+    [RelayCommand]
+    private void RemovePassword() => audio.SetPassword(null);
+
+    /// <param name="password">Typed by the user; null sends the one remembered for this source, if any.</param>
+    internal async Task ListenAsync(AudioSourceItem source, string? password = null)
     {
         try
         {
@@ -123,17 +152,30 @@ public sealed partial class AudioViewModel : ObservableObject
                 await audio.StopListeningAsync();
             }
 
-            await audio.ListenAsync(source.DeviceId);
+            await audio.ListenAsync(source.DeviceId, password);
         }
         catch (InvalidOperationException ex)
         {
             Notice?.Invoke(this, ex.Message);
+        }
+        catch (PeerApiException ex) when (ex.Code is ApiErrorCodes.PasswordRequired or ApiErrorCodes.WrongPassword)
+        {
+            string label = ex.Code == ApiErrorCodes.PasswordRequired ? L.F("{0} cần mật khẩu để nghe:", source.Name)
+                : password is null ? L.F("{0} đã đổi mật khẩu. Nhập mật khẩu mới:", source.Name)
+                : L.T("Sai mật khẩu. Nhập lại:");
+            if (AskPassword is { } ask
+                && await ask(new PasswordQuestion(L.F("Nghe {0}", source.Name), label, L.T("Nghe"), Masked: true)) is { } typed
+                && typed.Trim() is { Length: > 0 } retry)
+            {
+                await ListenAsync(source, retry);
+            }
         }
         catch (PeerApiException ex)
         {
             Notice?.Invoke(this, ex.Status switch
             {
                 404 => L.F("{0} đã tắt phát âm thanh.", source.Name),
+                429 => L.F("Nhập sai mật khẩu của {0} quá nhiều lần. Thử lại sau một phút.", source.Name),
                 503 => L.F("{0} đang phát cho đủ {1} máy.", source.Name, AudioService.MaxListeners),
                 _ => L.F("{0} từ chối cho nghe.", source.Name),
             });
@@ -176,6 +218,7 @@ public sealed partial class AudioViewModel : ObservableObject
         refreshing = true;
         IsPlaying = audio.IsPlaying;
         refreshing = false;
+        HasPassword = audio.HasPassword;
         Listeners = [.. audio.Listeners.Select(l => new AudioListenerItem(NameOf(l.PeerId, null), IsPhone(l.PeerId)))];
         ListeningText = audio.ListeningTo is { } peer ? L.F("Đang nghe âm thanh từ {0}", NameOf(peer, null)) : null;
         RefreshSources();
@@ -189,7 +232,7 @@ public sealed partial class AudioViewModel : ObservableObject
         [
             .. directory.Snapshot()
                 .Where(p => (p.IsPlayingAudio || p.DeviceId == listeningTo) && trust.GetLevel(p.DeviceId) == TrustLevel.Trusted)
-                .Select(p => new AudioSourceItem(this, p.DeviceId, NameOf(p.DeviceId, p), IsPhone(p.DeviceId), p.DeviceId == listeningTo)),
+                .Select(p => new AudioSourceItem(this, p.DeviceId, NameOf(p.DeviceId, p), IsPhone(p.DeviceId), p.DeviceId == listeningTo, p.IsAudioLocked)),
         ];
         items.Sort((x, y) => CultureInfo.CurrentCulture.CompareInfo.Compare(x.Name, y.Name, CompareOptions.IgnoreCase));
         if (!CanListen)

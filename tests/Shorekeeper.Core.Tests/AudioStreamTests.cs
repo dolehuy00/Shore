@@ -205,4 +205,15 @@ public class AudioStreamTests
             decoder.Add(packet, 0);
         }
     }
+
+    [Fact]
+    public void A_password_hash_verifies_only_that_password()
+    {
+        string hash = AudioPassword.Hash("mật khẩu");
+
+        Assert.True(AudioPassword.Verify("mật khẩu", hash));
+        Assert.False(AudioPassword.Verify("mat khau", hash));
+        Assert.NotEqual(hash, AudioPassword.Hash("mật khẩu"));
+        Assert.False(AudioPassword.Verify("mật khẩu", "not a hash"));
+    }
 }

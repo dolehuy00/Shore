@@ -100,6 +100,10 @@ public sealed class LocalPresence : ILocalPresence
         if (playingAudio)
         {
             yield return PresenceCapabilities.Audio;
+            if (settings.User.AudioPasswordHash is not null)
+            {
+                yield return PresenceCapabilities.AudioLocked;
+            }
         }
     }
 }

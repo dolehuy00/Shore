@@ -6,7 +6,8 @@
 %LOCALAPPDATA%\Shorekeeper\
 ├── identity.pfx.dpapi              ← khóa thiết bị (DPAPI CurrentUser)
 ├── shorekeeper.db                  ← SQLite (WAL)
-├── settings.json                   ← cài đặt người dùng (GPO ghi đè)
+├── settings.json                   ← cài đặt người dùng (GPO ghi đè); mật khẩu nghe chỉ ở dạng hash
+├── audio-passwords.bin             ← mật khẩu nghe đã dùng được, theo máy phát (DPAPI CurrentUser)
 ├── directory.json, avatar.img      ← hồ sơ AD lần đọc gần nhất (tên, phòng ban, ảnh), M6b
 ├── restore.pending                 ← bản sao lưu chờ áp dụng ở lần khởi động sau (mã hóa như khóa), M6b
 ├── identity.pfx.dpapi.replaced-*   ← khóa cũ, giữ lại sau khi khôi phục

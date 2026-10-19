@@ -183,6 +183,9 @@ public static class PeerApiEndpoints
                 AudioJoinResult.Joined => NoContent(),
                 AudioJoinResult.NotPlaying => NotFound(),
                 AudioJoinResult.Full => Busy(),
+                AudioJoinResult.PasswordRequired => PeerResponse.Problem(HttpStatusCode.Forbidden, ApiErrorCodes.PasswordRequired),
+                AudioJoinResult.WrongPassword => PeerResponse.Problem(HttpStatusCode.Forbidden, ApiErrorCodes.WrongPassword),
+                AudioJoinResult.TooManyAttempts => PeerResponse.Problem(HttpStatusCode.TooManyRequests, ApiErrorCodes.RateLimited),
                 _ => Invalid(),
             });
 

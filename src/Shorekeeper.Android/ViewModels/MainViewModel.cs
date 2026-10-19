@@ -63,6 +63,7 @@ public sealed partial class MainViewModel : ObservableObject
             AllowPlaying = () => MainActivity.Current is { } activity ? PlaybackCapture.RequestAsync(activity) : Task.FromResult(false),
         };
         Audio.Notice += (_, message) => Notice = message;
+        Audio.AskPassword = AskPasswordAsync;
         Settings = new SettingsTabViewModel(services, this);
         settings.Changed += (_, _) => Dispatcher.UIThread.Post(() => OnPropertyChanged(nameof(Title)));
 
@@ -205,6 +206,21 @@ public sealed partial class MainViewModel : ObservableObject
                     Notice = error;
                 }
             }, this);
+
+    private Task<string?> AskPasswordAsync(PasswordQuestion question)
+    {
+        var answer = new TaskCompletionSource<string?>();
+        Question = new QuestionViewModel(question.Title, question.Label, question.OkText, "", text =>
+        {
+            answer.TrySetResult(text);
+            return Task.CompletedTask;
+        }, this)
+        {
+            IsPassword = question.Masked,
+            Cancelled = () => answer.TrySetResult(null),
+        };
+        return answer.Task;
+    }
 
     internal void AskAlias(PeerItemViewModel peer) =>
         Question = new QuestionViewModel(L.T("Đặt tên gợi nhớ"), L.F("Tên gợi nhớ cho {0}:", peer.Host), L.T("Lưu"), peer.Name,
@@ -565,6 +581,16 @@ public sealed partial class QuestionViewModel(string title, string? message, str
 
     public bool HasInput { get; } = input is not null;
 
+    /// <summary>The input is a password: what is typed is hidden.</summary>
+    public bool IsPassword { get; init; }
+
+    public bool HasTextInput => HasInput && !IsPassword;
+
+    public bool HasPasswordInput => HasInput && IsPassword;
+
+    /// <summary>Called when the user closes the question without answering.</summary>
+    public Action? Cancelled { get; init; }
+
     [ObservableProperty]
     public partial string Input { get; set; } = input ?? "";
 
@@ -576,7 +602,11 @@ public sealed partial class QuestionViewModel(string title, string? message, str
     }
 
     [RelayCommand]
-    private void Cancel() => owner.Question = null;
+    private void Cancel()
+    {
+        owner.Question = null;
+        Cancelled?.Invoke();
+    }
 }
 
 /// <summary>An offer in "Hộp nhận"; kept and updated as it changes, so the list is not rebuilt while scrolling.</summary>

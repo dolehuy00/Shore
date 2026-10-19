@@ -25,11 +25,18 @@ public enum AudioJoinResult
     /// <summary>"Phát âm thanh" is off, or this device cannot capture its sound.</summary>
     NotPlaying,
     Full,
+
+    /// <summary>The source has a password and the caller sent none.</summary>
+    PasswordRequired,
+    WrongPassword,
+
+    /// <summary>Too many wrong passwords from this caller lately.</summary>
+    TooManyAttempts,
 }
 
 /// <summary>
 /// "Phát âm thanh" (docs/05-protocol.md §4.7). A computer or phone turns it on; contacts that want to listen ask to join, each
-/// with a fresh key and a UDP port of its own. The sound is captured only while someone listens, encoded once and sealed
+/// with a fresh key and a UDP port of its own, and the source's password when it has one. The sound is captured only while someone listens, encoded once and sealed
 /// for each listener. Listeners prove they are still there every second; either side stops after a few silent seconds.
 /// </summary>
 public sealed class AudioService : IDisposable
@@ -40,16 +47,20 @@ public sealed class AudioService : IDisposable
     private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1);
     private static readonly TimeSpan ListenerGone = TimeSpan.FromSeconds(6);
     private static readonly TimeSpan SourceGone = TimeSpan.FromSeconds(8);
+    private static readonly TimeSpan WrongPasswordWindow = TimeSpan.FromMinutes(1);
+    private const int MaxWrongPasswords = 5;
 
     private readonly PeerClient client;
     private readonly TrustStore trust;
     private readonly LocalPresence presence;
     private readonly SettingsService settings;
+    private readonly AudioPasswords passwords;
     private readonly ILogger<AudioService> logger;
     private readonly IAudioCapture? capture;
     private readonly IAudioOutput? output;
     private readonly Lock gate = new();
     private readonly ITimer timer;
+    private readonly Dictionary<DeviceId, (int Count, long Since)> wrongPasswords = [];
     private Broadcast? broadcast;
     private Listening? listening;
 
@@ -58,6 +69,7 @@ public sealed class AudioService : IDisposable
         TrustStore trust,
         LocalPresence presence,
         SettingsService settings,
+        AudioPasswords passwords,
         TimeProvider timeProvider,
         ILogger<AudioService> logger,
         IAudioCapture? capture = null,
@@ -67,6 +79,7 @@ public sealed class AudioService : IDisposable
         this.trust = trust;
         this.presence = presence;
         this.settings = settings;
+        this.passwords = passwords;
         this.logger = logger;
         this.capture = capture;
         this.output = output;
@@ -87,6 +100,9 @@ public sealed class AudioService : IDisposable
 
     /// <summary>"Phát âm thanh" is on.</summary>
     public bool IsPlaying => presence.PlayingAudio;
+
+    /// <summary>Listeners must give the password set with <see cref="SetPassword"/>.</summary>
+    public bool HasPassword => settings.User.AudioPasswordHash is not null;
 
     public IReadOnlyList<AudioListener> Listeners
     {
@@ -150,11 +166,35 @@ public sealed class AudioService : IDisposable
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>Sets or (with null) removes the password; who listens already keeps listening.</summary>
+    public void SetPassword(string? password)
+    {
+        settings.Update(s => s with { AudioPasswordHash = string.IsNullOrEmpty(password) ? null : AudioPassword.Hash(password) });
+        lock (gate)
+        {
+            wrongPasswords.Clear();
+        }
+
+        logger.LogInformation("Password for playing sound {State}", password is null ? "removed" : "set");
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
     internal AudioJoinResult HandleJoin(DeviceId caller, IPAddress address, AudioListenBody body)
     {
         if (!IsValidSessionId(body.SessionId) || body.Port is < 1 or > 65535 || Key(body.Key) is not { } key)
         {
             return AudioJoinResult.Invalid;
+        }
+
+        if (!presence.PlayingAudio || capture is null)
+        {
+            return AudioJoinResult.NotPlaying;
+        }
+
+        if (CheckPassword(caller, body.Password) is { } refused)
+        {
+            logger.LogInformation("{Peer} may not listen: {Reason}", caller, refused);
+            return refused;
         }
 
         var info = new AudioListener(body.SessionId, caller, NameOf(caller));
@@ -203,13 +243,60 @@ public sealed class AudioService : IDisposable
         }
     }
 
+    /// <returns>Null when the caller may listen.</returns>
+    private AudioJoinResult? CheckPassword(DeviceId caller, string? password)
+    {
+        if (settings.User.AudioPasswordHash is not { } hash)
+        {
+            return null;
+        }
+
+        lock (gate)
+        {
+            if (wrongPasswords.TryGetValue(caller, out (int Count, long Since) wrong)
+                && wrong.Count >= MaxWrongPasswords && Stopwatch.GetElapsedTime(wrong.Since) < WrongPasswordWindow)
+            {
+                return AudioJoinResult.TooManyAttempts;
+            }
+        }
+
+        if (string.IsNullOrEmpty(password))
+        {
+            return AudioJoinResult.PasswordRequired;
+        }
+
+        // Tens of milliseconds of key derivation: outside the lock.
+        bool right = AudioPassword.Verify(password, hash);
+        lock (gate)
+        {
+            if (right)
+            {
+                wrongPasswords.Remove(caller);
+                return null;
+            }
+
+            wrongPasswords[caller] = wrongPasswords.TryGetValue(caller, out (int Count, long Since) wrong)
+                && Stopwatch.GetElapsedTime(wrong.Since) < WrongPasswordWindow
+                    ? (wrong.Count + 1, wrong.Since)
+                    : (1, Stopwatch.GetTimestamp());
+            return AudioJoinResult.WrongPassword;
+        }
+    }
+
     // ───────────── Listening ─────────────
 
-    /// <summary>Starts listening to <paramref name="peer"/>, which must have "Phát âm thanh" on.</summary>
+    /// <summary>
+    /// Starts listening to <paramref name="peer"/>, which must have "Phát âm thanh" on. Without
+    /// <paramref name="password"/> the one that worked last time for this peer is sent; a password that works is kept for
+    /// next time, one the peer refuses is forgotten.
+    /// </summary>
     /// <exception cref="InvalidOperationException">This device cannot listen, or already listens.</exception>
     /// <exception cref="PeerUnreachableException">The peer could not be reached.</exception>
-    /// <exception cref="PeerApiException">The peer refused: 404 when it does not play, 503 when it is full.</exception>
-    public async Task ListenAsync(DeviceId peer, CancellationToken cancellationToken = default)
+    /// <exception cref="PeerApiException">
+    /// The peer refused: 404 when it does not play, 503 when it is full, 403 with <see cref="ApiErrorCodes.PasswordRequired"/>
+    /// or <see cref="ApiErrorCodes.WrongPassword"/>, 429 after too many wrong passwords.
+    /// </exception>
+    public async Task ListenAsync(DeviceId peer, string? password = null, CancellationToken cancellationToken = default)
     {
         if (output is null)
         {
@@ -229,19 +316,32 @@ public sealed class AudioService : IDisposable
             listening = session;
         }
 
+        string? remembered = password is null ? passwords.Get(peer) : null;
         try
         {
-            var body = new AudioListenBody(session.Id, Convert.ToBase64String(session.Key), session.Port);
+            var body = new AudioListenBody(session.Id, Convert.ToBase64String(session.Key), session.Port, password ?? remembered);
             using HttpResponseMessage response = await client.SendAsync(
                 peer, b => new HttpRequestMessage(HttpMethod.Post, new Uri(b, "audio/listeners")) { Content = JsonContent.Create(body) },
                 RequestTimeout, cancellationToken);
             await PeerClient.EnsureSuccessAsync(response, cancellationToken);
             session.Play(output, L.F("Đang nghe âm thanh từ {0}", name), () => _ = StopListeningAsync());
         }
+        catch (PeerApiException ex) when (remembered is not null && ex.Code is ApiErrorCodes.WrongPassword or ApiErrorCodes.PasswordRequired)
+        {
+            // The source changed or removed its password.
+            passwords.Remove(peer);
+            EndListening(session);
+            throw;
+        }
         catch
         {
             EndListening(session);
             throw;
+        }
+
+        if (password is not null)
+        {
+            passwords.Set(peer, password);
         }
 
         logger.LogInformation("Listening to {Peer}", peer);

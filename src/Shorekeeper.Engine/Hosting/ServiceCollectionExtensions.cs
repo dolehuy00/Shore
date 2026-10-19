@@ -89,6 +89,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<GroupService>();
         services.AddHostedService(sp => sp.GetRequiredService<GroupService>());
         // Plays only with an IAudioCapture (Windows), listens only with an IAudioOutput (Android).
+        services.AddSingleton<AudioPasswords>();
         services.AddSingleton<AudioService>();
 
         return services;

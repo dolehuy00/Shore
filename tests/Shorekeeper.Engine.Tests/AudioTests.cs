@@ -3,6 +3,7 @@ using Shorekeeper.Core.Audio;
 using Shorekeeper.Core.Discovery;
 using Shorekeeper.Core.Platform;
 using Shorekeeper.Engine.Api;
+using Shorekeeper.Engine.Audio;
 using Shorekeeper.Engine.Discovery;
 
 namespace Shorekeeper.Engine.Tests;
@@ -33,7 +34,7 @@ public sealed class AudioTests : IAsyncLifetime
         await pc.ConnectAsync(phone);
         pc.Audio.SetPlaying(true);
 
-        await phone.Audio.ListenAsync(pc.Id, Ct);
+        await phone.Audio.ListenAsync(pc.Id, cancellationToken: Ct);
 
         await WaitUntil(() => headphones.SoundFrames > 20);
         Assert.Equal(phone.Id, Assert.Single(pc.Audio.Listeners).PeerId);
@@ -46,7 +47,7 @@ public sealed class AudioTests : IAsyncLifetime
     {
         await pc.ConnectAsync(phone);
         pc.Audio.SetPlaying(true);
-        await phone.Audio.ListenAsync(pc.Id, Ct);
+        await phone.Audio.ListenAsync(pc.Id, cancellationToken: Ct);
 
         // Longer than both sides wait for each other (6 and 8 seconds).
         await Task.Delay(TimeSpan.FromSeconds(9), Ct);
@@ -62,7 +63,7 @@ public sealed class AudioTests : IAsyncLifetime
     {
         await pc.ConnectAsync(phone);
         pc.Audio.SetPlaying(true);
-        await phone.Audio.ListenAsync(pc.Id, Ct);
+        await phone.Audio.ListenAsync(pc.Id, cancellationToken: Ct);
         await WaitUntil(() => headphones.SoundFrames > 0);
 
         await phone.Audio.StopListeningAsync();
@@ -78,7 +79,7 @@ public sealed class AudioTests : IAsyncLifetime
     {
         await pc.ConnectAsync(phone);
         pc.Audio.SetPlaying(true);
-        await phone.Audio.ListenAsync(pc.Id, Ct);
+        await phone.Audio.ListenAsync(pc.Id, cancellationToken: Ct);
         string? notice = null;
         phone.Audio.Notice += (_, message) => notice = message;
 
@@ -94,7 +95,7 @@ public sealed class AudioTests : IAsyncLifetime
     {
         await pc.ConnectAsync(phone);
 
-        var error = await Assert.ThrowsAsync<PeerApiException>(() => phone.Audio.ListenAsync(pc.Id, Ct));
+        var error = await Assert.ThrowsAsync<PeerApiException>(() => phone.Audio.ListenAsync(pc.Id, cancellationToken: Ct));
 
         Assert.Equal(404, error.Status);
         Assert.Null(phone.Audio.ListeningTo);
@@ -106,7 +107,7 @@ public sealed class AudioTests : IAsyncLifetime
         phone.Sees(pc);
         pc.Audio.SetPlaying(true);
 
-        var error = await Assert.ThrowsAsync<PeerApiException>(() => phone.Audio.ListenAsync(pc.Id, Ct));
+        var error = await Assert.ThrowsAsync<PeerApiException>(() => phone.Audio.ListenAsync(pc.Id, cancellationToken: Ct));
 
         Assert.Equal(403, error.Status);
         Assert.Empty(pc.Audio.Listeners);
@@ -122,6 +123,77 @@ public sealed class AudioTests : IAsyncLifetime
 
         pc.Audio.SetPlaying(false);
         Assert.DoesNotContain(PresenceCapabilities.Audio, presence.CreatePacket(PresencePacketTypes.Heartbeat).Capabilities);
+    }
+
+    [Fact]
+    public async Task A_password_is_asked_for_and_remembered_once_it_works()
+    {
+        await pc.ConnectAsync(phone);
+        pc.Audio.SetPassword("cá voi");
+        pc.Audio.SetPlaying(true);
+
+        var missing = await Assert.ThrowsAsync<PeerApiException>(() => phone.Audio.ListenAsync(pc.Id, cancellationToken: Ct));
+        var wrong = await Assert.ThrowsAsync<PeerApiException>(() => phone.Audio.ListenAsync(pc.Id, "cá mập", Ct));
+        Assert.Equal((403, ApiErrorCodes.PasswordRequired), (missing.Status, missing.Code));
+        Assert.Equal((403, ApiErrorCodes.WrongPassword), (wrong.Status, wrong.Code));
+        Assert.Null(phone.Audio.ListeningTo);
+
+        await phone.Audio.ListenAsync(pc.Id, "cá voi", Ct);
+        await WaitUntil(() => headphones.SoundFrames > 0);
+        await phone.Audio.StopListeningAsync();
+
+        // Next time the remembered password is sent by itself.
+        await phone.Audio.ListenAsync(pc.Id, cancellationToken: Ct);
+        Assert.Equal(pc.Id, phone.Audio.ListeningTo);
+    }
+
+    [Fact]
+    public async Task A_changed_password_makes_the_remembered_one_forgotten()
+    {
+        await pc.ConnectAsync(phone);
+        pc.Audio.SetPassword("một");
+        pc.Audio.SetPlaying(true);
+        await phone.Audio.ListenAsync(pc.Id, "một", Ct);
+        await phone.Audio.StopListeningAsync();
+
+        pc.Audio.SetPassword("hai");
+
+        var refused = await Assert.ThrowsAsync<PeerApiException>(() => phone.Audio.ListenAsync(pc.Id, cancellationToken: Ct));
+        Assert.Equal(ApiErrorCodes.WrongPassword, refused.Code);
+        Assert.Null(phone.Get<AudioPasswords>().Get(pc.Id));
+    }
+
+    [Fact]
+    public async Task Too_many_wrong_passwords_lock_the_caller_out_for_a_while()
+    {
+        await pc.ConnectAsync(phone);
+        pc.Audio.SetPassword("đúng");
+        pc.Audio.SetPlaying(true);
+        for (int i = 0; i < 5; i++)
+        {
+            await Assert.ThrowsAsync<PeerApiException>(() => phone.Audio.ListenAsync(pc.Id, "sai", Ct));
+        }
+
+        // Even the right one waits now.
+        var locked = await Assert.ThrowsAsync<PeerApiException>(() => phone.Audio.ListenAsync(pc.Id, "đúng", Ct));
+
+        Assert.Equal(429, locked.Status);
+        Assert.Empty(pc.Audio.Listeners);
+    }
+
+    [Fact]
+    public void A_password_is_announced_while_playing()
+    {
+        var presence = pc.Get<ILocalPresence>();
+        pc.Audio.SetPassword("khóa");
+        Assert.DoesNotContain(PresenceCapabilities.AudioLocked, presence.CreatePacket(PresencePacketTypes.Heartbeat).Capabilities);
+
+        pc.Audio.SetPlaying(true);
+        Assert.Contains(PresenceCapabilities.AudioLocked, presence.CreatePacket(PresencePacketTypes.Heartbeat).Capabilities);
+
+        pc.Audio.SetPassword(null);
+        Assert.False(pc.Audio.HasPassword);
+        Assert.DoesNotContain(PresenceCapabilities.AudioLocked, presence.CreatePacket(PresencePacketTypes.Heartbeat).Capabilities);
     }
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;

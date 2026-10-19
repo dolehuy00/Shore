@@ -772,6 +772,20 @@
                               MinWidth="0" VerticalAlignment="Center" AutomationProperties.Name="{l:T 'Phát âm thanh'}" />
               </Grid>
 
+              <!-- Optional password: a listener types it once, then its device remembers it. -->
+              <Grid ColumnDefinitions="Auto,*,Auto">
+                <PathIcon Data="{StaticResource Icon.Lock}" Width="16" Height="16" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1" Classes="muted" FontSize="12" TextWrapping="Wrap" Margin="8,0,12,0" VerticalAlignment="Center"
+                           Text="{l:T 'Không có mật khẩu: máy đã kết nối nào cũng nghe được.'}" IsVisible="{Binding !Audio.HasPassword}" />
+                <TextBlock Grid.Column="1" Classes="muted" FontSize="12" TextWrapping="Wrap" Margin="8,0,12,0" VerticalAlignment="Center"
+                           Text="{l:T 'Có mật khẩu: máy muốn nghe nhập một lần, sau đó tự nhớ.'}" IsVisible="{Binding Audio.HasPassword}" />
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                  <Button Content="{l:T 'Đặt mật khẩu…'}" Command="{Binding Audio.SetPasswordCommand}" IsVisible="{Binding !Audio.HasPassword}" />
+                  <Button Content="{l:T 'Đổi mật khẩu…'}" Command="{Binding Audio.SetPasswordCommand}" IsVisible="{Binding Audio.HasPassword}" />
+                  <Button Content="{l:T 'Bỏ mật khẩu'}" Command="{Binding Audio.RemovePasswordCommand}" IsVisible="{Binding Audio.HasPassword}" />
+                </StackPanel>
+              </Grid>
+
               <StackPanel Spacing="6" IsVisible="{Binding Audio.IsPlaying}">
                 <TextBlock Classes="h3" Text="{l:T 'Đang nghe'}" />
                 <TextBlock Classes="muted" Text="{l:T 'Chưa ai nghe'}" IsVisible="{Binding !Audio.HasListeners}" FontSize="12" />
@@ -811,6 +825,8 @@
                       </Panel>
                       <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="8,0" VerticalAlignment="Center">
                         <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                        <PathIcon Data="{StaticResource Icon.Lock}" Width="12" Height="12" IsVisible="{Binding IsLocked}" VerticalAlignment="Center"
+                                  ToolTip.Tip="{l:T 'Cần mật khẩu'}" />
                         <Border Classes="tag" IsVisible="{Binding IsListening}" VerticalAlignment="Center">
                           <TextBlock Text="{l:T 'Đang nghe'}" FontSize="11" />
                         </Border>

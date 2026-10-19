@@ -85,6 +85,9 @@ public static class PresenceCapabilities
 
     /// <summary>"Phát âm thanh" is on: contacts may listen (docs/05-protocol.md §4.7).</summary>
     public const string Audio = "audio";
+
+    /// <summary>With <see cref="Audio"/>: listening needs the source's password.</summary>
+    public const string AudioLocked = "audio-locked";
 }
 
 public static class PresenceStatus

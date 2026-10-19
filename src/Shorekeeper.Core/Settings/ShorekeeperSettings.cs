@@ -34,6 +34,9 @@ public sealed record ShorekeeperSettings
     /// <summary>"low" or "stable": how much sound the listener keeps in hand (low when null).</summary>
     public string? AudioLatency { get; init; }
 
+    /// <summary>"Phát âm thanh" asks listeners for this password; a hash from <see cref="Audio.AudioPassword"/>, null for none.</summary>
+    public string? AudioPasswordHash { get; init; }
+
     public int? DiscoveryPort { get; init; }
 
     public int? ApiPort { get; init; }

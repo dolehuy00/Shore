@@ -465,5 +465,18 @@
   "Thấp trễ ít nhưng đôi khi hụt tiếng lúc Wi-Fi chập chờn; Ổn định trễ hơn một chút nhưng ít hụt. Áp dụng từ lần nghe sau.": "Low has little delay but may cut out when Wi-Fi hiccups; Stable is a little later but rarely cuts out. Applies from the next time you listen.",
   "Máy đã kết nối đang bật Phát âm thanh hiện ở đây.": "Connected devices with Play sound on show here.",
   "Phát lấy tiếng từ loa mặc định của Windows, nghe cũng phát ra loa đó. Bật nhanh Phát âm thanh từ biểu tượng khay.": "Playing takes the sound of Windows' default speakers, and listening plays through them. Turn Play sound on quickly from the tray icon.",
-  "Phát âm thanh cần quyền micrô. Nếu đã từ chối, bật lại trong Cài đặt → Ứng dụng → Shorekeeper → Quyền.": "Play sound needs the microphone permission. If it was refused, turn it on in Settings → Apps → Shorekeeper → Permissions."
+  "Phát âm thanh cần quyền micrô. Nếu đã từ chối, bật lại trong Cài đặt → Ứng dụng → Shorekeeper → Quyền.": "Play sound needs the microphone permission. If it was refused, turn it on in Settings → Apps → Shorekeeper → Permissions.",
+  "Không có mật khẩu: máy đã kết nối nào cũng nghe được.": "No password: any connected device can listen.",
+  "Có mật khẩu: máy muốn nghe nhập một lần, sau đó tự nhớ.": "Password set: a device that wants to listen types it once, then remembers it.",
+  "Đặt mật khẩu…": "Set password…",
+  "Đổi mật khẩu…": "Change password…",
+  "Bỏ mật khẩu": "Remove password",
+  "Mật khẩu nghe": "Listening password",
+  "Máy muốn nghe phải nhập mật khẩu này một lần, sau đó máy đó tự nhớ:": "A device that wants to listen types this password once, then remembers it:",
+  "{0} cần mật khẩu để nghe:": "{0} needs a password to listen:",
+  "{0} đã đổi mật khẩu. Nhập mật khẩu mới:": "{0} changed its password. Type the new one:",
+  "Sai mật khẩu. Nhập lại:": "Wrong password. Try again:",
+  "Nghe {0}": "Listen to {0}",
+  "Nhập sai mật khẩu của {0} quá nhiều lần. Thử lại sau một phút.": "Too many wrong passwords for {0}. Try again in a minute.",
+  "Cần mật khẩu": "Needs a password"
 }
