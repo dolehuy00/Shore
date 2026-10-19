@@ -16,6 +16,7 @@ internal static class Notifications
     private const string TransfersChannel = "transfer-progress";
     private const string AudioChannel = "audio";
     private const int OfferNotificationId = 2;
+    private const int AudioTab = 4;
 
     public static void CreateChannels(Context context)
     {
@@ -26,7 +27,7 @@ internal static class Notifications
         transfers.SetShowBadge(false);
         manager.CreateNotificationChannel(transfers);
         manager.DeleteNotificationChannel("transfers");
-        var audio = new NotificationChannel(AudioChannel, L.T("Nghe âm thanh"), NotificationImportance.Low);
+        var audio = new NotificationChannel(AudioChannel, L.T("Âm thanh"), NotificationImportance.Low);
         audio.SetShowBadge(false);
         manager.CreateNotificationChannel(audio);
     }
@@ -40,7 +41,22 @@ internal static class Notifications
             .SetContentTitle(title)!
             .SetSmallIcon(Resource.Drawable.ic_stat_shorekeeper)!
             .SetOngoing(true)!
-            .SetContentIntent(OpenApp(context, tab: 0))!
+            .SetContentIntent(OpenApp(context, tab: AudioTab))!
+            .AddAction(new Notification.Action.Builder(Icon.CreateWithResource(context, AndroidResource.Drawable.IcMediaPause), L.T("Dừng"), stop).Build())!
+            .Build()!;
+    }
+
+    /// <summary>"Đang phát âm thanh của điện thoại" with [Dừng], while <see cref="AudioCaptureService"/> runs.</summary>
+    public static Notification Playing(Context context)
+    {
+        PendingIntent stop = PendingIntent.GetService(
+            context, 0, new Intent(context, typeof(AudioCaptureService)).SetAction(AudioCaptureService.ActionStop), PendingIntentFlags.Immutable)!;
+        return new Notification.Builder(context, AudioChannel)
+            .SetContentTitle(L.T("Đang phát âm thanh của điện thoại"))!
+            .SetContentText(L.T("Máy đã kết nối có thể bấm Nghe."))!
+            .SetSmallIcon(Resource.Drawable.ic_stat_shorekeeper)!
+            .SetOngoing(true)!
+            .SetContentIntent(OpenApp(context, tab: AudioTab))!
             .AddAction(new Notification.Action.Builder(Icon.CreateWithResource(context, AndroidResource.Drawable.IcMediaPause), L.T("Dừng"), stop).Build())!
             .Build()!;
     }

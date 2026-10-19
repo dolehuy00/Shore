@@ -85,6 +85,13 @@ Màn hình: Xóm (danh sách, chạm để gửi), Hộp nhận, Đã gửi, Nh�
 - Đo trên OPPO Reno10 (điện thoại phát hotspot cho PC, đồng thời bắt Wi-Fi nhà): giật đến từ chính lần quét Wi-Fi của điện thoại (khoảng 10 phút một lần, mỗi lần khoảng 5 giây, trễ 55–140 ms); bộ đệm tự giãn biến chúng thành vài khung âm đoán thay vì mất tiếng.
 - AES-GCM của .NET trên Android hủy tiến trình khi đầu vào rỗng: keep-alive luôn niêm phong 1 byte.
 
+### 3.6 Phát âm thanh
+
+- Thu bằng `AudioPlaybackCapture` (API 29+): cần quyền `RECORD_AUDIO` và, mỗi lần bật, sự đồng ý cho `MediaProjection` (hộp "ghi hoặc truyền màn hình"; Android 14+ xin cả màn hình, vì chia sẻ một app chỉ thu tiếng app đó).
+- Projection do foreground service loại `mediaProjection` (`FOREGROUND_SERVICE_MEDIA_PROJECTION`) giữ suốt lúc Phát âm thanh bật, với thông báo "Đang phát âm thanh của điện thoại" [Dừng]. Tắt công tắc thì trả projection; người dùng dừng từ thông báo hay ô truyền màn hình của hệ thống thì công tắc tắt theo.
+- Chỉ thu usage media, game và unknown; app có thể cấm thu, cuộc gọi không bao giờ thu được. Bỏ qua chính Shorekeeper (`excludeUid`), để điện thoại vừa nghe vừa phát không gửi lại tiếng đang nghe.
+- `AudioRecord` PCM 16-bit 48 kHz stereo, chỉ mở khi có người nghe; luồng thu ở ưu tiên `UrgentAudio`, giữ cùng các khóa Wi-Fi và wake lock như khi nghe.
+
 ## 4. Giai đoạn
 
 ### A0 — Spike trên điện thoại thật

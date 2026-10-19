@@ -45,6 +45,7 @@
     <Compile Include="..\Shorekeeper.Desktop\ViewModels\OfferContents.cs" Link="ViewModels\OfferContents.cs" />
     <Compile Include="..\Shorekeeper.Desktop\ViewModels\AutoAcceptChoiceViewModel.cs" Link="ViewModels\AutoAcceptChoiceViewModel.cs" />
     <Compile Include="..\Shorekeeper.Desktop\ViewModels\BlockedPeersViewModel.cs" Link="ViewModels\BlockedPeersViewModel.cs" />
+    <Compile Include="..\Shorekeeper.Desktop\ViewModels\AudioViewModel.cs" Link="ViewModels\AudioViewModel.cs" />
     <Compile Include="..\Shorekeeper.Desktop\Localization\TExtension.cs" Link="Localization\TExtension.cs" />
     <Compile Include="..\Shorekeeper.Desktop\Localization\LanguageChoice.cs" Link="Localization\LanguageChoice.cs" />
   </ItemGroup>

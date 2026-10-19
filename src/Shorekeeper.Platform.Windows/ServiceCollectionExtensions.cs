@@ -16,6 +16,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IGlobalHotkey, WindowsGlobalHotkey>();
         services.AddSingleton<IDirectoryInfo, ActiveDirectoryInfo>();
         services.AddSingleton<IAudioCapture, WindowsAudioCapture>();
+        services.AddSingleton<IAudioOutput, WindowsAudioOutput>();
         return services;
     }
 }

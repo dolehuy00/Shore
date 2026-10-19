@@ -120,6 +120,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         Search = new SearchViewModel(neighborhood, groups, inbox, sent, Reveal);
         dialogs.OfferSent += (_, _) => SelectedNavItem = NavItems[2];
         dialogs.PageRequested += (_, page) => SelectedNavItem = NavItems.First(i => i.Page == page);
+        audio.Notice += (_, message) => dialogs.Ask(L.T("Âm thanh"), [message], [], NavPage.Audio, _ => { });
     }
 
     public NeighborhoodViewModel Neighborhood { get; }

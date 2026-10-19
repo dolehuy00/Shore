@@ -28,7 +28,7 @@ public enum AudioJoinResult
 }
 
 /// <summary>
-/// "Phát âm thanh" (docs/05-protocol.md §4.7). A computer turns it on; contacts that want to listen ask to join, each
+/// "Phát âm thanh" (docs/05-protocol.md §4.7). A computer or phone turns it on; contacts that want to listen ask to join, each
 /// with a fresh key and a UDP port of its own. The sound is captured only while someone listens, encoded once and sealed
 /// for each listener. Listeners prove they are still there every second; either side stops after a few silent seconds.
 /// </summary>

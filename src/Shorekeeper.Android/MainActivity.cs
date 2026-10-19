@@ -2,6 +2,7 @@ using Android.Content;
 using Android.Content.PM;
 using Android.Views;
 using Avalonia.Android;
+using Shorekeeper.Android.Platform;
 using AndroidUri = Android.Net.Uri;
 
 namespace Shorekeeper.Android;
@@ -19,9 +20,13 @@ public sealed class MainActivity : AvaloniaMainActivity
     /// <summary>Tab to show when a notification opens the app.</summary>
     public const string ExtraTab = "tab";
 
+    /// <summary>The activity on screen, for what only an activity can ask (the consent to capture sound).</summary>
+    internal static MainActivity? Current { get; private set; }
+
     protected override void OnCreate(Bundle? savedInstanceState)
     {
         base.OnCreate(savedInstanceState);
+        Current = this;
         PreferFastestRefreshRate();
         // Android 13+: without it, offers arrive silently. Asking again once granted still opens the system's
         // permission screen over the app for a moment, which slowed every start.
@@ -35,6 +40,32 @@ public sealed class MainActivity : AvaloniaMainActivity
         {
             HandleShare(Intent);
             HandleTab(Intent);
+        }
+    }
+
+    protected override void OnDestroy()
+    {
+        if (Current == this)
+        {
+            Current = null;
+        }
+
+        base.OnDestroy();
+    }
+
+    public override void OnRequestPermissionsResult(int requestCode, string[] permissions, Permission[] grantResults)
+    {
+        if (!PlaybackCapture.OnPermissionResult(requestCode, grantResults))
+        {
+            base.OnRequestPermissionsResult(requestCode, permissions, grantResults);
+        }
+    }
+
+    protected override void OnActivityResult(int requestCode, Result resultCode, Intent? data)
+    {
+        if (!PlaybackCapture.OnActivityResult(this, requestCode, resultCode, data))
+        {
+            base.OnActivityResult(requestCode, resultCode, data);
         }
     }
 

@@ -160,7 +160,7 @@ Bridge chỉ trả thông tin **vốn đã công khai** qua presence (tên, đ�
 
 ### 4.7 Âm thanh ("Phát âm thanh" / "Nghe")
 
-Máy tính bật **Phát âm thanh** thì presence có capability `audio`; liên hệ thấy và tự bấm **Nghe**. Hai hành động đó là sự đồng ý của hai bên, không có hộp hỏi thêm.
+Máy (máy tính hay điện thoại) bật **Phát âm thanh** thì presence có capability `audio`; liên hệ thấy và tự bấm **Nghe**. Hai hành động đó là sự đồng ý của hai bên, không có hộp hỏi thêm.
 
 | Method | Path | Quyền | Mô tả |
 |---|---|---|---|
@@ -170,11 +170,11 @@ Máy tính bật **Phát âm thanh** thì presence có capability `audio`; liên
 
 **Luồng UDP** (máy phát → máy nghe), mỗi datagram một khung 10 ms:
 
-- Âm thanh loa (WASAPI loopback) 48 kHz stereo, Opus "restricted low delay" 128 kbps CBR. Chỉ thu khi có người nghe; nén một lần, niêm phong riêng cho từng máy nghe.
+- Âm thanh của máy (Windows: WASAPI loopback của loa mặc định; Android: playback capture, chỉ media, game và unknown, trừ chính Shorekeeper) 48 kHz stereo, Opus "restricted low delay" 128 kbps CBR. Chỉ thu khi có người nghe; nén một lần, niêm phong riêng cho từng máy nghe.
 - Datagram: `version (1) · sequence (4) · sender time µs (8)` để rõ, sau đó `khung (2 + n) · khung trước (2 + n)` mã hóa AES-GCM (nonce = loại + sequence, header là associated data), tag 16 byte. Mất một gói thì phát từ bản sao trong gói sau.
 - Máy nghe giữ khung trong bộ đệm jitter: **Thấp** 30 ms, **Ổn định** 80 ms. Khi luồng đến trễ (Wi-Fi điện thoại quét mạng làm gián đoạn 50–140 ms), máy nghe chờ thay vì bỏ khung, tạm phát âm Opus đoán và nâng mức đệm (tối đa 120 ms); vài giây yên ổn thì hạ dần về mức gốc.
 - Mỗi giây máy nghe gửi về một keep-alive (`0xA1 · counter (4) · 1 byte niêm phong · tag`) tới đúng cổng nguồn của luồng. Máy phát bỏ máy nghe sau 6 giây không có keep-alive; máy nghe dừng sau 8 giây không có âm thanh.
-- Máy phát giữ Wi-Fi ở media streaming mode và tắt background scan khi đang thu (`WlanSetInterface`).
+- Máy tính giữ Wi-Fi ở media streaming mode và tắt background scan khi đang thu hay đang nghe (`WlanSetInterface`).
 
 ## 5. Timeout & giới hạn
 

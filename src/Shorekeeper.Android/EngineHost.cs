@@ -8,6 +8,7 @@ using Shorekeeper.Android.Platform;
 using Shorekeeper.Core.Localization;
 using Shorekeeper.Core.Platform;
 using Shorekeeper.Engine;
+using Shorekeeper.Engine.Audio;
 using Shorekeeper.Engine.Hosting;
 using Shorekeeper.Engine.Settings;
 using AndroidEnvironment = Android.OS.Environment;
@@ -61,6 +62,7 @@ public static class EngineHost
         builder.Services.AddSingleton<ISecretProtector, KeystoreSecretProtector>();
         builder.Services.AddSingleton<IExternalFileSource>(new ContentUriFiles(context.ContentResolver!));
         builder.Services.AddSingleton<IAudioOutput>(new AndroidAudioOutput(context.ApplicationContext ?? context));
+        builder.Services.AddSingleton<IAudioCapture>(new AndroidAudioCapture(context.ApplicationContext ?? context));
         builder.Services.AddShorekeeperEngine(paths);
         builder.Services.AddTransfers();
         builder.Services.AddPeerApi();
@@ -69,6 +71,17 @@ public static class EngineHost
         IHost host = builder.Build();
         await host.StartAsync();
         BackgroundTransfers.Start(context.ApplicationContext ?? context, host.Services);
+
+        // "Phát âm thanh" and the projection it runs on end together, whichever side ends first.
+        var audio = host.Services.GetRequiredService<AudioService>();
+        PlaybackCapture.Stopped += () => audio.SetPlaying(false);
+        audio.Changed += (_, _) =>
+        {
+            if (!audio.IsPlaying)
+            {
+                PlaybackCapture.Release(context.ApplicationContext ?? context);
+            }
+        };
         return host.Services;
     }
 

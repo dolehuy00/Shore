@@ -1,21 +1,17 @@
 using Android.Content;
 using Android.Media;
-using Android.Net.Wifi;
 using Android.OS;
 using Android.Runtime;
 using Shorekeeper.Core.Audio;
 using Shorekeeper.Core.Platform;
 using AndroidProcess = Android.OS.Process;
 using ForegroundService = Android.Content.PM.ForegroundService;
-using WifiMode = Android.Net.WifiMode;
 
 namespace Shorekeeper.Android.Platform;
 
 /// <summary>
-/// "Nghe" (docs/14-android.md §3.5): a computer's sound through a low-latency <see cref="AudioTrack"/>, in a
-/// media-playback foreground service so it keeps playing with the screen off. While it plays it holds Wi-Fi's
-/// low-latency mode (honoured while the app is in front with the screen on), the high-performance mode for the rest of
-/// the time, and a partial wake lock.
+/// "Nghe" (docs/14-android.md §3.5): another device's sound through a low-latency <see cref="AudioTrack"/>, in a
+/// media-playback foreground service so it keeps playing with the screen off, holding <see cref="AudioLocks"/>.
 /// </summary>
 internal sealed class AndroidAudioOutput(Context context) : IAudioOutput
 {
@@ -36,8 +32,7 @@ internal sealed class AndroidAudioOutput(Context context) : IAudioOutput
     {
         private readonly Context context;
         private readonly AudioFrameReader read;
-        private readonly WifiManager.WifiLock[] wifiLocks;
-        private readonly PowerManager.WakeLock wakeLock;
+        private readonly AudioLocks locks;
         private readonly Thread thread;
         private volatile bool stopping;
 
@@ -45,17 +40,7 @@ internal sealed class AndroidAudioOutput(Context context) : IAudioOutput
         {
             this.context = context;
             this.read = read;
-            var wifi = (WifiManager)context.GetSystemService(Context.WifiService)!;
-#pragma warning disable CA1422 // Deprecated on API 34, still what keeps the radio awake with the screen off.
-            wifiLocks = [wifi.CreateWifiLock(WifiMode.FullLowLatency, "shorekeeper-audio")!, wifi.CreateWifiLock(WifiMode.FullHighPerf, "shorekeeper-audio")!];
-#pragma warning restore CA1422
-            wakeLock = ((PowerManager)context.GetSystemService(Context.PowerService)!).NewWakeLock(WakeLockFlags.Partial, "shorekeeper:audio")!;
-            foreach (WifiManager.WifiLock wifiLock in wifiLocks)
-            {
-                wifiLock.Acquire();
-            }
-
-            wakeLock.Acquire();
+            locks = new AudioLocks(context);
             thread = new Thread(Play) { IsBackground = true, Name = "Audio play" };
             thread.Start();
         }
@@ -64,12 +49,7 @@ internal sealed class AndroidAudioOutput(Context context) : IAudioOutput
         {
             stopping = true;
             thread.Join();
-            foreach (WifiManager.WifiLock wifiLock in wifiLocks.Where(l => l.IsHeld))
-            {
-                wifiLock.Release();
-            }
-
-            wakeLock.Release();
+            locks.Dispose();
             StopRequested = null;
             AudioPlaybackService.Stop(context);
         }
