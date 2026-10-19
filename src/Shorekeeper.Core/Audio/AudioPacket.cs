@@ -10,7 +10,8 @@ public readonly ref struct AudioPacket
 {
     public const byte Version = 1;
     public const int MaxSize = 1200;
-    private const int HeaderSize = 13;
+    /// <summary>Version, sequence and sender time: readable on the wire, the rest is sealed (<see cref="AudioCipher"/>).</summary>
+    public const int HeaderSize = 13;
 
     public AudioPacket(uint sequence, long sentMicros, ReadOnlySpan<byte> frame, ReadOnlySpan<byte> previous)
     {

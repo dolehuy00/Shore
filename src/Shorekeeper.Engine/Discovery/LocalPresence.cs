@@ -25,6 +25,7 @@ public sealed class LocalPresence : ILocalPresence
     private readonly GroupStore groups;
     private readonly DirectoryProfileService profile;
     private MyStatus status = MyStatus.Online;
+    private bool playingAudio;
 
     public LocalPresence(LocalDevice device, ApiServer api, SettingsService settings, GroupStore groups, DirectoryProfileService profile)
     {
@@ -42,6 +43,20 @@ public sealed class LocalPresence : ILocalPresence
     }
 
     public event EventHandler? Changed;
+
+    /// <summary>"Phát âm thanh" is on; announced so contacts can offer "Nghe" (set by the audio service).</summary>
+    public bool PlayingAudio
+    {
+        get => playingAudio;
+        set
+        {
+            if (playingAudio != value)
+            {
+                playingAudio = value;
+                Changed?.Invoke(this, EventArgs.Empty);
+            }
+        }
+    }
 
     public MyStatus Status
     {
@@ -67,11 +82,24 @@ public sealed class LocalPresence : ILocalPresence
         // The port actually bound, which differs from the setting when a second Windows session runs Shorekeeper.
         Port = api.Port,
         Status = status == MyStatus.Busy ? PresenceStatus.Busy : PresenceStatus.Available,
-        Capabilities = settings.Current.BridgeEnabled ? [PresenceCapabilities.Bridge] : [],
+        Capabilities = [.. Capabilities()],
         Groups = settings.Current.GroupsEnabled
             ? [.. groups.GetAll().Where(g => g.Role == GroupRole.Host).Take(PresencePacket.MaxGroups).Select(g => new PresenceGroup(g.Id, g.Name, g.Members.Count))]
             : [],
         Department = profile.Department,
         AvatarTag = profile.AvatarTag,
     };
+
+    private IEnumerable<string> Capabilities()
+    {
+        if (settings.Current.BridgeEnabled)
+        {
+            yield return PresenceCapabilities.Bridge;
+        }
+
+        if (playingAudio)
+        {
+            yield return PresenceCapabilities.Audio;
+        }
+    }
 }

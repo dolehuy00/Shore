@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Shorekeeper.Core.Platform;
 using Shorekeeper.Engine.Api;
+using Shorekeeper.Engine.Audio;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Groups;
 using Shorekeeper.Engine.Identity;
@@ -87,6 +88,8 @@ public static class ServiceCollectionExtensions
         services.AddHostedService(sp => sp.GetRequiredService<PexService>());
         services.AddSingleton<GroupService>();
         services.AddHostedService(sp => sp.GetRequiredService<GroupService>());
+        // Plays only with an IAudioCapture (Windows), listens only with an IAudioOutput (Android).
+        services.AddSingleton<AudioService>();
 
         return services;
     }

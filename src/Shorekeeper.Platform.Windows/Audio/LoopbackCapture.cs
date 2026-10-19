@@ -5,9 +5,6 @@ using Shorekeeper.Core.Audio;
 
 namespace Shorekeeper.Platform.Windows.Audio;
 
-/// <summary>One 10 ms frame of <see cref="AudioStreamFormat.FrameValues"/> interleaved samples; only valid during the call.</summary>
-public delegate void AudioFrameHandler(ReadOnlySpan<float> frame);
-
 /// <summary>
 /// What the default speakers play, through WASAPI loopback, as 48 kHz stereo float in 10 ms frames. Windows converts
 /// from the device's own format. While nothing plays Windows delivers nothing, so silence is filled in on the clock:

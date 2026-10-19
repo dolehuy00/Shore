@@ -19,6 +19,43 @@ public class AudioStreamTests
     }
 
     [Fact]
+    public void Sealed_packets_open_only_with_their_key_and_unaltered()
+    {
+        byte[] key = AudioCipher.NewKey();
+        using var sender = new AudioCipher(key);
+        using var receiver = new AudioCipher(key);
+        using var stranger = new AudioCipher(AudioCipher.NewKey());
+        byte[] buffer = new byte[AudioPacket.MaxSize + AudioCipher.TagSize];
+        int length = new AudioPacket(9, 42, [1, 2, 3], []).Write(buffer);
+        int size = sender.Seal(buffer, length);
+
+        Assert.Equal(-1, stranger.Open(buffer.AsSpan(0, size).ToArray()));
+        byte[] altered = buffer[..size];
+        altered[2] ^= 1;
+        Assert.Equal(-1, receiver.Open(altered));
+
+        Assert.Equal(length, receiver.Open(buffer.AsSpan(0, size)));
+        Assert.True(AudioPacket.TryRead(buffer.AsSpan(0, length), out AudioPacket packet));
+        Assert.Equal([1, 2, 3], packet.Frame.ToArray());
+    }
+
+    [Fact]
+    public void Keep_alives_prove_the_key()
+    {
+        byte[] key = AudioCipher.NewKey();
+        using var listener = new AudioCipher(key);
+        using var source = new AudioCipher(key);
+        byte[] keepAlive = new byte[AudioCipher.KeepAliveSize];
+
+        listener.SealKeepAlive(keepAlive, 5);
+
+        Assert.True(AudioCipher.IsKeepAlive(keepAlive));
+        Assert.True(source.OpenKeepAlive(keepAlive));
+        using var stranger = new AudioCipher(AudioCipher.NewKey());
+        Assert.False(stranger.OpenKeepAlive(keepAlive));
+    }
+
+    [Fact]
     public void Waits_for_the_target_then_plays_in_order()
     {
         var (decoder, packets) = Stream(frames: 8, targetFrames: 3);

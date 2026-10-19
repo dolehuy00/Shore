@@ -11,6 +11,7 @@ using Shorekeeper.Core.Platform;
 using Shorekeeper.Core.Trust;
 using Shorekeeper.Desktop.ViewModels;
 using Shorekeeper.Engine;
+using Shorekeeper.Engine.Audio;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Groups;
 using Shorekeeper.Engine.Settings;
@@ -40,6 +41,7 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly AppPaths paths;
     private DispatcherTimer? noticeTimer;
     private readonly ManualPeerFinder finder;
+    private readonly AudioService audio;
     private readonly DispatcherTimer progressTimer;
 
     public MainViewModel(IServiceProvider services)
@@ -55,11 +57,19 @@ public sealed partial class MainViewModel : ObservableObject
         device = services.GetRequiredService<LocalDevice>();
         paths = services.GetRequiredService<AppPaths>();
         finder = services.GetRequiredService<ManualPeerFinder>();
+        audio = services.GetRequiredService<AudioService>();
         Groups = new GroupsTabViewModel(services, this);
         Settings = new SettingsTabViewModel(services, this);
         settings.Changed += (_, _) => Dispatcher.UIThread.Post(() => OnPropertyChanged(nameof(Title)));
 
         directory.Changed += (_, _) => Dispatcher.UIThread.Post(RefreshPeers);
+        audio.Changed += (_, _) => Dispatcher.UIThread.Post(() =>
+        {
+            RefreshPeers();
+            OnPropertyChanged(nameof(ListeningText));
+            OnPropertyChanged(nameof(IsListening));
+        });
+        audio.Notice += (_, message) => Dispatcher.UIThread.Post(() => Notice = message);
         trust.Changed += (_, _) => Dispatcher.UIThread.Post(RefreshPeers);
         inbox.OfferArrived += (_, _) => Dispatcher.UIThread.Post(RefreshOffers);
         inbox.Changed += (_, _) => Dispatcher.UIThread.Post(RefreshOffers);
@@ -140,6 +150,44 @@ public sealed partial class MainViewModel : ObservableObject
 
     [RelayCommand]
     private void CloseNotice() => Notice = null;
+
+    /// <summary>"Đang nghe âm thanh từ PC · MSI", over the tabs while it plays.</summary>
+    public string? ListeningText => audio.ListeningTo is { } peer ? L.F("Đang nghe âm thanh từ {0}", NameOf(peer)) : null;
+
+    public bool IsListening => audio.ListeningTo is not null;
+
+    [RelayCommand]
+    private Task StopListeningAsync() => audio.StopListeningAsync();
+
+    internal async Task ListenAsync(PeerItemViewModel peer)
+    {
+        try
+        {
+            if (audio.ListeningTo is not null)
+            {
+                await audio.StopListeningAsync();
+            }
+
+            await audio.ListenAsync(peer.DeviceId);
+        }
+        catch (InvalidOperationException ex)
+        {
+            Notice = ex.Message;
+        }
+        catch (Engine.Api.PeerApiException ex)
+        {
+            Notice = ex.Status switch
+            {
+                404 => L.F("{0} đã tắt phát âm thanh.", peer.Name),
+                503 => L.F("{0} đang phát cho đủ {1} máy.", peer.Name, AudioService.MaxListeners),
+                _ => L.F("{0} từ chối cho nghe.", peer.Name),
+            };
+        }
+        catch (Exception ex) when (ex is Engine.Api.PeerUnreachableException or HttpRequestException)
+        {
+            Notice = L.F("Không liên lạc được với {0}.", peer.Name);
+        }
+    }
 
     public bool HasNoPeers => Peers.Count == 0;
 
@@ -358,6 +406,8 @@ public sealed partial class MainViewModel : ObservableObject
                 IsPhone = live.TryGetValue(record.DeviceId, out PeerInfo? peer)
                     ? peer.Os.Equals("android", StringComparison.OrdinalIgnoreCase)
                     : record.IsPhone,
+                IsListening = audio.ListeningTo == record.DeviceId,
+                IsPlayingAudio = audio.CanListen && live.GetValueOrDefault(record.DeviceId)?.IsPlayingAudio == true,
             }),
             .. live.Values
                 .Where(peer => trust.GetLevel(peer.DeviceId) == TrustLevel.Unknown)
@@ -479,6 +529,20 @@ public sealed partial class PeerItemViewModel(
 
     /// <summary>Contacts receive files; the picker is opened by the view (it needs the window).</summary>
     public bool CanSend { get; } = isTrusted;
+
+    /// <summary>A contact with "Phát âm thanh" on: it can be listened to.</summary>
+    public bool IsPlayingAudio { get; init; }
+
+    /// <summary>We listen to it now.</summary>
+    public bool IsListening { get; init; }
+
+    public bool CanListen => IsPlayingAudio && !IsListening;
+
+    [RelayCommand]
+    private Task ListenAsync() => owner.ListenAsync(this);
+
+    [RelayCommand]
+    private Task StopListeningAsync() => owner.StopListeningCommand.ExecuteAsync(null);
 
     internal Task<string?> SendAsync(IReadOnlyList<string> locations) => owner.SendAsync(locations, [(DeviceId, null)]);
 

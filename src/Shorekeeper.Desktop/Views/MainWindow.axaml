@@ -196,6 +196,9 @@
               <Border Classes="tag" IsVisible="{Binding CanConnect}" VerticalAlignment="Center">
                 <TextBlock Text="{l:T 'Chưa kết nối'}" FontSize="11" />
               </Border>
+              <Border Classes="tag" IsVisible="{Binding IsListening}" VerticalAlignment="Center">
+                <TextBlock Text="{l:T 'Đang nghe'}" FontSize="11" />
+              </Border>
             </StackPanel>
             <StackPanel Orientation="Horizontal" Spacing="6">
               <Ellipse Classes="dot" Classes.busy="{Binding IsBusy}" Classes.muted="{Binding IsInactive}" Width="8" Height="8" />
@@ -748,6 +751,46 @@
 
           <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
                      Text="{l:T 'Kéo file vào một nhóm để gửi cho các thành viên (chọn được từng người). Thành viên vẫn gửi file cho nhau được khi Host offline.'}" />
+        </StackPanel>
+
+        <!-- Âm thanh: this computer's sound for connected devices; room for its settings below. -->
+        <StackPanel Classes="page" IsVisible="{Binding IsAudioVisible}" Spacing="14" MaxWidth="860" HorizontalAlignment="Stretch">
+          <TextBlock Classes="h2" Text="{l:T 'Âm thanh'}" />
+
+          <Border Classes="card">
+            <StackPanel Spacing="12">
+              <Grid ColumnDefinitions="Auto,*,Auto">
+                <Border Classes="tile">
+                  <PathIcon Data="{StaticResource Icon.Speaker}" Width="22" Height="22" />
+                </Border>
+                <StackPanel Grid.Column="1" Margin="14,0,12,0" Spacing="2" VerticalAlignment="Center">
+                  <TextBlock Text="{l:T 'Phát âm thanh'}" FontWeight="SemiBold" />
+                  <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
+                             Text="{l:T 'Máy đã kết nối thấy máy này đang phát và tự bấm Nghe khi muốn. Tắt là mọi máy đang nghe đều dừng.'}" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="2" IsChecked="{Binding Audio.IsPlaying}" IsEnabled="{Binding Audio.CanPlay}" OnContent="" OffContent=""
+                              MinWidth="0" VerticalAlignment="Center" AutomationProperties.Name="{l:T 'Phát âm thanh'}" />
+              </Grid>
+
+              <StackPanel Spacing="6" IsVisible="{Binding Audio.IsPlaying}">
+                <TextBlock Classes="h3" Text="{l:T 'Đang nghe'}" />
+                <TextBlock Classes="muted" Text="{l:T 'Chưa ai nghe'}" IsVisible="{Binding !Audio.HasListeners}" FontSize="12" />
+                <ItemsControl ItemsSource="{Binding Audio.ListenerNames}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="x:String">
+                      <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,2">
+                        <PathIcon Data="{StaticResource Icon.Phone}" Width="16" Height="16" />
+                        <TextBlock Text="{Binding}" VerticalAlignment="Center" />
+                      </StackPanel>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
+                     Text="{l:T 'Phát âm thanh đang chạy trên loa mặc định của Windows. Mỗi máy nghe chọn độ trễ (Thấp cho game, Ổn định cho nhạc) trong Cài đặt của nó. Bật nhanh từ biểu tượng khay.'}" />
         </StackPanel>
 
         <!-- Cài đặt -->

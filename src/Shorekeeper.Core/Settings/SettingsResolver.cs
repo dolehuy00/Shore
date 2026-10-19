@@ -1,3 +1,4 @@
+using Shorekeeper.Core.Audio;
 using Shorekeeper.Core.Platform;
 
 namespace Shorekeeper.Core.Settings;
@@ -96,6 +97,7 @@ public static class SettingsResolver
             AutoAcceptLimitGb = user.AutoAcceptLimitGb is > 0 and var gb ? Math.Min(gb, EffectiveSettings.MaxAutoAcceptLimitGb) : EffectiveSettings.DefaultAutoAcceptLimitGb,
             QuickSendHotkey = user.QuickSendHotkey ?? true,
             QuickSendShortcut = Hotkey.Parse(user.QuickSendShortcut) ?? Hotkey.Default,
+            AudioLatency = string.Equals(user.AudioLatency, "stable", StringComparison.OrdinalIgnoreCase) ? AudioLatency.Stable : AudioLatency.Low,
             DiscoveryPort = discoveryPort,
             ApiPort = apiPort,
             BridgeEnabled = bridgeEnabled,

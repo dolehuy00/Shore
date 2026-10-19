@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
 using Shorekeeper.Android.Platform;
+using Shorekeeper.Core.Audio;
 using Shorekeeper.Core.Discovery;
 using Shorekeeper.Core.Localization;
 using Shorekeeper.Core.Platform;
@@ -88,6 +89,15 @@ public sealed partial class SettingsTabViewModel : ObservableObject
 
     /// <summary>"Đã chặn": the only place to undo a block.</summary>
     public BlockedPeersViewModel Blocked { get; }
+
+    // ───────────── Sound ─────────────
+
+    /// <summary>"Độ trễ âm thanh": 0 low (games), 1 stable (music).</summary>
+    public int AudioLatencyIndex
+    {
+        get => settings.Current.AudioLatency == AudioLatency.Stable ? 1 : 0;
+        set => settings.Update(s => s with { AudioLatency = value == 1 ? "stable" : "low" });
+    }
 
     // ───────────── Language ─────────────
 

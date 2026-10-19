@@ -5,6 +5,7 @@ using Shorekeeper.Core.Discovery;
 using Shorekeeper.Core.Identity;
 using Shorekeeper.Core.Platform;
 using Shorekeeper.Engine.Api;
+using Shorekeeper.Engine.Audio;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Groups;
 using Shorekeeper.Engine.Hosting;
@@ -46,6 +47,8 @@ internal sealed class TestNode : IAsyncDisposable
 
     public GroupStore GroupStore => Get<GroupStore>();
 
+    public AudioService Audio => Get<AudioService>();
+
     public string DownloadDirectory => folder.Paths.DefaultDownloadDirectory;
 
     /// <summary>Scratch folder for files a test sends.</summary>
@@ -61,7 +64,9 @@ internal sealed class TestNode : IAsyncDisposable
     /// <param name="settings">Extra settings.json properties, e.g. <c>"enableBridge": true</c>.</param>
     /// <param name="directory">The company directory this node's user is in.</param>
     /// <param name="external">Files handed over by reference, as on Android.</param>
-    public static async Task<TestNode> StartAsync(string name, string? settings = null, IDirectoryInfo? directory = null, IExternalFileSource? external = null)
+    /// <param name="services">More registrations, e.g. platform pieces.</param>
+    public static async Task<TestNode> StartAsync(
+        string name, string? settings = null, IDirectoryInfo? directory = null, IExternalFileSource? external = null, Action<IServiceCollection>? services = null)
     {
         var folder = new TempAppFolder();
         // A private port per node so tests never collide with a running Shorekeeper.
@@ -82,6 +87,7 @@ internal sealed class TestNode : IAsyncDisposable
             builder.Services.AddSingleton(external);
         }
 
+        services?.Invoke(builder.Services);
         builder.Services.AddShorekeeperEngine(folder.Paths);
         builder.Services.AddTransfers();
         builder.Services.AddPeerApi();

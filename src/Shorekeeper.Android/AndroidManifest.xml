@@ -10,6 +10,8 @@
   <!-- Background transfers (docs/14-android.md §3.3): a connectedDevice foreground service with Wi-Fi and wake locks. -->
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+  <!-- "Nghe" (docs/14-android.md §3.5): a computer's sound keeps playing with the screen off. -->
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
   <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
   <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
   <uses-permission android:name="android.permission.WAKE_LOCK" />

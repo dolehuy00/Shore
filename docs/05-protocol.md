@@ -6,6 +6,7 @@
 |---|---|---|---|
 | Discovery | UDP multicast `239.255.47.47` + unicast | `47470/udp` | announce, heartbeat, reply, bye, probe |
 | API | HTTPS (TLS 1.2/1.3 theo hệ điều hành, mTLS), HTTP/1.1 | `47471/tcp` | mọi thứ còn lại |
+| Âm thanh | UDP unicast, AES-GCM | cổng động của máy nghe | "Phát âm thanh" (§4.7) |
 
 - Cổng 47471 bận (phiên người dùng thứ 2 trên cùng máy) thì dùng cổng động, quảng bá qua `port` trong presence.
 - Đổi được qua GPO, nhưng toàn mạng phải dùng **cùng cổng UDP**.
@@ -156,6 +157,24 @@ Endpoint gửi file (§4.2, §4.3) dùng quyền **Trusted hoặc cùng nhóm**:
 | GET | `/bridge/peers?since=&wait=` | Any | Long-poll tối đa 25 giây → `{ version, full, peers: [{ deviceId, name, host, os, app, status, address, port }], removed: [deviceId] }`. `since=0` hoặc quá cũ → `full: true` |
 
 Bridge chỉ trả thông tin **vốn đã công khai** qua presence (tên, địa chỉ, nhóm), nên `Any` là đủ. Máy không bật Bridge trả `404 not_found`; đầy (2.000 máy) trả `503 busy`.
+
+### 4.7 Âm thanh ("Phát âm thanh" / "Nghe")
+
+Máy tính bật **Phát âm thanh** thì presence có capability `audio`; liên hệ thấy và tự bấm **Nghe**. Hai hành động đó là sự đồng ý của hai bên, không có hộp hỏi thêm.
+
+| Method | Path | Quyền | Mô tả |
+|---|---|---|---|
+| POST | `/audio/listeners` | Trusted | Trên máy phát. `{ sessionId, key, port }`: `key` là 32 byte (base64) máy nghe vừa tạo, `port` là cổng UDP máy nghe đang mở ở địa chỉ gọi tới → `204`. Chưa bật phát (hoặc không thu được loa) `404`; đủ 4 máy nghe `503 busy`. Gọi lại thì thay phiên cũ |
+| DELETE | `/audio/listeners/{sessionId}` | Trusted | Máy nghe dừng nghe |
+| POST | `/audio/listening/{sessionId}/ended` | Trusted | Trên máy nghe: máy phát đã tắt phát |
+
+**Luồng UDP** (máy phát → máy nghe), mỗi datagram một khung 10 ms:
+
+- Âm thanh loa (WASAPI loopback) 48 kHz stereo, Opus "restricted low delay" 128 kbps CBR. Chỉ thu khi có người nghe; nén một lần, niêm phong riêng cho từng máy nghe.
+- Datagram: `version (1) · sequence (4) · sender time µs (8)` để rõ, sau đó `khung (2 + n) · khung trước (2 + n)` mã hóa AES-GCM (nonce = loại + sequence, header là associated data), tag 16 byte. Mất một gói thì phát từ bản sao trong gói sau.
+- Máy nghe giữ khung trong bộ đệm jitter: **Thấp** 30 ms, **Ổn định** 80 ms. Khi luồng đến trễ (Wi-Fi điện thoại quét mạng làm gián đoạn 50–140 ms), máy nghe chờ thay vì bỏ khung, tạm phát âm Opus đoán và nâng mức đệm (tối đa 120 ms); vài giây yên ổn thì hạ dần về mức gốc.
+- Mỗi giây máy nghe gửi về một keep-alive (`0xA1 · counter (4) · 1 byte niêm phong · tag`) tới đúng cổng nguồn của luồng. Máy phát bỏ máy nghe sau 6 giây không có keep-alive; máy nghe dừng sau 8 giây không có âm thanh.
+- Máy phát giữ Wi-Fi ở media streaming mode và tắt background scan khi đang thu (`WlanSetInterface`).
 
 ## 5. Timeout & giới hạn
 

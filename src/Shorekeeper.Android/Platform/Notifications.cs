@@ -14,6 +14,7 @@ internal static class Notifications
     private const string OffersChannel = "offers";
     // A new id: a channel's badge setting cannot change once created, and the old "transfers" one showed a badge.
     private const string TransfersChannel = "transfer-progress";
+    private const string AudioChannel = "audio";
     private const int OfferNotificationId = 2;
 
     public static void CreateChannels(Context context)
@@ -25,6 +26,23 @@ internal static class Notifications
         transfers.SetShowBadge(false);
         manager.CreateNotificationChannel(transfers);
         manager.DeleteNotificationChannel("transfers");
+        var audio = new NotificationChannel(AudioChannel, L.T("Nghe âm thanh"), NotificationImportance.Low);
+        audio.SetShowBadge(false);
+        manager.CreateNotificationChannel(audio);
+    }
+
+    /// <summary>"Đang nghe âm thanh từ PC · MSI" with [Dừng], while <see cref="AudioPlaybackService"/> runs.</summary>
+    public static Notification Listening(Context context, string title)
+    {
+        PendingIntent stop = PendingIntent.GetService(
+            context, 0, new Intent(context, typeof(AudioPlaybackService)).SetAction(AudioPlaybackService.ActionStop), PendingIntentFlags.Immutable)!;
+        return new Notification.Builder(context, AudioChannel)
+            .SetContentTitle(title)!
+            .SetSmallIcon(Resource.Drawable.ic_stat_shorekeeper)!
+            .SetOngoing(true)!
+            .SetContentIntent(OpenApp(context, tab: 0))!
+            .AddAction(new Notification.Action.Builder(Icon.CreateWithResource(context, AndroidResource.Drawable.IcMediaPause), L.T("Dừng"), stop).Build())!
+            .Build()!;
     }
 
     public static Notification Transfer(Context context, string text) =>

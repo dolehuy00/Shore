@@ -21,6 +21,7 @@ public enum NavPage
     Inbox,
     Sent,
     Groups,
+    Audio,
     Settings,
 }
 
@@ -65,9 +66,11 @@ public sealed partial class MainWindowViewModel : ObservableObject
         BlockedPeersViewModel blocked,
         SettingsViewModel settingsPage,
         GroupsViewModel groups,
+        AudioViewModel audio,
         DialogService dialogs)
     {
         Groups = groups;
+        Audio = audio;
         Settings = settingsPage;
         settings.Changed += (_, current) => Dispatcher.UIThread.Post(() =>
         {
@@ -133,6 +136,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public GroupsViewModel Groups { get; }
 
+    public AudioViewModel Audio { get; }
+
     public SearchViewModel Search { get; }
 
     /// <summary>A search result was chosen: the view scrolls to this row's view model and points at it.</summary>
@@ -158,6 +163,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         new(NavPage.Inbox, L.T("Hộp nhận"), "Icon.Download"),
         new(NavPage.Sent, L.T("Đã gửi"), "Icon.Upload"),
         new(NavPage.Groups, L.T("Nhóm"), "Icon.Team"),
+        new(NavPage.Audio, L.T("Âm thanh"), "Icon.Speaker"),
         new(NavPage.Settings, L.T("Cài đặt"), "Icon.Settings"),
     ];
 
@@ -170,7 +176,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ComingSoonText), nameof(IsComingSoonVisible), nameof(IsNeighborhoodVisible),
-        nameof(IsInboxVisible), nameof(IsSentVisible), nameof(IsGroupsVisible), nameof(IsSettingsVisible))]
+        nameof(IsInboxVisible), nameof(IsSentVisible), nameof(IsGroupsVisible), nameof(IsAudioVisible), nameof(IsSettingsVisible))]
     public partial NavItem SelectedNavItem { get; set; }
 
     [ObservableProperty]
@@ -188,6 +194,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public bool IsSentVisible => SelectedNavItem.Page == NavPage.Sent;
 
     public bool IsGroupsVisible => SelectedNavItem.Page == NavPage.Groups;
+
+    public bool IsAudioVisible => SelectedNavItem.Page == NavPage.Audio;
 
     public bool IsSettingsVisible => SelectedNavItem.Page == NavPage.Settings;
 

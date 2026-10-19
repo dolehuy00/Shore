@@ -31,6 +31,9 @@ public sealed record ShorekeeperSettings
     /// <summary>That shortcut, e.g. "Ctrl+Alt+S" (the default when null or not a valid shortcut).</summary>
     public string? QuickSendShortcut { get; init; }
 
+    /// <summary>"low" or "stable": how much sound the listener keeps in hand (low when null).</summary>
+    public string? AudioLatency { get; init; }
+
     public int? DiscoveryPort { get; init; }
 
     public int? ApiPort { get; init; }

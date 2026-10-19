@@ -60,6 +60,7 @@ public static class EngineHost
         builder.Logging.AddProvider(new LogcatLoggerProvider());
         builder.Services.AddSingleton<ISecretProtector, KeystoreSecretProtector>();
         builder.Services.AddSingleton<IExternalFileSource>(new ContentUriFiles(context.ContentResolver!));
+        builder.Services.AddSingleton<IAudioOutput>(new AndroidAudioOutput(context.ApplicationContext ?? context));
         builder.Services.AddShorekeeperEngine(paths);
         builder.Services.AddTransfers();
         builder.Services.AddPeerApi();

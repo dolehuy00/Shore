@@ -8,6 +8,7 @@ using Shorekeeper.Core.Identity;
 using Shorekeeper.Core.Localization;
 using Shorekeeper.Core.Trust;
 using Shorekeeper.Desktop.Views;
+using Shorekeeper.Engine.Audio;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Groups;
 using Shorekeeper.Engine.Settings;
@@ -28,11 +29,12 @@ public sealed partial class NeighborhoodViewModel : ObservableObject
     private readonly DialogService dialogs;
     private readonly PeerAvatars avatars;
     private readonly SettingsService settings;
+    private readonly AudioService audio;
     private readonly Dictionary<DeviceId, PeerCardViewModel> cards = [];
 
     public NeighborhoodViewModel(
         PeerDirectory directory, TrustStore trust, GroupStore groups, PairingService pairing, DialogService dialogs, PeerAvatars avatars,
-        SettingsService settings)
+        SettingsService settings, AudioService audio)
     {
         this.directory = directory;
         this.trust = trust;
@@ -41,8 +43,10 @@ public sealed partial class NeighborhoodViewModel : ObservableObject
         this.dialogs = dialogs;
         this.avatars = avatars;
         this.settings = settings;
+        this.audio = audio;
 
         directory.Changed += (_, _) => Dispatcher.UIThread.Post(Refresh);
+        audio.Changed += (_, _) => Dispatcher.UIThread.Post(Refresh);
         trust.Changed += (_, _) => Dispatcher.UIThread.Post(Refresh);
         groups.Changed += (_, _) => Dispatcher.UIThread.Post(Refresh);
         Refresh();
@@ -81,6 +85,11 @@ public sealed partial class NeighborhoodViewModel : ObservableObject
             .Select(peer => Show(Card(peer.DeviceId).Update(null, peer, joined.FirstOrDefault(g => g.Contains(peer.DeviceId))), peer))
             .ToList();
         Everyone = [.. contacts, .. others];
+        HashSet<DeviceId> listening = [.. audio.Listeners.Select(l => l.PeerId)];
+        foreach (PeerCardViewModel card in Everyone)
+        {
+            card.IsListening = listening.Contains(card.DeviceId);
+        }
 
         Sync(Contacts, contacts);
         Sync(Others, others);
@@ -285,6 +294,10 @@ public sealed partial class PeerCardViewModel(DeviceId deviceId, NeighborhoodVie
     /// <summary>Stale or offline: shown dimmed with a gray dot.</summary>
     [ObservableProperty]
     public partial bool IsInactive { get; set; }
+
+    /// <summary>Listens to this computer's sound ("Phát âm thanh").</summary>
+    [ObservableProperty]
+    public partial bool IsListening { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanConnect), nameof(CanSend), nameof(CanDrop))]

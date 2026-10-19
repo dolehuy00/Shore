@@ -1,5 +1,6 @@
 using System.Net;
 using Microsoft.Extensions.DependencyInjection;
+using Shorekeeper.Engine.Audio;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Groups;
 using Shorekeeper.Engine.Identity;
@@ -24,6 +25,7 @@ public static class PeerApiEndpoints
         var groupStore = services.GetRequiredService<GroupStore>();
         var groups = services.GetRequiredService<GroupService>();
         var profile = services.GetRequiredService<DirectoryProfileService>();
+        var audio = services.GetRequiredService<AudioService>();
         var api = new PeerApi(trust, groupStore);
 
         api.Map("GET", "/hello", RequiredAccess.AnyPeer, _ => PeerResponse.Json(new HelloResponse(
@@ -170,6 +172,32 @@ public static class PeerApiEndpoints
                 JoinRequestResult.NotFound => NotFound(),
                 _ => Invalid(),
             });
+
+        // ───────────── Sound (docs/05-protocol.md §4.7): contacts only ─────────────
+
+        // On the device playing its sound: a contact starts or stops listening.
+        api.Map("POST", "/audio/listeners", RequiredAccess.Trusted, async request =>
+            await request.ReadJsonAsync<AudioListenBody>() is not { } body ? Invalid()
+            : audio.HandleJoin(request.Caller, request.RemoteAddress, body) switch
+            {
+                AudioJoinResult.Joined => NoContent(),
+                AudioJoinResult.NotPlaying => NotFound(),
+                AudioJoinResult.Full => Busy(),
+                _ => Invalid(),
+            });
+
+        api.Map("DELETE", "/audio/listeners/{sessionId}", RequiredAccess.Trusted, request =>
+        {
+            audio.HandleLeave(request.Caller, request.Route("sessionId"));
+            return NoContent();
+        });
+
+        // On the listener: the sound it listens to was turned off.
+        api.Map("POST", "/audio/listening/{sessionId}/ended", RequiredAccess.Trusted, request =>
+        {
+            audio.HandleEnded(request.Caller, request.Route("sessionId"));
+            return NoContent();
+        });
 
         return api;
     }

@@ -82,6 +82,9 @@ public static class PresenceCapabilities
 {
     /// <summary>The device relays presence for other subnets (docs/08-host-roles.md §4).</summary>
     public const string Bridge = "bridge";
+
+    /// <summary>"Phát âm thanh" is on: contacts may listen (docs/05-protocol.md §4.7).</summary>
+    public const string Audio = "audio";
 }
 
 public static class PresenceStatus

@@ -4,10 +4,25 @@ using Concentus.Enums;
 
 namespace Shorekeeper.Core.Audio;
 
+/// <summary>One 10 ms frame of <see cref="AudioStreamFormat.FrameValues"/> interleaved samples; only valid during the call.</summary>
+public delegate void AudioFrameHandler(ReadOnlySpan<float> frame);
+
+/// <summary>Fills one 10 ms frame of <see cref="AudioStreamFormat.FrameValues"/> interleaved samples to play.</summary>
+public delegate void AudioFrameReader(Span<short> pcm);
+
+/// <summary>"Độ trễ âm thanh" on the listening side.</summary>
+public enum AudioLatency
+{
+    /// <summary>30 ms in hand: for games.</summary>
+    Low,
+
+    /// <summary>80 ms in hand: for music, rarely a gap when Wi-Fi stalls.</summary>
+    Stable,
+}
+
 /// <summary>The audio stream's format: 48 kHz stereo in 10 ms frames, over UDP.</summary>
 public static class AudioStreamFormat
 {
-    public const int Port = 47472;
     public const int SampleRate = 48000;
     public const int Channels = 2;
     public const int FrameMilliseconds = 10;
@@ -15,6 +30,9 @@ public static class AudioStreamFormat
 
     /// <summary>Interleaved values in one frame.</summary>
     public const int FrameValues = FrameSamples * Channels;
+
+    /// <summary>Frames the listener keeps in hand before playing.</summary>
+    public static int BufferFrames(AudioLatency latency) => latency == AudioLatency.Stable ? 8 : 3;
 }
 
 /// <summary>Sending side: turns 10 ms frames into numbered <see cref="AudioPacket"/>s.</summary>

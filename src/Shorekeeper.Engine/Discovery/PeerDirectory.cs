@@ -40,7 +40,8 @@ public sealed record PeerInfo(
     bool IsBridge = false,
     IReadOnlyList<PresenceGroup>? HostedGroups = null,
     string? Department = null,
-    string? AvatarTag = null);
+    string? AvatarTag = null,
+    bool IsPlayingAudio = false);
 
 public enum PeerChangeKind
 {
@@ -184,7 +185,8 @@ public sealed class PeerDirectory(TimeProvider timeProvider)
         packet.Capabilities.Contains(PresenceCapabilities.Bridge),
         packet.Groups.Count > 0 ? packet.Groups : null,
         packet.Department,
-        packet.AvatarTag);
+        packet.AvatarTag,
+        packet.Capabilities.Contains(PresenceCapabilities.Audio));
 
     /// <summary>Stores the observation; returns the change to raise outside the lock, or null if nothing visible changed.</summary>
     private PeerChange? Store(PeerInfo observed)

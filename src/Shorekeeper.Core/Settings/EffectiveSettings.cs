@@ -1,3 +1,4 @@
+using Shorekeeper.Core.Audio;
 using Shorekeeper.Core.Platform;
 
 namespace Shorekeeper.Core.Settings;
@@ -37,6 +38,8 @@ public sealed record EffectiveSettings
     public bool QuickSendHotkey { get; init; } = true;
 
     public Hotkey QuickSendShortcut { get; init; } = Hotkey.Default;
+
+    public AudioLatency AudioLatency { get; init; }
 
     public int DiscoveryPort { get; init; } = DefaultDiscoveryPort;
 

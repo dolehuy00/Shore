@@ -111,6 +111,14 @@
         </StackPanel>
       </Grid>
 
+      <!-- While a computer's sound plays here ("Nghe"). -->
+      <Border DockPanel.Dock="Bottom" IsVisible="{Binding IsListening}" Background="{DynamicResource Sk.TileBackground}" Padding="16,6,8,6">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Text="{Binding ListeningText}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+          <Button Grid.Column="1" Content="{l:T 'Dừng'}" Command="{Binding StopListeningCommand}" Padding="12,6" FontSize="13" />
+        </Grid>
+      </Border>
+
       <!-- Short messages, e.g. "2 mục không đọc được đã bị bỏ qua". -->
       <Border DockPanel.Dock="Bottom" IsVisible="{Binding HasNotice}" Background="#33F59E0B" Padding="16,6,4,6">
         <Grid ColumnDefinitions="*,Auto">
@@ -188,7 +196,7 @@
                 <DataTemplate x:DataType="vm:PeerItemViewModel">
                   <Border Classes="card">
                     <!-- Tall enough that ⋮ (top) and the main action (bottom) do not crowd each other. -->
-                    <Grid ColumnDefinitions="Auto,*,Auto" MinHeight="96">
+                    <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="*,Auto" MinHeight="96">
                       <Border Classes="tile" VerticalAlignment="Center">
                         <Panel>
                           <PathIcon Data="{StaticResource Icon.Laptop}" IsVisible="{Binding !IsPhone}" Width="22" Height="22" />
@@ -235,6 +243,18 @@
                               <TextBlock Text="{l:T 'Gửi file…'}" />
                             </StackPanel>
                           </Button>
+                        </Panel>
+                      </Grid>
+
+                      <!-- A computer with "Phát âm thanh" on: its own row, so name and address keep their width. -->
+                      <Grid Grid.Row="1" Grid.ColumnSpan="3" ColumnDefinitions="*,Auto" Margin="0,10,0,0" IsVisible="{Binding IsPlayingAudio}">
+                        <TextBlock Text="{l:T 'Đang phát âm thanh'}" IsVisible="{Binding !IsListening}" FontSize="13" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource AccentButtonBackground}" />
+                        <TextBlock Text="{l:T 'Đang nghe'}" IsVisible="{Binding IsListening}" FontSize="13" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource AccentButtonBackground}" />
+                        <Panel Grid.Column="1">
+                          <Button Content="{l:T 'Nghe'}" Command="{Binding ListenCommand}" IsVisible="{Binding CanListen}" Padding="12,6" FontSize="13" />
+                          <Button Content="{l:T 'Dừng nghe'}" Command="{Binding StopListeningCommand}" IsVisible="{Binding IsListening}" Padding="12,6" FontSize="13" />
                         </Panel>
                       </Grid>
                     </Grid>
@@ -518,6 +538,14 @@
               <Button Grid.Column="2" Content="{l:T 'Lưu'}" Command="{Binding SaveAutoAcceptLimitCommand}" />
             </Grid>
             <TextBlock Classes="muted" Text="{l:T 'Cho máy đã kết nối có Tự nhận file theo cài đặt chung; từng máy có thể đặt riêng ở menu ⋮.'}" FontSize="12" TextWrapping="Wrap" />
+
+            <TextBlock Classes="h3" Text="{l:T 'Độ trễ âm thanh'}" />
+            <ComboBox SelectedIndex="{Binding AudioLatencyIndex}" HorizontalAlignment="Stretch">
+              <ComboBoxItem Content="{l:T 'Thấp: cho game'}" />
+              <ComboBoxItem Content="{l:T 'Ổn định: cho nghe nhạc'}" />
+            </ComboBox>
+            <TextBlock Classes="muted" Text="{l:T 'Khi nghe âm thanh của máy tính. Thấp trễ ít nhưng đôi khi hụt tiếng lúc Wi-Fi chập chờn; Ổn định trễ hơn một chút nhưng ít hụt. Áp dụng từ lần nghe sau.'}"
+                       FontSize="12" TextWrapping="Wrap" />
 
             <TextBlock Classes="h3" Text="{l:T 'Chạy nền'}" />
             <ToggleSwitch IsChecked="{Binding AlwaysReceive}" OnContent="{l:T 'Luôn nhận file (kể cả khi tắt màn hình)'}" OffContent="{l:T 'Luôn nhận file (kể cả khi tắt màn hình)'}" />

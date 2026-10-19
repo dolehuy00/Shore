@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Shorekeeper.Core.Platform;
+using Shorekeeper.Platform.Windows.Audio;
 
 namespace Shorekeeper.Platform.Windows;
 
@@ -14,6 +15,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<INotifier, WindowsToastNotifier>();
         services.AddSingleton<IGlobalHotkey, WindowsGlobalHotkey>();
         services.AddSingleton<IDirectoryInfo, ActiveDirectoryInfo>();
+        services.AddSingleton<IAudioCapture, WindowsAudioCapture>();
         return services;
     }
 }

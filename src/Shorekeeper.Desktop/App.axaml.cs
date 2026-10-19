@@ -138,6 +138,17 @@ public partial class App : Application
         var quickSendItem = new NativeMenuItem(L.T("Gửi nhanh…"));
         quickSendItem.Click += (_, _) => quickSend?.Open([]);
 
+        var audio = Services!.GetRequiredService<AudioViewModel>();
+        var audioItem = new NativeMenuItem(L.T("Phát âm thanh")) { ToggleType = MenuItemToggleType.CheckBox, IsChecked = audio.IsPlaying, IsVisible = audio.CanPlay };
+        audioItem.Click += (_, _) => audio.IsPlaying = !audio.IsPlaying;
+        audio.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(AudioViewModel.IsPlaying))
+            {
+                audioItem.IsChecked = audio.IsPlaying;
+            }
+        };
+
         var exitItem = new NativeMenuItem(L.T("Thoát"));
         exitItem.Click += (_, _) =>
         {
@@ -149,7 +160,7 @@ public partial class App : Application
         {
             Icon = new WindowIcon(AssetLoader.Open(IconUri)),
             ToolTipText = "Shorekeeper",
-            Menu = [openItem, quickSendItem, new NativeMenuItemSeparator(), exitItem],
+            Menu = [openItem, quickSendItem, audioItem, new NativeMenuItemSeparator(), exitItem],
         };
         trayIcon.Clicked += (_, _) => ShowMainWindow();
 

@@ -94,6 +94,12 @@ public static class GroupStatus
 /// <summary>Body of <c>POST /api/v1/groups/invitations</c>: a Host invites the callee into one of its groups.</summary>
 public sealed record GroupInvitationBody(string GroupId, string GroupName, string HostName);
 
+/// <summary>
+/// Body of <c>POST /api/v1/audio/listeners</c>: the caller wants to hear the callee's sound, sealed with
+/// <paramref name="Key"/> (32 bytes, base64) and sent to <paramref name="Port"/> (UDP) at the caller's address.
+/// </summary>
+public sealed record AudioListenBody(string SessionId, string Key, int Port);
+
 /// <summary>Stable error codes in problem+json responses (docs/05-protocol.md §3).</summary>
 public static class ApiErrorCodes
 {
