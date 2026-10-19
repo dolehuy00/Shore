@@ -10,6 +10,7 @@ using Shorekeeper.Engine;
 using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Groups;
+using Shorekeeper.Engine.Trust;
 
 namespace Shorekeeper.Android.ViewModels;
 
@@ -23,7 +24,9 @@ public sealed partial class GroupsTabViewModel : ObservableObject
     private readonly GroupService groups;
     private readonly PeerDirectory directory;
     private readonly LocalDevice device;
+    private readonly TrustStore trust;
     private readonly MainViewModel main;
+    private string shownGroups = "";
 
     public GroupsTabViewModel(IServiceProvider services, MainViewModel main)
     {
@@ -31,6 +34,7 @@ public sealed partial class GroupsTabViewModel : ObservableObject
         groups = services.GetRequiredService<GroupService>();
         directory = services.GetRequiredService<PeerDirectory>();
         device = services.GetRequiredService<LocalDevice>();
+        trust = services.GetRequiredService<TrustStore>();
         this.main = main;
 
         store.Changed += (_, _) => Dispatcher.UIThread.Post(Refresh);
@@ -81,7 +85,14 @@ public sealed partial class GroupsTabViewModel : ObservableObject
     private void Refresh()
     {
         IReadOnlyList<Group> all = store.GetAll();
-        Replace(MyGroups, all.Select(g => new GroupItemViewModel(g, Describe(g), this)));
+        GroupItemViewModel[] mine = [.. all.Select(g => new GroupItemViewModel(g, Describe(g), [.. Members(g)], this))];
+        // This runs whenever a device appears or goes quiet: the cards are only rebuilt when what they show changed.
+        string shown = string.Join("\n", mine.Select(m => m.Signature));
+        if (shown != shownGroups)
+        {
+            shownGroups = shown;
+            Replace(MyGroups, mine);
+        }
 
         HashSet<string> known = [.. all.Select(g => g.Id)];
         Replace(NetworkGroups, directory.Snapshot()
@@ -106,6 +117,33 @@ public sealed partial class GroupsTabViewModel : ObservableObject
         string host = group.Role == GroupRole.Host ? L.T("bạn") : main.NameOf(group.HostId);
         string unreachable = group.Role == GroupRole.Member && groups.IsHostReachable(group.Id) == false ? " · Host offline" : "";
         return L.F("Host: {0} · {1} thành viên · {2} online{3}", host, group.Members.Count, online, unreachable);
+    }
+
+    /// <summary>Host first, then you, then by name: on a phone or a computer, reachable or not, and where.</summary>
+    private IEnumerable<GroupMemberItem> Members(Group group)
+    {
+        IReadOnlyList<PeerInfo> live = directory.Snapshot();
+        return group.Members
+            .Select(m =>
+            {
+                bool isMe = m.DeviceId == device.DeviceId;
+                PeerInfo? peer = isMe ? null : live.FirstOrDefault(p => p.DeviceId == m.DeviceId);
+                bool isOnline = isMe || peer?.State == PeerState.Online;
+                return new GroupMemberItem(
+                    isMe ? L.T("Bạn") : main.NameOf(m.DeviceId) is var name && name != m.DeviceId.ShortForm ? name : m.Name,
+                    m.IsHost,
+                    isMe ? true : peer is not null ? peer.Os.Equals("android", StringComparison.OrdinalIgnoreCase) : trust.Get(m.DeviceId)?.IsPhone == true,
+                    isOnline,
+                    peer?.IsBusy == true,
+                    isOnline ? peer?.IsBusy == true ? L.T("Bận") : "Online" : peer is null ? "Offline" : L.T("Mất tín hiệu…"),
+                    isMe ? "" : peer is null ? "" : $"{peer.HostName} · {peer.Address}")
+                {
+                    IsMe = isMe,
+                };
+            })
+            .OrderByDescending(m => m.IsHost)
+            .ThenByDescending(m => m.IsMe)
+            .ThenBy(m => m.Name, StringComparer.CurrentCultureIgnoreCase);
     }
 
     private void AddNotice(string message)
@@ -157,7 +195,16 @@ public sealed partial class GroupsTabViewModel : ObservableObject
     }
 }
 
-public sealed partial class GroupItemViewModel(Group group, string detail, GroupsTabViewModel owner)
+/// <summary>One member row of a group card.</summary>
+/// <param name="Detail">"MSI · 192.168.1.20" while reachable.</param>
+public sealed record GroupMemberItem(string Name, bool IsHost, bool IsPhone, bool IsOnline, bool IsBusy, string StatusText, string Detail)
+{
+    public bool IsMe { get; init; }
+
+    public bool HasDetail => Detail.Length > 0;
+}
+
+public sealed partial class GroupItemViewModel(Group group, string detail, IReadOnlyList<GroupMemberItem> members, GroupsTabViewModel owner)
 {
     public string Id { get; } = group.Id;
 
@@ -165,7 +212,10 @@ public sealed partial class GroupItemViewModel(Group group, string detail, Group
 
     public string Detail { get; } = detail;
 
-    public string Members { get; } = string.Join(", ", group.Members.Select(m => m.IsHost ? $"{m.Name} (Host)" : m.Name));
+    public IReadOnlyList<GroupMemberItem> Members { get; } = members;
+
+    /// <summary>Everything the card shows, to tell whether it needs rebuilding.</summary>
+    internal string Signature => $"{Id}|{Name}|{Detail}|{group.Role}|{string.Join(";", Members)}";
 
     public bool CanSend { get; } = group.Role != GroupRole.Pending;
 

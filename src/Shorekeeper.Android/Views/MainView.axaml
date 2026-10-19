@@ -398,7 +398,35 @@
                       <StackPanel Grid.Column="1" Spacing="3" Margin="12,0,0,0">
                         <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
                         <TextBlock Classes="muted" Text="{Binding Detail}" FontSize="12" TextWrapping="Wrap" />
-                        <TextBlock Text="{Binding Members}" FontSize="12" TextWrapping="Wrap" />
+                        <!-- One row per member: device, name, Host/Bạn, status and where they are on the network. -->
+                        <ItemsControl ItemsSource="{Binding Members}" Margin="0,6,0,0">
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:GroupMemberItem">
+                              <Grid ColumnDefinitions="Auto,*" Margin="0,4">
+                                <Border Width="32" Height="32" CornerRadius="8" Background="{DynamicResource Sk.TileBackground}" VerticalAlignment="Center">
+                                  <Panel>
+                                    <PathIcon Data="{StaticResource Icon.Laptop}" IsVisible="{Binding !IsPhone}" Width="16" Height="16" />
+                                    <PathIcon Data="{StaticResource Icon.Phone}" IsVisible="{Binding IsPhone}" Width="16" Height="16" />
+                                  </Panel>
+                                </Border>
+                                <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
+                                  <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                    <Border Background="#33F59E0B" CornerRadius="4" Padding="6,1" IsVisible="{Binding IsHost}" VerticalAlignment="Center">
+                                      <TextBlock Text="Host" FontSize="11" />
+                                    </Border>
+                                  </StackPanel>
+                                  <Grid ColumnDefinitions="Auto,Auto,*">
+                                    <Ellipse Classes="dot" Classes.busy="{Binding IsBusy}" Classes.muted="{Binding !IsOnline}" Margin="0,0,6,0" />
+                                    <TextBlock Grid.Column="1" Classes="muted" Text="{Binding StatusText}" FontSize="12" />
+                                    <TextBlock Grid.Column="2" Classes="muted" Text="{Binding Detail, StringFormat=' · {0}'}" IsVisible="{Binding HasDetail}"
+                                               FontSize="12" TextTrimming="CharacterEllipsis" />
+                                  </Grid>
+                                </StackPanel>
+                              </Grid>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                         <WrapPanel ItemSpacing="8" LineSpacing="8" Margin="0,6,0,0">
                           <Button Click="OnSendToGroup" IsVisible="{Binding CanSend}" Classes="accent" AutomationProperties.Name="{l:T 'Gửi file cho nhóm…'}">
                             <StackPanel Orientation="Horizontal" Spacing="8">
