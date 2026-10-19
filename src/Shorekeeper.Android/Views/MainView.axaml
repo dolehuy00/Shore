@@ -75,6 +75,25 @@
     <Style Selector="TabControl.nav TabItem:selected">
       <Setter Property="Foreground" Value="{DynamicResource AccentButtonBackground}" />
     </Style>
+    <!-- A tab page fades in and rises a few pixels as it appears, like a short CSS transition: only opacity and
+         a translation, which the GPU composes without laying anything out again. -->
+    <Style Selector="Panel.page">
+      <Setter Property="RenderTransform" Value="translateY(0px)" />
+    </Style>
+    <Style Selector="Panel.page[IsVisible=True]">
+      <Style.Animations>
+        <Animation Duration="0:0:0.18" Easing="CubicEaseOut" FillMode="Forward">
+          <KeyFrame Cue="0%">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="TranslateTransform.Y" Value="10" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="TranslateTransform.Y" Value="0" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
   </UserControl.Styles>
 
   <Panel>
@@ -155,7 +174,7 @@
       </TabControl>
 
       <Panel Margin="12,4,12,0">
-        <Panel IsVisible="{Binding IsNearbyTab}">
+        <Panel Classes="page" IsVisible="{Binding IsNearbyTab}">
         <Panel>
           <StackPanel IsVisible="{Binding HasNoPeers}" Spacing="6" Margin="16,48" HorizontalAlignment="Center">
             <PathIcon Data="{StaticResource Icon.People}" Width="40" Height="40" Opacity="0.5" HorizontalAlignment="Center" />
@@ -232,7 +251,7 @@
           </Button>
         </Panel>
         </Panel>
-        <Panel IsVisible="{Binding IsInboxTab}">
+        <Panel Classes="page" IsVisible="{Binding IsInboxTab}">
         <Panel>
           <StackPanel IsVisible="{Binding HasNoOffers}" Spacing="6" Margin="16,48" HorizontalAlignment="Center">
             <PathIcon Data="{StaticResource Icon.Download}" Width="40" Height="40" Opacity="0.5" HorizontalAlignment="Center" />
@@ -289,7 +308,7 @@
           </ScrollViewer>
         </Panel>
         </Panel>
-        <Panel IsVisible="{Binding IsSentTab}">
+        <Panel Classes="page" IsVisible="{Binding IsSentTab}">
         <Panel>
           <StackPanel IsVisible="{Binding HasNoSent}" Spacing="6" Margin="16,48" HorizontalAlignment="Center">
             <PathIcon Data="{StaticResource Icon.Upload}" Width="40" Height="40" Opacity="0.5" HorizontalAlignment="Center" />
@@ -339,7 +358,7 @@
           </ScrollViewer>
         </Panel>
         </Panel>
-        <Panel IsVisible="{Binding IsGroupsTab}">
+        <Panel Classes="page" IsVisible="{Binding IsGroupsTab}">
         <ScrollViewer DataContext="{Binding Groups}" x:DataType="vm:GroupsTabViewModel">
           <StackPanel Spacing="4" Margin="0,0,0,24">
             <TextBlock Classes="muted" Text="{l:T 'Quản trị viên đã tắt tính năng nhóm.'}" IsVisible="{Binding !IsEnabled}" Margin="4,12" />
@@ -421,7 +440,7 @@
           </StackPanel>
         </ScrollViewer>
         </Panel>
-        <Panel IsVisible="{Binding IsSettingsTab}">
+        <Panel Classes="page" IsVisible="{Binding IsSettingsTab}">
         <ScrollViewer DataContext="{Binding Settings}" x:DataType="vm:SettingsTabViewModel">
           <StackPanel Spacing="6" Margin="0,0,0,24">
             <TextBlock Classes="h3" Text="{l:T 'Tên hiển thị'}" />
