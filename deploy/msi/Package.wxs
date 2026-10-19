@@ -27,6 +27,10 @@
 
     <Property Id="ARPNOMODIFY" Value="1" />
 
+    <!-- Logo for the Start menu shortcut (advertised shortcuts need their own) and Settings → Apps: the exe's own icon. -->
+    <Icon Id="Shorekeeper.exe" SourceFile="$(AppPublishDir)Shorekeeper.exe" />
+    <Property Id="ARPPRODUCTICON" Value="Shorekeeper.exe" />
+
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="Shorekeeper" />
     </StandardDirectory>
@@ -37,7 +41,8 @@
     <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
       <Component Id="MainExecutable">
         <File Id="ShorekeeperExe" Source="$(AppPublishDir)Shorekeeper.exe" KeyPath="yes">
-          <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuFolder" Name="Shorekeeper" WorkingDirectory="INSTALLFOLDER" Advertise="yes" />
+          <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuFolder" Name="Shorekeeper" WorkingDirectory="INSTALLFOLDER" Advertise="yes"
+                    Icon="Shorekeeper.exe" />
         </File>
       </Component>
 
