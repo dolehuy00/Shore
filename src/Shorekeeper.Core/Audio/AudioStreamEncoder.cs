@@ -18,6 +18,12 @@ public enum AudioLatency
 
     /// <summary>80 ms in hand: for music, rarely a gap when Wi-Fi stalls.</summary>
     Stable,
+
+    /// <summary>
+    /// 100 ms in hand, more (up to 3 s) whenever the network falters, and nothing audible ever dropped to win it back:
+    /// for listening where delay does not matter, only gaps do.
+    /// </summary>
+    Preserve,
 }
 
 /// <summary>The audio stream's format: 48 kHz stereo in 10 ms frames, over UDP.</summary>
@@ -32,7 +38,12 @@ public static class AudioStreamFormat
     public const int FrameValues = FrameSamples * Channels;
 
     /// <summary>Frames the listener keeps in hand before playing.</summary>
-    public static int BufferFrames(AudioLatency latency) => latency == AudioLatency.Stable ? 8 : 3;
+    public static int BufferFrames(AudioLatency latency) => latency switch
+    {
+        AudioLatency.Stable => 8,
+        AudioLatency.Preserve => 10,
+        _ => 3,
+    };
 }
 
 /// <summary>Sending side: turns 10 ms frames into numbered <see cref="AudioPacket"/>s.</summary>

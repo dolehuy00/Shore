@@ -56,6 +56,115 @@ public class AudioStreamTests
     }
 
     [Fact]
+    public void Resend_requests_carry_the_sequences_and_prove_the_key()
+    {
+        byte[] key = AudioCipher.NewKey();
+        using var listener = new AudioCipher(key);
+        using var source = new AudioCipher(key);
+        byte[] request = new byte[AudioCipher.MaxResendSize];
+        uint[] sequences = new uint[AudioCipher.MaxResendSequences];
+
+        int size = listener.SealResendRequest(request, 3, [7, 8, 42]);
+
+        Assert.Equal(3, source.OpenResendRequest(request.AsSpan(0, size), sequences));
+        Assert.Equal([7u, 8u, 42u], sequences[..3]);
+        Assert.False(source.OpenKeepAlive(request.AsSpan(0, size)));
+        using var stranger = new AudioCipher(AudioCipher.NewKey());
+        Assert.Equal(-1, stranger.OpenResendRequest(request.AsSpan(0, size), sequences));
+        byte[] keepAlive = new byte[AudioCipher.KeepAliveSize];
+        listener.SealKeepAlive(keepAlive, 3);
+        Assert.Equal(-1, source.OpenResendRequest(keepAlive, sequences));
+    }
+
+    [Fact]
+    public void Preserving_asks_for_lost_frames_and_plays_them_once_resent()
+    {
+        var (decoder, packets) = Stream(frames: 40, targetFrames: 10, preserve: true);
+        uint[] missing = new uint[AudioCipher.MaxResendSequences];
+        List<uint> asked = [];
+
+        // Packets 15 to 18 are lost: too many for the copies. Each arrival asks for what is missing (each frame once
+        // within 30 ms); they come back a few packets later.
+        for (int i = 0; i < 40; i++)
+        {
+            Tick(decoder, i is >= 15 and <= 18 ? null : packets[i], i * 10_000L);
+            asked.AddRange(missing[..decoder.TakeMissing(missing, i * 10_000L)]);
+            if (i == 22)
+            {
+                Add(decoder, packets[15..19]);
+            }
+        }
+
+        AudioStreamStats stats = decoder.TakeStats();
+        Assert.Equal([15u, 16u, 17u], asked.Distinct());
+        Assert.Equal(0, stats.Concealed + stats.Stretched + stats.Skipped + stats.Late);
+    }
+
+    [Fact]
+    public void Preserving_waits_out_a_long_stall_without_dropping_anything()
+    {
+        var (decoder, packets) = Stream(frames: 400, targetFrames: 10, preserve: true);
+
+        // 1 s without a packet, then all of them at once: a plain buffer would skip what the stall held up.
+        for (int i = 0; i < 400; i++)
+        {
+            Tick(decoder, i is >= 50 and < 150 ? null : packets[i]);
+            if (i == 150)
+            {
+                Add(decoder, packets[50..150]);
+            }
+        }
+
+        AudioStreamStats stats = decoder.TakeStats();
+        Assert.Equal(0, stats.Concealed + stats.Skipped + stats.Late);
+        Assert.True(stats.TargetFrames > 50);
+        Assert.Equal(400 - stats.Depth, stats.Played);
+    }
+
+    [Fact]
+    public void Preserving_sheds_extra_delay_only_in_silence()
+    {
+        var (decoder, packets) = Stream(frames: 6000, targetFrames: 10, preserve: true, silentFrom: 1500);
+
+        for (int i = 0; i < 6000; i++)
+        {
+            Tick(decoder, i is >= 50 and < 150 ? null : packets[i]);
+            if (i == 150)
+            {
+                Add(decoder, packets[50..150]);
+            }
+
+            if (i == 1499)
+            {
+                // Sound until here: the stall's delay is all still in hand.
+                AudioStreamStats sounding = decoder.TakeStats();
+                Assert.Equal(0, sounding.Skipped);
+                Assert.True(sounding.Depth > 90);
+            }
+        }
+
+        AudioStreamStats stats = decoder.TakeStats();
+        Assert.True(stats.Skipped > 0);
+        Assert.True(stats.Depth <= 12, $"{stats.Depth} frames in hand");
+    }
+
+    [Fact]
+    public void Preserving_conceals_a_frame_that_never_comes_back_and_keeps_more_in_hand()
+    {
+        var (decoder, packets) = Stream(frames: 100, targetFrames: 10, preserve: true);
+
+        for (int i = 0; i < 100; i++)
+        {
+            Tick(decoder, i is 20 or 21 ? null : packets[i]);
+        }
+
+        AudioStreamStats stats = decoder.TakeStats();
+        Assert.Equal(1, stats.Recovered);
+        Assert.Equal(1, stats.Concealed);
+        Assert.True(stats.TargetFrames >= 15);
+    }
+
+    [Fact]
     public void Waits_for_the_target_then_plays_in_order()
     {
         var (decoder, packets) = Stream(frames: 8, targetFrames: 3);
@@ -168,7 +277,7 @@ public class AudioStreamTests
         Assert.Equal(1, stats.Depth);
     }
 
-    private static (AudioStreamDecoder Decoder, byte[][] Packets) Stream(int frames, int targetFrames)
+    private static (AudioStreamDecoder Decoder, byte[][] Packets) Stream(int frames, int targetFrames, bool preserve = false, int silentFrom = int.MaxValue)
     {
         var encoder = new AudioStreamEncoder();
         float[] frame = new float[AudioStreamFormat.FrameValues];
@@ -177,7 +286,7 @@ public class AudioStreamTests
         {
             for (int i = 0; i < AudioStreamFormat.FrameSamples; i++)
             {
-                float value = 0.3f * MathF.Sin(2 * MathF.PI * 440 * ((f * AudioStreamFormat.FrameSamples) + i) / AudioStreamFormat.SampleRate);
+                float value = f >= silentFrom ? 0 : 0.3f * MathF.Sin(2 * MathF.PI * 440 * ((f * AudioStreamFormat.FrameSamples) + i) / AudioStreamFormat.SampleRate);
                 frame[2 * i] = frame[(2 * i) + 1] = value;
             }
 
@@ -185,14 +294,14 @@ public class AudioStreamTests
             packets[f] = buffer[..encoder.Encode(frame, buffer)];
         }
 
-        return (new AudioStreamDecoder(targetFrames), packets);
+        return (new AudioStreamDecoder(targetFrames, preserve), packets);
     }
 
-    private static void Tick(AudioStreamDecoder decoder, byte[]? packet)
+    private static void Tick(AudioStreamDecoder decoder, byte[]? packet, long nowMicros = 0)
     {
         if (packet is not null)
         {
-            decoder.Add(packet, 0);
+            decoder.Add(packet, nowMicros);
         }
 
         decoder.Read(new short[AudioStreamFormat.FrameValues]);

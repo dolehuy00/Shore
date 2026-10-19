@@ -175,7 +175,9 @@ Máy phát có thể đặt **mật khẩu nghe** (tùy chọn, nhớ lâu dài)
 - Âm thanh của máy (Windows: WASAPI loopback của loa mặc định; Android: playback capture, chỉ media, game và unknown, trừ chính Shorekeeper) 48 kHz stereo, Opus "restricted low delay" 128 kbps CBR. Chỉ thu khi có người nghe; nén một lần, niêm phong riêng cho từng máy nghe.
 - Datagram: `version (1) · sequence (4) · sender time µs (8)` để rõ, sau đó `khung (2 + n) · khung trước (2 + n)` mã hóa AES-GCM (nonce = loại + sequence, header là associated data), tag 16 byte. Mất một gói thì phát từ bản sao trong gói sau.
 - Máy nghe giữ khung trong bộ đệm jitter: **Thấp** 30 ms, **Ổn định** 80 ms. Khi luồng đến trễ (Wi-Fi điện thoại quét mạng làm gián đoạn 50–140 ms), máy nghe chờ thay vì bỏ khung, tạm phát âm Opus đoán và nâng mức đệm (tối đa 120 ms); vài giây yên ổn thì hạ dần về mức gốc.
+- **Bảo toàn** (100 ms, tối đa 3 s) không bỏ khung nào nghe được để giảm trễ: khung thiếu được chờ tới 300 ms cho bản gửi lại; mất hẳn thì đoán và đệm thêm 50 ms; mạng gián đoạn hay mất gói thì mức đệm tăng theo. Trễ thừa chỉ được cắt ở các khung im lặng (dưới khoảng −66 dB, tối đa 4 khung mỗi lượt); sau 10 giây yên ổn mức đệm hạ 1 khung mỗi 0,5 giây.
 - Mỗi giây máy nghe gửi về một keep-alive (`0xA1 · counter (4) · 1 byte niêm phong · tag`) tới đúng cổng nguồn của luồng. Máy phát bỏ máy nghe sau 6 giây không có keep-alive; máy nghe dừng sau 8 giây không có âm thanh.
+- **Xin gửi lại** (mọi mức trễ): khi gói mới hơn đã tới mà một khung vẫn thiếu (và không có bản sao trong gói sau), máy nghe gửi `0xA2 · counter (4) · sequence (4) × 1..64 · tag` (niêm phong với nonce loại 2, counter riêng) tới cổng nguồn; hỏi lại một khung sau 30 ms nếu chưa tới. Máy phát giữ 300 gói đã niêm phong gần nhất (3 s) cho từng máy nghe và gửi lại nguyên văn những gói còn giữ.
 - Máy tính giữ Wi-Fi ở media streaming mode và tắt background scan khi đang thu hay đang nghe (`WlanSetInterface`).
 
 ## 5. Timeout & giới hạn

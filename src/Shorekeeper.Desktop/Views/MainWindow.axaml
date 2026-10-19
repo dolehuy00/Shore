@@ -844,11 +844,12 @@
                 <StackPanel Spacing="2" Margin="0,0,12,0" VerticalAlignment="Center">
                   <TextBlock Text="{l:T 'Độ trễ khi nghe'}" />
                   <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
-                             Text="{l:T 'Thấp trễ ít nhưng đôi khi hụt tiếng lúc Wi-Fi chập chờn; Ổn định trễ hơn một chút nhưng ít hụt. Áp dụng từ lần nghe sau.'}" />
+                             Text="{l:T 'Thấp trễ ít nhưng đôi khi hụt tiếng lúc Wi-Fi chập chờn; Ổn định trễ hơn một chút nhưng ít hụt; Bảo toàn xin gửi lại gói bị mất và chịu trễ thêm (có khi vài giây) khi mạng kém để không hụt nhịp nào. Áp dụng từ lần nghe sau.'}" />
                 </StackPanel>
                 <ComboBox Grid.Column="1" SelectedIndex="{Binding Audio.LatencyIndex}" MinWidth="200" VerticalAlignment="Center">
                   <ComboBoxItem Content="{l:T 'Thấp: cho game'}" />
                   <ComboBoxItem Content="{l:T 'Ổn định: cho nghe nhạc'}" />
+                  <ComboBoxItem Content="{l:T 'Bảo toàn: không hụt tiếng, trễ hơn'}" />
                 </ComboBox>
               </Grid>
             </StackPanel>

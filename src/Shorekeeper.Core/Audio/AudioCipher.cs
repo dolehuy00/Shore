@@ -6,8 +6,8 @@ namespace Shorekeeper.Core.Audio;
 /// <summary>
 /// Seals the audio stream with AES-GCM under a key the listener makes for each session and hands over the mutual-TLS
 /// API. Audio packets keep their header readable (and authenticated) and seal the frames; the listener's keep-alives
-/// carry nothing but proof of the key (one sealed byte: Android's AES-GCM aborts the process on empty input). One
-/// instance per thread: it reuses a buffer.
+/// carry nothing but proof of the key (one sealed byte: Android's AES-GCM aborts the process on empty input), and its
+/// resend requests the sequence numbers of the packets it missed. One instance per thread: it reuses a buffer.
 /// </summary>
 public sealed class AudioCipher : IDisposable
 {
@@ -17,9 +17,17 @@ public sealed class AudioCipher : IDisposable
     /// <summary>Size of a keep-alive: marker, counter, one sealed byte, tag.</summary>
     public const int KeepAliveSize = 6 + TagSize;
 
+    /// <summary>The most sequence numbers one resend request carries.</summary>
+    public const int MaxResendSequences = 64;
+
+    /// <summary>Size of the largest resend request: marker, counter, sequences, tag.</summary>
+    public const int MaxResendSize = 5 + (4 * MaxResendSequences) + TagSize;
+
     private const byte KeepAliveMarker = 0xA1;
+    private const byte ResendMarker = 0xA2;
     private const byte AudioNonce = 0;
     private const byte KeepAliveNonce = 1;
+    private const byte ResendNonce = 2;
 
     private readonly AesGcm aes;
     private readonly byte[] scratch = new byte[AudioPacket.MaxSize];
@@ -108,9 +116,62 @@ public sealed class AudioCipher : IDisposable
         }
     }
 
+    /// <summary>Writes the listener's "send these again", with a counter of its own that never repeats within the session.</summary>
+    public int SealResendRequest(Span<byte> destination, uint counter, ReadOnlySpan<uint> sequences)
+    {
+        if (sequences.Length is 0 or > MaxResendSequences)
+        {
+            throw new ArgumentOutOfRangeException(nameof(sequences));
+        }
+
+        destination[0] = ResendMarker;
+        BinaryPrimitives.WriteUInt32BigEndian(destination[1..], counter);
+        Span<byte> plain = stackalloc byte[4 * sequences.Length];
+        for (int i = 0; i < sequences.Length; i++)
+        {
+            BinaryPrimitives.WriteUInt32BigEndian(plain[(4 * i)..], sequences[i]);
+        }
+
+        Span<byte> nonce = stackalloc byte[12];
+        Nonce(nonce, ResendNonce, destination[1..5]);
+        aes.Encrypt(nonce, plain, destination.Slice(5, plain.Length), destination.Slice(5 + plain.Length, TagSize), destination[..5]);
+        return 5 + plain.Length + TagSize;
+    }
+
+    /// <summary>Reads a resend request into <paramref name="sequences"/> (room for <see cref="MaxResendSequences"/>).</summary>
+    /// <returns>How many sequence numbers it holds, or -1 when it is not one sealed with this key.</returns>
+    public int OpenResendRequest(ReadOnlySpan<byte> datagram, Span<uint> sequences)
+    {
+        int bodyLength = datagram.Length - 5 - TagSize;
+        if (datagram.Length == 0 || datagram[0] != ResendMarker || bodyLength <= 0 || bodyLength % 4 != 0 || bodyLength / 4 > MaxResendSequences)
+        {
+            return -1;
+        }
+
+        Span<byte> nonce = stackalloc byte[12];
+        Nonce(nonce, ResendNonce, datagram[1..5]);
+        Span<byte> plain = stackalloc byte[bodyLength];
+        try
+        {
+            aes.Decrypt(nonce, datagram.Slice(5, bodyLength), datagram.Slice(5 + bodyLength, TagSize), plain, datagram[..5]);
+        }
+        catch (AuthenticationTagMismatchException)
+        {
+            return -1;
+        }
+
+        int count = bodyLength / 4;
+        for (int i = 0; i < count; i++)
+        {
+            sequences[i] = BinaryPrimitives.ReadUInt32BigEndian(plain[(4 * i)..]);
+        }
+
+        return count;
+    }
+
     public void Dispose() => aes.Dispose();
 
-    // Kind and counter: audio and keep-alives never share a nonce under the session's key.
+    // Kind and counter: audio, keep-alives and resend requests never share a nonce under the session's key.
     private static void Nonce(Span<byte> nonce, byte kind, ReadOnlySpan<byte> counter)
     {
         nonce.Clear();

@@ -610,8 +610,9 @@
             <ComboBox SelectedIndex="{Binding LatencyIndex}" HorizontalAlignment="Stretch">
               <ComboBoxItem Content="{l:T 'Thấp: cho game'}" />
               <ComboBoxItem Content="{l:T 'Ổn định: cho nghe nhạc'}" />
+              <ComboBoxItem Content="{l:T 'Bảo toàn: không hụt tiếng, trễ hơn'}" />
             </ComboBox>
-            <TextBlock Classes="muted" Text="{l:T 'Thấp trễ ít nhưng đôi khi hụt tiếng lúc Wi-Fi chập chờn; Ổn định trễ hơn một chút nhưng ít hụt. Áp dụng từ lần nghe sau.'}"
+            <TextBlock Classes="muted" Text="{l:T 'Thấp trễ ít nhưng đôi khi hụt tiếng lúc Wi-Fi chập chờn; Ổn định trễ hơn một chút nhưng ít hụt; Bảo toàn xin gửi lại gói bị mất và chịu trễ thêm (có khi vài giây) khi mạng kém để không hụt nhịp nào. Áp dụng từ lần nghe sau.'}"
                        FontSize="12" TextWrapping="Wrap" />
           </StackPanel>
         </ScrollViewer>

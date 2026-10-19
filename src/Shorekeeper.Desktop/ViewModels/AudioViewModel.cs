@@ -117,11 +117,11 @@ public sealed partial class AudioViewModel : ObservableObject
 
     public bool IsListening => ListeningText is not null;
 
-    /// <summary>"Độ trễ khi nghe": 0 low (games), 1 stable (music).</summary>
+    /// <summary>"Độ trễ khi nghe": 0 low (games), 1 stable (music), 2 preserve (never a gap, delay grows instead).</summary>
     public int LatencyIndex
     {
-        get => settings.Current.AudioLatency == AudioLatency.Stable ? 1 : 0;
-        set => settings.Update(s => s with { AudioLatency = value == 1 ? "stable" : "low" });
+        get => (int)settings.Current.AudioLatency;
+        set => settings.Update(s => s with { AudioLatency = value switch { 1 => "stable", 2 => "preserve", _ => "low" } });
     }
 
     [RelayCommand]

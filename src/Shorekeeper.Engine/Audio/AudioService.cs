@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Json;
@@ -38,6 +39,7 @@ public enum AudioJoinResult
 /// "Phát âm thanh" (docs/05-protocol.md §4.7). A computer or phone turns it on; contacts that want to listen ask to join, each
 /// with a fresh key and a UDP port of its own, and the source's password when it has one. The sound is captured only while someone listens, encoded once and sealed
 /// for each listener. Listeners prove they are still there every second; either side stops after a few silent seconds.
+/// A listener that misses packets asks for them again, and the source resends what it still has from the last 3 s.
 /// </summary>
 public sealed class AudioService : IDisposable
 {
@@ -304,7 +306,8 @@ public sealed class AudioService : IDisposable
         }
 
         string name = NameOf(peer);
-        var session = new Listening(peer, name, AudioStreamFormat.BufferFrames(settings.Current.AudioLatency));
+        AudioLatency latency = settings.Current.AudioLatency;
+        var session = new Listening(peer, name, AudioStreamFormat.BufferFrames(latency), latency == AudioLatency.Preserve);
         lock (gate)
         {
             if (listening is not null)
@@ -407,6 +410,14 @@ public sealed class AudioService : IDisposable
         }
 
         session.SendKeepAlive();
+        AudioStreamStats stats = session.TakeStats();
+        if (stats.Asked + stats.Stretched + stats.Concealed + stats.Skipped > 0)
+        {
+            logger.LogInformation(
+                "Audio from {Name}: {Received} received, {Asked} asked again, {Recovered} from copies, {Late} late, {Stretched} waited, {Concealed} concealed, {Skipped} skipped, {Depth}/{Target} frames in hand",
+                session.Name, stats.Received, stats.Asked, stats.Recovered, stats.Late, stats.Stretched, stats.Concealed, stats.Skipped, stats.Depth, stats.TargetFrames);
+        }
+
         if (session.SilentFor > SourceGone && EndListening(session))
         {
             Notice?.Invoke(this, L.F("Mất tín hiệu âm thanh từ {0}.", session.Name));
@@ -499,6 +510,13 @@ public sealed class AudioService : IDisposable
     /// <summary>One listener of our sound, sealed with its own key.</summary>
     private sealed class Listener(AudioListener info, IPEndPoint endpoint, byte[] key) : IDisposable
     {
+        // The last 3 s of what it was sent, sealed, for its resend requests.
+        private const int HistoryPackets = 300;
+
+        private readonly Lock historyGate = new();
+        private readonly byte[][] history = new byte[HistoryPackets][];
+        private readonly int[] historyLengths = new int[HistoryPackets];
+        private readonly uint[] historySequences = new uint[HistoryPackets];
         private long lastHeard = Stopwatch.GetTimestamp();
 
         public AudioListener Info { get; } = info;
@@ -514,6 +532,37 @@ public sealed class AudioService : IDisposable
         public TimeSpan SilentFor => Stopwatch.GetElapsedTime(Interlocked.Read(ref lastHeard));
 
         public void Heard() => Interlocked.Exchange(ref lastHeard, Stopwatch.GetTimestamp());
+
+        /// <summary>Remembers a sealed packet (its sequence number is in the readable header).</summary>
+        public void Keep(ReadOnlySpan<byte> sealedPacket)
+        {
+            uint sequence = BinaryPrimitives.ReadUInt32BigEndian(sealedPacket[1..]);
+            int index = (int)(sequence % HistoryPackets);
+            lock (historyGate)
+            {
+                byte[] kept = history[index] ??= new byte[AudioPacket.MaxSize + AudioCipher.TagSize];
+                sealedPacket.CopyTo(kept);
+                historyLengths[index] = sealedPacket.Length;
+                historySequences[index] = sequence;
+            }
+        }
+
+        /// <summary>Copies packet <paramref name="sequence"/> as it was sent, when it is still kept.</summary>
+        /// <returns>Its length, or 0.</returns>
+        public int Recall(uint sequence, Span<byte> destination)
+        {
+            int index = (int)(sequence % HistoryPackets);
+            lock (historyGate)
+            {
+                if (history[index] is not { } kept || historySequences[index] != sequence)
+                {
+                    return 0;
+                }
+
+                kept.AsSpan(0, historyLengths[index]).CopyTo(destination);
+                return historyLengths[index];
+            }
+        }
 
         public void Dispose()
         {
@@ -597,6 +646,7 @@ public sealed class AudioService : IDisposable
             {
                 plain.AsSpan(0, length).CopyTo(sealedPacket);
                 int size = listener.Sealer.Seal(sealedPacket, length);
+                listener.Keep(sealedPacket.AsSpan(0, size));
                 try
                 {
                     socket.SendTo(sealedPacket.AsSpan(0, size), SocketFlags.None, listener.Endpoint);
@@ -609,9 +659,12 @@ public sealed class AudioService : IDisposable
             }
         }
 
+        /// <summary>Keep-alives, and resend requests: what is still kept goes out again as it was.</summary>
         private void ReceiveKeepAlives()
         {
-            byte[] buffer = new byte[64];
+            byte[] buffer = new byte[AudioCipher.MaxResendSize];
+            byte[] resent = new byte[AudioPacket.MaxSize + AudioCipher.TagSize];
+            uint[] sequences = new uint[AudioCipher.MaxResendSequences];
             EndPoint from = new IPEndPoint(IPAddress.Any, 0);
             while (!disposed)
             {
@@ -632,10 +685,41 @@ public sealed class AudioService : IDisposable
 
                 foreach (Listener listener in snapshot)
                 {
-                    if (listener.Endpoint.Equals(from) && listener.KeepAlives.OpenKeepAlive(buffer.AsSpan(0, size)))
+                    if (!listener.Endpoint.Equals(from))
+                    {
+                        continue;
+                    }
+
+                    if (listener.KeepAlives.OpenKeepAlive(buffer.AsSpan(0, size)))
                     {
                         listener.Heard();
                     }
+                    else if (listener.KeepAlives.OpenResendRequest(buffer.AsSpan(0, size), sequences) is var count and > 0)
+                    {
+                        listener.Heard();
+                        Resend(listener, sequences.AsSpan(0, count), resent);
+                    }
+                }
+            }
+        }
+
+        private void Resend(Listener listener, ReadOnlySpan<uint> sequences, byte[] resent)
+        {
+            foreach (uint sequence in sequences)
+            {
+                int size = listener.Recall(sequence, resent);
+                if (size == 0)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    socket.SendTo(resent.AsSpan(0, size), SocketFlags.None, listener.Endpoint);
+                }
+                catch (SocketException ex)
+                {
+                    logger.LogDebug("Audio resend to {Endpoint}: {Error}", listener.Endpoint, ex.SocketErrorCode);
                 }
             }
         }
@@ -653,17 +737,18 @@ public sealed class AudioService : IDisposable
         private IDisposable? playing;
         private IPEndPoint? source;
         private uint keepAliveCounter;
+        private uint resendCounter;
         private long lastHeard = Stopwatch.GetTimestamp();
         private volatile bool disposed;
 
-        public Listening(DeviceId peer, string name, int bufferFrames)
+        public Listening(DeviceId peer, string name, int bufferFrames, bool preserve)
         {
             PeerId = peer;
             Name = name;
             Key = AudioCipher.NewKey();
             opener = new AudioCipher(Key);
             keepAlives = new AudioCipher(Key);
-            decoder = new AudioStreamDecoder(bufferFrames);
+            decoder = new AudioStreamDecoder(bufferFrames, preserve);
             socket.Bind(new IPEndPoint(IPAddress.Any, 0));
             Port = ((IPEndPoint)socket.LocalEndPoint!).Port;
             receiver = new Thread(Receive) { IsBackground = true, Name = "Audio receive" };
@@ -681,6 +766,8 @@ public sealed class AudioService : IDisposable
         public int Port { get; }
 
         public TimeSpan SilentFor => Stopwatch.GetElapsedTime(Interlocked.Read(ref lastHeard));
+
+        public AudioStreamStats TakeStats() => decoder.TakeStats();
 
         public void Play(IAudioOutput output, string title, Action stopRequested)
         {
@@ -721,6 +808,8 @@ public sealed class AudioService : IDisposable
         {
             var clock = Stopwatch.StartNew();
             byte[] buffer = new byte[AudioPacket.MaxSize + AudioCipher.TagSize];
+            byte[] request = new byte[AudioCipher.MaxResendSize];
+            uint[] missing = new uint[AudioCipher.MaxResendSequences];
             EndPoint from = new IPEndPoint(IPAddress.Any, 0);
             while (!disposed)
             {
@@ -744,8 +833,22 @@ public sealed class AudioService : IDisposable
                     continue;
                 }
 
-                decoder.Add(buffer.AsSpan(0, length), clock.Elapsed.Ticks / 10);
+                long now = clock.Elapsed.Ticks / 10;
+                decoder.Add(buffer.AsSpan(0, length), now);
                 Interlocked.Exchange(ref lastHeard, Stopwatch.GetTimestamp());
+                if (decoder.TakeMissing(missing, now) is var count and > 0)
+                {
+                    int requestSize = opener.SealResendRequest(request, resendCounter++, missing.AsSpan(0, count));
+                    try
+                    {
+                        socket.SendTo(request.AsSpan(0, requestSize), SocketFlags.None, from);
+                    }
+                    catch (Exception ex) when (ex is SocketException or ObjectDisposedException)
+                    {
+                        // Asked again on the next arrival.
+                    }
+                }
+
                 if (!from.Equals(source))
                 {
                     Volatile.Write(ref source, (IPEndPoint)from);

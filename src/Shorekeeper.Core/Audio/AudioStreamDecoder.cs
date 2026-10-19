@@ -8,9 +8,10 @@ namespace Shorekeeper.Core.Audio;
 /// <param name="Stretched">Turns with nothing newer at all: the stream ran late, so a guess played while it waited for it.</param>
 /// <param name="Late">Packets that arrived after their turn had passed.</param>
 /// <param name="Skipped">Frames dropped to bring the delay back to the target after a burst.</param>
+/// <param name="Asked">Frames asked of the source again (<see cref="AudioStreamDecoder.TakeMissing"/>).</param>
 /// <param name="OverMs">Packets later than 20, 40, 60 and 100 ms behind the window's fastest: what each buffer size would have missed.</param>
 public sealed record AudioStreamStats(
-    int Received, int Played, int Recovered, int Concealed, int Stretched, int Late, int Skipped, int Depth, int TargetFrames,
+    int Received, int Played, int Recovered, int Concealed, int Stretched, int Late, int Skipped, int Asked, int Depth, int TargetFrames,
     double DelayP50Ms, double DelayP99Ms, double DelayMaxMs, int[] OverMs);
 
 /// <summary>
@@ -18,10 +19,16 @@ public sealed record AudioStreamStats(
 /// per call. A lost frame is taken from the next packet's copy, else concealed. When the stream runs late instead (the
 /// phone's Wi-Fi scanning stalls it for a moment), the buffer waits for it, playing a guess meanwhile, and raises the
 /// target to ride out the next stall; quiet seconds bring it back down to the base.
+/// <para>
+/// In <see cref="AudioLatency.Preserve"/> nothing audible is given up for delay: a missing frame is waited for while the
+/// source resends it (<see cref="TakeMissing"/>), a stall or a loss raises the target as far as 3 s, and extra delay is
+/// only shed by dropping silent frames.
+/// </para>
 /// </summary>
 public sealed class AudioStreamDecoder
 {
-    private const int Slots = 128;
+    // Room for the most a preserving buffer holds, and then some.
+    private const int Slots = 512;
     // A burst after a stall may queue more than the target; beyond this many extra frames the oldest are dropped.
     private const int Slack = 3;
     // Opus' guesses only sound right for a few frames; after that, silence.
@@ -33,14 +40,28 @@ public sealed class AudioStreamDecoder
     // The most a stall may raise the target to (120 ms), and how long without one before it steps back down (2 s).
     private const int MaxFrames = 12;
     private const int DecayAfterReads = 200;
+    // Preserving: up to 3 s; after 10 s without trouble the target steps down one frame every half second. A frame that
+    // never came is waited for up to 300 ms for its resend; one that never comes at all adds 50 ms. Asking again for a
+    // frame waits 30 ms. A frame quieter than about -66 dB may be dropped to shed delay, a few per turn at most.
+    private const int PreserveMaxFrames = 300;
+    private const int PreserveDecayAfterReads = 1000;
+    private const int PreserveDecayEveryReads = 50;
+    private const int PreserveWaitFrames = 30;
+    private const int PreserveLossFrames = 5;
+    private const long ResendRetryMicros = 30_000;
+    private const int SilenceLevel = 16;
+    private const int MaxTrimsPerRead = 4;
     private static readonly int[] Thresholds = [20, 40, 60, 100];
 
     private readonly Lock gate = new();
     private readonly Slot[] slots = new Slot[Slots];
     private readonly IOpusDecoder decoder;
     private readonly int baseFrames;
+    private readonly bool preserve;
+    private readonly int maxFrames;
     private int targetFrames;
     private int lateRun;
+    private int lostWait;
     private int quietReads;
     private readonly List<long> offsets = [];
     private bool playing;
@@ -57,10 +78,14 @@ public sealed class AudioStreamDecoder
     private int stretched;
     private int late;
     private int skipped;
+    private int asked;
 
-    public AudioStreamDecoder(int targetFrames)
+    /// <param name="preserve"><see cref="AudioLatency.Preserve"/>: wait rather than drop anything audible.</param>
+    public AudioStreamDecoder(int targetFrames, bool preserve = false)
     {
-        baseFrames = this.targetFrames = Math.Clamp(targetFrames, 1, MaxFrames);
+        this.preserve = preserve;
+        maxFrames = preserve ? PreserveMaxFrames : MaxFrames;
+        baseFrames = this.targetFrames = Math.Clamp(targetFrames, 1, maxFrames);
         decoder = OpusCodecFactory.CreateDecoder(AudioStreamFormat.SampleRate, AudioStreamFormat.Channels);
         for (int i = 0; i < Slots; i++)
         {
@@ -114,7 +139,7 @@ public sealed class AudioStreamDecoder
             }
 
             int depth = (int)(highest - next) + 1;
-            if (depth > targetFrames + Slack)
+            if (depth > (preserve ? maxFrames : targetFrames + Slack))
             {
                 int drop = depth - targetFrames;
                 for (int i = 0; i < drop; i++)
@@ -132,7 +157,7 @@ public sealed class AudioStreamDecoder
             creepMinDepth = Math.Min(creepMinDepth, depth);
             if (++creepReads == CreepWindow)
             {
-                if (creepMinDepth > targetFrames)
+                if (creepMinDepth > targetFrames && !preserve)
                 {
                     slots[next % Slots].Clear();
                     next++;
@@ -143,17 +168,22 @@ public sealed class AudioStreamDecoder
                 creepMinDepth = int.MaxValue;
             }
 
-            if (++quietReads >= DecayAfterReads && targetFrames > baseFrames)
+            if (++quietReads >= (preserve ? PreserveDecayAfterReads : DecayAfterReads) && targetFrames > baseFrames)
             {
                 targetFrames--;
-                quietReads = 0;
+                quietReads = preserve ? PreserveDecayAfterReads - PreserveDecayEveryReads : 0;
             }
 
+            bool decoded = preserve && depth > targetFrames && TrimSilence(pcm, depth);
             Slot slot = slots[next % Slots];
             Slot after = slots[(next + 1) % Slots];
             if (slot.Holds(next))
             {
-                Decode(slot.Frame.AsSpan(0, slot.FrameLength), pcm);
+                if (!decoded)
+                {
+                    Decode(slot.Frame.AsSpan(0, slot.FrameLength), pcm);
+                }
+
                 played++;
                 missesInRow = lateRun = 0;
             }
@@ -163,26 +193,100 @@ public sealed class AudioStreamDecoder
                 recovered++;
                 missesInRow = lateRun = 0;
             }
-            else if ((int)(highest - next) < 0)
+            else if ((int)(highest - next) < 0 || (preserve && lostWait++ < PreserveWaitFrames))
             {
                 // Nothing newer has arrived: the stream is late, not lost. Wait for this frame rather than skip it,
-                // and keep that much more in hand from now on.
+                // and keep that much more in hand from now on. Preserving, a frame lost on the way is waited for too,
+                // while the source sends it again.
                 stretched++;
                 lateRun++;
                 quietReads = 0;
-                targetFrames = Math.Min(MaxFrames, Math.Max(targetFrames, baseFrames + lateRun));
+                targetFrames = Math.Min(maxFrames, Math.Max(targetFrames, baseFrames + lateRun));
                 Miss(pcm);
                 return;
             }
             else
             {
                 concealed++;
+                if (preserve)
+                {
+                    // Gone for good: keep more in hand so the next loss has longer to come back.
+                    quietReads = 0;
+                    targetFrames = Math.Min(maxFrames, targetFrames + PreserveLossFrames);
+                }
+
                 Miss(pcm);
             }
 
             slot.Clear();
             next++;
+            lostWait = 0;
         }
+    }
+
+    /// <summary>
+    /// Frames still missing although newer ones arrived (and no copy of them did), not asked for in the last 30 ms: the
+    /// source may still have them. Called after each arrival; each one returned counts as asked for.
+    /// </summary>
+    /// <param name="nowMicros">On the receiver's clock, as given to <see cref="Add"/>.</param>
+    /// <returns>How many were written to <paramref name="sequences"/>.</returns>
+    public int TakeMissing(Span<uint> sequences, long nowMicros)
+    {
+        lock (gate)
+        {
+            if (!playing)
+            {
+                return 0;
+            }
+
+            int count = 0;
+            int span = Math.Min((int)(highest - next), Slots - 1);
+            for (uint s = next; (int)(s - next) < span && count < sequences.Length; s++)
+            {
+                Slot slot = slots[s % Slots];
+                Slot after = slots[(s + 1) % Slots];
+                if (slot.Holds(s) || (after.Holds(s + 1) && after.PreviousLength > 0) || slot.WasAskedFor(s, nowMicros))
+                {
+                    continue;
+                }
+
+                slot.AskFor(s, nowMicros);
+                sequences[count++] = s;
+            }
+
+            asked += count;
+            return count;
+        }
+    }
+
+    /// <summary>Drops silent frames at the front while more than the target is queued.</summary>
+    /// <returns>Whether <paramref name="pcm"/> already holds frame <c>next</c>, decoded while looking.</returns>
+    private bool TrimSilence(Span<short> pcm, int depth)
+    {
+        for (int i = 0; i < MaxTrimsPerRead && depth > targetFrames; i++)
+        {
+            Slot slot = slots[next % Slots];
+            if (!slot.Holds(next))
+            {
+                return false;
+            }
+
+            Decode(slot.Frame.AsSpan(0, slot.FrameLength), pcm);
+            foreach (short value in pcm)
+            {
+                if (Math.Abs((int)value) > SilenceLevel)
+                {
+                    return true;
+                }
+            }
+
+            slot.Clear();
+            next++;
+            skipped++;
+            depth--;
+        }
+
+        return false;
     }
 
     private void Miss(Span<short> pcm)
@@ -197,7 +301,8 @@ public sealed class AudioStreamDecoder
             pcm.Clear();
         }
 
-        if (missesInRow >= StopAfterMisses)
+        // Preserving, a long stall is waited out rather than started over (which would skip what it held up).
+        if (missesInRow >= StopAfterMisses && !preserve)
         {
             playing = false;
             missesInRow = lateRun = 0;
@@ -217,10 +322,10 @@ public sealed class AudioStreamDecoder
             double At(double q) => sorted.Length > 0 ? Ms(sorted[Math.Min(sorted.Length - 1, (int)(sorted.Length * q))]) : 0;
             int[] over = [.. Thresholds.Select(t => sorted.Count(o => Ms(o) > t))];
             var stats = new AudioStreamStats(
-                received, played, recovered, concealed, stretched, late, skipped, playing ? (int)(highest - next) + 1 : 0, targetFrames,
+                received, played, recovered, concealed, stretched, late, skipped, asked, playing ? (int)(highest - next) + 1 : 0, targetFrames,
                 At(0.5), At(0.99), sorted.Length > 0 ? Ms(sorted[^1]) : 0, over);
             offsets.Clear();
-            received = played = recovered = concealed = stretched = late = skipped = 0;
+            received = played = recovered = concealed = stretched = late = skipped = asked = 0;
             return stats;
         }
     }
@@ -260,6 +365,22 @@ public sealed class AudioStreamDecoder
         public int PreviousLength { get; private set; }
 
         public bool Holds(uint sequence) => Filled && Sequence == sequence;
+
+        public bool WasAskedFor(uint sequence, long nowMicros) =>
+            Asked && AskedSequence == sequence && nowMicros - AskedMicros < ResendRetryMicros;
+
+        public void AskFor(uint sequence, long nowMicros)
+        {
+            Asked = true;
+            AskedSequence = sequence;
+            AskedMicros = nowMicros;
+        }
+
+        private bool Asked { get; set; }
+
+        private uint AskedSequence { get; set; }
+
+        private long AskedMicros { get; set; }
 
         public void Set(AudioPacket packet)
         {

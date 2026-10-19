@@ -31,7 +31,7 @@ public sealed record ShorekeeperSettings
     /// <summary>That shortcut, e.g. "Ctrl+Alt+S" (the default when null or not a valid shortcut).</summary>
     public string? QuickSendShortcut { get; init; }
 
-    /// <summary>"low" or "stable": how much sound the listener keeps in hand (low when null).</summary>
+    /// <summary>"low", "stable" or "preserve": how much sound the listener keeps in hand (low when null).</summary>
     public string? AudioLatency { get; init; }
 
     /// <summary>"Phát âm thanh" asks listeners for this password; a hash from <see cref="Audio.AudioPassword"/>, null for none.</summary>
