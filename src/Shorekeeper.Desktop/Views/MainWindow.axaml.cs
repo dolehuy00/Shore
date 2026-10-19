@@ -35,6 +35,14 @@ public partial class MainWindow : Window
             if (DataContext is MainWindowViewModel main)
             {
                 main.RevealRequested += (_, item) => Dispatcher.UIThread.Post(() => Reveal(item), DispatcherPriority.Loaded);
+                // Pages share the scroller: a new page starts at its top, not where the last one was left.
+                main.PropertyChanged += (_, e) =>
+                {
+                    if (e.PropertyName == nameof(MainWindowViewModel.SelectedNavItem))
+                    {
+                        PageScroller.ScrollToHome();
+                    }
+                };
             }
         };
     }

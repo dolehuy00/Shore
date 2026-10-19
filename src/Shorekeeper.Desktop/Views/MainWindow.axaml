@@ -132,6 +132,25 @@
     <Style Selector="TextBlock.muted">
       <Setter Property="Foreground" Value="{DynamicResource Sk.MutedText}" />
     </Style>
+    <!-- A page fades in and rises a few pixels as it appears, like a short CSS transition: only opacity and a
+         translation, which the GPU composes without laying anything out again. -->
+    <Style Selector="StackPanel.page">
+      <Setter Property="RenderTransform" Value="translateY(0px)" />
+    </Style>
+    <Style Selector="StackPanel.page[IsVisible=True]">
+      <Style.Animations>
+        <Animation Duration="0:0:0.18" Easing="CubicEaseOut" FillMode="Forward">
+          <KeyFrame Cue="0%">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="TranslateTransform.Y" Value="10" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="TranslateTransform.Y" Value="0" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
     <Style Selector="Border.tag">
       <Setter Property="Background" Value="#33F59E0B" />
       <Setter Property="CornerRadius" Value="4" />
@@ -316,8 +335,8 @@
       </DockPanel>
     </Border>
 
-    <!-- Content -->
-    <ScrollViewer Grid.Row="1" Grid.Column="1">
+    <!-- Content: one scroller for every page, back at the top whenever the page changes. -->
+    <ScrollViewer x:Name="PageScroller" Grid.Row="1" Grid.Column="1">
       <StackPanel Margin="28,24" Spacing="18">
 
         <!-- Pages not built yet -->
@@ -326,7 +345,7 @@
         </Border>
 
         <!-- Xóm -->
-        <StackPanel IsVisible="{Binding IsNeighborhoodVisible}" Spacing="14" MaxWidth="860" HorizontalAlignment="Stretch">
+        <StackPanel Classes="page" IsVisible="{Binding IsNeighborhoodVisible}" Spacing="14" MaxWidth="860" HorizontalAlignment="Stretch">
           <Grid ColumnDefinitions="*,Auto">
             <TextBlock Classes="h2" Text="{l:T 'Xóm'}" VerticalAlignment="Center" />
             <Button Grid.Column="1" Classes="accent" Command="{Binding Neighborhood.AddPeerCommand}" AutomationProperties.Name="{l:T 'Thêm máy khác'}">
@@ -406,7 +425,7 @@
         </StackPanel>
 
         <!-- Hộp nhận -->
-        <StackPanel IsVisible="{Binding IsInboxVisible}" Spacing="14" MaxWidth="860" HorizontalAlignment="Stretch">
+        <StackPanel Classes="page" IsVisible="{Binding IsInboxVisible}" Spacing="14" MaxWidth="860" HorizontalAlignment="Stretch">
           <TextBlock Classes="h2" Text="{l:T 'Hộp nhận'}" />
           <StackPanel IsVisible="{Binding Inbox.IsEmpty}" Spacing="6" Margin="0,40" HorizontalAlignment="Center">
             <PathIcon Data="{StaticResource Icon.Download}" Width="40" Height="40" Opacity="0.5" HorizontalAlignment="Center" />
@@ -480,7 +499,7 @@
         </StackPanel>
 
         <!-- Đã gửi -->
-        <StackPanel IsVisible="{Binding IsSentVisible}" Spacing="14" MaxWidth="860" HorizontalAlignment="Stretch">
+        <StackPanel Classes="page" IsVisible="{Binding IsSentVisible}" Spacing="14" MaxWidth="860" HorizontalAlignment="Stretch">
           <TextBlock Classes="h2" Text="{l:T 'Đã gửi'}" />
           <StackPanel IsVisible="{Binding !Sent.Items.Count}" Spacing="6" Margin="0,40" HorizontalAlignment="Center">
             <PathIcon Data="{StaticResource Icon.Upload}" Width="40" Height="40" Opacity="0.5" HorizontalAlignment="Center" />
@@ -554,7 +573,7 @@
         </StackPanel>
 
         <!-- Nhóm -->
-        <StackPanel IsVisible="{Binding IsGroupsVisible}" Spacing="14" MaxWidth="860" HorizontalAlignment="Stretch">
+        <StackPanel Classes="page" IsVisible="{Binding IsGroupsVisible}" Spacing="14" MaxWidth="860" HorizontalAlignment="Stretch">
           <Grid ColumnDefinitions="*,Auto">
             <TextBlock Classes="h2" Text="{l:T 'Nhóm'}" VerticalAlignment="Center" />
             <Button Grid.Column="1" Classes="accent" Command="{Binding Groups.CreateCommand}" IsVisible="{Binding Groups.IsEnabled}"
@@ -722,7 +741,7 @@
         </StackPanel>
 
         <!-- Cài đặt -->
-        <StackPanel IsVisible="{Binding IsSettingsVisible}" Spacing="18" MaxWidth="860" HorizontalAlignment="Stretch">
+        <StackPanel Classes="page" IsVisible="{Binding IsSettingsVisible}" Spacing="18" MaxWidth="860" HorizontalAlignment="Stretch">
           <TextBlock Classes="h2" Text="{l:T 'Thiết bị này'}" />
 
           <Border Padding="18,16,18,6" CornerRadius="8" BorderThickness="1" BorderBrush="{DynamicResource Sk.CardBorder}" Background="{DynamicResource Sk.CardBackground}">

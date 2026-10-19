@@ -212,23 +212,30 @@ public sealed partial class GroupsViewModel : ObservableObject
             }
         }
 
+        // Rebuilt only when something shown changed: this runs whenever a device appears or goes quiet.
         HashSet<string> known = [.. all.Select(g => g.Id)];
-        NetworkGroups.Clear();
-        foreach (PeerInfo host in directory.Snapshot())
+        var networkGroups = directory.Snapshot()
+            .SelectMany(host => (host.HostedGroups ?? []).Select(group => (host, group)))
+            .Where(x => !known.Contains(x.group.Id))
+            .Select(x => (x.group.Id, x.group.Name, x.host.DeviceId, Host: Names.Of(x.host.DeviceId), x.group.Members))
+            .ToList();
+        if (!networkGroups.SequenceEqual(NetworkGroups.Select(n => (n.GroupId, n.Name, n.HostId, n.HostName, n.Members))))
         {
-            foreach (PresenceGroup group in host.HostedGroups ?? [])
+            NetworkGroups.Clear();
+            foreach (var group in networkGroups)
             {
-                if (!known.Contains(group.Id))
-                {
-                    NetworkGroups.Add(new NetworkGroupViewModel(group.Id, group.Name, host.DeviceId, Names.Of(host.DeviceId), group.Members, this));
-                }
+                NetworkGroups.Add(new NetworkGroupViewModel(group.Id, group.Name, group.DeviceId, group.Host, group.Members, this));
             }
         }
 
-        Invitations.Clear();
-        foreach (GroupInvitation invitation in groups.GetInvitations())
+        IReadOnlyList<GroupInvitation> invitations = groups.GetInvitations();
+        if (!invitations.SequenceEqual(Invitations.Select(i => i.Invitation)))
         {
-            Invitations.Add(new InvitationViewModel(invitation, this));
+            Invitations.Clear();
+            foreach (GroupInvitation invitation in invitations)
+            {
+                Invitations.Add(new InvitationViewModel(invitation, this));
+            }
         }
 
         AttentionCount = mine.Sum(c => c.Requests.Count(r => !r.IsInvited)) + Invitations.Count;
@@ -523,6 +530,8 @@ public sealed partial class NetworkGroupViewModel(string groupId, string name, D
 
     public string HostName { get; } = hostName;
 
+    public int Members { get; } = members;
+
     public string Detail { get; } = L.F("Host: {0} · {1} thành viên", hostName, members);
 
     [RelayCommand]
@@ -531,13 +540,15 @@ public sealed partial class NetworkGroupViewModel(string groupId, string name, D
 
 public sealed partial class InvitationViewModel(GroupInvitation invitation, GroupsViewModel owner)
 {
+    public GroupInvitation Invitation { get; } = invitation;
+
     public string Text { get; } = L.F("{0} mời bạn vào nhóm {1}", invitation.HostName, invitation.GroupName);
 
     [RelayCommand]
-    private Task AcceptAsync() => owner.AcceptAsync(invitation);
+    private Task AcceptAsync() => owner.AcceptAsync(Invitation);
 
     [RelayCommand]
-    private void Decline() => owner.Decline(invitation);
+    private void Decline() => owner.Decline(Invitation);
 }
 
 public sealed partial class NoticeViewModel(string text, GroupsViewModel owner)
