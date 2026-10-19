@@ -12,6 +12,7 @@
 
   <Application.Styles>
     <FluentTheme />
+    <StyleInclude Source="/Themes/Motion.axaml" />
     <Style Selector=":is(Window)">
       <Setter Property="Background" Value="{DynamicResource Sk.WindowBackground}" />
     </Style>

@@ -19,5 +19,7 @@
 
   <Application.Styles>
     <FluentTheme />
+    <!-- Popups, menus and drop-downs open with a short animation (linked from Shorekeeper.Desktop/Themes). -->
+    <StyleInclude Source="/Themes/Motion.axaml" />
   </Application.Styles>
 </Application>

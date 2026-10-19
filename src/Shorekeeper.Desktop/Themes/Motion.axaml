@@ -1,0 +1,56 @@
+<!--
+  Shared motion of the desktop and Android apps, applied to every control of its kind, so new popups, menus and
+  drop-downs get it without anything to add. Like short CSS transitions: only opacity and a transform, which the GPU
+  composes without laying anything out again. Android links this file (same /Themes/ path there).
+-->
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!-- In-page popups (Android): the dimmed backdrop fades in, the dialog fades in and rises. -->
+  <Style Selector="Border.overlay[IsVisible=True]">
+    <Style.Animations>
+      <Animation Duration="0:0:0.15" Easing="CubicEaseOut" FillMode="Forward">
+        <KeyFrame Cue="0%">
+          <Setter Property="Opacity" Value="0" />
+        </KeyFrame>
+        <KeyFrame Cue="100%">
+          <Setter Property="Opacity" Value="1" />
+        </KeyFrame>
+      </Animation>
+    </Style.Animations>
+  </Style>
+  <!-- The moving parts carry a translation for the animations below to change (RenderTransform itself cannot be animated). -->
+  <Style Selector="Border.overlay > Border.dialog, ComboBox /template/ Border#PopupBorder, MenuFlyoutPresenter, FlyoutPresenter, ContextMenu">
+    <Setter Property="RenderTransform" Value="translateY(0px)" />
+  </Style>
+  <Style Selector="Border.overlay[IsVisible=True] > Border.dialog">
+    <Style.Animations>
+      <Animation Duration="0:0:0.2" Easing="CubicEaseOut" FillMode="Forward">
+        <KeyFrame Cue="0%">
+          <Setter Property="Opacity" Value="0" />
+          <Setter Property="TranslateTransform.Y" Value="16" />
+        </KeyFrame>
+        <KeyFrame Cue="100%">
+          <Setter Property="Opacity" Value="1" />
+          <Setter Property="TranslateTransform.Y" Value="0" />
+        </KeyFrame>
+      </Animation>
+    </Style.Animations>
+  </Style>
+
+  <!-- Drop-down lists (ComboBox) and menus (⋮, right-click, flyouts): fade in and slide down a few pixels. -->
+  <Style Selector="ComboBox:dropdownopen /template/ Border#PopupBorder, Popup[IsOpen=True] > MenuFlyoutPresenter, Popup[IsOpen=True] > FlyoutPresenter, ContextMenu:open">
+    <Style.Animations>
+      <Animation Duration="0:0:0.15" Easing="CubicEaseOut" FillMode="Forward">
+        <KeyFrame Cue="0%">
+          <Setter Property="Opacity" Value="0" />
+          <Setter Property="TranslateTransform.Y" Value="-6" />
+        </KeyFrame>
+        <KeyFrame Cue="100%">
+          <Setter Property="Opacity" Value="1" />
+          <Setter Property="TranslateTransform.Y" Value="0" />
+        </KeyFrame>
+      </Animation>
+    </Style.Animations>
+  </Style>
+</Styles>
