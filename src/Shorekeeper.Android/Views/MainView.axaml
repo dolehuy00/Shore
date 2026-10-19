@@ -94,6 +94,30 @@
         </Animation>
       </Style.Animations>
     </Style>
+    <!-- A notice floats like an Android toast: dark rounded box near the bottom, rising in as it appears. -->
+    <Style Selector="Border.toast">
+      <Setter Property="Background" Value="#E6323232" />
+      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="Padding" Value="16,4,4,4" />
+      <Setter Property="Margin" Value="4,0,4,12" />
+      <Setter Property="VerticalAlignment" Value="Bottom" />
+      <Setter Property="BoxShadow" Value="0 4 12 0 #40000000" />
+      <Setter Property="RenderTransform" Value="translateY(0px)" />
+    </Style>
+    <Style Selector="Border.toast[IsVisible=True]">
+      <Style.Animations>
+        <Animation Duration="0:0:0.2" Easing="CubicEaseOut" FillMode="Forward">
+          <KeyFrame Cue="0%">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="TranslateTransform.Y" Value="16" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="TranslateTransform.Y" Value="0" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
   </UserControl.Styles>
 
   <Panel>
@@ -116,17 +140,6 @@
         <Grid ColumnDefinitions="*,Auto">
           <TextBlock Text="{Binding Audio.ListeningText}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
           <Button Grid.Column="1" Content="{l:T 'Dừng'}" Command="{Binding Audio.StopListeningCommand}" Padding="12,6" FontSize="13" />
-        </Grid>
-      </Border>
-
-      <!-- Short messages, e.g. "2 mục không đọc được đã bị bỏ qua". -->
-      <Border DockPanel.Dock="Bottom" IsVisible="{Binding HasNotice}" Background="#33F59E0B" Padding="16,6,4,6">
-        <Grid ColumnDefinitions="*,Auto">
-          <TextBlock Text="{Binding Notice}" TextWrapping="Wrap" VerticalAlignment="Center" />
-          <Button Grid.Column="1" Command="{Binding CloseNoticeCommand}" Background="Transparent" BorderThickness="0" Padding="10"
-                  VerticalAlignment="Center" AutomationProperties.Name="{l:T 'Đóng'}">
-            <PathIcon Data="{StaticResource Icon.Dismiss}" Width="12" Height="12" />
-          </Button>
         </Grid>
       </Border>
 
@@ -673,6 +686,17 @@
           </StackPanel>
         </ScrollViewer>
         </Panel>
+
+        <!-- Short messages, e.g. "2 mục không đọc được đã bị bỏ qua": float over the page just above the tabs, then go. -->
+        <Border Classes="toast" IsVisible="{Binding HasNotice}">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Text="{Binding Notice}" Foreground="White" TextWrapping="Wrap" VerticalAlignment="Center" />
+            <Button Grid.Column="1" Command="{Binding CloseNoticeCommand}" Background="Transparent" BorderThickness="0" Padding="10"
+                    VerticalAlignment="Center" AutomationProperties.Name="{l:T 'Đóng'}">
+              <PathIcon Data="{StaticResource Icon.Dismiss}" Width="12" Height="12" Foreground="White" />
+            </Button>
+          </Grid>
+        </Border>
       </Panel>
     </DockPanel>
 
