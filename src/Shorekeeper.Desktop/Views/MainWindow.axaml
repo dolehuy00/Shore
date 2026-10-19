@@ -855,6 +855,27 @@
             </StackPanel>
           </Border>
 
+          <!-- Thống kê: how listening goes, every second. -->
+          <Border Classes="card" IsVisible="{Binding Audio.IsListening}">
+            <StackPanel Spacing="10">
+              <TextBlock Text="{l:T 'Thống kê'}" FontWeight="SemiBold" />
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <Ellipse Classes="dot" Classes.busy="{Binding Audio.IsStatusWarning}" Classes.error="{Binding Audio.IsStatusBad}" />
+                <TextBlock Text="{Binding Audio.StatusText}" TextWrapping="Wrap" VerticalAlignment="Center" />
+              </StackPanel>
+              <ItemsControl ItemsSource="{Binding Audio.Stats}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:AudioStatItem">
+                    <Grid ColumnDefinitions="220,*" Margin="0,2">
+                      <TextBlock Classes="muted" Text="{Binding Label}" />
+                      <TextBlock Grid.Column="1" Text="{Binding Value}" TextWrapping="Wrap" />
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </Border>
+
           <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
                      Text="{l:T 'Phát lấy tiếng từ loa mặc định của Windows, nghe cũng phát ra loa đó. Bật nhanh Phát âm thanh từ biểu tượng khay.'}" />
         </StackPanel>

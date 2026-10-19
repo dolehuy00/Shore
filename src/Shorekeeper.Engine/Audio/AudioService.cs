@@ -18,6 +18,22 @@ namespace Shorekeeper.Engine.Audio;
 /// <summary>A contact listening to this device's sound.</summary>
 public sealed record AudioListener(string SessionId, DeviceId PeerId, string Name);
 
+/// <summary>How listening goes ("Thống kê", docs/10-ux.md §12), measured every second.</summary>
+/// <param name="Latency">The "Độ trễ khi nghe" this session started with.</param>
+/// <param name="BaseMs">What its buffer holds when the network does well.</param>
+/// <param name="Ping">Round trip to the source, timed on the last keep-alive it answered; null until one is answered.</param>
+/// <param name="BufferMs">Sound in hand now.</param>
+/// <param name="TargetMs">What the buffer aims to hold.</param>
+/// <param name="JitterMs">How much later than the fastest the slow packets (99th percentile) came, over the last second.</param>
+/// <param name="LossPercent">Packets lost on the way over the last 10 s.</param>
+/// <param name="Lost">Packets lost on the way since listening started.</param>
+/// <param name="Saved">Of those, the ones played anyway: from the next packet's copy, or resent in time.</param>
+/// <param name="GapMs">Sound that could not play since listening started: guessed, or silence while waiting.</param>
+/// <param name="RecentGapMs">The same over the last 10 s.</param>
+/// <param name="Kbps">Received over the last second, resends included.</param>
+public sealed record AudioListeningStats(
+    AudioLatency Latency, int BaseMs, TimeSpan? Ping, int BufferMs, int TargetMs, double JitterMs, double LossPercent, int Lost, int Saved, int GapMs, int RecentGapMs, int Kbps);
+
 public enum AudioJoinResult
 {
     Joined,
@@ -90,6 +106,9 @@ public sealed class AudioService : IDisposable
 
     /// <summary>Playing, listeners or listening changed. Raised on any thread.</summary>
     public event EventHandler? Changed;
+
+    /// <summary>Every second while listening, from the service's timer.</summary>
+    public event EventHandler<AudioListeningStats>? StatsChanged;
 
     /// <summary>Something the user should read: a listener could not be served, the sound we listened to stopped.</summary>
     public event EventHandler<string>? Notice;
@@ -306,8 +325,7 @@ public sealed class AudioService : IDisposable
         }
 
         string name = NameOf(peer);
-        AudioLatency latency = settings.Current.AudioLatency;
-        var session = new Listening(peer, name, AudioStreamFormat.BufferFrames(latency), latency == AudioLatency.Preserve);
+        var session = new Listening(peer, name, settings.Current.AudioLatency);
         lock (gate)
         {
             if (listening is not null)
@@ -410,7 +428,8 @@ public sealed class AudioService : IDisposable
         }
 
         session.SendKeepAlive();
-        AudioStreamStats stats = session.TakeStats();
+        (AudioStreamStats stats, AudioListeningStats shown) = session.Measure();
+        StatsChanged?.Invoke(this, shown);
         if (stats.Asked + stats.Stretched + stats.Concealed + stats.Skipped > 0)
         {
             logger.LogInformation(
@@ -663,6 +682,7 @@ public sealed class AudioService : IDisposable
         private void ReceiveKeepAlives()
         {
             byte[] buffer = new byte[AudioCipher.MaxResendSize];
+            byte[] reply = new byte[AudioCipher.KeepAliveSize];
             byte[] resent = new byte[AudioPacket.MaxSize + AudioCipher.TagSize];
             uint[] sequences = new uint[AudioCipher.MaxResendSequences];
             EndPoint from = new IPEndPoint(IPAddress.Any, 0);
@@ -693,6 +713,7 @@ public sealed class AudioService : IDisposable
                     if (listener.KeepAlives.OpenKeepAlive(buffer.AsSpan(0, size)))
                     {
                         listener.Heard();
+                        Reply(listener, BinaryPrimitives.ReadUInt32BigEndian(buffer.AsSpan(1)), reply);
                     }
                     else if (listener.KeepAlives.OpenResendRequest(buffer.AsSpan(0, size), sequences) is var count and > 0)
                     {
@@ -700,6 +721,20 @@ public sealed class AudioService : IDisposable
                         Resend(listener, sequences.AsSpan(0, count), resent);
                     }
                 }
+            }
+        }
+
+        /// <summary>Answers a keep-alive, so the listener can time the round trip.</summary>
+        private void Reply(Listener listener, uint counter, byte[] reply)
+        {
+            int size = listener.KeepAlives.SealKeepAliveReply(reply, counter);
+            try
+            {
+                socket.SendTo(reply.AsSpan(0, size), SocketFlags.None, listener.Endpoint);
+            }
+            catch (SocketException ex)
+            {
+                logger.LogDebug("Audio keep-alive reply to {Endpoint}: {Error}", listener.Endpoint, ex.SocketErrorCode);
             }
         }
 
@@ -738,17 +773,27 @@ public sealed class AudioService : IDisposable
         private IPEndPoint? source;
         private uint keepAliveCounter;
         private uint resendCounter;
+        // When each of the last keep-alives went (Stopwatch timestamps, by counter), and the last round trip (TimeSpan ticks).
+        private readonly long[] keepAliveSentAt = new long[16];
+        private long pingTicks = -1;
+        private long bytesReceived;
+        // Only on the service's timer: the last 10 s of (sent, missed, gap frames), and the totals since listening started.
+        private readonly Queue<(int Sent, int Missed, int Gap)> recent = [];
+        private int lost;
+        private int saved;
+        private int gapFrames;
         private long lastHeard = Stopwatch.GetTimestamp();
         private volatile bool disposed;
 
-        public Listening(DeviceId peer, string name, int bufferFrames, bool preserve)
+        public Listening(DeviceId peer, string name, AudioLatency latency)
         {
+            Latency = latency;
             PeerId = peer;
             Name = name;
             Key = AudioCipher.NewKey();
             opener = new AudioCipher(Key);
             keepAlives = new AudioCipher(Key);
-            decoder = new AudioStreamDecoder(bufferFrames, preserve);
+            decoder = new AudioStreamDecoder(AudioStreamFormat.BufferFrames(latency), latency == AudioLatency.Preserve);
             socket.Bind(new IPEndPoint(IPAddress.Any, 0));
             Port = ((IPEndPoint)socket.LocalEndPoint!).Port;
             receiver = new Thread(Receive) { IsBackground = true, Name = "Audio receive" };
@@ -765,9 +810,41 @@ public sealed class AudioService : IDisposable
 
         public int Port { get; }
 
+        public AudioLatency Latency { get; }
+
         public TimeSpan SilentFor => Stopwatch.GetElapsedTime(Interlocked.Read(ref lastHeard));
 
-        public AudioStreamStats TakeStats() => decoder.TakeStats();
+        /// <summary>Once a second: what the stream did in the last second, and how listening goes as shown.</summary>
+        public (AudioStreamStats Last, AudioListeningStats Shown) Measure()
+        {
+            AudioStreamStats last = decoder.TakeStats();
+            recent.Enqueue((last.Sent, last.Missed, last.Concealed + last.Stretched));
+            if (recent.Count > 10)
+            {
+                recent.Dequeue();
+            }
+
+            int sent = recent.Sum(w => w.Sent);
+            int missed = recent.Sum(w => w.Missed);
+            lost += last.Missed;
+            saved += last.Recovered + last.Resent;
+            gapFrames += last.Concealed + last.Stretched;
+            long ping = Interlocked.Read(ref pingTicks);
+            var shown = new AudioListeningStats(
+                Latency,
+                AudioStreamFormat.BufferFrames(Latency) * AudioStreamFormat.FrameMilliseconds,
+                ping < 0 ? null : TimeSpan.FromTicks(ping),
+                last.Depth * AudioStreamFormat.FrameMilliseconds,
+                last.TargetFrames * AudioStreamFormat.FrameMilliseconds,
+                last.DelayP99Ms,
+                sent > 0 ? 100.0 * missed / sent : 0,
+                lost,
+                Math.Min(saved, lost),
+                gapFrames * AudioStreamFormat.FrameMilliseconds,
+                recent.Sum(w => w.Gap) * AudioStreamFormat.FrameMilliseconds,
+                (int)(Interlocked.Exchange(ref bytesReceived, 0) * 8 / 1000));
+            return (last, shown);
+        }
 
         public void Play(IAudioOutput output, string title, Action stopRequested)
         {
@@ -783,7 +860,9 @@ public sealed class AudioService : IDisposable
                 return;
             }
 
-            int size = keepAlives.SealKeepAlive(keepAlive, keepAliveCounter++);
+            uint counter = keepAliveCounter++;
+            int size = keepAlives.SealKeepAlive(keepAlive, counter);
+            Volatile.Write(ref keepAliveSentAt[counter % (uint)keepAliveSentAt.Length], Stopwatch.GetTimestamp());
             try
             {
                 socket.SendTo(keepAlive.AsSpan(0, size), SocketFlags.None, to);
@@ -825,6 +904,14 @@ public sealed class AudioService : IDisposable
                 catch (Exception ex) when (ex is SocketException or ObjectDisposedException)
                 {
                     return;
+                }
+
+                Interlocked.Add(ref bytesReceived, size);
+                if (opener.OpenKeepAliveReply(buffer.AsSpan(0, size), out uint answered))
+                {
+                    long sentAt = Volatile.Read(ref keepAliveSentAt[answered % (uint)keepAliveSentAt.Length]);
+                    Interlocked.Exchange(ref pingTicks, Stopwatch.GetElapsedTime(sentAt).Ticks);
+                    continue;
                 }
 
                 int length = opener.Open(buffer.AsSpan(0, size));

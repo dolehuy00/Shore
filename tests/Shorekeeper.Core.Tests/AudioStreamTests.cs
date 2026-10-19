@@ -56,6 +56,50 @@ public class AudioStreamTests
     }
 
     [Fact]
+    public void Keep_alive_replies_echo_the_counter()
+    {
+        byte[] key = AudioCipher.NewKey();
+        using var listener = new AudioCipher(key);
+        using var source = new AudioCipher(key);
+        byte[] reply = new byte[AudioCipher.KeepAliveSize];
+        byte[] keepAlive = new byte[AudioCipher.KeepAliveSize];
+
+        source.SealKeepAliveReply(reply, 41);
+        listener.SealKeepAlive(keepAlive, 41);
+
+        Assert.True(listener.OpenKeepAliveReply(reply, out uint counter));
+        Assert.Equal(41u, counter);
+        Assert.False(source.OpenKeepAlive(reply));
+        Assert.False(source.OpenKeepAliveReply(keepAlive, out _));
+        using var stranger = new AudioCipher(AudioCipher.NewKey());
+        Assert.False(stranger.OpenKeepAliveReply(reply, out _));
+    }
+
+    [Fact]
+    public void Stats_count_losses_on_the_way_and_resends_in_time()
+    {
+        var (decoder, packets) = Stream(frames: 40, targetFrames: 10, preserve: true);
+        uint[] missing = new uint[AudioCipher.MaxResendSequences];
+
+        // 15 to 17 are lost; 17 comes in 18's copy, so only 15 and 16 are asked for, and resent.
+        for (int i = 0; i < 40; i++)
+        {
+            Tick(decoder, i is >= 15 and <= 17 ? null : packets[i], i * 10_000L);
+            decoder.TakeMissing(missing, i * 10_000L);
+            if (i == 20)
+            {
+                Add(decoder, packets[15..18]);
+            }
+        }
+
+        AudioStreamStats stats = decoder.TakeStats();
+        Assert.Equal(39, stats.Sent);
+        Assert.Equal(3, stats.Missed);
+        Assert.Equal(2, stats.Asked);
+        Assert.Equal(2, stats.Resent);
+    }
+
+    [Fact]
     public void Resend_requests_carry_the_sequences_and_prove_the_key()
     {
         byte[] key = AudioCipher.NewKey();

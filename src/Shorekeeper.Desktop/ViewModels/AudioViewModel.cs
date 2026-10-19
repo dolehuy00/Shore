@@ -17,6 +17,9 @@ namespace Shorekeeper.Desktop.ViewModels;
 /// <summary>A device listening to ours.</summary>
 public sealed record AudioListenerItem(string Name, bool IsPhone);
 
+/// <summary>A line of "Thống kê": what is measured, and its value now.</summary>
+public sealed record AudioStatItem(string Label, string Value);
+
 /// <summary>What <see cref="AudioViewModel.AskPassword"/> shows; <paramref name="Masked"/> hides what is typed.</summary>
 public sealed record PasswordQuestion(string Title, string Label, string OkText, bool Masked);
 
@@ -67,6 +70,7 @@ public sealed partial class AudioViewModel : ObservableObject
         this.settings = settings;
         audio.Changed += (_, _) => Dispatcher.UIThread.Post(Refresh);
         audio.Notice += (_, message) => Dispatcher.UIThread.Post(() => Notice?.Invoke(this, message));
+        audio.StatsChanged += (_, stats) => Dispatcher.UIThread.Post(() => ShowStats(stats));
         directory.Changed += (_, _) => Dispatcher.UIThread.Post(RefreshSources);
         trust.Changed += (_, _) => Dispatcher.UIThread.Post(Refresh);
         Refresh();
@@ -116,6 +120,22 @@ public sealed partial class AudioViewModel : ObservableObject
     public partial string? ListeningText { get; set; }
 
     public bool IsListening => ListeningText is not null;
+
+    /// <summary>"Thống kê" while listening, every second: ping, buffer, losses.</summary>
+    [ObservableProperty]
+    public partial IReadOnlyList<AudioStatItem> Stats { get; set; } = [];
+
+    /// <summary>The state in one line above <see cref="Stats"/>: "Tốt", "Đang đo…", or what goes wrong.</summary>
+    [ObservableProperty]
+    public partial string? StatusText { get; set; }
+
+    /// <summary>The network falters but nothing is missed: the buffer makes up for it.</summary>
+    [ObservableProperty]
+    public partial bool IsStatusWarning { get; set; }
+
+    /// <summary>Sound went missing lately.</summary>
+    [ObservableProperty]
+    public partial bool IsStatusBad { get; set; }
 
     /// <summary>"Độ trễ khi nghe": 0 low (games), 1 stable (music), 2 preserve (never a gap, delay grows instead).</summary>
     public int LatencyIndex
@@ -221,8 +241,53 @@ public sealed partial class AudioViewModel : ObservableObject
         HasPassword = audio.HasPassword;
         Listeners = [.. audio.Listeners.Select(l => new AudioListenerItem(NameOf(l.PeerId, null), IsPhone(l.PeerId)))];
         ListeningText = audio.ListeningTo is { } peer ? L.F("Đang nghe âm thanh từ {0}", NameOf(peer, null)) : null;
+        if (!IsListening)
+        {
+            Stats = [];
+            StatusText = null;
+        }
+        else if (StatusText is null)
+        {
+            StatusText = L.T("Đang đo…");
+            IsStatusWarning = IsStatusBad = false;
+        }
+
         RefreshSources();
     }
+
+    private void ShowStats(AudioListeningStats stats)
+    {
+        if (!IsListening)
+        {
+            return;
+        }
+
+        (StatusText, IsStatusWarning, IsStatusBad) = stats switch
+        {
+            { RecentGapMs: > 0 } => (L.F("Mạng kém: hụt {0} ms tiếng trong 10 giây qua", stats.RecentGapMs), false, true),
+            { LossPercent: > 0 } => (L.T("Mạng đang mất gói, đã bù kịp"), true, false),
+            _ when stats.TargetMs > stats.BaseMs => (L.T("Mạng vừa chập chờn: đang giữ thêm âm thanh trong bộ đệm"), true, false),
+            _ => (L.T("Tốt"), false, false),
+        };
+        Stats =
+        [
+            new(L.T("Chế độ"), stats.Latency switch
+            {
+                AudioLatency.Stable => L.T("Ổn định"),
+                AudioLatency.Preserve => L.T("Bảo toàn"),
+                _ => L.T("Thấp"),
+            }),
+            new(L.T("Ping"), stats.Ping is { } ping ? Milliseconds(ping.TotalMilliseconds) : "—"),
+            new(L.T("Bộ đệm"), L.F("{0} ms (mục tiêu {1} ms, gốc {2} ms)", stats.BufferMs, stats.TargetMs, stats.BaseMs)),
+            new(L.T("Dao động (jitter)"), Milliseconds(stats.JitterMs)),
+            new(L.T("Mất gói (10 giây qua)"), L.F("{0:0.#} %", stats.LossPercent)),
+            new(L.T("Gói mất từ lúc nghe"), L.F("{0} (bù được {1})", stats.Lost, stats.Saved)),
+            new(L.T("Hụt tiếng từ lúc nghe"), L.F("{0} ms", stats.GapMs)),
+            new(L.T("Băng thông"), L.F("{0} kbps", stats.Kbps)),
+        ];
+    }
+
+    private static string Milliseconds(double ms) => ms < 1 ? "< 1 ms" : L.F("{0} ms", (int)Math.Round(ms));
 
     /// <summary>Presence arrives every few seconds: the list is only replaced when what it shows changed.</summary>
     private void RefreshSources()

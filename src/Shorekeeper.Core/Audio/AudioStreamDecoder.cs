@@ -9,9 +9,13 @@ namespace Shorekeeper.Core.Audio;
 /// <param name="Late">Packets that arrived after their turn had passed.</param>
 /// <param name="Skipped">Frames dropped to bring the delay back to the target after a burst.</param>
 /// <param name="Asked">Frames asked of the source again (<see cref="AudioStreamDecoder.TakeMissing"/>).</param>
+/// <param name="Resent">Frames asked for that came back in time.</param>
+/// <param name="Sent">How far the stream moved on: the frames the source sent in the window.</param>
+/// <param name="Missed">Of those, the ones that did not arrive in order: lost on the way (or, rarely, overtaken).</param>
 /// <param name="OverMs">Packets later than 20, 40, 60 and 100 ms behind the window's fastest: what each buffer size would have missed.</param>
 public sealed record AudioStreamStats(
-    int Received, int Played, int Recovered, int Concealed, int Stretched, int Late, int Skipped, int Asked, int Depth, int TargetFrames,
+    int Received, int Played, int Recovered, int Concealed, int Stretched, int Late, int Skipped, int Asked, int Resent, int Sent, int Missed,
+    int Depth, int TargetFrames,
     double DelayP50Ms, double DelayP99Ms, double DelayMaxMs, int[] OverMs);
 
 /// <summary>
@@ -79,6 +83,9 @@ public sealed class AudioStreamDecoder
     private int late;
     private int skipped;
     private int asked;
+    private int resent;
+    private int sent;
+    private int missed;
 
     /// <param name="preserve"><see cref="AudioLatency.Preserve"/>: wait rather than drop anything audible.</param>
     public AudioStreamDecoder(int targetFrames, bool preserve = false)
@@ -104,9 +111,16 @@ public sealed class AudioStreamDecoder
         lock (gate)
         {
             received++;
-            offsets.Add(arrivalMicros - packet.SentMicros);
             if (!anyPacket || (int)(packet.Sequence - highest) > 0)
             {
+                // In order: its delay says how the network does (a resent one's says nothing).
+                offsets.Add(arrivalMicros - packet.SentMicros);
+                if (anyPacket)
+                {
+                    sent += (int)(packet.Sequence - highest);
+                    missed += (int)(packet.Sequence - highest) - 1;
+                }
+
                 highest = packet.Sequence;
                 anyPacket = true;
             }
@@ -117,7 +131,13 @@ public sealed class AudioStreamDecoder
                 return;
             }
 
-            slots[packet.Sequence % Slots].Set(packet);
+            Slot slot = slots[packet.Sequence % Slots];
+            if (slot.WasAskedFor(packet.Sequence) && !slot.Holds(packet.Sequence))
+            {
+                resent++;
+            }
+
+            slot.Set(packet);
         }
     }
 
@@ -322,10 +342,11 @@ public sealed class AudioStreamDecoder
             double At(double q) => sorted.Length > 0 ? Ms(sorted[Math.Min(sorted.Length - 1, (int)(sorted.Length * q))]) : 0;
             int[] over = [.. Thresholds.Select(t => sorted.Count(o => Ms(o) > t))];
             var stats = new AudioStreamStats(
-                received, played, recovered, concealed, stretched, late, skipped, asked, playing ? (int)(highest - next) + 1 : 0, targetFrames,
+                received, played, recovered, concealed, stretched, late, skipped, asked, resent, sent, missed,
+                playing ? (int)(highest - next) + 1 : 0, targetFrames,
                 At(0.5), At(0.99), sorted.Length > 0 ? Ms(sorted[^1]) : 0, over);
             offsets.Clear();
-            received = played = recovered = concealed = stretched = late = skipped = asked = 0;
+            received = played = recovered = concealed = stretched = late = skipped = asked = resent = sent = missed = 0;
             return stats;
         }
     }
@@ -366,8 +387,9 @@ public sealed class AudioStreamDecoder
 
         public bool Holds(uint sequence) => Filled && Sequence == sequence;
 
-        public bool WasAskedFor(uint sequence, long nowMicros) =>
-            Asked && AskedSequence == sequence && nowMicros - AskedMicros < ResendRetryMicros;
+        public bool WasAskedFor(uint sequence, long nowMicros) => WasAskedFor(sequence) && nowMicros - AskedMicros < ResendRetryMicros;
+
+        public bool WasAskedFor(uint sequence) => Asked && AskedSequence == sequence;
 
         public void AskFor(uint sequence, long nowMicros)
         {

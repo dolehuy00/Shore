@@ -43,6 +43,30 @@ public sealed class AudioTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Listening_reports_its_stats_every_second_with_the_ping()
+    {
+        await pc.ConnectAsync(phone);
+        pc.Audio.SetPlaying(true);
+        var answered = new TaskCompletionSource<AudioListeningStats>();
+        phone.Audio.StatsChanged += (_, stats) =>
+        {
+            if (stats.Ping is not null)
+            {
+                answered.TrySetResult(stats);
+            }
+        };
+
+        await phone.Audio.ListenAsync(pc.Id, cancellationToken: Ct);
+        AudioListeningStats shown = await answered.Task.WaitAsync(TimeSpan.FromSeconds(5), Ct);
+
+        Assert.True(shown.Ping < TimeSpan.FromSeconds(1));
+        Assert.Equal(AudioLatency.Low, shown.Latency);
+        Assert.Equal(30, shown.BaseMs);
+        Assert.True(shown.Kbps > 0);
+        Assert.Equal(0, shown.Lost);
+    }
+
+    [Fact]
     public async Task Keep_alives_hold_the_session_past_the_timeouts()
     {
         await pc.ConnectAsync(phone);

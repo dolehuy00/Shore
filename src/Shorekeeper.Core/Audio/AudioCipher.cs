@@ -6,8 +6,9 @@ namespace Shorekeeper.Core.Audio;
 /// <summary>
 /// Seals the audio stream with AES-GCM under a key the listener makes for each session and hands over the mutual-TLS
 /// API. Audio packets keep their header readable (and authenticated) and seal the frames; the listener's keep-alives
-/// carry nothing but proof of the key (one sealed byte: Android's AES-GCM aborts the process on empty input), and its
-/// resend requests the sequence numbers of the packets it missed. One instance per thread: it reuses a buffer.
+/// carry nothing but proof of the key (one sealed byte: Android's AES-GCM aborts the process on empty input), the
+/// source answers each with the same counter so the listener can time the round trip, and the listener's resend
+/// requests carry the sequence numbers of the packets it missed. One instance per thread: it reuses a buffer.
 /// </summary>
 public sealed class AudioCipher : IDisposable
 {
@@ -25,9 +26,11 @@ public sealed class AudioCipher : IDisposable
 
     private const byte KeepAliveMarker = 0xA1;
     private const byte ResendMarker = 0xA2;
+    private const byte KeepAliveReplyMarker = 0xA3;
     private const byte AudioNonce = 0;
     private const byte KeepAliveNonce = 1;
     private const byte ResendNonce = 2;
+    private const byte KeepAliveReplyNonce = 3;
 
     private readonly AesGcm aes;
     private readonly byte[] scratch = new byte[AudioPacket.MaxSize];
@@ -85,35 +88,19 @@ public sealed class AudioCipher : IDisposable
     }
 
     /// <summary>Writes the listener's "still here" with a counter that never repeats within the session.</summary>
-    public int SealKeepAlive(Span<byte> destination, uint counter)
-    {
-        destination[0] = KeepAliveMarker;
-        BinaryPrimitives.WriteUInt32BigEndian(destination[1..], counter);
-        Span<byte> nonce = stackalloc byte[12];
-        Nonce(nonce, KeepAliveNonce, destination[1..5]);
-        aes.Encrypt(nonce, [0], destination.Slice(5, 1), destination.Slice(6, TagSize), destination[..5]);
-        return KeepAliveSize;
-    }
+    public int SealKeepAlive(Span<byte> destination, uint counter) => SealMarked(destination, KeepAliveMarker, KeepAliveNonce, counter);
 
-    public bool OpenKeepAlive(ReadOnlySpan<byte> datagram)
-    {
-        if (!IsKeepAlive(datagram))
-        {
-            return false;
-        }
+    public bool OpenKeepAlive(ReadOnlySpan<byte> datagram) => OpenMarked(datagram, KeepAliveMarker, KeepAliveNonce);
 
-        Span<byte> nonce = stackalloc byte[12];
-        Nonce(nonce, KeepAliveNonce, datagram[1..5]);
-        Span<byte> plain = stackalloc byte[1];
-        try
-        {
-            aes.Decrypt(nonce, datagram.Slice(5, 1), datagram.Slice(6, TagSize), plain, datagram[..5]);
-            return true;
-        }
-        catch (AuthenticationTagMismatchException)
-        {
-            return false;
-        }
+    /// <summary>The source's answer to keep-alive <paramref name="counter"/>: the listener times the round trip ("Ping").</summary>
+    public int SealKeepAliveReply(Span<byte> destination, uint counter) =>
+        SealMarked(destination, KeepAliveReplyMarker, KeepAliveReplyNonce, counter);
+
+    /// <param name="counter">The counter of the keep-alive it answers.</param>
+    public bool OpenKeepAliveReply(ReadOnlySpan<byte> datagram, out uint counter)
+    {
+        counter = datagram.Length == KeepAliveSize ? BinaryPrimitives.ReadUInt32BigEndian(datagram[1..]) : 0;
+        return OpenMarked(datagram, KeepAliveReplyMarker, KeepAliveReplyNonce);
     }
 
     /// <summary>Writes the listener's "send these again", with a counter of its own that never repeats within the session.</summary>
@@ -171,7 +158,39 @@ public sealed class AudioCipher : IDisposable
 
     public void Dispose() => aes.Dispose();
 
-    // Kind and counter: audio, keep-alives and resend requests never share a nonce under the session's key.
+    // A marker, a counter and one sealed byte: keep-alives and their replies.
+    private int SealMarked(Span<byte> destination, byte marker, byte kind, uint counter)
+    {
+        destination[0] = marker;
+        BinaryPrimitives.WriteUInt32BigEndian(destination[1..], counter);
+        Span<byte> nonce = stackalloc byte[12];
+        Nonce(nonce, kind, destination[1..5]);
+        aes.Encrypt(nonce, [0], destination.Slice(5, 1), destination.Slice(6, TagSize), destination[..5]);
+        return KeepAliveSize;
+    }
+
+    private bool OpenMarked(ReadOnlySpan<byte> datagram, byte marker, byte kind)
+    {
+        if (datagram.Length != KeepAliveSize || datagram[0] != marker)
+        {
+            return false;
+        }
+
+        Span<byte> nonce = stackalloc byte[12];
+        Nonce(nonce, kind, datagram[1..5]);
+        Span<byte> plain = stackalloc byte[1];
+        try
+        {
+            aes.Decrypt(nonce, datagram.Slice(5, 1), datagram.Slice(6, TagSize), plain, datagram[..5]);
+            return true;
+        }
+        catch (AuthenticationTagMismatchException)
+        {
+            return false;
+        }
+    }
+
+    // Kind and counter: audio, keep-alives, their replies and resend requests never share a nonce under the session's key.
     private static void Nonce(Span<byte> nonce, byte kind, ReadOnlySpan<byte> counter)
     {
         nonce.Clear();

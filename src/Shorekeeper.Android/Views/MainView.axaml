@@ -59,6 +59,9 @@
     <Style Selector="Ellipse.dot.muted">
       <Setter Property="Fill" Value="#9CA3AF" />
     </Style>
+    <Style Selector="Ellipse.dot.error">
+      <Setter Property="Fill" Value="#EF4444" />
+    </Style>
     <Style Selector="PathIcon.done">
       <Setter Property="Foreground" Value="#22C55E" />
     </Style>
@@ -605,6 +608,29 @@
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
+
+            <!-- Thống kê: how listening goes, every second. -->
+            <StackPanel IsVisible="{Binding IsListening}">
+              <TextBlock Classes="h3" Text="{l:T 'Thống kê'}" />
+              <Border Classes="card">
+                <StackPanel Spacing="8">
+                  <Grid ColumnDefinitions="Auto,*">
+                    <Ellipse Classes="dot" Classes.busy="{Binding IsStatusWarning}" Classes.error="{Binding IsStatusBad}" Margin="0,0,8,0" />
+                    <TextBlock Grid.Column="1" Text="{Binding StatusText}" TextWrapping="Wrap" FontWeight="SemiBold" VerticalAlignment="Center" />
+                  </Grid>
+                  <ItemsControl ItemsSource="{Binding Stats}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="dvm:AudioStatItem">
+                        <Grid ColumnDefinitions="Auto,*" Margin="0,2">
+                          <TextBlock Classes="muted" Text="{Binding Label}" FontSize="13" Margin="0,0,12,0" />
+                          <TextBlock Grid.Column="1" Text="{Binding Value}" FontSize="13" TextWrapping="Wrap" TextAlignment="Right" />
+                        </Grid>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </Border>
+            </StackPanel>
 
             <TextBlock Classes="h3" Text="{l:T 'Độ trễ khi nghe'}" />
             <ComboBox SelectedIndex="{Binding LatencyIndex}" HorizontalAlignment="Stretch">
