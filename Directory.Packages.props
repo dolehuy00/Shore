@@ -19,6 +19,9 @@
     <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="10.0.12" />
     <PackageVersion Include="System.DirectoryServices.AccountManagement" Version="10.0.12" />
 
+    <!-- Audio: Opus in managed code, the same on Windows and Android -->
+    <PackageVersion Include="Concentus" Version="2.2.2" />
+
     <!-- Installer (WiX v5, see docs/decisions.md ADR-006) -->
     <PackageVersion Include="WixToolset.Firewall.wixext" Version="5.0.2" />
     <PackageVersion Include="WixToolset.Util.wixext" Version="5.0.2" />
