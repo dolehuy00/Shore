@@ -501,5 +501,15 @@
   "Hụt tiếng từ lúc nghe": "Sound missed since listening",
   "{0} ms": "{0} ms",
   "Băng thông": "Bandwidth",
-  "{0} kbps": "{0} kbps"
+  "{0} kbps": "{0} kbps",
+  "Nhận âm thanh qua Bluetooth": "Receive sound over Bluetooth",
+  "Điện thoại đã ghép đôi Bluetooth với máy này phát ra loa máy tính như phát ra tai nghe, không cần chung Wi-Fi hay Shorekeeper trên điện thoại. Trễ khoảng nửa giây: hợp nghe nhạc, không hợp xem phim hay chơi game.": "Phones paired with this computer over Bluetooth play through its speakers as they would through headphones, with no shared Wi-Fi or Shorekeeper on the phone needed. About half a second late: fine for music, not for films or games.",
+  "Chưa có điện thoại nào ghép đôi Bluetooth với máy này.": "No phone is paired with this computer over Bluetooth yet.",
+  "Đã kết nối": "Connected",
+  "Đang chờ điện thoại…": "Waiting for the phone…",
+  "Ngắt": "Disconnect",
+  "Ghép đôi điện thoại…": "Pair a phone…",
+  "Không kết nối được âm thanh Bluetooth với {0}.": "Couldn't connect Bluetooth sound with {0}.",
+  "{0} không trả lời. Bật Bluetooth trên điện thoại, để gần máy tính rồi thử lại.": "{0} doesn't answer. Turn Bluetooth on on the phone, keep it near the computer and try again.",
+  "Windows không cho nhận âm thanh Bluetooth từ {0}.": "Windows doesn't allow receiving Bluetooth sound from {0}."
 }

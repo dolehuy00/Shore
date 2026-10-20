@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 using Shorekeeper.Core.Audio;
 using Shorekeeper.Core.Identity;
 using Shorekeeper.Core.Localization;
+using Shorekeeper.Core.Platform;
 using Shorekeeper.Core.Trust;
 using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Audio;
@@ -16,6 +17,25 @@ namespace Shorekeeper.Desktop.ViewModels;
 
 /// <summary>A device listening to ours.</summary>
 public sealed record AudioListenerItem(string Name, bool IsPhone);
+
+/// <summary>A phone paired over Bluetooth, as "Nhận âm thanh qua Bluetooth" lists it.</summary>
+public sealed partial class BluetoothSourceItem(AudioViewModel owner, BluetoothAudioSource source)
+{
+    public string Name => source.Name;
+
+    public bool IsOff => source.State == BluetoothAudioState.Off;
+
+    /// <summary>Kept open, the phone not connected (yet): it connects by itself when its Bluetooth is on.</summary>
+    public bool IsWaiting => source.State == BluetoothAudioState.Waiting;
+
+    public bool IsConnected => source.State == BluetoothAudioState.Connected;
+
+    [RelayCommand]
+    private Task ConnectAsync() => owner.ConnectBluetoothAsync(source);
+
+    [RelayCommand]
+    private void Disconnect() => owner.DisconnectBluetooth(source);
+}
 
 /// <summary>A line of "Thống kê": what is measured, and its value now.</summary>
 public sealed record AudioStatItem(string Label, string Value);
@@ -52,7 +72,8 @@ public sealed partial class AudioSourceItem(AudioViewModel owner, DeviceId devic
 
 /// <summary>
 /// The "Âm thanh" page on the computer and the tab on the phone (docs/10-ux.md §12): this device's sound for contacts
-/// that choose to listen (optionally with a password), the contacts playing theirs, and how much delay listening allows.
+/// that choose to listen (optionally with a password), the contacts playing theirs, and how much delay listening allows;
+/// on Windows also phones playing into the computer over Bluetooth.
 /// </summary>
 public sealed partial class AudioViewModel : ObservableObject
 {
@@ -60,14 +81,23 @@ public sealed partial class AudioViewModel : ObservableObject
     private readonly PeerDirectory directory;
     private readonly TrustStore trust;
     private readonly SettingsService settings;
+    private readonly IBluetoothAudioReceiver? bluetooth;
     private bool refreshing;
 
-    public AudioViewModel(AudioService audio, PeerDirectory directory, TrustStore trust, SettingsService settings)
+    /// <param name="bluetooth">Null where the platform cannot receive Bluetooth audio (Android, Linux, macOS).</param>
+    public AudioViewModel(AudioService audio, PeerDirectory directory, TrustStore trust, SettingsService settings, IBluetoothAudioReceiver? bluetooth = null)
     {
         this.audio = audio;
         this.directory = directory;
         this.trust = trust;
         this.settings = settings;
+        this.bluetooth = bluetooth;
+        if (bluetooth is not null)
+        {
+            bluetooth.Changed += (_, _) => Dispatcher.UIThread.Post(RefreshBluetooth);
+            RefreshBluetooth();
+        }
+
         audio.Changed += (_, _) => Dispatcher.UIThread.Post(Refresh);
         audio.Notice += (_, message) => Dispatcher.UIThread.Post(() => Notice?.Invoke(this, message));
         audio.StatsChanged += (_, stats) => Dispatcher.UIThread.Post(() => ShowStats(stats));
@@ -121,6 +151,16 @@ public sealed partial class AudioViewModel : ObservableObject
 
     public bool IsListening => ListeningText is not null;
 
+    /// <summary>"Nhận âm thanh qua Bluetooth" is shown (Windows).</summary>
+    public bool CanReceiveBluetooth => bluetooth is not null;
+
+    /// <summary>Phones paired with this computer over Bluetooth.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasNoBluetoothSources))]
+    public partial IReadOnlyList<BluetoothSourceItem> BluetoothSources { get; set; } = [];
+
+    public bool HasNoBluetoothSources => BluetoothSources.Count == 0;
+
     /// <summary>"Thống kê" while listening, every second: ping, buffer, losses.</summary>
     [ObservableProperty]
     public partial IReadOnlyList<AudioStatItem> Stats { get; set; } = [];
@@ -161,6 +201,25 @@ public sealed partial class AudioViewModel : ObservableObject
 
     [RelayCommand]
     private void RemovePassword() => audio.SetPassword(null);
+
+    [RelayCommand]
+    private void OpenBluetoothSettings() => bluetooth?.OpenSettings();
+
+    internal async Task ConnectBluetoothAsync(BluetoothAudioSource source)
+    {
+        try
+        {
+            await bluetooth!.ConnectAsync(source.Id);
+        }
+        catch (InvalidOperationException ex)
+        {
+            Notice?.Invoke(this, ex.Message);
+        }
+    }
+
+    internal void DisconnectBluetooth(BluetoothAudioSource source) => bluetooth?.Disconnect(source.Id);
+
+    private void RefreshBluetooth() => BluetoothSources = [.. bluetooth!.Sources.Select(s => new BluetoothSourceItem(this, s))];
 
     /// <param name="password">Typed by the user; null sends the one remembered for this source, if any.</param>
     internal async Task ListenAsync(AudioSourceItem source, string? password = null)
