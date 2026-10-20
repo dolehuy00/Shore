@@ -56,6 +56,7 @@ public enum AudioJoinResult
 /// with a fresh key and a UDP port of its own, and the source's password when it has one. The sound is captured only while someone listens, encoded once and sealed
 /// for each listener. Listeners prove they are still there every second; either side stops after a few silent seconds.
 /// A listener that misses packets asks for them again, and the source resends what it still has from the last 3 s.
+/// Where the source can press media keys (Windows), its listener may play, pause, skip and change the volume there.
 /// </summary>
 public sealed class AudioService : IDisposable
 {
@@ -76,6 +77,7 @@ public sealed class AudioService : IDisposable
     private readonly ILogger<AudioService> logger;
     private readonly IAudioCapture? capture;
     private readonly IAudioOutput? output;
+    private readonly IMediaKeys? mediaKeys;
     private readonly Lock gate = new();
     private readonly ITimer timer;
     private readonly Dictionary<DeviceId, (int Count, long Since)> wrongPasswords = [];
@@ -91,7 +93,8 @@ public sealed class AudioService : IDisposable
         TimeProvider timeProvider,
         ILogger<AudioService> logger,
         IAudioCapture? capture = null,
-        IAudioOutput? output = null)
+        IAudioOutput? output = null,
+        IMediaKeys? mediaKeys = null)
     {
         this.client = client;
         this.trust = trust;
@@ -101,6 +104,7 @@ public sealed class AudioService : IDisposable
         this.logger = logger;
         this.capture = capture;
         this.output = output;
+        this.mediaKeys = mediaKeys;
         timer = timeProvider.CreateTimer(_ => OnTick(), null, Tick, Tick);
     }
 
@@ -115,6 +119,21 @@ public sealed class AudioService : IDisposable
 
     /// <summary>This device can play its sound for others (it can capture its speakers).</summary>
     public bool CanPlay => capture is not null;
+
+    /// <summary>Our listeners may press media keys here ("Điều khiển").</summary>
+    public bool CanBeControlled => mediaKeys is not null;
+
+    /// <summary>The device we listen to lets us press its media keys (<see cref="PressAsync"/>).</summary>
+    public bool CanControlListened
+    {
+        get
+        {
+            lock (gate)
+            {
+                return listening?.CanControl == true;
+            }
+        }
+    }
 
     /// <summary>This device can listen to another's sound.</summary>
     public bool CanListen => output is not null;
@@ -256,6 +275,25 @@ public sealed class AudioService : IDisposable
         return AudioJoinResult.Joined;
     }
 
+    /// <summary>A listener pressed a media key; it must be listening now, in that session.</summary>
+    internal bool HandleKey(DeviceId caller, string sessionId, MediaKey key)
+    {
+        bool listens;
+        lock (gate)
+        {
+            listens = broadcast?.Listeners.Any(l => l.Info.PeerId == caller && l.Info.SessionId == sessionId) == true;
+        }
+
+        if (!listens || mediaKeys is null)
+        {
+            return false;
+        }
+
+        logger.LogInformation("{Peer} pressed {Key}", caller, key);
+        mediaKeys.Press(key);
+        return true;
+    }
+
     internal void HandleLeave(DeviceId caller, string sessionId)
     {
         if (RemoveListener(l => l.Info.PeerId == caller && l.Info.SessionId == sessionId))
@@ -344,8 +382,12 @@ public sealed class AudioService : IDisposable
             using HttpResponseMessage response = await client.SendAsync(
                 peer, b => new HttpRequestMessage(HttpMethod.Post, new Uri(b, "audio/listeners")) { Content = JsonContent.Create(body) },
                 RequestTimeout, cancellationToken);
+            // A source too old to be controlled answers 204, without a body.
+            session.CanControl = response.StatusCode == HttpStatusCode.OK
+                && (await PeerClient.ReadAsync<AudioJoinResponse>(response, cancellationToken)).Control;
             await PeerClient.EnsureSuccessAsync(response, cancellationToken);
-            session.Play(output, L.F("Đang nghe âm thanh từ {0}", name), () => _ = StopListeningAsync());
+            session.Play(output, L.F("Đang nghe âm thanh từ {0}", name), () => _ = StopListeningAsync(),
+                session.CanControl ? key => _ = PressFromOutsideAsync(key, name) : null);
         }
         catch (PeerApiException ex) when (remembered is not null && ex.Code is ApiErrorCodes.WrongPassword or ApiErrorCodes.PasswordRequired)
         {
@@ -367,6 +409,48 @@ public sealed class AudioService : IDisposable
 
         logger.LogInformation("Listening to {Peer}", peer);
         Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>"Điều khiển": presses <paramref name="key"/> on the device we listen to.</summary>
+    /// <exception cref="InvalidOperationException">Not listening, or that device cannot be controlled.</exception>
+    /// <exception cref="PeerUnreachableException">It could not be reached.</exception>
+    /// <exception cref="PeerApiException">It refused (we no longer listen there).</exception>
+    public async Task PressAsync(MediaKey key, CancellationToken cancellationToken = default)
+    {
+        Listening? session;
+        lock (gate)
+        {
+            session = listening;
+        }
+
+        if (session is not { CanControl: true })
+        {
+            throw new InvalidOperationException(L.T("Máy đang phát không cho điều khiển."));
+        }
+
+        using HttpResponseMessage response = await client.SendAsync(
+            session.PeerId,
+            b => new HttpRequestMessage(HttpMethod.Post, new Uri(b, $"audio/listeners/{session.Id}/keys"))
+            {
+                Content = JsonContent.Create(new AudioKeyBody(MediaKeyNames.Of(key))),
+            },
+            RequestTimeout,
+            cancellationToken);
+        await PeerClient.EnsureSuccessAsync(response, cancellationToken);
+    }
+
+    /// <summary>A key from outside the app (the notification): a failure becomes a notice.</summary>
+    private async Task PressFromOutsideAsync(MediaKey key, string name)
+    {
+        try
+        {
+            await PressAsync(key);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or PeerUnreachableException or PeerApiException or HttpRequestException)
+        {
+            logger.LogInformation(ex, "Could not press {Key} on {Name}", key, name);
+            Notice?.Invoke(this, L.F("Không điều khiển được {0}.", name));
+        }
     }
 
     public async Task StopListeningAsync()
@@ -846,10 +930,13 @@ public sealed class AudioService : IDisposable
             return (last, shown);
         }
 
-        public void Play(IAudioOutput output, string title, Action stopRequested)
+        /// <summary>The source said we may press its media keys.</summary>
+        public bool CanControl { get; set; }
+
+        public void Play(IAudioOutput output, string title, Action stopRequested, Action<MediaKey>? keyRequested)
         {
             Interlocked.Exchange(ref lastHeard, Stopwatch.GetTimestamp());
-            playing = output.Start(decoder.Read, title, stopRequested);
+            playing = output.Start(decoder.Read, title, stopRequested, keyRequested);
         }
 
         /// <summary>Tells the source we still listen; also opens the way back through the source's firewall.</summary>

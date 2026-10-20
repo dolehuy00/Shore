@@ -102,6 +102,12 @@ public sealed record GroupInvitationBody(string GroupId, string GroupName, strin
 /// <param name="Password">The source's password, when it has one.</param>
 public sealed record AudioListenBody(string SessionId, string Key, int Port, string? Password = null);
 
+/// <summary>Answer to <c>POST /api/v1/audio/listeners</c>; <paramref name="Control"/>: the listener may press media keys here.</summary>
+public sealed record AudioJoinResponse(bool Control);
+
+/// <summary>Body of <c>POST /api/v1/audio/listeners/{sessionId}/keys</c>: a name from <see cref="Core.Platform.MediaKeyNames"/>.</summary>
+public sealed record AudioKeyBody(string Key);
+
 /// <summary>Stable error codes in problem+json responses (docs/05-protocol.md §3).</summary>
 public static class ApiErrorCodes
 {

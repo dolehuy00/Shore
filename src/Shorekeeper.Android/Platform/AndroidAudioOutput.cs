@@ -18,13 +18,17 @@ internal sealed class AndroidAudioOutput(Context context) : IAudioOutput
     // Three frames: room for the thread to be a little late without the device running dry (two ran dry now and then).
     private const int TrackFrames = 3;
 
-    /// <summary>The notification's "Dừng", for the session playing now.</summary>
+    /// <summary>The notification's "Dừng nghe", for the session playing now.</summary>
     internal static Action? StopRequested { get; private set; }
 
-    public IDisposable Start(AudioFrameReader read, string title, Action stopRequested)
+    /// <summary>The notification's "Phát/Dừng" and "Bài sau", when the source can be controlled.</summary>
+    internal static Action<MediaKey>? KeyRequested { get; private set; }
+
+    public IDisposable Start(AudioFrameReader read, string title, Action stopRequested, Action<MediaKey>? keyRequested = null)
     {
         StopRequested = stopRequested;
-        AudioPlaybackService.Start(context, title);
+        KeyRequested = keyRequested;
+        AudioPlaybackService.Start(context, title, keyRequested is not null);
         return new Playing(context, read);
     }
 
@@ -81,12 +85,18 @@ internal sealed class AndroidAudioOutput(Context context) : IAudioOutput
     }
 }
 
-/// <summary>Keeps the process playing with the screen off; its notification says what plays and has "Dừng".</summary>
+/// <summary>
+/// Keeps the process playing with the screen off; its notification says what plays and has "Dừng nghe", and
+/// "Phát/Dừng" and "Bài sau" for a source that can be controlled.
+/// </summary>
 [Service(Exported = false, ForegroundServiceType = ForegroundService.TypeMediaPlayback)]
 public sealed class AudioPlaybackService : Service
 {
     public const string ActionStop = "dev.shorekeeper.AUDIO_STOP";
+    public const string ActionKey = "dev.shorekeeper.AUDIO_KEY";
+    public const string ExtraKey = "key";
     private const string ExtraTitle = "title";
+    private const string ExtraControls = "controls";
     private const int NotificationId = 3;
 
     public override IBinder? OnBind(Intent? intent) => null;
@@ -100,12 +110,23 @@ public sealed class AudioPlaybackService : Service
             return StartCommandResult.NotSticky;
         }
 
-        StartForeground(NotificationId, Notifications.Listening(this, intent?.GetStringExtra(ExtraTitle) ?? ""), ForegroundService.TypeMediaPlayback);
+        if (intent?.Action == ActionKey)
+        {
+            if (MediaKeyNames.TryParse(intent.GetStringExtra(ExtraKey), out MediaKey key))
+            {
+                AndroidAudioOutput.KeyRequested?.Invoke(key);
+            }
+
+            return StartCommandResult.NotSticky;
+        }
+
+        Notification notification = Notifications.Listening(this, intent?.GetStringExtra(ExtraTitle) ?? "", intent?.GetBooleanExtra(ExtraControls, false) == true);
+        StartForeground(NotificationId, notification, ForegroundService.TypeMediaPlayback);
         return StartCommandResult.NotSticky;
     }
 
-    internal static void Start(Context context, string title) =>
-        context.StartForegroundService(new Intent(context, typeof(AudioPlaybackService)).PutExtra(ExtraTitle, title));
+    internal static void Start(Context context, string title, bool controls) =>
+        context.StartForegroundService(new Intent(context, typeof(AudioPlaybackService)).PutExtra(ExtraTitle, title).PutExtra(ExtraControls, controls));
 
     internal static void Stop(Context context) => context.StopService(new Intent(context, typeof(AudioPlaybackService)));
 }

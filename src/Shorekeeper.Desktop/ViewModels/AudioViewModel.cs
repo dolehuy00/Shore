@@ -151,6 +151,13 @@ public sealed partial class AudioViewModel : ObservableObject
 
     public bool IsListening => ListeningText is not null;
 
+    /// <summary>"Điều khiển PC · MSI": the device we listen to lets us press its media keys; null otherwise.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanControl))]
+    public partial string? ControlTitle { get; set; }
+
+    public bool CanControl => ControlTitle is not null;
+
     /// <summary>"Nhận âm thanh qua Bluetooth" is shown (Windows).</summary>
     public bool CanReceiveBluetooth => bluetooth is not null;
 
@@ -204,6 +211,37 @@ public sealed partial class AudioViewModel : ObservableObject
 
     [RelayCommand]
     private void OpenBluetoothSettings() => bluetooth?.OpenSettings();
+
+    [RelayCommand]
+    private Task PlayPauseAsync() => PressAsync(MediaKey.PlayPause);
+
+    [RelayCommand]
+    private Task NextAsync() => PressAsync(MediaKey.Next);
+
+    [RelayCommand]
+    private Task PreviousAsync() => PressAsync(MediaKey.Previous);
+
+    [RelayCommand]
+    private Task VolumeUpAsync() => PressAsync(MediaKey.VolumeUp);
+
+    [RelayCommand]
+    private Task VolumeDownAsync() => PressAsync(MediaKey.VolumeDown);
+
+    [RelayCommand]
+    private Task MuteAsync() => PressAsync(MediaKey.Mute);
+
+    /// <summary>"Điều khiển": a media key on the device we listen to.</summary>
+    private async Task PressAsync(MediaKey key)
+    {
+        try
+        {
+            await audio.PressAsync(key);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or PeerUnreachableException or PeerApiException or HttpRequestException)
+        {
+            Notice?.Invoke(this, L.T("Không điều khiển được máy đang phát."));
+        }
+    }
 
     internal async Task ConnectBluetoothAsync(BluetoothAudioSource source)
     {
@@ -300,6 +338,7 @@ public sealed partial class AudioViewModel : ObservableObject
         HasPassword = audio.HasPassword;
         Listeners = [.. audio.Listeners.Select(l => new AudioListenerItem(NameOf(l.PeerId, null), IsPhone(l.PeerId)))];
         ListeningText = audio.ListeningTo is { } peer ? L.F("Đang nghe âm thanh từ {0}", NameOf(peer, null)) : null;
+        ControlTitle = audio.ListeningTo is { } source && audio.CanControlListened ? L.F("Điều khiển {0}", NameOf(source, null)) : null;
         if (!IsListening)
         {
             Stats = [];

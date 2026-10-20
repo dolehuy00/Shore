@@ -18,7 +18,7 @@ public sealed partial class WindowsAudioOutput : IAudioOutput
 
     private static readonly Guid IidRenderClient = new("F294ACFC-3146-4483-A7BF-ADDCA7C260E2");
 
-    public IDisposable Start(AudioFrameReader read, string title, Action stopRequested) => new Playing(read);
+    public IDisposable Start(AudioFrameReader read, string title, Action stopRequested, Action<MediaKey>? keyRequested = null) => new Playing(read);
 
     private sealed class Playing : IDisposable
     {

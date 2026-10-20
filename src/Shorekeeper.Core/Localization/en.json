@@ -524,5 +524,16 @@
   "Trên máy tính: Xóm → Mã QR. Quét xong là kết nối luôn, không cần so mã.": "On the computer: Neighbourhood → QR code. Once scanned it connects, with no code to compare.",
   "Hoặc nhập tên hay IP của máy tính đang mở Shorekeeper, khi Wi-Fi không cho các máy thấy nhau:": "Or type the name or IP of a computer running Shorekeeper, when the Wi-Fi keeps devices from seeing each other:",
   "Đây không phải mã QR kết nối của Shorekeeper.": "That isn't a Shorekeeper connection QR code.",
-  "Không mở được trình quét mã QR. Điện thoại cần Google Play services; lần đầu có thể phải chờ tải trình quét rồi thử lại.": "Couldn't open the QR scanner. The phone needs Google Play services; the first time, wait for the scanner to download and try again."
+  "Không mở được trình quét mã QR. Điện thoại cần Google Play services; lần đầu có thể phải chờ tải trình quét rồi thử lại.": "Couldn't open the QR scanner. The phone needs Google Play services; the first time, wait for the scanner to download and try again.",
+  "Phát/Dừng": "Play/Pause",
+  "Bài sau": "Next",
+  "Bài trước": "Previous",
+  "Máy đang phát không cho điều khiển.": "The playing device can't be controlled.",
+  "Không điều khiển được {0}.": "Couldn't control {0}.",
+  "Không điều khiển được máy đang phát.": "Couldn't control the playing device.",
+  "Điều khiển {0}": "Control {0}",
+  "Nhỏ đi": "Quieter",
+  "Tắt tiếng": "Mute",
+  "To lên": "Louder",
+  "Như bấm phím media trên máy kia: app đang phát nhạc nhận Phát/Dừng và chuyển bài; âm lượng là âm lượng chung của máy đó.": "Like pressing the media keys on that device: the app playing takes Play/Pause and the tracks; the volume is that device's overall volume."
 }

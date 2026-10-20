@@ -609,6 +609,36 @@
               </ItemsControl.ItemTemplate>
             </ItemsControl>
 
+            <!-- Điều khiển: the source's media keys, when it lets us (a computer). -->
+            <StackPanel IsVisible="{Binding CanControl}">
+              <TextBlock Classes="h3" Text="{Binding ControlTitle}" />
+              <Border Classes="card">
+                <StackPanel Spacing="10">
+                  <UniformGrid Columns="3" ColumnSpacing="8">
+                    <Button Command="{Binding PreviousCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="0,10"
+                            AutomationProperties.Name="{l:T 'Bài trước'}">
+                      <PathIcon Data="{StaticResource Icon.Previous}" Width="20" Height="20" />
+                    </Button>
+                    <Button Command="{Binding PlayPauseCommand}" Classes="accent" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="0,10"
+                            AutomationProperties.Name="{l:T 'Phát/Dừng'}">
+                      <PathIcon Data="{StaticResource Icon.PlayPause}" Width="20" Height="20" />
+                    </Button>
+                    <Button Command="{Binding NextCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="0,10"
+                            AutomationProperties.Name="{l:T 'Bài sau'}">
+                      <PathIcon Data="{StaticResource Icon.Next}" Width="20" Height="20" />
+                    </Button>
+                  </UniformGrid>
+                  <UniformGrid Columns="3" ColumnSpacing="8">
+                    <Button Content="{l:T 'Nhỏ đi'}" Command="{Binding VolumeDownCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="13" />
+                    <Button Content="{l:T 'Tắt tiếng'}" Command="{Binding MuteCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="13" />
+                    <Button Content="{l:T 'To lên'}" Command="{Binding VolumeUpCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="13" />
+                  </UniformGrid>
+                  <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
+                             Text="{l:T 'Như bấm phím media trên máy kia: app đang phát nhạc nhận Phát/Dừng và chuyển bài; âm lượng là âm lượng chung của máy đó.'}" />
+                </StackPanel>
+              </Border>
+            </StackPanel>
+
             <!-- Thống kê: how listening goes, every second. -->
             <StackPanel IsVisible="{Binding IsListening}">
               <TextBlock Classes="h3" Text="{l:T 'Thống kê'}" />

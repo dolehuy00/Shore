@@ -17,6 +17,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IDirectoryInfo, ActiveDirectoryInfo>();
         services.AddSingleton<IAudioCapture, WindowsAudioCapture>();
         services.AddSingleton<IAudioOutput, WindowsAudioOutput>();
+        services.AddSingleton<IMediaKeys, WindowsMediaKeys>();
         services.AddSingleton<IBluetoothAudioReceiver, WindowsBluetoothAudioReceiver>();
         return services;
     }

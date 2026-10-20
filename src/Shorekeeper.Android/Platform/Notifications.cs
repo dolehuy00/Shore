@@ -1,6 +1,7 @@
 using Android.Content;
 using Android.Graphics.Drawables;
 using Shorekeeper.Core.Localization;
+using Shorekeeper.Core.Platform;
 using Shorekeeper.Desktop.ViewModels;
 using Shorekeeper.Engine.Transfers;
 using AndroidResource = Android.Resource;
@@ -33,17 +34,35 @@ internal static class Notifications
     }
 
     /// <summary>"Đang nghe âm thanh từ PC · MSI" with [Dừng], while <see cref="AudioPlaybackService"/> runs.</summary>
-    public static Notification Listening(Context context, string title)
+    /// <param name="controls">The source can be controlled: "Phát/Dừng" and "Bài sau" before "Dừng nghe" (three buttons fit).</param>
+    public static Notification Listening(Context context, string title, bool controls)
     {
         PendingIntent stop = PendingIntent.GetService(
             context, 0, new Intent(context, typeof(AudioPlaybackService)).SetAction(AudioPlaybackService.ActionStop), PendingIntentFlags.Immutable)!;
-        return new Notification.Builder(context, AudioChannel)
+        var builder = new Notification.Builder(context, AudioChannel)
             .SetContentTitle(title)!
             .SetSmallIcon(Resource.Drawable.ic_stat_shorekeeper)!
             .SetOngoing(true)!
-            .SetContentIntent(OpenApp(context, tab: AudioTab))!
-            .AddAction(new Notification.Action.Builder(Icon.CreateWithResource(context, AndroidResource.Drawable.IcMediaPause), L.T("Dừng"), stop).Build())!
+            .SetContentIntent(OpenApp(context, tab: AudioTab))!;
+        if (controls)
+        {
+            builder.AddAction(KeyAction(context, MediaKey.PlayPause, AndroidResource.Drawable.IcMediaPlay, L.T("Phát/Dừng"), requestCode: 1))!
+                .AddAction(KeyAction(context, MediaKey.Next, AndroidResource.Drawable.IcMediaNext, L.T("Bài sau"), requestCode: 2));
+        }
+
+        return builder
+            .AddAction(new Notification.Action.Builder(Icon.CreateWithResource(context, AndroidResource.Drawable.IcMediaPause), controls ? L.T("Dừng nghe") : L.T("Dừng"), stop).Build())!
             .Build()!;
+    }
+
+    private static Notification.Action KeyAction(Context context, MediaKey key, int icon, string label, int requestCode)
+    {
+        PendingIntent press = PendingIntent.GetService(
+            context,
+            requestCode,
+            new Intent(context, typeof(AudioPlaybackService)).SetAction(AudioPlaybackService.ActionKey).PutExtra(AudioPlaybackService.ExtraKey, MediaKeyNames.Of(key)),
+            PendingIntentFlags.Immutable)!;
+        return new Notification.Action.Builder(Icon.CreateWithResource(context, icon), label, press).Build()!;
     }
 
     /// <summary>"Đang phát âm thanh của điện thoại" with [Dừng], while <see cref="AudioCaptureService"/> runs.</summary>

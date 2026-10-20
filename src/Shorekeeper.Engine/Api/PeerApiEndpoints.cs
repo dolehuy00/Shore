@@ -1,5 +1,6 @@
 using System.Net;
 using Microsoft.Extensions.DependencyInjection;
+using Shorekeeper.Core.Platform;
 using Shorekeeper.Engine.Audio;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Groups;
@@ -180,7 +181,7 @@ public static class PeerApiEndpoints
             await request.ReadJsonAsync<AudioListenBody>() is not { } body ? Invalid()
             : audio.HandleJoin(request.Caller, request.RemoteAddress, body) switch
             {
-                AudioJoinResult.Joined => NoContent(),
+                AudioJoinResult.Joined => PeerResponse.Json(new AudioJoinResponse(audio.CanBeControlled)),
                 AudioJoinResult.NotPlaying => NotFound(),
                 AudioJoinResult.Full => Busy(),
                 AudioJoinResult.PasswordRequired => PeerResponse.Problem(HttpStatusCode.Forbidden, ApiErrorCodes.PasswordRequired),
@@ -188,6 +189,12 @@ public static class PeerApiEndpoints
                 AudioJoinResult.TooManyAttempts => PeerResponse.Problem(HttpStatusCode.TooManyRequests, ApiErrorCodes.RateLimited),
                 _ => Invalid(),
             });
+
+        // A listener presses a media key here ("Điều khiển"): only in the session it listens with.
+        api.Map("POST", "/audio/listeners/{sessionId}/keys", RequiredAccess.Trusted, async request =>
+            await request.ReadJsonAsync<AudioKeyBody>() is not { } body || !MediaKeyNames.TryParse(body.Key, out MediaKey key) ? Invalid()
+            : audio.HandleKey(request.Caller, request.Route("sessionId"), key) ? NoContent()
+            : NotFound());
 
         api.Map("DELETE", "/audio/listeners/{sessionId}", RequiredAccess.Trusted, request =>
         {

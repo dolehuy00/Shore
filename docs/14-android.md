@@ -79,7 +79,7 @@ Màn hình: Xóm (danh sách, chạm để gửi), Hộp nhận, Đã gửi, Nh�
 
 ### 3.5 Nghe âm thanh
 
-- Foreground service riêng loại `mediaPlayback` (`FOREGROUND_SERVICE_MEDIA_PLAYBACK`) với thông báo "Đang nghe âm thanh từ …" [Dừng], nên tắt màn hình vẫn nghe.
+- Foreground service riêng loại `mediaPlayback` (`FOREGROUND_SERVICE_MEDIA_PLAYBACK`) với thông báo "Đang nghe âm thanh từ …" [Dừng], nên tắt màn hình vẫn nghe. Máy phát cho điều khiển (máy tính) thì thông báo là [Phát/Dừng] [Bài sau] [Dừng nghe], và tab Âm thanh có thẻ "Điều khiển …"; nút gửi phím media qua `audio/listeners/{sessionId}/keys`.
 - `AudioTrack` chế độ low latency, bộ đệm 3 khung (30 ms; 2 khung thỉnh thoảng cạn). Luồng phát ở ưu tiên `UrgentAudio`.
 - Trong lúc nghe giữ `WifiLock` low latency (chỉ có hiệu lực khi app ở trước và màn hình sáng) và high perf cho lúc còn lại, cùng một partial wake lock.
 - Đo trên OPPO Reno10 (điện thoại phát hotspot cho PC, đồng thời bắt Wi-Fi nhà): giật đến từ chính lần quét Wi-Fi của điện thoại (khoảng 10 phút một lần, mỗi lần khoảng 5 giây, trễ 55–140 ms); bộ đệm tự giãn biến chúng thành vài khung âm đoán thay vì mất tiếng.

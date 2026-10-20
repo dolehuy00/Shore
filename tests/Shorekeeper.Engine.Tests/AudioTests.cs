@@ -1,3 +1,5 @@
+using System.Net;
+using System.Net.Http.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Shorekeeper.Core.Audio;
 using Shorekeeper.Core.Discovery;
@@ -13,12 +15,13 @@ public sealed class AudioTests : IAsyncLifetime
 {
     private readonly FakeCapture speakers = new();
     private readonly FakeOutput headphones = new();
+    private readonly FakeMediaKeys keys = new();
     private TestNode pc = null!;
     private TestNode phone = null!;
 
     public async ValueTask InitializeAsync()
     {
-        pc = await TestNode.StartAsync("PC", services: s => s.AddSingleton<IAudioCapture>(speakers));
+        pc = await TestNode.StartAsync("PC", services: s => s.AddSingleton<IAudioCapture>(speakers).AddSingleton<IMediaKeys>(keys));
         phone = await TestNode.StartAsync("Phone", services: s => s.AddSingleton<IAudioOutput>(headphones));
     }
 
@@ -64,6 +67,56 @@ public sealed class AudioTests : IAsyncLifetime
         Assert.Equal(30, shown.BaseMs);
         Assert.True(shown.Kbps > 0);
         Assert.Equal(0, shown.Lost);
+    }
+
+    [Fact]
+    public async Task A_listener_presses_media_keys_on_the_source()
+    {
+        await pc.ConnectAsync(phone);
+        pc.Audio.SetPlaying(true);
+        await phone.Audio.ListenAsync(pc.Id, cancellationToken: Ct);
+
+        Assert.True(phone.Audio.CanControlListened);
+        await phone.Audio.PressAsync(MediaKey.PlayPause, Ct);
+        await phone.Audio.PressAsync(MediaKey.VolumeUp, Ct);
+
+        Assert.Equal([MediaKey.PlayPause, MediaKey.VolumeUp], keys.Pressed);
+    }
+
+    [Fact]
+    public async Task Only_a_listener_in_its_session_presses_keys()
+    {
+        await pc.ConnectAsync(phone);
+        pc.Audio.SetPlaying(true);
+        var client = phone.Get<PeerClient>();
+        async Task<HttpStatusCode> PressAsync(string session, string key)
+        {
+            using HttpResponseMessage response = await client.SendAsync(
+                pc.Id, b => new HttpRequestMessage(HttpMethod.Post, new Uri(b, $"audio/listeners/{session}/keys")) { Content = JsonContent.Create(new AudioKeyBody(key)) },
+                TimeSpan.FromSeconds(5), Ct);
+            return response.StatusCode;
+        }
+
+        Assert.Equal(HttpStatusCode.NotFound, await PressAsync("notlistening", "play-pause"));
+        await phone.Audio.ListenAsync(pc.Id, cancellationToken: Ct);
+        Assert.Equal(HttpStatusCode.BadRequest, await PressAsync("notlistening", "self-destruct"));
+        Assert.Equal(HttpStatusCode.NotFound, await PressAsync("someoneelse", "play-pause"));
+
+        Assert.Empty(keys.Pressed);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => pc.Audio.PressAsync(MediaKey.Next, Ct));
+    }
+
+    [Fact]
+    public async Task A_source_without_media_keys_cannot_be_controlled()
+    {
+        await using TestNode other = await TestNode.StartAsync("Other PC", services: s => s.AddSingleton<IAudioCapture>(new FakeCapture()));
+        await other.ConnectAsync(phone);
+        other.Audio.SetPlaying(true);
+
+        await phone.Audio.ListenAsync(other.Id, cancellationToken: Ct);
+
+        Assert.False(phone.Audio.CanControlListened);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => phone.Audio.PressAsync(MediaKey.PlayPause, Ct));
     }
 
     [Fact]
@@ -265,6 +318,30 @@ public sealed class AudioTests : IAsyncLifetime
         }
     }
 
+    private sealed class FakeMediaKeys : IMediaKeys
+    {
+        private readonly List<MediaKey> pressed = [];
+
+        public IReadOnlyList<MediaKey> Pressed
+        {
+            get
+            {
+                lock (pressed)
+                {
+                    return [.. pressed];
+                }
+            }
+        }
+
+        public void Press(MediaKey key)
+        {
+            lock (pressed)
+            {
+                pressed.Add(key);
+            }
+        }
+    }
+
     /// <summary>Headphones that count the frames with sound in them.</summary>
     private sealed class FakeOutput : IAudioOutput
     {
@@ -275,7 +352,7 @@ public sealed class AudioTests : IAsyncLifetime
 
         public int SoundFrames => Volatile.Read(ref soundFrames);
 
-        public IDisposable Start(AudioFrameReader read, string title, Action stopRequested)
+        public IDisposable Start(AudioFrameReader read, string title, Action stopRequested, Action<MediaKey>? keyRequested = null)
         {
             running = true;
             var thread = new Thread(() =>
