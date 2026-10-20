@@ -21,14 +21,22 @@ public sealed class WindowsAudioOutputTests
         }
 
         int frames = 0;
+        int counted;
+        var firstFrame = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         // Silence: the test only measures the pace, nobody should hear it.
-        using (new WindowsAudioOutput().Start(pcm => { pcm.Clear(); Interlocked.Increment(ref frames); }, "", () => { }))
+        using (new WindowsAudioOutput().Start(pcm => { pcm.Clear(); Interlocked.Increment(ref frames); firstFrame.TrySetResult(); }, "", () => { }))
         {
+            // The device is opened on the playback thread, which took a few hundred ms on a cold first run (166 frames
+            // in 2 s counted from Start): the pace is counted from the first frame.
+            await firstFrame.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+            int before = Volatile.Read(ref frames);
             await Task.Delay(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+            counted = Volatile.Read(ref frames) - before;
+            TestContext.Current.TestOutputHelper?.WriteLine($"{counted} frames in 2 s");
         }
 
-        // 100 frames a second, plus the two queued at the start.
-        Assert.InRange(frames, 180, 220);
+        // 100 frames a second; the rest of the frames queued at the start may fall in.
+        Assert.InRange(counted, 185, 215);
     }
 
     [Fact]
