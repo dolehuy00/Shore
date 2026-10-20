@@ -239,14 +239,16 @@ public sealed partial class MainViewModel : ObservableObject
     internal string NameOf(DeviceId id) =>
         trust.Get(id)?.ShownName ?? directory.Snapshot().FirstOrDefault(p => p.DeviceId == id)?.DisplayName ?? id.ShortForm;
 
-    internal async Task ConnectAsync(DeviceId peer, string name)
+    /// <param name="invite">From the computer's QR code: it connects without the code being compared.</param>
+    internal async Task ConnectAsync(DeviceId peer, string name, string? invite = null)
     {
         var outgoing = new OutgoingPairingViewModel(name, this);
         Outgoing = outgoing;
         PairingOutcome outcome;
         try
         {
-            outcome = await pairing.RequestAsync(peer, null, pending => Dispatcher.UIThread.Post(() => outgoing.Code = Format(pending.Code)), outgoing.Cancellation.Token);
+            outcome = await pairing.RequestAsync(
+                peer, null, pending => Dispatcher.UIThread.Post(() => outgoing.Code = Format(pending.Code)), outgoing.Cancellation.Token, invite);
         }
         catch (Exception ex) when (ex is Engine.Api.PeerUnreachableException or Engine.Api.PeerApiException or HttpRequestException)
         {
@@ -560,10 +562,49 @@ public sealed partial class AddPeerViewModel(ManualPeerFinder finder, MainViewMo
         await owner.ConnectAsync(peer.DeviceId, peer.Name);
     }
 
+    /// <summary>"Quét mã QR": the code "Mã QR" shows on a computer; reached at its addresses, then connected with its invitation.</summary>
+    [RelayCommand]
+    private async Task ScanAsync(CancellationToken cancellationToken)
+    {
+        string? text;
+        try
+        {
+            text = await QrScanner.ScanAsync(global::Android.App.Application.Context);
+        }
+        catch (InvalidOperationException ex)
+        {
+            Status = ex.Message;
+            return;
+        }
+
+        if (text is null)
+        {
+            return;
+        }
+
+        if (!PairingInviteLink.TryParse(text, out PairingInviteLink? link))
+        {
+            Status = L.T("Đây không phải mã QR kết nối của Shorekeeper.");
+            return;
+        }
+
+        Status = L.T("Đang tìm…");
+        FindResult result = await finder.FindAsync(link, cancellationToken);
+        if (result.Peer is not { } peer)
+        {
+            Status = result.Error;
+            return;
+        }
+
+        owner.AddPeer = null;
+        await owner.ConnectAsync(peer.DeviceId, peer.Name, link.Invite);
+    }
+
     [RelayCommand]
     private void Close()
     {
         FindCommand.Cancel();
+        ScanCommand.Cancel();
         owner.AddPeer = null;
     }
 }

@@ -327,6 +327,13 @@ public sealed class DialogService(
         await running;
     }
 
+    /// <summary>"Mã QR" on Xóm: phones scan it to connect; its invitation ends when the window closes.</summary>
+    public async Task ShowPairingQrAsync()
+    {
+        using var viewModel = new PairingQrViewModel(pairing);
+        await ShowAsync(new PairingQrWindow { DataContext = viewModel }, viewModel);
+    }
+
     public Task AddPeerAsync()
     {
         var viewModel = new AddPeerViewModel(finder, peer => ConnectAsync(peer.DeviceId, peer.Name));

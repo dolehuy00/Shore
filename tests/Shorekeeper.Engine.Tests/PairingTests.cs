@@ -1,4 +1,8 @@
+using System.Net;
+using Microsoft.Extensions.DependencyInjection;
+using Shorekeeper.Core.Identity;
 using Shorekeeper.Core.Trust;
+using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Trust;
 
 namespace Shorekeeper.Engine.Tests;
@@ -11,7 +15,7 @@ public sealed class PairingTests : IAsyncLifetime
 
     public async ValueTask InitializeAsync()
     {
-        a = await TestNode.StartAsync("A");
+        a = await TestNode.StartAsync("A", services: s => s.AddSingleton<ManualPeerFinder>());
         b = await TestNode.StartAsync("B");
         a.Sees(b);
     }
@@ -43,6 +47,60 @@ public sealed class PairingTests : IAsyncLifetime
         Assert.Equal(TrustLevel.Trusted, a.Trust.GetLevel(b.Id));
         await WaitUntil(() => b.Trust.GetLevel(a.Id) == TrustLevel.Trusted);
         Assert.Equal("B", a.Trust.Get(b.Id)!.DisplayName);
+    }
+
+    [Fact]
+    public async Task An_invitation_from_the_QR_code_connects_without_asking()
+    {
+        bool asked = false;
+        IncomingPairing? joined = null;
+        b.Pairing.IncomingRequested += (_, _) => asked = true;
+        b.Pairing.JoinedByInvite += (_, request) => joined = request;
+        PairingInviteLink link = b.Pairing.CreateInvite();
+
+        PairingOutcome outcome = await a.Pairing.RequestAsync(b.Id, null, _ => { }, Ct, link.Invite);
+
+        Assert.Equal(PairingOutcome.Accepted, outcome);
+        Assert.False(asked);
+        Assert.Equal(TrustLevel.Trusted, a.Trust.GetLevel(b.Id));
+        await WaitUntil(() => b.Trust.GetLevel(a.Id) == TrustLevel.Trusted);
+        Assert.Equal(a.Id, joined?.PeerId);
+    }
+
+    [Fact]
+    public async Task An_invitation_works_once_and_not_once_ended()
+    {
+        int asked = 0;
+        b.Pairing.IncomingRequested += (_, request) =>
+        {
+            asked++;
+            b.Pairing.Decline(request.Id);
+        };
+        PairingInviteLink ended = b.Pairing.CreateInvite();
+        b.Pairing.EndInvite(ended.Invite);
+        PairingInviteLink used = b.Pairing.CreateInvite();
+
+        Assert.Equal(PairingOutcome.Declined, await a.Pairing.RequestAsync(b.Id, null, _ => { }, Ct, ended.Invite));
+        Assert.Equal(PairingOutcome.Accepted, await a.Pairing.RequestAsync(b.Id, null, _ => { }, Ct, used.Invite));
+        Assert.Equal(PairingOutcome.Declined, await a.Pairing.RequestAsync(b.Id, null, _ => { }, Ct, used.Invite));
+        Assert.Equal(2, asked);
+    }
+
+    [Fact]
+    public async Task The_QR_code_finds_only_the_device_it_names()
+    {
+        var finder = a.Get<ManualPeerFinder>();
+        PairingInviteLink link = b.Pairing.CreateInvite() with { Endpoints = [new IPEndPoint(IPAddress.Loopback, b.ApiPort)] };
+        DeviceId someoneElse = DeviceId.FromSubjectPublicKeyInfo([1, 2, 3]);
+
+        FindResult found = await finder.FindAsync(link, Ct);
+        FindResult wrong = await finder.FindAsync(link with { DeviceId = someoneElse }, Ct);
+        FindResult own = await finder.FindAsync(link with { DeviceId = a.Id }, Ct);
+
+        Assert.Equal(b.Id, found.Peer?.DeviceId);
+        Assert.Null(wrong.Peer);
+        Assert.NotNull(wrong.Error);
+        Assert.Null(own.Peer);
     }
 
     [Fact]

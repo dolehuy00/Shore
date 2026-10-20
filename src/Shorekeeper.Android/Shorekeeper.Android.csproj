@@ -55,6 +55,7 @@
     <PackageReference Include="Avalonia.Themes.Fluent" />
     <PackageReference Include="CommunityToolkit.Mvvm" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Xamarin.GooglePlayServices.Code.Scanner" />
   </ItemGroup>
 
 </Project>

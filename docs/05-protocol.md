@@ -90,7 +90,7 @@
 | GET | `/hello` | Any | Tên, phiên bản, `proto`, `caps` |
 | GET | `/hello/avatar` | Any | Ảnh đại diện (AD mức 1, [13](13-active-directory.md)) |
 | GET | `/identity/attestation?nonce=` | Any | Chứng thực bằng cert AD (AD mức 3) |
-| POST | `/pairing/request` | Any (rate limit) | `{ pairingId, nonce, name, host, apiPort, note }` → `202 { nonce, name, host }`. Gửi lại cùng `pairingId` thì nhận lại cùng câu trả lời |
+| POST | `/pairing/request` | Any (rate limit) | `{ pairingId, nonce, name, host, apiPort, note, invite? }` → `202 { nonce, name, host }`. Gửi lại cùng `pairingId` thì nhận lại cùng câu trả lời. `invite` từ mã QR (docs/04-identity-security.md §4.4) còn hiệu lực thì quyết định là `accepted` ngay |
 | GET | `/pairing/{id}/decision` | Any (chỉ người xin) | Long-poll tối đa 25 giây → `{ status: pending \| accepted \| declined \| expired \| cancelled }` |
 | DELETE | `/pairing/{id}` | Any (chỉ người xin) | Người xin hủy |
 | POST | `/pairing/revoke` | Trusted | Ngắt kết nối: bên nhận quên người gọi |

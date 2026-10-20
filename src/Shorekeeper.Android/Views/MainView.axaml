@@ -805,14 +805,22 @@
     <Border Classes="overlay" IsVisible="{Binding HasAddPeer}">
       <Border Classes="dialog" DataContext="{Binding AddPeer}" x:DataType="vm:AddPeerViewModel">
         <StackPanel Spacing="12">
-          <TextBlock Text="{l:T 'Thêm máy bằng địa chỉ'}" FontSize="18" FontWeight="SemiBold" />
-          <TextBlock Classes="muted" Text="{l:T 'Dùng khi Wi-Fi không cho các máy thấy nhau: nhập tên hoặc IP của máy tính đang mở Shorekeeper.'}"
-                     FontSize="13" TextWrapping="Wrap" />
+          <TextBlock Text="{l:T 'Thêm máy'}" FontSize="18" FontWeight="SemiBold" />
+          <!-- The QR code: the computer's addresses and an invitation, connected without comparing the code. -->
+          <Button Command="{Binding ScanCommand}" Classes="accent" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="12,10">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <PathIcon Data="{StaticResource Icon.QrCode}" Width="18" Height="18" />
+              <TextBlock Text="{l:T 'Quét mã QR'}" />
+            </StackPanel>
+          </Button>
+          <TextBlock Classes="muted" Text="{l:T 'Trên máy tính: Xóm → Mã QR. Quét xong là kết nối luôn, không cần so mã.'}" FontSize="13" TextWrapping="Wrap" />
+          <TextBlock Classes="muted" Text="{l:T 'Hoặc nhập tên hay IP của máy tính đang mở Shorekeeper, khi Wi-Fi không cho các máy thấy nhau:'}"
+                     FontSize="13" TextWrapping="Wrap" Margin="0,6,0,0" />
           <TextBox Text="{Binding Address}" PlaceholderText="{l:T 'Tên máy hoặc IP, vd 192.168.1.20'}" />
           <TextBlock Text="{Binding Status}" IsVisible="{Binding HasStatus}" TextWrapping="Wrap" />
           <WrapPanel ItemSpacing="8" LineSpacing="8" HorizontalAlignment="Right">
             <Button Content="{l:T 'Hủy'}" Command="{Binding CloseCommand}" />
-            <Button Content="{l:T 'Tìm'}" Command="{Binding FindCommand}" Classes="accent" />
+            <Button Content="{l:T 'Tìm'}" Command="{Binding FindCommand}" />
           </WrapPanel>
         </StackPanel>
       </Border>

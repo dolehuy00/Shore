@@ -1,0 +1,32 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:l="using:Shorekeeper.Desktop.Localization"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Shorekeeper.Desktop.ViewModels"
+        x:Class="Shorekeeper.Desktop.Views.PairingQrWindow"
+        x:DataType="vm:PairingQrViewModel"
+        Title="{l:T 'Kết nối bằng mã QR'}"
+        Icon="/Assets/shorekeeper.png"
+        Width="420" SizeToContent="Height" CanResize="False"
+        WindowStartupLocation="CenterOwner">
+  <StackPanel Margin="24" Spacing="14">
+    <TextBlock TextWrapping="Wrap"
+               Text="{l:T 'Trên điện thoại: mở Shorekeeper → Xóm → nút + → Quét mã QR. Điện thoại kết nối ngay, không cần so mã.'}" />
+
+    <!-- White around the code in dark mode too: scanners need the contrast and the quiet zone. -->
+    <Border Background="White" CornerRadius="8" Padding="8" HorizontalAlignment="Center" IsVisible="{Binding !HasNoAddress}">
+      <Image Source="{Binding Code}" Width="260" Height="260" RenderOptions.BitmapInterpolationMode="None"
+             AutomationProperties.Name="{l:T 'Mã QR kết nối'}" />
+    </Border>
+    <TextBlock IsVisible="{Binding HasNoAddress}" TextWrapping="Wrap"
+               Text="{l:T 'Máy này chưa có mạng nên chưa tạo được mã. Kết nối mạng rồi mở lại.'}" />
+
+    <TextBlock Opacity="0.65" FontSize="12" HorizontalAlignment="Center" Text="{Binding Addresses}" IsVisible="{Binding !HasNoAddress}" />
+
+    <TextBlock Text="{Binding Joined}" IsVisible="{Binding HasJoined}" FontWeight="SemiBold" HorizontalAlignment="Center" TextWrapping="Wrap" />
+
+    <TextBlock Opacity="0.65" FontSize="12" TextWrapping="Wrap"
+               Text="{l:T 'Ai quét được mã này đều kết nối được, nên đừng gửi ảnh chụp mã cho người khác. Mã chỉ dùng được trong lúc cửa sổ này mở; quét xong một máy sẽ có mã mới cho máy tiếp theo.'}" />
+
+    <Button Content="{l:T 'Đóng'}" Command="{Binding CloseCommand}" HorizontalAlignment="Right" IsCancel="True" />
+  </StackPanel>
+</Window>

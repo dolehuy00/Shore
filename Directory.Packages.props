@@ -22,6 +22,10 @@
     <!-- Audio: Opus in managed code, the same on Windows and Android -->
     <PackageVersion Include="Concentus" Version="2.2.2" />
 
+    <!-- "Kết nối bằng mã QR": the computer draws the code (MIT), the phone scans it with Google's code scanner -->
+    <PackageVersion Include="QRCoder" Version="1.8.1" />
+    <PackageVersion Include="Xamarin.GooglePlayServices.Code.Scanner" Version="116.1.0.17" />
+
     <!-- Installer (WiX v5, see docs/decisions.md ADR-006) -->
     <PackageVersion Include="WixToolset.Firewall.wixext" Version="5.0.2" />
     <PackageVersion Include="WixToolset.Util.wixext" Version="5.0.2" />

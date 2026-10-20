@@ -1,3 +1,4 @@
+using System.Net;
 using System.Security.Cryptography;
 using Shorekeeper.Core.Identity;
 using Shorekeeper.Core.Trust;
@@ -41,5 +42,24 @@ public class PairingCodeTests
         byte[] otherNonce = RandomNumberGenerator.GetBytes(PairingCode.NonceSize);
 
         Assert.NotEqual(PairingCode.Compute(A, B, nonceA, nonceB), PairingCode.Compute(A, B, otherNonce, nonceB));
+    }
+
+    [Fact]
+    public void An_invitation_link_round_trips_and_rejects_what_is_not_one()
+    {
+        DeviceId id = DeviceId.FromSubjectPublicKeyInfo([7, 7, 7]);
+        var link = new PairingInviteLink(id, [IPEndPoint.Parse("192.168.10.28:47471"), IPEndPoint.Parse("192.168.137.1:47471")], "aB-_9");
+
+        string text = link.Format();
+
+        Assert.True(PairingInviteLink.TryParse(text, out PairingInviteLink? read));
+        Assert.Equal(id, read.DeviceId);
+        Assert.Equal(link.Endpoints, read.Endpoints);
+        Assert.Equal("aB-_9", read.Invite);
+        Assert.DoesNotContain("aB-_9", link.ToString());
+        Assert.False(PairingInviteLink.TryParse("https://example.com/pair?id=x", out _));
+        Assert.False(PairingInviteLink.TryParse(text.Replace(id.Value, "not-an-id"), out _));
+        Assert.False(PairingInviteLink.TryParse($"shorekeeper://pair?id={id.Value}&a=&k=x", out _));
+        Assert.False(PairingInviteLink.TryParse($"shorekeeper://pair?id={id.Value}&a=10.0.0.1:1", out _));
     }
 }

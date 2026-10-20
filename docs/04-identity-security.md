@@ -99,6 +99,19 @@ Offer có `groupId` → người nhận kiểm tra DeviceId người gửi có t
 
 Liên hệ Trusted xuất hiện với DeviceId khác (cùng tên, cùng máy) thì **không tự gộp**, coi là Unknown. UI hiển thị: *"Có thể Huy đã cài lại máy. Kết nối lại để xác minh."*
 
+### 4.4 Kết nối bằng mã QR
+
+Máy tính hiện mã QR (Xóm → **Mã QR**), điện thoại quét (Xóm → + → **Quét mã QR**, trình quét của Google Play services, app không cần quyền camera):
+
+```text
+shorekeeper://pair?id=<DeviceId máy tính>&a=<ip:port>,<ip:port>&k=<lời mời>
+```
+
+- **Lời mời**: 16 byte ngẫu nhiên (base64url), chỉ nằm trong bộ nhớ máy tính, **dùng một lần**, hết hạn sau 10 phút hoặc khi đóng cửa sổ mã QR (cửa sổ tự làm mới trước khi hết hạn, và sau mỗi lần có máy dùng).
+- Điện thoại gọi `hello` tới **mọi địa chỉ cùng lúc** và chỉ nhận máy trả lời đúng `id` trong mã (danh tính xác minh qua mutual TLS như mọi kết nối). Máy ở mạng con khác thì địa chỉ được ghi nhớ như "Thêm máy bằng địa chỉ".
+- Điện thoại gửi `pairing/request` như thường, kèm `invite`. Lời mời còn hiệu lực → máy tính **chấp nhận ngay, không hỏi và không cần so mã**: người quét đang nhìn màn hình máy tính, và `id` trong mã chống MITM thay cho việc so mã 6 số. Lời mời hết hạn, đã dùng hay sai → hỏi như yêu cầu thường. Giới hạn tần suất vẫn áp dụng.
+- Rủi ro: ai chụp được mã trong lúc cửa sổ mở đều kết nối được, nên cửa sổ nhắc không gửi ảnh chụp mã; log không ghi lời mời.
+
 ## 5. Bảo vệ khi nhận file
 
 | Rủi ro | Biện pháp |
@@ -118,7 +131,8 @@ Liên hệ Trusted xuất hiện với DeviceId khác (cùng tên, cùng máy) t
 | Nghe lén LAN | ✅ | TLS 1.2/1.3 |
 | Máy lạ ở VLAN khác dò/khai thác API | ✅ | Mặc định từ chối; Unknown chỉ gọi được 3 endpoint (hello, xin kết nối, xin vào nhóm), có giới hạn tần suất |
 | Giả mạo presence UDP | ⚠️ | Chỉ là gợi ý; danh tính xác minh khi handshake TLS |
-| MITM | ⚠️ | Mã 6 số để đối chiếu (không bắt buộc) |
+| MITM | ⚠️ | Mã 6 số để đối chiếu (không bắt buộc); kết nối bằng mã QR thì DeviceId trong mã được kiểm tra (§4.4) |
+| Ảnh chụp mã QR kết nối bị lộ | ⚠️ | Lời mời dùng một lần, chỉ trong lúc cửa sổ mã mở (tối đa 10 phút mỗi mã) |
 | Giả danh bằng tên | ✅ | Tin cậy dựa trên DeviceId; cảnh báo trùng tên |
 | Host nhóm độc hại | ⚠️ | Có thể thêm người vào nhóm; thành viên vẫn thấy rõ ai gửi và tự quyết định có nhận không |
 | Người không được chọn tải file | ✅ | Người gửi kiểm tra DeviceId có trong danh sách người nhận của offer |

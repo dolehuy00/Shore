@@ -396,7 +396,6 @@
   "File được lưu vào Download/Shorekeeper.": "The file goes to Download/Shorekeeper.",
   "Mật khẩu": "Password",
   "\nChưa thấy máy nào. Nếu máy tính đã mở Shorekeeper cùng Wi-Fi mà vẫn không thấy, Wi-Fi có thể đang cách ly các thiết bị (mạng khách, mạng công ty): thử thêm máy bằng địa chỉ (nút + ở tab Xóm), hoặc dùng điểm phát Wi-Fi của điện thoại.": "\nNo devices seen yet. If a computer on the same Wi-Fi has Shorekeeper open and still doesn't show up, the Wi-Fi may be isolating devices (guest or company network): try adding it by address (the + on the Nearby tab), or use the phone's hotspot.",
-  "Dùng khi Wi-Fi không cho các máy thấy nhau: nhập tên hoặc IP của máy tính đang mở Shorekeeper.": "For Wi-Fi that hides devices from each other: enter the name or IP of a computer that has Shorekeeper open.",
   "{0} đang được ứng dụng khác dùng nên chưa bật được. Chọn phím tắt khác, hoặc mở Gửi nhanh từ icon ở khay hệ thống.": "{0} is already used by another app, so it couldn't be turned on. Pick another shortcut, or open Quick Send from the tray icon.",
   "Phím tắt mở cửa sổ Gửi nhanh": "Shortcut to open the Quick Send window",
   "Bấm rồi nhấn tổ hợp phím mới": "Click, then press the new key combination",
@@ -511,5 +510,19 @@
   "Ghép đôi điện thoại…": "Pair a phone…",
   "Không kết nối được âm thanh Bluetooth với {0}.": "Couldn't connect Bluetooth sound with {0}.",
   "{0} không trả lời. Bật Bluetooth trên điện thoại, để gần máy tính rồi thử lại.": "{0} doesn't answer. Turn Bluetooth on on the phone, keep it near the computer and try again.",
-  "Windows không cho nhận âm thanh Bluetooth từ {0}.": "Windows doesn't allow receiving Bluetooth sound from {0}."
+  "Windows không cho nhận âm thanh Bluetooth từ {0}.": "Windows doesn't allow receiving Bluetooth sound from {0}.",
+  "Không liên lạc được với máy trong mã QR. Hai máy cần cùng mạng (hoặc điện thoại vào điểm phát Wi-Fi của máy kia) và máy kia đang mở Shorekeeper.": "Couldn't reach the device in the QR code. Both need to be on the same network (or the phone on the other device's Wi-Fi hotspot), with Shorekeeper open there.",
+  "Kết nối bằng mã QR": "Connect with a QR code",
+  "Trên điện thoại: mở Shorekeeper → Xóm → nút + → Quét mã QR. Điện thoại kết nối ngay, không cần so mã.": "On the phone: open Shorekeeper → Neighbourhood → the + button → Scan QR code. The phone connects at once, with no code to compare.",
+  "Mã QR kết nối": "Connection QR code",
+  "Máy này chưa có mạng nên chưa tạo được mã. Kết nối mạng rồi mở lại.": "This computer has no network, so there is no code to show. Connect to a network and open it again.",
+  "Ai quét được mã này đều kết nối được, nên đừng gửi ảnh chụp mã cho người khác. Mã chỉ dùng được trong lúc cửa sổ này mở; quét xong một máy sẽ có mã mới cho máy tiếp theo.": "Anyone who scans this code can connect, so don't send a picture of it to anyone. It only works while this window is open; once a device has scanned it, a new code appears for the next one.",
+  "Mã QR": "QR code",
+  "Hiện mã QR để điện thoại quét và kết nối ngay": "Show a QR code for a phone to scan and connect at once",
+  "Thêm máy": "Add a device",
+  "Quét mã QR": "Scan QR code",
+  "Trên máy tính: Xóm → Mã QR. Quét xong là kết nối luôn, không cần so mã.": "On the computer: Neighbourhood → QR code. Once scanned it connects, with no code to compare.",
+  "Hoặc nhập tên hay IP của máy tính đang mở Shorekeeper, khi Wi-Fi không cho các máy thấy nhau:": "Or type the name or IP of a computer running Shorekeeper, when the Wi-Fi keeps devices from seeing each other:",
+  "Đây không phải mã QR kết nối của Shorekeeper.": "That isn't a Shorekeeper connection QR code.",
+  "Không mở được trình quét mã QR. Điện thoại cần Google Play services; lần đầu có thể phải chờ tải trình quét rồi thử lại.": "Couldn't open the QR scanner. The phone needs Google Play services; the first time, wait for the scanner to download and try again."
 }

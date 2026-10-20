@@ -5,7 +5,8 @@ namespace Shorekeeper.Engine.Api;
 public sealed record HelloResponse(string DeviceId, string Name, string Host, string Os, string App, int[] Proto, int Port, string? Dept = null, string? Avatar = null);
 
 /// <summary>Body of <c>POST /api/v1/pairing/request</c>. Name and host are claims, shown next to the code.</summary>
-public sealed record PairingRequestBody(string PairingId, string Nonce, string Name, string Host, int ApiPort, string? Note);
+/// <param name="Invite">From the responder's QR code ("Kết nối bằng mã QR"): accepted without asking while it is valid.</param>
+public sealed record PairingRequestBody(string PairingId, string Nonce, string Name, string Host, int ApiPort, string? Note, string? Invite = null);
 
 /// <summary>Responder's nonce plus its name, so the requester can show who it is waiting for.</summary>
 public sealed record PairingRequestAccepted(string Nonce, string Name, string Host);

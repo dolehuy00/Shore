@@ -72,6 +72,9 @@ public sealed partial class NeighborhoodViewModel : ObservableObject
     [RelayCommand]
     private Task AddPeerAsync() => dialogs.AddPeerAsync();
 
+    [RelayCommand]
+    private Task ShowPairingQrAsync() => dialogs.ShowPairingQrAsync();
+
     private void Refresh()
     {
         Dictionary<DeviceId, PeerInfo> live = directory.Snapshot().ToDictionary(p => p.DeviceId);

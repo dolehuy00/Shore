@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Shorekeeper.Core.Identity;
 using Shorekeeper.Core.Trust;
 using Shorekeeper.Engine.Api;
+using Shorekeeper.Engine.Discovery;
 
 namespace Shorekeeper.Engine.Trust;
 
@@ -44,6 +45,7 @@ public sealed class PairingService(
 {
     public static readonly TimeSpan RequestLifetime = TimeSpan.FromMinutes(5);
     public static readonly TimeSpan DecisionWait = TimeSpan.FromSeconds(25);
+    public static readonly TimeSpan InviteLifetime = TimeSpan.FromMinutes(10);
 
     private const int MaxRequestsPerWindow = 3;
     private const int MaxPending = 20;
@@ -55,8 +57,12 @@ public sealed class PairingService(
     private readonly Dictionary<string, PendingRequest> incoming = [];
     private readonly Dictionary<DeviceId, List<DateTimeOffset>> recentRequests = [];
     private readonly Dictionary<DeviceId, (int Declines, DateTimeOffset MutedUntil)> declines = [];
+    private readonly Dictionary<string, DateTimeOffset> invites = [];
 
     public event EventHandler<IncomingPairing>? IncomingRequested;
+
+    /// <summary>A device connected with an invitation from <see cref="CreateInvite"/>, without being asked about. Raised on an API thread.</summary>
+    public event EventHandler<IncomingPairing>? JoinedByInvite;
 
     /// <summary>The incoming request with this id is over (cancelled by the requester or expired).</summary>
     public event EventHandler<string>? IncomingClosed;
@@ -64,13 +70,15 @@ public sealed class PairingService(
     // ───────────── Requester side ─────────────
 
     /// <summary>Asks <paramref name="target"/> to connect. <paramref name="onCode"/> is called once the code is known.</summary>
+    /// <param name="invite">From the target's QR code: it accepts at once while the invitation is valid.</param>
     /// <exception cref="PeerUnreachableException">The peer could not be reached.</exception>
     /// <exception cref="PeerApiException">The peer refused the request (e.g. rate limited).</exception>
-    public async Task<PairingOutcome> RequestAsync(DeviceId target, string? note, Action<OutgoingPairing> onCode, CancellationToken cancellationToken)
+    public async Task<PairingOutcome> RequestAsync(
+        DeviceId target, string? note, Action<OutgoingPairing> onCode, CancellationToken cancellationToken, string? invite = null)
     {
         string id = Guid.NewGuid().ToString("N");
         byte[] nonce = RandomNumberGenerator.GetBytes(PairingCode.NonceSize);
-        var body = new PairingRequestBody(id, Convert.ToBase64String(nonce), device.DisplayName, LocalDevice.HostName, api.Port, note);
+        var body = new PairingRequestBody(id, Convert.ToBase64String(nonce), device.DisplayName, LocalDevice.HostName, api.Port, note, invite);
 
         using HttpResponseMessage response = await client.SendAsync(
             target,
@@ -144,6 +152,31 @@ public sealed class PairingService(
 
     // ───────────── Responder side (called by the API and the UI) ─────────────
 
+    /// <summary>
+    /// "Kết nối bằng mã QR": what the QR code holds, with a one-time invitation. The device that brings it back is
+    /// connected without being asked about, as it scanned this screen; valid for <see cref="InviteLifetime"/>, until it
+    /// is used or <see cref="EndInvite"/>. A request with one that is no longer valid is asked about as usual.
+    /// </summary>
+    public PairingInviteLink CreateInvite()
+    {
+        string invite = Convert.ToBase64String(RandomNumberGenerator.GetBytes(16)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        lock (gate)
+        {
+            invites[invite] = timeProvider.GetUtcNow() + InviteLifetime;
+        }
+
+        return new PairingInviteLink(device.DeviceId, [.. LocalInterfaces.GetUsable().Select(i => new IPEndPoint(i.Address, api.Port))], invite);
+    }
+
+    /// <summary>The QR code was closed: its invitation no longer works.</summary>
+    public void EndInvite(string invite)
+    {
+        lock (gate)
+        {
+            invites.Remove(invite);
+        }
+    }
+
     internal (IncomingRequestResult Result, PairingRequestAccepted? Response) HandleRequest(DeviceId caller, IPAddress remote, PairingRequestBody body)
     {
         if (!IsValid(body, out byte[] requesterNonce))
@@ -170,17 +203,29 @@ public sealed class PairingService(
             }
 
             recent.Add(now);
+            bool invited = body.Invite is { } invite && invites.Remove(invite, out DateTimeOffset until) && until > now;
             byte[] nonce = RandomNumberGenerator.GetBytes(PairingCode.NonceSize);
             string code = PairingCode.Compute(device.DeviceId, caller, requesterNonce, nonce);
             pending = new PendingRequest(
                 new IncomingPairing(body.PairingId, caller, body.Name.Trim(), body.Host.Trim(), code, string.IsNullOrWhiteSpace(body.Note) ? null : body.Note.Trim()),
                 new PairingRequestAccepted(Convert.ToBase64String(nonce), device.DisplayName, LocalDevice.HostName),
-                new IPEndPoint(remote, body.ApiPort));
+                new IPEndPoint(remote, body.ApiPort))
+            {
+                ByInvite = invited,
+            };
             incoming[body.PairingId] = pending;
         }
 
         _ = ExpireLaterAsync(pending);
-        IncomingRequested?.Invoke(this, pending.Info);
+        if (pending.ByInvite)
+        {
+            pending.Decision.TrySetResult(PairingStatus.Accepted);
+        }
+        else
+        {
+            IncomingRequested?.Invoke(this, pending.Info);
+        }
+
         return (IncomingRequestResult.Accepted, pending.Response);
     }
 
@@ -210,7 +255,11 @@ public sealed class PairingService(
         {
             await trust.SetTrustedAsync(caller, pending.Info.Name, pending.Info.Host, CancellationToken.None);
             await trust.RecordEndpointAsync(caller, pending.Endpoint, "pairing", CancellationToken.None);
-            logger.LogInformation("Connected with {Peer} ({Name})", caller, pending.Info.Name);
+            logger.LogInformation("Connected with {Peer} ({Name}){How}", caller, pending.Info.Name, pending.ByInvite ? " by QR code" : "");
+            if (pending.ByInvite)
+            {
+                JoinedByInvite?.Invoke(this, pending.Info);
+            }
         }
 
         return status;
@@ -311,6 +360,7 @@ public sealed class PairingService(
             || body.Name is not { Length: > 0 and <= 64 }
             || body.Host is not { Length: <= 64 }
             || body.Note is { Length: > 200 }
+            || body.Invite is { Length: > PairingInviteLink.MaxInviteLength }
             || body.ApiPort is <= 0 or > 65535)
         {
             return false;
@@ -336,6 +386,9 @@ public sealed class PairingService(
 
         /// <summary>Requester's API endpoint, remembered once connected.</summary>
         public IPEndPoint Endpoint { get; } = endpoint;
+
+        /// <summary>Came with a valid invitation (QR code): accepted without asking.</summary>
+        public bool ByInvite { get; init; }
 
         public TaskCompletionSource<string> Decision { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
