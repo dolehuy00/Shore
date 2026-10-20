@@ -733,9 +733,10 @@
             <StackPanel DataContext="{Binding PhotoBackup}" x:DataType="vm:PhotoBackupViewModel" Spacing="8">
               <ToggleSwitch IsChecked="{Binding IsOn}" OnContent="{l:T 'Tự gửi ảnh, video mới'}" OffContent="{l:T 'Tự gửi ảnh, video mới'}" />
               <TextBlock Classes="muted" Text="{l:T 'Chưa kết nối với máy tính nào.'}" IsVisible="{Binding HasNoComputer}" FontSize="12" />
-              <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding !HasNoComputer}">
-                <TextBlock Text="{l:T 'Gửi về'}" VerticalAlignment="Center" Margin="0,0,12,0" />
-                <ComboBox Grid.Column="1" ItemsSource="{Binding Computers}" SelectedIndex="{Binding ComputerIndex}" HorizontalAlignment="Stretch">
+              <!-- A bold label over the box, as the other fields of Cài đặt. -->
+              <StackPanel Spacing="6" IsVisible="{Binding !HasNoComputer}">
+                <TextBlock Text="{l:T 'Gửi về'}" FontWeight="SemiBold" Margin="0,6,0,0" />
+                <ComboBox ItemsSource="{Binding Computers}" SelectedIndex="{Binding ComputerIndex}" HorizontalAlignment="Stretch">
                   <ComboBox.ItemTemplate>
                     <DataTemplate x:DataType="vm:ComputerOption">
                       <StackPanel Spacing="2" Margin="0,2">
@@ -750,7 +751,7 @@
                     </DataTemplate>
                   </ComboBox.ItemTemplate>
                 </ComboBox>
-              </Grid>
+              </StackPanel>
               <CheckBox IsChecked="{Binding CameraPhotos}" Content="{l:T 'Ảnh máy ảnh'}" />
               <CheckBox IsChecked="{Binding CameraVideos}" Content="{l:T 'Video máy ảnh'}" />
               <CheckBox IsChecked="{Binding Screenshots}" Content="{l:T 'Ảnh chụp màn hình'}" />
