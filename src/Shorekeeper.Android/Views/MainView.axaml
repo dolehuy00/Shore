@@ -735,7 +735,21 @@
               <TextBlock Classes="muted" Text="{l:T 'Chưa kết nối với máy tính nào.'}" IsVisible="{Binding HasNoComputer}" FontSize="12" />
               <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding !HasNoComputer}">
                 <TextBlock Text="{l:T 'Gửi về'}" VerticalAlignment="Center" Margin="0,0,12,0" />
-                <ComboBox Grid.Column="1" ItemsSource="{Binding Computers}" SelectedIndex="{Binding ComputerIndex}" HorizontalAlignment="Stretch" />
+                <ComboBox Grid.Column="1" ItemsSource="{Binding Computers}" SelectedIndex="{Binding ComputerIndex}" HorizontalAlignment="Stretch">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ComputerOption">
+                      <StackPanel Spacing="2" Margin="0,2">
+                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                          <Ellipse Classes="dot" Classes.muted="{Binding !IsOnline}" />
+                          <TextBlock Classes="muted" FontSize="12" TextTrimming="CharacterEllipsis">
+                            <Run Text="{Binding StatusText}" /><Run Text=" · " /><Run Text="{Binding Detail}" />
+                          </TextBlock>
+                        </StackPanel>
+                      </StackPanel>
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
               </Grid>
               <CheckBox IsChecked="{Binding CameraPhotos}" Content="{l:T 'Ảnh máy ảnh'}" />
               <CheckBox IsChecked="{Binding CameraVideos}" Content="{l:T 'Video máy ảnh'}" />

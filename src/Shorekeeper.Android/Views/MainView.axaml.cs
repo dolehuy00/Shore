@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Platform.Storage;
@@ -15,6 +16,20 @@ namespace Shorekeeper.Android.Views;
 public partial class MainView : UserControl
 {
     private long lastRemeasure;
+
+    static MainView()
+    {
+        // An open ComboBox focuses its selected item, and on Android its drop-down lives in the same visual tree as the
+        // pages: the item's request to be brought into view reached the page's ScrollViewer, which scrolled the page
+        // under the drop-down each time one opened. The drop-down is never part of a page, so the page ignores it.
+        RequestBringIntoViewEvent.AddClassHandler<ScrollContentPresenter>((_, e) =>
+        {
+            if (e.TargetObject is Visual target && target.FindAncestorOfType<ComboBoxItem>(includeSelf: true) is not null)
+            {
+                e.Handled = true;
+            }
+        });
+    }
 
     public MainView()
     {

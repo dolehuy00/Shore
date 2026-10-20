@@ -11,6 +11,12 @@ using Shorekeeper.Engine.Trust;
 
 namespace Shorekeeper.Android.ViewModels;
 
+/// <summary>A computer in "Gửi về": its name, whether it is online, and its host and short id to tell alike names apart.</summary>
+public sealed record ComputerOption(string Name, bool IsOnline, string Detail)
+{
+    public string StatusText => IsOnline ? "Online" : "Offline";
+}
+
 /// <summary>
 /// "Tự gửi ảnh về máy tính" in Cài đặt (docs/10-ux.md §13): which computer, what to send, and how it goes. Turning it
 /// on asks for the permission to read pictures and videos.
@@ -32,17 +38,17 @@ public sealed partial class PhotoBackupViewModel : ObservableObject
         this.main = main;
         backup.Changed += (_, _) => Dispatcher.UIThread.Post(Refresh);
         trust.Changed += (_, _) => Dispatcher.UIThread.Post(Refresh);
-        directory.Changed += (_, _) => Dispatcher.UIThread.Post(RefreshStatus);
+        directory.Changed += (_, _) => Dispatcher.UIThread.Post(Refresh);
         Refresh();
     }
 
     [ObservableProperty]
     public partial bool IsOn { get; set; }
 
-    /// <summary>Connected computers ("Gửi về"); phones are left out.</summary>
+    /// <summary>Connected computers ("Gửi về"), online ones first; phones are left out.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasNoComputer))]
-    public partial IReadOnlyList<string> Computers { get; set; } = [];
+    public partial IReadOnlyList<ComputerOption> Computers { get; set; } = [];
 
     public bool HasNoComputer => Computers.Count == 0;
 
@@ -133,8 +139,16 @@ public sealed partial class PhotoBackupViewModel : ObservableObject
     {
         refreshing = true;
         PhotoBackupStatus status = backup.Status;
-        computers = [.. trust.GetAll(TrustLevel.Trusted).Where(p => !p.IsPhone).OrderBy(p => p.ShownName, StringComparer.CurrentCultureIgnoreCase)];
-        Computers = [.. computers.Select(p => p.ShownName)];
+        HashSet<DeviceId> online = [.. directory.Snapshot().Where(p => p.State == PeerState.Online).Select(p => p.DeviceId)];
+        computers = [.. trust.GetAll(TrustLevel.Trusted).Where(p => !p.IsPhone)
+            .OrderBy(p => !online.Contains(p.DeviceId)).ThenBy(p => p.ShownName, StringComparer.CurrentCultureIgnoreCase)];
+        List<ComputerOption> options = [.. computers.Select(p => new ComputerOption(p.ShownName, online.Contains(p.DeviceId), $"{p.HostName} · {p.DeviceId.ShortForm}"))];
+        // Presence changes often; the list is replaced only when what it shows does, so an open drop-down stays put.
+        if (!options.SequenceEqual(Computers))
+        {
+            Computers = options;
+        }
+
         int chosen = computers.ToList().FindIndex(p => p.DeviceId == status.Target);
         ComputerIndex = chosen >= 0 ? chosen : computers.Count > 0 ? 0 : -1;
         IsOn = status.Target is not null;
