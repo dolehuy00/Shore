@@ -20,6 +20,14 @@
       <Setter Property="Background" Value="{DynamicResource Sk.CardBackground}" />
     </Style>
     <!-- Square behind a device, file or group icon. -->
+    <!-- "Gửi cho…": a card per person to pick. -->
+    <Style Selector="Border.card.pick">
+      <Setter Property="Padding" Value="12,6" />
+      <Setter Property="Margin" Value="0,0,0,8" />
+    </Style>
+    <Style Selector="Border.card.pick.picked">
+      <Setter Property="Background" Value="{DynamicResource Sk.TileBackground}" />
+    </Style>
     <Style Selector="Border.tile">
       <Setter Property="Width" Value="44" />
       <Setter Property="Height" Value="44" />
@@ -791,12 +799,19 @@
             <ItemsControl ItemsSource="{Binding People}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:PickablePerson">
-                  <CheckBox IsChecked="{Binding IsChecked}" Margin="0,4">
-                    <StackPanel>
-                      <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
-                      <TextBlock Classes="muted" Text="{Binding Detail}" FontSize="12" />
-                    </StackPanel>
-                  </CheckBox>
+                  <!-- One framed card per person; the whole card toggles, a picked one is shaded. -->
+                  <Border Classes="card pick" Classes.picked="{Binding IsChecked}">
+                    <CheckBox IsChecked="{Binding IsChecked}" HorizontalAlignment="Stretch" Background="Transparent">
+                      <StackPanel Spacing="2">
+                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                          <Ellipse Classes="dot" Classes.busy="{Binding IsBusy}" Classes.muted="{Binding !IsOnline}" />
+                          <TextBlock Classes="muted" Text="{Binding StatusText}" FontSize="12" />
+                        </StackPanel>
+                        <TextBlock Classes="muted" Text="{Binding Detail}" FontSize="12" TextTrimming="CharacterEllipsis" />
+                      </StackPanel>
+                    </CheckBox>
+                  </Border>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>

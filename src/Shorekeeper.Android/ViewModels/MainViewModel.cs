@@ -294,7 +294,11 @@ public sealed partial class MainViewModel : ObservableObject
         List<PickablePerson> people =
         [
             .. trust.GetAll(TrustLevel.Trusted)
-                .Select(record => new PickablePerson(record.DeviceId, record.ShownName, Detail(live.FirstOrDefault(p => p.DeviceId == record.DeviceId), record.HostName), null)),
+                .Select(record =>
+                {
+                    PeerInfo? peer = live.FirstOrDefault(p => p.DeviceId == record.DeviceId);
+                    return new PickablePerson(record.DeviceId, record.ShownName, Detail(peer, record.HostName), null, peer);
+                }),
         ];
         if (settings.Current.GroupsEnabled)
         {
@@ -304,12 +308,12 @@ public sealed partial class MainViewModel : ObservableObject
                     && trust.GetLevel(m.DeviceId) == TrustLevel.Unknown && people.TrueForAll(p => p.DeviceId != m.DeviceId)))
                 {
                     PeerInfo? peer = live.FirstOrDefault(p => p.DeviceId == member.DeviceId);
-                    people.Add(new PickablePerson(member.DeviceId, peer?.DisplayName ?? member.Name, L.F("{0} · nhóm {1}", Detail(peer, member.Name), group.Name), group.Id));
+                    people.Add(new PickablePerson(member.DeviceId, peer?.DisplayName ?? member.Name, L.F("{0} · nhóm {1}", Detail(peer, member.Name), group.Name), group.Id, peer));
                 }
             }
         }
 
-        Share = new ShareViewModel(locations, text, [.. people.OrderBy(p => p.Detail.Contains("offline", StringComparison.Ordinal)).ThenBy(p => p.Name, StringComparer.CurrentCultureIgnoreCase)], this);
+        Share = new ShareViewModel(locations, text, [.. people.OrderBy(p => !p.IsOnline).ThenBy(p => p.Name, StringComparer.CurrentCultureIgnoreCase)], this);
     }
 
     internal void CloseShare() => Share = null;
@@ -863,8 +867,16 @@ public sealed partial class SentItemViewModel(SentOffer offer, MainViewModel own
 }
 
 /// <param name="groupId">Null for contacts; for fellow members, the group the offer goes through.</param>
-public sealed partial class PickablePerson(DeviceId deviceId, string name, string detail, string? groupId) : ObservableObject
+/// <param name="live">Set while the person is on the network.</param>
+public sealed partial class PickablePerson(DeviceId deviceId, string name, string detail, string? groupId, PeerInfo? live) : ObservableObject
 {
+    /// <summary>Offline people are still listed: the offer waits for them (docs/06-file-transfer.md).</summary>
+    public bool IsOnline { get; } = live?.State == PeerState.Online;
+
+    public bool IsBusy { get; } = live?.IsBusy == true;
+
+    public string StatusText { get; } = live?.State != PeerState.Online ? "Offline" : live.IsBusy ? L.T("Bận") : "Online";
+
     public DeviceId DeviceId { get; } = deviceId;
 
     public string? GroupId { get; } = groupId;
@@ -900,6 +912,7 @@ public sealed partial class ShareViewModel : ObservableObject
 
     /// <summary>A shared link or text, sent alone or as the note of the shared files; can be edited first.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanSend))]
     public partial string Text { get; set; }
 
     public bool HasText { get; }
@@ -908,7 +921,7 @@ public sealed partial class ShareViewModel : ObservableObject
 
     public bool HasNobody => People.Count == 0;
 
-    public bool CanSend => !IsSending && People.Any(p => p.IsChecked);
+    public bool CanSend => !IsSending && People.Any(p => p.IsChecked) && (locations.Count > 0 || !string.IsNullOrWhiteSpace(Text));
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanSend))]

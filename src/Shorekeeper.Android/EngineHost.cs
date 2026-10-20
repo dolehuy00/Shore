@@ -72,6 +72,7 @@ public static class EngineHost
         IHost host = builder.Build();
         await host.StartAsync();
         BackgroundTransfers.Start(context.ApplicationContext ?? context, host.Services);
+        HomeWidget.Watch(context.ApplicationContext ?? context, host.Services);
 
         // "Phát âm thanh" and the projection it runs on end together, whichever side ends first.
         var audio = host.Services.GetRequiredService<AudioService>();

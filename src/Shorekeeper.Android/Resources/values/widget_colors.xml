@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Home screen widget: the app's card colours (Themes/Theme.axaml), dark ones in values-night. -->
+<resources>
+  <color name="widget_background">#F2FFFFFF</color>
+  <color name="widget_border">#DDE2E9</color>
+  <color name="widget_button">#E6ECF5</color>
+  <color name="widget_text">#1B2027</color>
+  <color name="widget_muted">#5B6472</color>
+  <color name="widget_accent">#0078D4</color>
+</resources>

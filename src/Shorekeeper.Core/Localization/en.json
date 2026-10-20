@@ -559,5 +559,16 @@
   "Video máy ảnh": "Camera videos",
   "Ảnh chụp màn hình": "Screenshots",
   "Ảnh, video khác (tải về, Zalo, Messenger…)": "Other pictures and videos (downloads, chat apps…)",
-  "Chỉ gửi những gì có từ lúc bật, mỗi khi máy tính online; chạy nền khi bật Luôn nhận file. Trên máy tính, bật Tự nhận file cho điện thoại này (menu ⋮ ở Xóm) để ảnh tự vào thư mục Ảnh từ (tên điện thoại); không thì chúng chờ ở Hộp nhận.": "Sends only what comes after it is turned on, whenever the computer is online; in the background while Always receive is on. On the computer, turn on Auto-receive for this phone (the ⋮ menu in Neighbourhood) so the pictures go straight into the folder Pictures from (phone name); otherwise they wait in the Inbox."
+  "Chỉ gửi những gì có từ lúc bật, mỗi khi máy tính online; chạy nền khi bật Luôn nhận file. Trên máy tính, bật Tự nhận file cho điện thoại này (menu ⋮ ở Xóm) để ảnh tự vào thư mục Ảnh từ (tên điện thoại); không thì chúng chờ ở Hộp nhận.": "Sends only what comes after it is turned on, whenever the computer is online; in the background while Always receive is on. On the computer, turn on Auto-receive for this phone (the ⋮ menu in Neighbourhood) so the pictures go straight into the folder Pictures from (phone name); otherwise they wait in the Inbox.",
+  "Gửi file": "Send files",
+  "Gửi chữ đã chép": "Send copied text",
+  "Nghe máy tính": "Listen to computer",
+  "Không có máy nào online": "No one online",
+  "{0} máy online": "{0} online",
+  "Đang nghe {0}": "Listening to {0}",
+  "{0} đang phát âm thanh": "{0} is playing sound",
+  "Chưa có máy nào đang Phát âm thanh.": "No one is playing sound yet.",
+  "{0} cần mật khẩu: nghe một lần trong tab Âm thanh, sau đó widget tự dùng mật khẩu đó.": "{0} needs a password: listen once from the Sound tab, then the widget uses that password.",
+  "Gửi chữ": "Send text",
+  "Nghe PC": "Listen to PC"
 }

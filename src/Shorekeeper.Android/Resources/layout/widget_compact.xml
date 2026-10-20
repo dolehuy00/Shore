@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The home screen widget one cell high: tiles of an icon beside a short label (layout/widget.xml is the tall one). -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:paddingStart="12dp"
+    android:paddingEnd="12dp"
+    android:paddingTop="10dp"
+    android:paddingBottom="10dp"
+    android:background="@drawable/widget_background">
+
+  <LinearLayout
+      android:id="@+id/widget_header"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:layout_marginBottom="8dp"
+      android:paddingStart="4dp"
+      android:paddingEnd="4dp"
+      android:gravity="center_vertical"
+      android:orientation="horizontal">
+
+    <ImageView
+        android:id="@+id/widget_dot"
+        android:layout_width="8dp"
+        android:layout_height="8dp"
+        android:layout_marginEnd="8dp"
+        android:src="@drawable/widget_dot" />
+
+    <TextView
+        android:id="@+id/widget_status"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:textSize="13sp"
+        android:textColor="@color/widget_muted"
+        android:text="Shorekeeper" />
+  </LinearLayout>
+
+  <LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="0dp"
+      android:layout_weight="1"
+      android:orientation="horizontal">
+
+    <LinearLayout android:id="@+id/widget_files" style="@style/WidgetTileCompact" android:layout_marginEnd="8dp">
+      <ImageView style="@style/WidgetTileIconCompact" android:src="@drawable/ic_widget_send" />
+      <TextView android:id="@+id/widget_files_label" style="@style/WidgetTileLabelCompact" />
+    </LinearLayout>
+
+    <LinearLayout android:id="@+id/widget_text" style="@style/WidgetTileCompact" android:layout_marginEnd="8dp">
+      <ImageView style="@style/WidgetTileIconCompact" android:src="@drawable/ic_widget_text" />
+      <TextView android:id="@+id/widget_text_label" style="@style/WidgetTileLabelCompact" />
+    </LinearLayout>
+
+    <LinearLayout android:id="@+id/widget_listen" style="@style/WidgetTileCompact">
+      <ImageView style="@style/WidgetTileIconCompact" android:src="@drawable/ic_widget_listen" />
+      <TextView android:id="@+id/widget_listen_label" style="@style/WidgetTileLabelCompact" />
+    </LinearLayout>
+
+    <!-- Shown instead of the one above while listening. -->
+    <LinearLayout android:id="@+id/widget_listening" style="@style/WidgetTileCompact" android:background="@drawable/widget_button_active" android:visibility="gone">
+      <ImageView style="@style/WidgetTileIconCompact" android:src="@drawable/ic_widget_stop" android:tint="#FFFFFFFF" />
+      <TextView android:id="@+id/widget_listening_label" style="@style/WidgetTileLabelCompact" android:textColor="#FFFFFFFF" />
+    </LinearLayout>
+  </LinearLayout>
+</LinearLayout>

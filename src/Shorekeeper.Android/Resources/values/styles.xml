@@ -2,4 +2,44 @@
 <resources>
   <!-- Avalonia's activity is an AppCompatActivity, so it needs an AppCompat theme (docs/14-android.md, A0). -->
   <style name="ShorekeeperTheme" parent="@style/Theme.AppCompat.DayNight.NoActionBar" />
+  <!-- The home screen widget's tiles (layout/widget.xml): an icon over a label. -->
+  <style name="WidgetTile">
+    <item name="android:layout_width">0dp</item>
+    <item name="android:layout_height">match_parent</item>
+    <item name="android:layout_weight">1</item>
+    <item name="android:orientation">vertical</item>
+    <item name="android:gravity">center</item>
+    <item name="android:padding">8dp</item>
+    <item name="android:background">@drawable/widget_button</item>
+  </style>
+  <style name="WidgetTileIcon">
+    <item name="android:layout_width">26dp</item>
+    <item name="android:layout_height">26dp</item>
+    <item name="android:tint">@color/widget_accent</item>
+  </style>
+  <style name="WidgetTileLabel">
+    <item name="android:layout_width">wrap_content</item>
+    <item name="android:layout_height">wrap_content</item>
+    <item name="android:layout_marginTop">6dp</item>
+    <item name="android:gravity">center</item>
+    <item name="android:maxLines">2</item>
+    <item name="android:ellipsize">end</item>
+    <item name="android:textSize">13sp</item>
+    <item name="android:fontFamily">sans-serif-medium</item>
+    <item name="android:textColor">@color/widget_text</item>
+  </style>
+  <!-- One cell high (layout/widget_compact.xml): the icon beside the label. -->
+  <style name="WidgetTileCompact" parent="WidgetTile">
+    <item name="android:orientation">horizontal</item>
+    <item name="android:padding">4dp</item>
+  </style>
+  <style name="WidgetTileIconCompact" parent="WidgetTileIcon">
+    <item name="android:layout_width">20dp</item>
+    <item name="android:layout_height">20dp</item>
+  </style>
+  <style name="WidgetTileLabelCompact" parent="WidgetTileLabel">
+    <item name="android:layout_marginTop">0dp</item>
+    <item name="android:layout_marginStart">6dp</item>
+    <item name="android:maxLines">1</item>
+  </style>
 </resources>

@@ -99,6 +99,13 @@ Màn hình: Xóm (danh sách, chạm để gửi), Hộp nhận, Đã gửi, Nh�
 - Quyền `READ_MEDIA_IMAGES` + `READ_MEDIA_VIDEO` (API 33+) hoặc `READ_EXTERNAL_STORAGE` (API 29–32), xin lúc bật công tắc. Bị thu hồi thì không gửi gì đến khi cho lại.
 - `ContentObserver` báo thư viện đổi; engine chạy nền khi bật Luôn nhận file.
 
+### 3.8 Widget màn hình chính
+
+- `HomeWidget` (`AppWidgetProvider`, tên Java cố định `dev.shorekeeper.app.HomeWidget` để widget đã đặt không mất khi build lại): dòng trạng thái và ba ô Gửi file / Gửi chữ đã chép / Nghe máy tính. Android 12+ chọn bố cục theo cỡ: cao 2 ô thì icon trên nhãn (`layout/widget.xml`), cao 1 ô thì icon cạnh nhãn ngắn (`layout/widget_compact.xml`). Icon là đường vẽ của `Icons.axaml`; màu theo sáng/tối của hệ thống (`values-night`).
+- Không cập nhật định kỳ: engine đẩy mỗi lần danh bạ, máy online hay việc nghe đổi. Thêm widget hay khởi động lại máy thì `APPWIDGET_UPDATE` mở tiến trình, và engine chạy theo `Application.OnCreate`.
+- Gửi file và Gửi chữ mở activity với extra `widget`: `ACTION_OPEN_DOCUMENT` (chọn nhiều) rồi "Gửi … mục cho…"; hoặc "Gửi văn bản cho…" với clipboard, đọc lúc cửa sổ có focus (Android 10+ chỉ cho đọc clipboard khi đó).
+- Nghe máy tính là broadcast tới `WidgetActions` (không export): đang nghe thì dừng, không thì nghe liên hệ đang Phát âm thanh, máy tính trước điện thoại (tiến trình vừa mở chờ tối đa 4 giây để thấy máy phát), dùng mật khẩu đã nhớ. Foreground service phát nhạc được mở từ nền vì người dùng vừa bấm widget. Lỗi báo bằng Toast.
+
 ## 4. Giai đoạn
 
 ### A0 — Spike trên điện thoại thật

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Same path as Icon.* in Shorekeeper.Desktop/Themes/Icons.axaml; tinted in code. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+  <path android:fillColor="#FFFFFFFF" android:fillType="nonZero" android:pathData="M11 4.7a.75.75 0 0 1 1.25.56v13.48a.75.75 0 0 1-1.25.56L6.7 15.5H4.25A2.25 2.25 0 0 1 2 13.25v-2.5A2.25 2.25 0 0 1 4.25 8.5H6.7zm-.25 2.25L7.5 9.8a.75.75 0 0 1-.5.2H4.25a.75.75 0 0 0-.75.75v2.5c0 .41.34.75.75.75H7a.75.75 0 0 1 .5.2l3.25 2.85zm4.35 1.65a.75.75 0 0 1 1.05.15 5.4 5.4 0 0 1 0 6.5.75.75 0 1 1-1.2-.9 3.9 3.9 0 0 0 0-4.7.75.75 0 0 1 .15-1.05m2.9-2.6a.75.75 0 0 1 1.05.1 9.2 9.2 0 0 1 0 11.8.75.75 0 1 1-1.15-.96 7.7 7.7 0 0 0 0-9.88A.75.75 0 0 1 18 6" />
+</vector>

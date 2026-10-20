@@ -21,6 +21,20 @@ public sealed class MainActivity : AvaloniaMainActivity
     /// <summary>Tab to show when a notification opens the app.</summary>
     public const string ExtraTab = "tab";
 
+    /// <summary>A button of the home screen widget: <see cref="WidgetFiles"/> or <see cref="WidgetText"/>.</summary>
+    public const string ExtraWidget = "widget";
+
+    /// <summary>"Gửi file": the system's file picker, then "Gửi … mục cho…".</summary>
+    public const string WidgetFiles = "files";
+
+    /// <summary>"Gửi chữ đã chép": "Gửi văn bản cho…" with what is copied.</summary>
+    public const string WidgetText = "text";
+
+    private const int PickFilesRequest = 40;
+
+    /// <summary>The clipboard can only be read once the window has focus.</summary>
+    private bool sendCopiedOnFocus;
+
     /// <summary>The activity on screen, for what only an activity can ask (the consent to capture sound).</summary>
     internal static MainActivity? Current { get; private set; }
 
@@ -48,6 +62,7 @@ public sealed class MainActivity : AvaloniaMainActivity
         {
             HandleShare(Intent);
             HandleTab(Intent);
+            HandleWidget(Intent);
         }
     }
 
@@ -65,6 +80,11 @@ public sealed class MainActivity : AvaloniaMainActivity
         if (hasFocus)
         {
             LayoutLog.View?.RemeasureIfCollapsed();
+            if (sendCopiedOnFocus)
+            {
+                sendCopiedOnFocus = false;
+                App.Share([], TextActions.Copied(this));
+            }
         }
     }
 
@@ -100,7 +120,18 @@ public sealed class MainActivity : AvaloniaMainActivity
 
     protected override void OnActivityResult(int requestCode, Result resultCode, Intent? data)
     {
-        if (!PlaybackCapture.OnActivityResult(this, requestCode, resultCode, data))
+        if (requestCode == PickFilesRequest)
+        {
+            if (resultCode == Result.Ok && data is not null)
+            {
+                List<string> picked = [.. Picked(data).Select(uri => uri.ToString()!)];
+                if (picked.Count > 0)
+                {
+                    App.Share(picked, null);
+                }
+            }
+        }
+        else if (!PlaybackCapture.OnActivityResult(this, requestCode, resultCode, data))
         {
             base.OnActivityResult(requestCode, resultCode, data);
         }
@@ -111,6 +142,7 @@ public sealed class MainActivity : AvaloniaMainActivity
         base.OnNewIntent(intent);
         HandleShare(intent);
         HandleTab(intent);
+        HandleWidget(intent);
     }
 
     /// <summary>
@@ -146,6 +178,41 @@ public sealed class MainActivity : AvaloniaMainActivity
         if (intent is not null && !intent.Flags.HasFlag(ActivityFlags.LaunchedFromHistory) && intent.GetIntExtra(ExtraTab, -1) is >= 0 and var tab)
         {
             App.ShowTab(tab);
+        }
+    }
+
+    private void HandleWidget(Intent? intent)
+    {
+        string? button = intent is null || intent.Flags.HasFlag(ActivityFlags.LaunchedFromHistory) ? null : intent.GetStringExtra(ExtraWidget);
+        if (button == WidgetFiles)
+        {
+            Intent pick = new Intent(Intent.ActionOpenDocument).AddCategory(Intent.CategoryOpenable).SetType("*/*").PutExtra(Intent.ExtraAllowMultiple, true);
+            StartActivityForResult(pick, PickFilesRequest);
+        }
+        else if (button == WidgetText)
+        {
+            sendCopiedOnFocus = true;
+        }
+
+        // Handled once: the same intent comes back with the activity after it is recreated.
+        intent?.RemoveExtra(ExtraWidget);
+    }
+
+    private static IEnumerable<AndroidUri> Picked(Intent data)
+    {
+        if (data.ClipData is { } clip)
+        {
+            for (int i = 0; i < clip.ItemCount; i++)
+            {
+                if (clip.GetItemAt(i)?.Uri is { } uri)
+                {
+                    yield return uri;
+                }
+            }
+        }
+        else if (data.Data is { } single)
+        {
+            yield return single;
         }
     }
 
