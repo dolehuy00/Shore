@@ -70,6 +70,11 @@
       <Setter Property="Background" Value="{DynamicResource Sk.CardBackground}" />
       <Setter Property="Margin" Value="0,0,0,10" />
     </Style>
+    <!-- A checked offer in "Chọn nhiều" (Hộp nhận, Đã gửi); the change is animated in Themes/Motion.axaml. -->
+    <Style Selector="Border.panel.picked">
+      <!-- A light wash of the accent blue, so the icon tile still stands out in light and dark themes. -->
+      <Setter Property="Background" Value="#263B82F6" />
+    </Style>
     <Style Selector="Border.panel.droptarget">
       <Setter Property="BorderBrush" Value="#22C55E" />
       <Setter Property="BorderThickness" Value="2" />
@@ -442,7 +447,7 @@
         <StackPanel Classes="page" IsVisible="{Binding IsInboxVisible}" Spacing="14" MaxWidth="860" HorizontalAlignment="Stretch">
           <TextBlock Classes="h2" Text="{l:T 'Hộp nhận'}" />
           <!-- "Chọn nhiều" (⋮ on an offer): check boxes on the offers, and what to do with the checked ones. -->
-          <Border Classes="panel" IsVisible="{Binding Inbox.IsSelecting}" Padding="14,8">
+          <Border Classes="panel selectionbar" IsVisible="{Binding Inbox.IsSelecting}" Padding="14,8">
             <Grid ColumnDefinitions="Auto,*,Auto">
               <CheckBox IsChecked="{Binding Inbox.AllSelected}" Content="{l:T 'Chọn tất cả'}" VerticalAlignment="Center" />
               <TextBlock Grid.Column="1" Classes="muted" Text="{Binding Inbox.SelectedText}" FontSize="12" Margin="12,0" VerticalAlignment="Center" />
@@ -460,9 +465,9 @@
           <ItemsControl x:Name="InboxList" ItemsSource="{Binding Inbox.Items}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:InboxItemViewModel">
-                <Border Classes="panel">
+                <Border Classes="panel offer" Classes.picked="{Binding IsSelected}" Classes.leaving="{Binding IsLeaving}">
                   <Grid ColumnDefinitions="Auto,Auto,*,Auto">
-                    <CheckBox IsChecked="{Binding IsSelected}" IsVisible="{Binding Owner.IsSelecting}" VerticalAlignment="Center" MinWidth="0" Width="24" Padding="0" Margin="0,0,10,0"
+                    <CheckBox Classes="pick" IsChecked="{Binding IsSelected}" IsVisible="{Binding Owner.IsSelecting}" VerticalAlignment="Center" MinWidth="0" Width="24" Padding="0" Margin="0,0,10,0"
                               AutomationProperties.Name="{l:T 'Chọn'}" />
                     <Panel Grid.Column="1" VerticalAlignment="Top">
                       <Border Classes="tile" Width="56" Height="56" VerticalAlignment="Top">
@@ -544,7 +549,7 @@
         <StackPanel Classes="page" IsVisible="{Binding IsSentVisible}" Spacing="14" MaxWidth="860" HorizontalAlignment="Stretch">
           <TextBlock Classes="h2" Text="{l:T 'Đã gửi'}" />
           <!-- "Chọn nhiều" (⋮ on an offer): check boxes on the offers, and what to do with the checked ones. -->
-          <Border Classes="panel" IsVisible="{Binding Sent.IsSelecting}" Padding="14,8">
+          <Border Classes="panel selectionbar" IsVisible="{Binding Sent.IsSelecting}" Padding="14,8">
             <Grid ColumnDefinitions="Auto,*,Auto">
               <CheckBox IsChecked="{Binding Sent.AllSelected}" Content="{l:T 'Chọn tất cả'}" VerticalAlignment="Center" />
               <TextBlock Grid.Column="1" Classes="muted" Text="{Binding Sent.SelectedText}" FontSize="12" Margin="12,0" VerticalAlignment="Center" />
@@ -562,9 +567,9 @@
           <ItemsControl x:Name="SentList" ItemsSource="{Binding Sent.Items}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:SentItemViewModel">
-                <Border Classes="panel">
+                <Border Classes="panel offer" Classes.picked="{Binding IsSelected}" Classes.leaving="{Binding IsLeaving}">
                   <Grid ColumnDefinitions="Auto,Auto,*,Auto">
-                    <CheckBox IsChecked="{Binding IsSelected}" IsVisible="{Binding Owner.IsSelecting}" VerticalAlignment="Center" MinWidth="0" Width="24" Padding="0" Margin="0,0,10,0"
+                    <CheckBox Classes="pick" IsChecked="{Binding IsSelected}" IsVisible="{Binding Owner.IsSelecting}" VerticalAlignment="Center" MinWidth="0" Width="24" Padding="0" Margin="0,0,10,0"
                               AutomationProperties.Name="{l:T 'Chọn'}" />
                     <Border Grid.Column="1" Classes="tile" Width="56" Height="56" VerticalAlignment="Top">
                         <Panel>

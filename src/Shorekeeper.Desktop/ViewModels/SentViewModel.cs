@@ -105,6 +105,12 @@ public sealed partial class SentViewModel : ObservableObject
             }
         }
 
+        foreach (SentItemViewModel item in chosen)
+        {
+            item.IsLeaving = true;
+        }
+
+        await Task.Delay(InboxViewModel.LeaveTime);
         await offers.RemoveAsync([.. chosen.Select(i => i.OfferId)]);
         Refresh();
         if (IsSelecting && !HasSelection)
@@ -151,6 +157,10 @@ public sealed partial class SentItemViewModel(string offerId, SentViewModel owne
     public partial bool IsSelected { get; set; }
 
     partial void OnIsSelectedChanged(bool value) => owner.SelectionChanged();
+
+    /// <summary>Removed: fades and slides away (Themes/Motion.axaml) before it leaves the list.</summary>
+    [ObservableProperty]
+    public partial bool IsLeaving { get; set; }
 
     [ObservableProperty]
     public partial string Summary { get; set; } = "";

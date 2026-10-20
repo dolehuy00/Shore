@@ -48,6 +48,9 @@ public sealed partial class InboxViewModel : ObservableObject
 
     private static readonly TimeSpan RecentWindow = TimeSpan.FromDays(1);
 
+    /// <summary>How long a removed offer takes to fade away (Themes/Motion.axaml).</summary>
+    internal static readonly TimeSpan LeaveTime = TimeSpan.FromMilliseconds(200);
+
     /// <summary>Offers waiting for a decision; shown as a badge in the navigation.</summary>
     [ObservableProperty]
     public partial int NewCount { get; set; }
@@ -130,6 +133,12 @@ public sealed partial class InboxViewModel : ObservableObject
         }
 
         int downloading = chosen.Count(i => i.IsDownloading);
+        foreach (InboxItemViewModel item in chosen.Where(i => !i.IsDownloading))
+        {
+            item.IsLeaving = true;
+        }
+
+        await Task.Delay(LeaveTime);
         (_, int kept) = await inbox.RemoveAsync([.. chosen.Select(i => i.Key)], deleteFiles);
         RefreshAll();
         if (IsSelecting && !HasSelection)
@@ -261,6 +270,10 @@ public sealed partial class InboxItemViewModel(OfferKey key, InboxViewModel owne
     public partial bool IsSelected { get; set; }
 
     partial void OnIsSelectedChanged(bool value) => Owner.SelectionChanged();
+
+    /// <summary>Removed: fades and slides away (Themes/Motion.axaml) before it leaves the list.</summary>
+    [ObservableProperty]
+    public partial bool IsLeaving { get; set; }
 
     /// <summary>"Xóa kèm file đã nhận": some received file is still there.</summary>
     [ObservableProperty]

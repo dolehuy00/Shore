@@ -382,6 +382,9 @@ public sealed partial class MainViewModel : ObservableObject
 
     // ───────────── "Xóa" (docs/10-ux.md §4) ─────────────
 
+    /// <summary>How long a removed card takes to fade away (Themes/Motion.axaml).</summary>
+    private static readonly TimeSpan LeaveTime = TimeSpan.FromMilliseconds(200);
+
     [RelayCommand]
     private void RemoveSelectedOffers() => RemoveOffers(OfferSelection.Selected<OfferItemViewModel>(), deleteFiles: false);
 
@@ -405,6 +408,12 @@ public sealed partial class MainViewModel : ObservableObject
         async Task RemoveAsync()
         {
             int downloading = chosen.Count(o => o.IsDownloading);
+            foreach (OfferItemViewModel offer in chosen.Where(o => !o.IsDownloading))
+            {
+                offer.IsLeaving = true;
+            }
+
+            await Task.Delay(LeaveTime);
             (_, int kept) = await inbox.RemoveAsync([.. chosen.Select(o => o.Key)], deleteFiles);
             OfferSelection.Stop();
             RefreshOffers();
@@ -442,6 +451,12 @@ public sealed partial class MainViewModel : ObservableObject
 
         async Task RemoveAsync()
         {
+            foreach (SentItemViewModel offer in chosen)
+            {
+                offer.IsLeaving = true;
+            }
+
+            await Task.Delay(LeaveTime);
             await offers.RemoveAsync([.. chosen.Select(o => o.OfferId)]);
             SentSelection.Stop();
             RefreshSent();
@@ -785,6 +800,10 @@ public sealed partial class OfferItemViewModel(ReceivedOffer offer, MainViewMode
 
     partial void OnIsSelectedChanged(bool value) => owner.OfferSelection.Changed();
 
+    /// <summary>Removed: fades and slides away (Themes/Motion.axaml) before it leaves the list.</summary>
+    [ObservableProperty]
+    public partial bool IsLeaving { get; set; }
+
     /// <summary>"Xóa kèm file đã nhận": some received file is still there.</summary>
     [ObservableProperty]
     public partial bool HasFiles { get; set; }
@@ -978,6 +997,10 @@ public sealed partial class SentItemViewModel(SentOffer offer, MainViewModel own
     public partial bool IsSelected { get; set; }
 
     partial void OnIsSelectedChanged(bool value) => owner.SentSelection.Changed();
+
+    /// <summary>Removed: fades and slides away (Themes/Motion.axaml) before it leaves the list.</summary>
+    [ObservableProperty]
+    public partial bool IsLeaving { get; set; }
 
     public OfferContents Contents { get; } = new([]);
 

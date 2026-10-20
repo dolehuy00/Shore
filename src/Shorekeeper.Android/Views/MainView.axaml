@@ -28,6 +28,11 @@
     <Style Selector="Border.card.pick.picked">
       <Setter Property="Background" Value="{DynamicResource Sk.TileBackground}" />
     </Style>
+    <!-- A checked card in "Chọn" (Hộp nhận, Đã gửi); the change is animated in Themes/Motion.axaml. -->
+    <Style Selector="Border.card.picked">
+      <!-- A light wash of the accent blue, so the icon tile still stands out in light and dark themes. -->
+      <Setter Property="Background" Value="#263B82F6" />
+    </Style>
     <Style Selector="Border.tile">
       <Setter Property="Width" Value="44" />
       <Setter Property="Height" Value="44" />
@@ -304,7 +309,7 @@
           </StackPanel>
           <DockPanel>
           <!-- While choosing (long press on a card): "Chọn tất cả", the count and what to do with the checked cards. -->
-          <StackPanel DockPanel.Dock="Top" DataContext="{Binding OfferSelection}" x:DataType="vm:ListSelection" Margin="0,0,0,8" IsVisible="{Binding IsOn}">
+          <StackPanel DockPanel.Dock="Top" DataContext="{Binding OfferSelection}" x:DataType="vm:ListSelection" Margin="0,0,0,8" IsVisible="{Binding IsOn}" Classes="selectionbar">
             <Border Classes="card" IsVisible="{Binding IsOn}" Margin="0" Padding="12,8">
               <StackPanel Spacing="8">
                 <Grid ColumnDefinitions="Auto,*,Auto">
@@ -325,9 +330,10 @@
             <ItemsControl ItemsSource="{Binding Offers}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:OfferItemViewModel">
-                  <Border Classes="card" Background="{DynamicResource Sk.CardBackground}" Holding="OnCardHolding" Tapped="OnCardTapped">
+                  <Border Classes="card offer" Classes.picked="{Binding IsSelected}" Classes.leaving="{Binding IsLeaving}" Holding="OnCardHolding" Tapped="OnCardTapped"
+                          PointerPressed="OnCardPressed" PointerReleased="OnCardLetGo" PointerCaptureLost="OnCardLetGo">
                     <DockPanel>
-                    <CheckBox DockPanel.Dock="Left" IsChecked="{Binding IsSelected}" IsVisible="{Binding Selection.IsOn}" VerticalAlignment="Center" MinWidth="0" Width="24" Padding="0" Margin="0,0,10,0"
+                    <CheckBox DockPanel.Dock="Left" Classes="pick" IsChecked="{Binding IsSelected}" IsVisible="{Binding Selection.IsOn}" VerticalAlignment="Center" MinWidth="0" Width="24" Padding="0" Margin="0,0,10,0"
                               AutomationProperties.Name="{l:T 'Chọn'}" />
                     <Grid ColumnDefinitions="Auto,*,Auto">
                       <Border Classes="tile">
@@ -406,7 +412,7 @@
           </StackPanel>
           <DockPanel>
           <!-- While choosing (long press on a card): "Chọn tất cả", the count and what to do with the checked cards. -->
-          <StackPanel DockPanel.Dock="Top" DataContext="{Binding SentSelection}" x:DataType="vm:ListSelection" Margin="0,0,0,8" IsVisible="{Binding IsOn}">
+          <StackPanel DockPanel.Dock="Top" DataContext="{Binding SentSelection}" x:DataType="vm:ListSelection" Margin="0,0,0,8" IsVisible="{Binding IsOn}" Classes="selectionbar">
             <Border Classes="card" IsVisible="{Binding IsOn}" Margin="0" Padding="12,8">
               <StackPanel Spacing="8">
                 <Grid ColumnDefinitions="Auto,*,Auto">
@@ -425,9 +431,10 @@
             <ItemsControl ItemsSource="{Binding Sent}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:SentItemViewModel">
-                  <Border Classes="card" Background="{DynamicResource Sk.CardBackground}" Holding="OnCardHolding" Tapped="OnCardTapped">
+                  <Border Classes="card offer" Classes.picked="{Binding IsSelected}" Classes.leaving="{Binding IsLeaving}" Holding="OnCardHolding" Tapped="OnCardTapped"
+                          PointerPressed="OnCardPressed" PointerReleased="OnCardLetGo" PointerCaptureLost="OnCardLetGo">
                     <DockPanel>
-                    <CheckBox DockPanel.Dock="Left" IsChecked="{Binding IsSelected}" IsVisible="{Binding Selection.IsOn}" VerticalAlignment="Center" MinWidth="0" Width="24" Padding="0" Margin="0,0,10,0"
+                    <CheckBox DockPanel.Dock="Left" Classes="pick" IsChecked="{Binding IsSelected}" IsVisible="{Binding Selection.IsOn}" VerticalAlignment="Center" MinWidth="0" Width="24" Padding="0" Margin="0,0,10,0"
                               AutomationProperties.Name="{l:T 'Chọn'}" />
                     <Grid ColumnDefinitions="Auto,*,Auto">
                       <Border Classes="tile">
