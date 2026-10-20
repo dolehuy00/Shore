@@ -68,8 +68,8 @@ public sealed partial class MainViewModel : ObservableObject
         Audio.Notice += (_, message) => Notice = message;
         Audio.AskPassword = AskPasswordAsync;
         Settings = new SettingsTabViewModel(services, this);
-        OfferSelection = new ListSelection(() => Offers);
-        SentSelection = new ListSelection(() => Sent);
+        OfferSelection = new ListSelection(() => Offers, () => RemoveCheckedOffers(deleteFiles: false), () => RemoveCheckedOffers(deleteFiles: true));
+        SentSelection = new ListSelection(() => Sent, RemoveCheckedSent);
         settings.Changed += (_, _) => Dispatcher.UIThread.Post(() => OnPropertyChanged(nameof(Title)));
 
         directory.Changed += (_, _) => Dispatcher.UIThread.Post(RefreshPeers);
@@ -385,14 +385,9 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>How long a removed card takes to fade away (Themes/Motion.axaml).</summary>
     private static readonly TimeSpan LeaveTime = TimeSpan.FromMilliseconds(200);
 
-    [RelayCommand]
-    private void RemoveSelectedOffers() => RemoveOffers(OfferSelection.Selected<OfferItemViewModel>(), deleteFiles: false);
+    private void RemoveCheckedOffers(bool deleteFiles) => RemoveOffers(OfferSelection.Selected<OfferItemViewModel>(), deleteFiles);
 
-    [RelayCommand]
-    private void RemoveSelectedOffersWithFiles() => RemoveOffers(OfferSelection.Selected<OfferItemViewModel>(), deleteFiles: true);
-
-    [RelayCommand]
-    private void RemoveSelectedSent() => RemoveSent(SentSelection.Selected<SentItemViewModel>());
+    private void RemoveCheckedSent() => RemoveSent(SentSelection.Selected<SentItemViewModel>());
 
     /// <summary>
     /// Takes offers out of Hộp nhận, with their received files when asked. Deleting files, or several offers at once, is

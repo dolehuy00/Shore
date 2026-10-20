@@ -310,20 +310,30 @@
           <DockPanel>
           <!-- While choosing (long press on a card): "Chọn tất cả", the count and what to do with the checked cards. -->
           <StackPanel DockPanel.Dock="Top" DataContext="{Binding OfferSelection}" x:DataType="vm:ListSelection" Margin="0,0,0,8" IsVisible="{Binding IsOn}" Classes="selectionbar">
-            <Border Classes="card" IsVisible="{Binding IsOn}" Margin="0" Padding="12,8">
-              <StackPanel Spacing="8">
-                <Grid ColumnDefinitions="Auto,*,Auto">
-                  <CheckBox IsChecked="{Binding All}" Content="{l:T 'Chọn tất cả'}" />
-                  <TextBlock Grid.Column="1" Classes="muted" Text="{Binding Text}" FontSize="12" Margin="8,0" VerticalAlignment="Center" />
-                  <Button Grid.Column="2" Content="{l:T 'Xong'}" Command="{Binding StopCommand}" Padding="14,6" FontSize="13" />
-                </Grid>
-                <WrapPanel ItemSpacing="8" LineSpacing="8">
-                  <Button Content="{l:T 'Xóa khỏi lịch sử'}" Command="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).RemoveSelectedOffersCommand}"
-                          IsEnabled="{Binding HasAny}" Padding="12,6" FontSize="13" />
-                  <Button Content="{l:T 'Xóa kèm file đã nhận…'}" Command="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).RemoveSelectedOffersWithFilesCommand}"
-                          IsEnabled="{Binding HasAny}" Padding="12,6" FontSize="13" />
-                </WrapPanel>
-              </StackPanel>
+            <Border Classes="card" IsVisible="{Binding IsOn}" Margin="0" Padding="12,6">
+              <!-- [☐ Chọn tất cả] Đã chọn N … [✕ end choosing] [⋮ what to do with the checked cards]. -->
+              <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                <CheckBox IsChecked="{Binding All}" Content="{l:T 'Chọn tất cả'}" />
+                <TextBlock Grid.Column="1" Classes="muted" Text="{Binding Text}" FontSize="12" Margin="8,0" VerticalAlignment="Center" />
+                <Button Grid.Column="2" Command="{Binding StopCommand}" Padding="8" Background="Transparent" BorderThickness="0"
+                        AutomationProperties.Name="{l:T 'Xong'}" ToolTip.Tip="{l:T 'Xong'}">
+                  <PathIcon Data="{StaticResource Icon.Dismiss}" Width="16" Height="16" />
+                </Button>
+                <Button Grid.Column="3" Padding="8" Margin="0,0,-6,0" Background="Transparent" BorderThickness="0" IsEnabled="{Binding HasAny}"
+                        AutomationProperties.Name="{l:T 'Thêm'}">
+                  <PathIcon Data="{StaticResource Icon.More}" Width="16" Height="16">
+                    <PathIcon.RenderTransform>
+                      <RotateTransform Angle="90" />
+                    </PathIcon.RenderTransform>
+                  </PathIcon>
+                  <Button.Flyout>
+                    <MenuFlyout>
+                      <MenuItem Header="{l:T 'Xóa khỏi lịch sử'}" Command="{Binding RemoveCommand}" />
+                      <MenuItem Header="{l:T 'Xóa kèm file đã nhận…'}" Command="{Binding RemoveWithFilesCommand}" IsVisible="{Binding CanRemoveWithFiles}" />
+                    </MenuFlyout>
+                  </Button.Flyout>
+                </Button>
+              </Grid>
             </Border>
           </StackPanel>
           <ScrollViewer>
@@ -413,18 +423,29 @@
           <DockPanel>
           <!-- While choosing (long press on a card): "Chọn tất cả", the count and what to do with the checked cards. -->
           <StackPanel DockPanel.Dock="Top" DataContext="{Binding SentSelection}" x:DataType="vm:ListSelection" Margin="0,0,0,8" IsVisible="{Binding IsOn}" Classes="selectionbar">
-            <Border Classes="card" IsVisible="{Binding IsOn}" Margin="0" Padding="12,8">
-              <StackPanel Spacing="8">
-                <Grid ColumnDefinitions="Auto,*,Auto">
-                  <CheckBox IsChecked="{Binding All}" Content="{l:T 'Chọn tất cả'}" />
-                  <TextBlock Grid.Column="1" Classes="muted" Text="{Binding Text}" FontSize="12" Margin="8,0" VerticalAlignment="Center" />
-                  <Button Grid.Column="2" Content="{l:T 'Xong'}" Command="{Binding StopCommand}" Padding="14,6" FontSize="13" />
-                </Grid>
-                <WrapPanel ItemSpacing="8" LineSpacing="8">
-                  <Button Content="{l:T 'Xóa khỏi lịch sử'}" Command="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).RemoveSelectedSentCommand}"
-                          IsEnabled="{Binding HasAny}" Padding="12,6" FontSize="13" />
-                </WrapPanel>
-              </StackPanel>
+            <Border Classes="card" IsVisible="{Binding IsOn}" Margin="0" Padding="12,6">
+              <!-- [☐ Chọn tất cả] Đã chọn N … [✕ end choosing] [⋮ what to do with the checked cards]. -->
+              <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                <CheckBox IsChecked="{Binding All}" Content="{l:T 'Chọn tất cả'}" />
+                <TextBlock Grid.Column="1" Classes="muted" Text="{Binding Text}" FontSize="12" Margin="8,0" VerticalAlignment="Center" />
+                <Button Grid.Column="2" Command="{Binding StopCommand}" Padding="8" Background="Transparent" BorderThickness="0"
+                        AutomationProperties.Name="{l:T 'Xong'}" ToolTip.Tip="{l:T 'Xong'}">
+                  <PathIcon Data="{StaticResource Icon.Dismiss}" Width="16" Height="16" />
+                </Button>
+                <Button Grid.Column="3" Padding="8" Margin="0,0,-6,0" Background="Transparent" BorderThickness="0" IsEnabled="{Binding HasAny}"
+                        AutomationProperties.Name="{l:T 'Thêm'}">
+                  <PathIcon Data="{StaticResource Icon.More}" Width="16" Height="16">
+                    <PathIcon.RenderTransform>
+                      <RotateTransform Angle="90" />
+                    </PathIcon.RenderTransform>
+                  </PathIcon>
+                  <Button.Flyout>
+                    <MenuFlyout>
+                      <MenuItem Header="{l:T 'Xóa khỏi lịch sử'}" Command="{Binding RemoveCommand}" />
+                    </MenuFlyout>
+                  </Button.Flyout>
+                </Button>
+              </Grid>
             </Border>
           </StackPanel>
           <ScrollViewer>

@@ -12,9 +12,15 @@ public interface ISelectableItem
     ListSelection Selection { get; }
 }
 
-/// <summary>"Chọn" on the Hộp nhận or Đã gửi tab (docs/10-ux.md §4): check boxes on the cards and how many are checked.</summary>
-public sealed partial class ListSelection(Func<IEnumerable<ISelectableItem>> items) : ObservableObject
+/// <summary>
+/// "Chọn" on the Hộp nhận or Đã gửi tab (docs/10-ux.md §4): check boxes on the cards, how many are checked, and what to
+/// do with them (the ⋮ of the bar).
+/// </summary>
+/// <param name="removeWithFiles">"Xóa kèm file đã nhận…"; null where there are no received files (Đã gửi).</param>
+public sealed partial class ListSelection(Func<IEnumerable<ISelectableItem>> items, Action remove, Action? removeWithFiles = null) : ObservableObject
 {
+    public bool CanRemoveWithFiles => removeWithFiles is not null;
+
     [ObservableProperty]
     public partial bool IsOn { get; set; }
 
@@ -55,6 +61,12 @@ public sealed partial class ListSelection(Func<IEnumerable<ISelectableItem>> ite
         IsOn = true;
         item.IsSelected = true;
     }
+
+    [RelayCommand]
+    private void Remove() => remove();
+
+    [RelayCommand]
+    private void RemoveWithFiles() => removeWithFiles?.Invoke();
 
     [RelayCommand]
     public void Stop()
