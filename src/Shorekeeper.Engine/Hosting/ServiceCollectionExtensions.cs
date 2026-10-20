@@ -5,6 +5,7 @@ using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Audio;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Groups;
+using Shorekeeper.Engine.Monitoring;
 using Shorekeeper.Engine.Identity;
 using Shorekeeper.Engine.Settings;
 using Shorekeeper.Engine.Storage;
@@ -57,6 +58,8 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IExternalFileSource>(NullExternalFileSource.Instance);
         services.AddSingleton<FileHasher>();
         services.AddSingleton<FileDownloader>();
+        services.AddSingleton<UsageStatsService>();
+        services.AddHostedService(sp => sp.GetRequiredService<UsageStatsService>());
         services.AddSingleton<OfferService>();
         services.AddSingleton<InboxService>();
         services.AddHostedService<TransferWorker>();

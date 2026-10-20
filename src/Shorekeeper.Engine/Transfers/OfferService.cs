@@ -9,6 +9,7 @@ using Shorekeeper.Core.Platform;
 using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Groups;
+using Shorekeeper.Engine.Monitoring;
 using Shorekeeper.Engine.Settings;
 using Shorekeeper.Engine.Storage;
 
@@ -28,6 +29,7 @@ public sealed class OfferService(
     SettingsService settings,
     AppPaths paths,
     IExternalFileSource external,
+    UsageStatsService usage,
     TimeProvider timeProvider,
     ILogger<OfferService> logger)
 {
@@ -499,11 +501,12 @@ public sealed class OfferService(
             _ = SetRecipientStateAsync(offerId, caller, RecipientState.Downloading);
         }
 
-        var counting = new CountingStream(stream, read =>
+        var counting = new CountingStream(stream, file.Size, read =>
         {
             Interlocked.Add(ref recipient.BytesServed, read);
+            usage.AddSent(caller, read, 0);
             ReportProgress(offerId);
-        }, () => Interlocked.Decrement(ref activeStreams));
+        }, () => usage.AddSent(caller, 0, 1), () => Interlocked.Decrement(ref activeStreams));
         return PeerResponse.File(counting, "application/octet-stream", file.ModifiedAt, ETagFor(file));
     }
 
@@ -851,10 +854,15 @@ public sealed class OfferService(
     }
 }
 
-/// <summary>Counts bytes read (sender progress) and runs a callback when the response is done with it.</summary>
-internal sealed class CountingStream(Stream inner, Action<int> onRead, Action onDispose) : Stream
+/// <summary>
+/// Counts bytes read (sender progress), tells when the file was read to its end (<paramref name="size"/> bytes, wherever
+/// a range started), and runs a callback when the response is done with it.
+/// </summary>
+internal sealed class CountingStream(Stream inner, long size, Action<int> onRead, Action onEnd, Action onDispose) : Stream
 {
     private int disposed;
+    private long position = -1;
+    private bool ended;
 
     public override bool CanRead => true;
 
@@ -864,7 +872,7 @@ internal sealed class CountingStream(Stream inner, Action<int> onRead, Action on
 
     public override long Length => inner.Length;
 
-    public override long Position { get => inner.Position; set => inner.Position = value; }
+    public override long Position { get => inner.Position; set => position = inner.Position = value; }
 
     public override int Read(byte[] buffer, int offset, int count) => Counted(inner.Read(buffer, offset, count));
 
@@ -874,7 +882,7 @@ internal sealed class CountingStream(Stream inner, Action<int> onRead, Action on
     public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
         ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
 
-    public override long Seek(long offset, SeekOrigin origin) => inner.Seek(offset, origin);
+    public override long Seek(long offset, SeekOrigin origin) => position = inner.Seek(offset, origin);
 
     public override void Flush()
     {
@@ -911,6 +919,18 @@ internal sealed class CountingStream(Stream inner, Action<int> onRead, Action on
         if (read > 0)
         {
             onRead(read);
+        }
+
+        if (position < 0)
+        {
+            position = inner.CanSeek ? inner.Position - read : 0;
+        }
+
+        position += read;
+        if (!ended && (read == 0 || position >= size))
+        {
+            ended = true;
+            onEnd();
         }
 
         return read;

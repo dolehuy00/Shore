@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using Shorekeeper.Core.Identity;
 using Shorekeeper.Engine.Api;
+using Shorekeeper.Engine.Monitoring;
 using Shorekeeper.Engine.Settings;
 using Shorekeeper.Engine.Transfers;
 using Shorekeeper.Engine.Trust;
@@ -401,6 +402,22 @@ public sealed class TransferTests : IAsyncLifetime
         Assert.Empty(a.Offers.GetOffers());
         Assert.True(File.Exists(source));
         await WaitUntil(() => b.Inbox.GetOffers().Single().State == InboxState.Withdrawn);
+    }
+
+    [Fact]
+    public async Task Both_sides_count_what_went_through()
+    {
+        byte[] content = RandomNumberGenerator.GetBytes(3 * 1024 * 1024 + 11);
+        await DownloadAsync(b, await WaitForOfferAsync(b, await SendAsync(a, [WriteFile(a, "counted.bin", content)], b.Id)));
+
+        // The sender counts once the last bytes were read, a moment before the recipient finishes checking them.
+        await WaitUntil(() => a.Get<UsageStatsService>().Summary().Total.SentFiles == 1);
+        UsageSummary sent = a.Get<UsageStatsService>().Summary();
+        UsageSummary received = b.Get<UsageStatsService>().Summary();
+        Assert.Equal((1L, (long)content.Length), (sent.Today.SentFiles, sent.Today.SentBytes));
+        Assert.Equal((1L, (long)content.Length), (received.Week.ReceivedFiles, received.Week.ReceivedBytes));
+        Assert.Equal(b.Id, Assert.Single(sent.Peers).PeerId);
+        Assert.Equal(content.Length, Assert.Single(received.Peers).ReceivedBytes);
     }
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;

@@ -15,6 +15,7 @@ using Shorekeeper.Engine;
 using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Identity;
+using Shorekeeper.Engine.Monitoring;
 using Shorekeeper.Engine.Settings;
 using Shorekeeper.Engine.Transfers;
 using Shorekeeper.Engine.Trust;
@@ -57,6 +58,8 @@ public sealed partial class SettingsTabViewModel : ObservableObject
         device = services.GetRequiredService<LocalDevice>();
         paths = services.GetRequiredService<AppPaths>();
         Blocked = new BlockedPeersViewModel(services.GetRequiredService<TrustStore>());
+        Stats = new StatsViewModel(
+            services.GetRequiredService<UsageStatsService>(), services.GetRequiredService<TrustStore>(), services.GetRequiredService<SettingsService>());
         PhotoBackup = new PhotoBackupViewModel(
             services.GetRequiredService<PhotoBackupService>(), services.GetRequiredService<TrustStore>(), directory, main);
         this.main = main;
@@ -94,6 +97,9 @@ public sealed partial class SettingsTabViewModel : ObservableObject
     public PhotoBackupViewModel PhotoBackup { get; }
 
     public BlockedPeersViewModel Blocked { get; }
+
+    /// <summary>"Thống kê".</summary>
+    public StatsViewModel Stats { get; }
 
     // ───────────── Language ─────────────
 

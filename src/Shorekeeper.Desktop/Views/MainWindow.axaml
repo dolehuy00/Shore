@@ -1154,6 +1154,75 @@
             </ItemsControl>
           </Border>
 
+          <!-- Thống kê (docs/10-ux.md §15): counts kept on this device, and the drive the received files go to. -->
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Classes="h2" Text="{l:T 'Thống kê'}" />
+            <Button Grid.Column="1" Content="{l:T 'Làm mới'}" Command="{Binding Stats.RefreshCommand}" />
+          </Grid>
+          <Border Padding="18,14" CornerRadius="8" BorderThickness="1" BorderBrush="{DynamicResource Sk.CardBorder}" Background="{DynamicResource Sk.CardBackground}"
+                  DataContext="{Binding Stats}" x:DataType="vm:StatsViewModel">
+            <StackPanel Spacing="14">
+              <Grid ColumnDefinitions="110,*,*">
+                <TextBlock Grid.Column="1" Classes="muted" Text="{l:T 'Đã gửi'}" FontSize="12" />
+                <TextBlock Grid.Column="2" Classes="muted" Text="{l:T 'Đã nhận'}" FontSize="12" />
+              </Grid>
+              <ItemsControl ItemsSource="{Binding Periods}" Margin="0,-8,0,0">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:StatsPeriod">
+                    <Grid ColumnDefinitions="110,*,*" Margin="0,3">
+                      <TextBlock Text="{Binding Label}" FontWeight="SemiBold" />
+                      <TextBlock Grid.Column="1" Text="{Binding Sent}" />
+                      <TextBlock Grid.Column="2" Text="{Binding Received}" />
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+
+              <StackPanel Spacing="3">
+                <TextBlock Text="{l:T 'Âm thanh'}" FontWeight="SemiBold" />
+                <TextBlock Text="{Binding SoundWeek}" />
+                <TextBlock Classes="muted" Text="{Binding SoundTotal}" FontSize="12" />
+              </StackPanel>
+
+              <StackPanel Spacing="3" IsVisible="{Binding HasPeers}">
+                <TextBlock Text="{l:T 'Theo máy'}" FontWeight="SemiBold" />
+                <ItemsControl ItemsSource="{Binding Peers}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:StatsPeer">
+                      <Grid ColumnDefinitions="170,*" Margin="0,2">
+                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" Margin="0,0,12,0" />
+                        <TextBlock Grid.Column="1" Classes="muted" Text="{Binding Text}" TextWrapping="Wrap" />
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+
+              <StackPanel Spacing="6">
+                <TextBlock Text="{l:T 'Ổ chứa file nhận'}" FontWeight="SemiBold" />
+                <TextBlock Classes="muted" Text="{l:T 'Đang đọc ổ đĩa…'}" IsVisible="{Binding IsMeasuring}" FontSize="12" />
+                <StackPanel Spacing="4" IsVisible="{Binding HasDrive}">
+                  <ProgressBar Value="{Binding DriveUsed}" Maximum="100" MinWidth="0" />
+                  <TextBlock Text="{Binding DriveText}" />
+                </StackPanel>
+                <TextBlock Text="{Binding FolderText}" />
+                <ItemsControl ItemsSource="{Binding Kinds}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:StatsKind">
+                      <Grid ColumnDefinitions="140,120,*" Margin="0,3">
+                        <TextBlock Text="{Binding Name}" />
+                        <ProgressBar Grid.Column="1" Value="{Binding Share}" Maximum="100" MinWidth="0" VerticalAlignment="Center" Margin="0,0,12,0" />
+                        <TextBlock Grid.Column="2" Classes="muted" Text="{Binding Text}" />
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+
+              <TextBlock Classes="muted" Text="{Binding Since}" FontSize="12" />
+            </StackPanel>
+          </Border>
+
           <TextBlock Classes="h2" Text="{l:T 'Đã chặn'}" />
           <TextBlock Classes="muted" IsVisible="{Binding !Blocked.Items.Count}" Text="{l:T 'Chưa chặn ai.'}" />
           <ItemsControl ItemsSource="{Binding Blocked.Items}">

@@ -11,6 +11,7 @@ using Shorekeeper.Core.Settings;
 using Shorekeeper.Core.Transfers;
 using Shorekeeper.Core.Trust;
 using Shorekeeper.Engine.Api;
+using Shorekeeper.Engine.Monitoring;
 using Shorekeeper.Engine.Settings;
 using Shorekeeper.Engine.Storage;
 using Shorekeeper.Engine.Trust;
@@ -32,6 +33,7 @@ public sealed class InboxService(
     SettingsService settings,
     IFileTagger fileTagger,
     IPolicyProvider policy,
+    UsageStatsService usage,
     TimeProvider timeProvider,
     ILogger<InboxService> logger)
 {
@@ -678,6 +680,10 @@ public sealed class InboxService(
         if (state == InboxFileState.Completed)
         {
             file.BytesReceived = file.Size;
+            if (!file.IsDirectory)
+            {
+                usage.AddReceived(item.Key.SenderId, file.Size, 1);
+            }
         }
 
         await using (SqliteConnection connection = await database.OpenAsync())

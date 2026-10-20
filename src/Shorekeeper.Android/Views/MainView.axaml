@@ -915,6 +915,76 @@
               </ItemsControl.ItemTemplate>
             </ItemsControl>
 
+            <!-- Thống kê (docs/10-ux.md §15): counts kept on this phone, and the storage the received files go to. -->
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Classes="h3" Text="{l:T 'Thống kê'}" />
+              <Button Grid.Column="1" Content="{l:T 'Làm mới'}" Command="{Binding Stats.RefreshCommand}" Padding="12,4" FontSize="13" VerticalAlignment="Bottom" />
+            </Grid>
+            <Border Classes="card" Margin="0" DataContext="{Binding Stats}" x:DataType="dvm:StatsViewModel">
+              <StackPanel Spacing="12">
+                <StackPanel Spacing="4">
+                  <Grid ColumnDefinitions="78,*,*">
+                    <TextBlock Grid.Column="1" Classes="muted" Text="{l:T 'Đã gửi'}" FontSize="12" />
+                    <TextBlock Grid.Column="2" Classes="muted" Text="{l:T 'Đã nhận'}" FontSize="12" />
+                  </Grid>
+                  <ItemsControl ItemsSource="{Binding Periods}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="dvm:StatsPeriod">
+                        <Grid ColumnDefinitions="78,*,*" Margin="0,3">
+                          <TextBlock Text="{Binding Label}" FontWeight="SemiBold" FontSize="13" />
+                          <TextBlock Grid.Column="1" Text="{Binding Sent}" FontSize="13" TextWrapping="Wrap" Margin="0,0,6,0" />
+                          <TextBlock Grid.Column="2" Text="{Binding Received}" FontSize="13" TextWrapping="Wrap" />
+                        </Grid>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+
+                <StackPanel Spacing="2">
+                  <TextBlock Text="{l:T 'Âm thanh'}" FontWeight="SemiBold" FontSize="13" />
+                  <TextBlock Text="{Binding SoundWeek}" FontSize="13" TextWrapping="Wrap" />
+                  <TextBlock Classes="muted" Text="{Binding SoundTotal}" FontSize="12" TextWrapping="Wrap" />
+                </StackPanel>
+
+                <StackPanel Spacing="2" IsVisible="{Binding HasPeers}">
+                  <TextBlock Text="{l:T 'Theo máy'}" FontWeight="SemiBold" FontSize="13" />
+                  <ItemsControl ItemsSource="{Binding Peers}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="dvm:StatsPeer">
+                        <StackPanel Margin="0,3">
+                          <TextBlock Text="{Binding Name}" FontSize="13" />
+                          <TextBlock Classes="muted" Text="{Binding Text}" FontSize="12" TextWrapping="Wrap" />
+                        </StackPanel>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+
+                <StackPanel Spacing="6">
+                  <TextBlock Text="{l:T 'Bộ nhớ chứa file nhận'}" FontWeight="SemiBold" FontSize="13" />
+                  <TextBlock Classes="muted" Text="{l:T 'Đang đọc bộ nhớ…'}" IsVisible="{Binding IsMeasuring}" FontSize="12" />
+                  <StackPanel Spacing="4" IsVisible="{Binding HasDrive}">
+                    <ProgressBar Value="{Binding DriveUsed}" Maximum="100" MinWidth="0" />
+                    <TextBlock Text="{Binding DriveText}" FontSize="13" />
+                  </StackPanel>
+                  <TextBlock Text="{Binding FolderText}" FontSize="13" TextWrapping="Wrap" />
+                  <ItemsControl ItemsSource="{Binding Kinds}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="dvm:StatsKind">
+                        <Grid ColumnDefinitions="100,*" RowDefinitions="Auto,Auto" Margin="0,3">
+                          <TextBlock Text="{Binding Name}" FontSize="13" />
+                          <TextBlock Grid.Column="1" Classes="muted" Text="{Binding Text}" FontSize="12" HorizontalAlignment="Right" />
+                          <ProgressBar Grid.Row="1" Grid.ColumnSpan="2" Value="{Binding Share}" Maximum="100" MinWidth="0" Margin="0,3,0,0" />
+                        </Grid>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+
+                <TextBlock Classes="muted" Text="{Binding Since}" FontSize="12" TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+
             <TextBlock Classes="h3" Text="{l:T 'Mạng'}" />
             <TextBlock Text="{Binding NetworkText}" FontSize="13" TextWrapping="Wrap" />
           </StackPanel>

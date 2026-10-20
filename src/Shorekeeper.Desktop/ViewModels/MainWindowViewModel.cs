@@ -67,9 +67,11 @@ public sealed partial class MainWindowViewModel : ObservableObject
         SettingsViewModel settingsPage,
         GroupsViewModel groups,
         AudioViewModel audio,
+        StatsViewModel stats,
         DialogService dialogs)
     {
         Groups = groups;
+        Stats = stats;
         Audio = audio;
         Settings = settingsPage;
         settings.Changed += (_, current) => Dispatcher.UIThread.Post(() =>
@@ -138,6 +140,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public BlockedPeersViewModel Blocked { get; }
 
     public SettingsViewModel Settings { get; }
+
+    /// <summary>"Thống kê" in Settings.</summary>
+    public StatsViewModel Stats { get; }
 
     public GroupsViewModel Groups { get; }
 
@@ -216,6 +221,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         if (value.Page == NavPage.Settings)
         {
             Diagnostics.RefreshCommand.Execute(null);
+            Stats.RefreshCommand.Execute(null);
         }
         else if (value.Page == NavPage.Audio)
         {

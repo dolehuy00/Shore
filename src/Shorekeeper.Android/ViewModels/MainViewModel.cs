@@ -486,6 +486,10 @@ public sealed partial class MainViewModel : ObservableObject
         {
             CheckReceivedFiles();
         }
+        else if (value == 5)
+        {
+            Settings.Stats.RefreshCommand.Execute(null);
+        }
     }
 
     internal void Download(OfferItemViewModel offer) => inbox.Download(offer.Key);

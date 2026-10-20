@@ -174,3 +174,14 @@ Mục tiêu ≥ 90 MB/s trên 1 Gbps (NFR-01). Nếu một luồng TLS không đ
 - `InboxService.RemoveAsync(keys, deleteFiles)`: xóa offer khỏi Hộp nhận (bảng `InboxOffers`, `InboxFiles` theo cascade). Offer còn `new` thì gửi receipt `declined` trước; offer đang tải thì bỏ qua. `deleteFiles` xóa các file đã nhận (`FinalPath`) rồi các thư mục chúng để lại rỗng, từ sâu lên, dừng ở thư mục người gửi và thư mục tải về (không bao giờ xóa hai thư mục này). Trả về số offer đã xóa và số file không xóa được.
 - `OfferService.RemoveAsync(offerIds)`: xóa offer khỏi Đã gửi (`Offers`, cascade `OfferFiles`, `OfferRecipients`) và snapshot của nó; offer còn mở thì thu hồi trước. Không đụng file gốc.
 - Tự gửi ảnh: xóa đợt đang chờ thì đợt đó được coi như không ai nhận, gửi lại sau 5 phút.
+
+## 13. Thống kê
+
+`UsageStatsService` đếm và ghi vào `usage.json` trong thư mục dữ liệu, nhẹ: mỗi ngày một dòng (giữ 31 ngày, theo ngày giờ máy), một dòng tổng và mỗi máy một dòng. Đếm trong bộ nhớ, 15 giây ghi một lần khi có thay đổi (ghi file tạm rồi đổi tên), và lúc tắt app.
+
+- Đã gửi: byte thật sự đọc ra cho người nhận (kể cả tải lại một phần), một file khi được đọc tới cuối (dù bắt đầu từ giữa vì nối lại).
+- Đã nhận: một file và kích thước của nó khi tải xong và đã kiểm tra.
+- Âm thanh: cứ 15 giây, đang nghe thì cộng vào "nghe", đang Phát âm thanh mà có người nghe thì cộng vào "phát"; phần lẻ giây dồn sang lần sau.
+- File hỏng hay không đọc được thì đếm lại từ đầu, không chặn app khởi động.
+
+`StorageReport.Measure(folder)`: ổ chứa thư mục nhận (`DiskSpace.DriveOf`: tổng, còn trống) và tổng dung lượng thư mục nhận theo loại (đuôi file: ảnh, video, âm thanh, tài liệu, file nén/cài đặt, khác); không đi theo link, bỏ qua thư mục không đọc được. Chạy nền, chỉ khi mở Cài đặt hoặc bấm Làm mới. Trên Android chỉ thấy file chính app đã tạo.
