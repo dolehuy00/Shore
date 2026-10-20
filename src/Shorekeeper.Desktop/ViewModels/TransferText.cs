@@ -1,4 +1,5 @@
 using Shorekeeper.Core.Localization;
+using Shorekeeper.Engine.Transfers;
 
 namespace Shorekeeper.Desktop.ViewModels;
 
@@ -101,6 +102,19 @@ public static class TransferText
         relativePaths.Any(p => p.Contains('/', StringComparison.Ordinal)) ? TransferKind.Folder
         : relativePaths.Count > 0 && relativePaths.All(IsImage) ? TransferKind.Images
         : TransferKind.Files;
+
+    /// <summary>Like a browser's downloads: how many of the received files are still where they were saved. Reads the disk.</summary>
+    public static (int Present, int Received) OnDisk(IEnumerable<InboxFile> files)
+    {
+        string[] received = [.. files.Where(f => !f.IsDirectory && f.State == InboxFileState.Completed && f.FinalPath is not null).Select(f => f.FinalPath!)];
+        return (received.Count(File.Exists), received.Length);
+    }
+
+    /// <summary>"Đã xóa file" when none of the received files are there any more, "Còn 3/5 file" when some are gone.</summary>
+    public static string? Gone((int Present, int Received) files) =>
+        files.Present == files.Received ? null
+        : files.Present == 0 ? L.T("Đã xóa file")
+        : L.F("Còn {0}/{1} file", files.Present, files.Received);
 
     /// <summary>A picture the app can show as a thumbnail.</summary>
     public static bool IsImage(string path) => ImageExtensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase);

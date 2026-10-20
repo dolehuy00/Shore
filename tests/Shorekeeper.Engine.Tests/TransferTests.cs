@@ -352,6 +352,57 @@ public sealed class TransferTests : IAsyncLifetime
         Assert.Equal(1024L * 1024 * 1024, total);
     }
 
+    [Fact]
+    public async Task Removing_from_the_inbox_keeps_the_files_unless_asked_and_does_not_come_back()
+    {
+        string kept = (await DownloadAsync(b, await WaitForOfferAsync(b, await SendAsync(a, [WriteFile(a, "keep.txt", "1"u8.ToArray())], b.Id)))).Files.Single().FinalPath!;
+        string folder = Path.Combine(a.WorkDirectory, "album");
+        Directory.CreateDirectory(Path.Combine(folder, "2026"));
+        await File.WriteAllTextAsync(Path.Combine(folder, "2026", "a.jpg"), "a", Ct);
+        ReceivedOffer album = await DownloadAsync(b, await WaitForOfferAsync(b, await SendAsync(a, [folder], b.Id)));
+        string received = Path.Combine(b.DownloadDirectory, "album");
+        Assert.True(File.Exists(Path.Combine(received, "2026", "a.jpg")));
+
+        var keys = b.Inbox.GetOffers().Select(o => new OfferKey(o.SenderId, o.OfferId)).ToList();
+        (int removed, int filesKept) = await b.Inbox.RemoveAsync([keys.Single(k => k.OfferId != album.OfferId)], deleteFiles: false);
+        Assert.Equal((1, 0), (removed, filesKept));
+        Assert.True(File.Exists(kept));
+
+        Assert.Equal((1, 0), await b.Inbox.RemoveAsync([new OfferKey(album.SenderId, album.OfferId)], deleteFiles: true));
+        // The emptied folders go with the files; the download folder stays.
+        Assert.False(Directory.Exists(received));
+        Assert.True(Directory.Exists(b.DownloadDirectory));
+        Assert.Empty(b.Inbox.GetOffers());
+
+        await b.Inbox.LoadAsync(Ct);
+        Assert.Empty(b.Inbox.GetOffers());
+    }
+
+    [Fact]
+    public async Task Removing_an_unanswered_offer_declines_it()
+    {
+        string offerId = await SendAsync(a, [WriteFile(a, "unwanted.txt", "x"u8.ToArray())], b.Id);
+        ReceivedOffer offer = await WaitForOfferAsync(b, offerId);
+
+        await b.Inbox.RemoveAsync([new OfferKey(offer.SenderId, offer.OfferId)], deleteFiles: false);
+
+        await WaitUntil(() => a.Offers.GetOffers().Single().Recipients.Single().State == RecipientState.Declined);
+    }
+
+    [Fact]
+    public async Task Removing_a_sent_offer_withdraws_it_and_leaves_the_files_sent()
+    {
+        string source = WriteFile(a, "mine.txt", "mine"u8.ToArray());
+        string offerId = await SendAsync(a, [source], b.Id);
+        await WaitForOfferAsync(b, offerId);
+
+        Assert.Equal(1, await a.Offers.RemoveAsync([offerId]));
+
+        Assert.Empty(a.Offers.GetOffers());
+        Assert.True(File.Exists(source));
+        await WaitUntil(() => b.Inbox.GetOffers().Single().State == InboxState.Withdrawn);
+    }
+
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     private static string WriteFile(TestNode node, string name, byte[] content)

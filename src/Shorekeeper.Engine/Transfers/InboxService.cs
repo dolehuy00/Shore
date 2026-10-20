@@ -168,6 +168,106 @@ public sealed class InboxService(
         await SendReceiptAsync(key, ReceiptStatus.Declined);
     }
 
+    /// <summary>
+    /// "Xóa" (docs/06-file-transfer.md §12): takes offers out of the inbox. With <paramref name="deleteFiles"/> the files
+    /// received for them go too, with the folders that are left empty (never the download folder itself). An offer not
+    /// answered yet is declined first, so the sender knows; one still downloading is left alone (cancel it first).
+    /// </summary>
+    /// <returns>The offers removed, and the received files that could not be deleted.</returns>
+    public async Task<(int Removed, int FilesKept)> RemoveAsync(IReadOnlyCollection<OfferKey> keys, bool deleteFiles)
+    {
+        List<Item> removed = [];
+        lock (gate)
+        {
+            foreach (OfferKey key in keys)
+            {
+                if (items.TryGetValue(key, out Item? item) && item.State != InboxState.Downloading)
+                {
+                    items.Remove(key);
+                    removed.Add(item);
+                }
+            }
+        }
+
+        int kept = 0;
+        foreach (Item item in removed)
+        {
+            await using (SqliteConnection connection = await database.OpenAsync())
+            {
+                await connection.ExecuteAsync(
+                    "DELETE FROM InboxOffers WHERE SenderId = @sender AND OfferId = @offerId;",
+                    new { sender = item.Key.SenderId.Value, offerId = item.Key.OfferId });
+            }
+
+            if (item.State == InboxState.New && item.ExpiresAt > timeProvider.GetUtcNow())
+            {
+                _ = SendReceiptAsync(item.Key, ReceiptStatus.Declined);
+            }
+
+            if (deleteFiles)
+            {
+                kept += DeleteReceivedFiles(item);
+            }
+
+            logger.LogInformation("Inbox offer {Offer} from {Sender} removed{Files}", item.Key.OfferId, item.Key.SenderId, deleteFiles ? " with its files" : "");
+            Changed?.Invoke(this, item.Key);
+        }
+
+        return (removed.Count, kept);
+    }
+
+    /// <returns>How many files are still there.</returns>
+    private int DeleteReceivedFiles(Item item)
+    {
+        string downloads = Path.GetFullPath(settings.Current.DownloadDirectory);
+        string senderRoot = Path.GetFullPath(DestinationRoot(item.Key.SenderId));
+        int kept = 0;
+        HashSet<string> folders = [];
+        foreach (FileItem file in item.Files.Where(f => !f.IsDirectory && f.FinalPath is not null))
+        {
+            try
+            {
+                File.Delete(file.FinalPath!);
+                folders.Add(Path.GetDirectoryName(Path.GetFullPath(file.FinalPath!))!);
+            }
+            catch (DirectoryNotFoundException)
+            {
+                // Its folder is gone already, and the file with it.
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                logger.LogWarning(ex, "Could not delete {Path}", file.FinalPath);
+                kept++;
+            }
+        }
+
+        // Deepest first, so a folder emptied by its subfolders goes too.
+        foreach (string folder in folders.OrderByDescending(f => f.Length))
+        {
+            for (string? dir = folder;
+                dir is not null && dir.StartsWith(downloads + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(dir, senderRoot, StringComparison.OrdinalIgnoreCase);
+                dir = Path.GetDirectoryName(dir))
+            {
+                try
+                {
+                    if (!Directory.Exists(dir) || Directory.EnumerateFileSystemEntries(dir).Any())
+                    {
+                        break;
+                    }
+
+                    Directory.Delete(dir);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    break;
+                }
+            }
+        }
+
+        return kept;
+    }
+
     /// <summary>Marks offers past their expiry so the inbox stops offering to download them.</summary>
     public async Task ExpireAsync()
     {

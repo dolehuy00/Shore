@@ -570,5 +570,21 @@
   "Chưa có máy nào đang Phát âm thanh.": "No one is playing sound yet.",
   "{0} cần mật khẩu: nghe một lần trong tab Âm thanh, sau đó widget tự dùng mật khẩu đó.": "{0} needs a password: listen once from the Sound tab, then the widget uses that password.",
   "Gửi chữ": "Send text",
-  "Nghe PC": "Listen to PC"
+  "Nghe PC": "Listen to PC",
+  "Đã chọn {0}": "{0} selected",
+  "Xóa {0} mục khỏi Hộp nhận và xóa luôn file đã nhận của chúng? File bị xóa hẳn khỏi máy, không vào Thùng rác.": "Remove {0} items from the Inbox and delete the files received for them? The files are deleted for good, not moved to the Recycle Bin.",
+  "Xóa {0} mục khỏi Hộp nhận và xóa luôn file đã nhận của chúng? File bị xóa hẳn khỏi máy.": "Remove {0} items from the Inbox and delete the files received for them? The files are deleted for good.",
+  "Xóa {0} mục khỏi Hộp nhận? File đã nhận vẫn giữ nguyên.": "Remove {0} items from the Inbox? The files received stay where they are.",
+  "{0} mục đang tải nên chưa xóa: hủy tải trước.": "{0} items are downloading and were not removed: cancel them first.",
+  "Không xóa được {0} file (có thể đang mở trong app khác).": "Couldn't delete {0} files (they may be open in another app).",
+  "Xóa {0} mục khỏi Đã gửi? Mục còn đang mở sẽ bị thu hồi: người nhận chưa tải sẽ không tải được nữa. File gốc của bạn vẫn giữ nguyên.": "Remove {0} items from Sent? Open ones are withdrawn: recipients who haven't downloaded them can't any more. Your own files stay where they are.",
+  "Xóa {0} mục khỏi Đã gửi? File gốc của bạn vẫn giữ nguyên.": "Remove {0} items from Sent? Your own files stay where they are.",
+  "Đã xóa file": "Files deleted",
+  "Còn {0}/{1} file": "{0}/{1} files left",
+  "Chọn": "Select",
+  "Xóa khỏi lịch sử": "Remove from history",
+  "Xóa kèm file đã nhận…": "Remove and delete received files…",
+  "Xong": "Done",
+  "Xóa khỏi lịch sử (giữ file)": "Remove from history (keep files)",
+  "Chọn nhiều": "Select several"
 }

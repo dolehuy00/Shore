@@ -217,6 +217,11 @@ public sealed partial class MainWindowViewModel : ObservableObject
         {
             Audio.RefreshOutputDevices();
         }
+        else if (value.Page == NavPage.Inbox)
+        {
+            // Received files may have been deleted or moved since ("Đã xóa file").
+            Inbox.CheckFiles();
+        }
     }
 
     /// <summary>Used share of the drive holding the download folder, 0 to 1 ("this device" card).</summary>

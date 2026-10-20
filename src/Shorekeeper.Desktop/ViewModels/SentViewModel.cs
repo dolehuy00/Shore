@@ -3,13 +3,14 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Shorekeeper.Core.Localization;
+using Shorekeeper.Desktop.Views;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Transfers;
 
 namespace Shorekeeper.Desktop.ViewModels;
 
 /// <summary>"Đã gửi" (docs/10-ux.md §3): our offers and where each recipient is at.</summary>
-public sealed class SentViewModel
+public sealed partial class SentViewModel : ObservableObject
 {
     private readonly OfferService offers;
 
@@ -34,9 +35,94 @@ public sealed class SentViewModel
 
     internal OfferService Offers => offers;
 
+    // ───────────── "Xóa khỏi lịch sử" (docs/10-ux.md §4) ─────────────
+
+    /// <summary>"Chọn nhiều" (⋮ on an offer): a check box on each offer, and the actions for the checked ones.</summary>
+    [ObservableProperty]
+    public partial bool IsSelecting { get; set; }
+
+    public int SelectedCount => Items.Count(i => i.IsSelected);
+
+    public bool HasSelection => SelectedCount > 0;
+
+    public string SelectedText => L.F("Đã chọn {0}", SelectedCount);
+
+    /// <summary>"Chọn tất cả": checked when all are, empty when none, in between otherwise.</summary>
+    public bool? AllSelected
+    {
+        get => SelectedCount == 0 ? false : SelectedCount == Items.Count ? true : null;
+        set
+        {
+            bool select = SelectedCount < Items.Count;
+            foreach (SentItemViewModel item in Items)
+            {
+                item.IsSelected = select;
+            }
+        }
+    }
+
+    /// <summary>Called by an item whose check box changed.</summary>
+    internal void SelectionChanged()
+    {
+        OnPropertyChanged(nameof(SelectedCount));
+        OnPropertyChanged(nameof(HasSelection));
+        OnPropertyChanged(nameof(SelectedText));
+        OnPropertyChanged(nameof(AllSelected));
+    }
+
+    [RelayCommand]
+    private void StopSelecting()
+    {
+        IsSelecting = false;
+        foreach (SentItemViewModel item in Items)
+        {
+            item.IsSelected = false;
+        }
+    }
+
+    [RelayCommand]
+    private Task RemoveSelectedAsync() => RemoveAsync([.. Items.Where(i => i.IsSelected)]);
+
+    /// <summary>
+    /// Takes offers out of "Đã gửi"; the files sent stay where they are. Asked first for several offers, or for one still
+    /// open (it is withdrawn).
+    /// </summary>
+    internal async Task RemoveAsync(IReadOnlyList<SentItemViewModel> chosen)
+    {
+        if (chosen.Count == 0)
+        {
+            return;
+        }
+
+        if (chosen.Count > 1 || chosen.Any(i => i.CanWithdraw))
+        {
+            string message = chosen.Any(i => i.CanWithdraw)
+                ? L.F("Xóa {0} mục khỏi Đã gửi? Mục còn đang mở sẽ bị thu hồi: người nhận chưa tải sẽ không tải được nữa. File gốc của bạn vẫn giữ nguyên.", chosen.Count)
+                : L.F("Xóa {0} mục khỏi Đã gửi? File gốc của bạn vẫn giữ nguyên.", chosen.Count);
+            if (await DialogService.ChooseAsync(L.T("Xóa"), message, [L.T("Xóa"), L.T("Hủy")]) != 0)
+            {
+                return;
+            }
+        }
+
+        await offers.RemoveAsync([.. chosen.Select(i => i.OfferId)]);
+        Refresh();
+        if (IsSelecting && !HasSelection)
+        {
+            IsSelecting = false;
+        }
+    }
+
     private void Refresh()
     {
         IReadOnlyList<SentOffer> current = offers.GetOffers();
+        HashSet<string> present = [.. current.Select(o => o.OfferId)];
+        foreach (SentItemViewModel gone in Items.Where(i => !present.Contains(i.OfferId)).ToList())
+        {
+            Items.Remove(gone);
+            SelectionChanged();
+        }
+
         for (int i = 0; i < current.Count; i++)
         {
             SentItemViewModel? item = Items.FirstOrDefault(x => x.OfferId == current[i].OfferId);
@@ -57,6 +143,14 @@ public sealed record SentRecipientItem(string Name, string State, bool IsDone, b
 public sealed partial class SentItemViewModel(string offerId, SentViewModel owner) : ObservableObject
 {
     public string OfferId { get; } = offerId;
+
+    /// <summary>For the check box shown while "Đã gửi" is in "Chọn".</summary>
+    public SentViewModel Owner => owner;
+
+    [ObservableProperty]
+    public partial bool IsSelected { get; set; }
+
+    partial void OnIsSelectedChanged(bool value) => owner.SelectionChanged();
 
     [ObservableProperty]
     public partial string Summary { get; set; } = "";
@@ -122,6 +216,17 @@ public sealed partial class SentItemViewModel(string offerId, SentViewModel owne
 
     [RelayCommand]
     private Task WithdrawAsync() => owner.Offers.WithdrawAsync(OfferId);
+
+    /// <summary>"Chọn nhiều": "Đã gửi" shows its check boxes, this offer checked.</summary>
+    [RelayCommand]
+    private void SelectMany()
+    {
+        owner.IsSelecting = true;
+        IsSelected = true;
+    }
+
+    [RelayCommand]
+    private Task RemoveAsync() => owner.RemoveAsync([this]);
 
     private string Describe(SentRecipient recipient, long total) => recipient.State switch
     {

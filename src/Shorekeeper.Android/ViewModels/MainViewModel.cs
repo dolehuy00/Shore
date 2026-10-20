@@ -68,6 +68,8 @@ public sealed partial class MainViewModel : ObservableObject
         Audio.Notice += (_, message) => Notice = message;
         Audio.AskPassword = AskPasswordAsync;
         Settings = new SettingsTabViewModel(services, this);
+        OfferSelection = new ListSelection(() => Offers);
+        SentSelection = new ListSelection(() => Sent);
         settings.Changed += (_, _) => Dispatcher.UIThread.Post(() => OnPropertyChanged(nameof(Title)));
 
         directory.Changed += (_, _) => Dispatcher.UIThread.Post(RefreshPeers);
@@ -112,6 +114,12 @@ public sealed partial class MainViewModel : ObservableObject
     public ObservableCollection<SentItemViewModel> Sent { get; } = [];
 
     public bool HasNoSent => Sent.Count == 0;
+
+    /// <summary>"Chọn" on Hộp nhận.</summary>
+    public ListSelection OfferSelection { get; }
+
+    /// <summary>"Chọn" on Đã gửi.</summary>
+    public ListSelection SentSelection { get; }
 
     /// <summary>0 Xóm, 1 Hộp nhận, 2 Đã gửi, 3 Nhóm, 4 Âm thanh, 5 Cài đặt.</summary>
     [ObservableProperty]
@@ -372,6 +380,104 @@ public sealed partial class MainViewModel : ObservableObject
 
     internal Task WithdrawAsync(SentItemViewModel offer) => offers.WithdrawAsync(offer.OfferId);
 
+    // ───────────── "Xóa" (docs/10-ux.md §4) ─────────────
+
+    [RelayCommand]
+    private void RemoveSelectedOffers() => RemoveOffers(OfferSelection.Selected<OfferItemViewModel>(), deleteFiles: false);
+
+    [RelayCommand]
+    private void RemoveSelectedOffersWithFiles() => RemoveOffers(OfferSelection.Selected<OfferItemViewModel>(), deleteFiles: true);
+
+    [RelayCommand]
+    private void RemoveSelectedSent() => RemoveSent(SentSelection.Selected<SentItemViewModel>());
+
+    /// <summary>
+    /// Takes offers out of Hộp nhận, with their received files when asked. Deleting files, or several offers at once, is
+    /// asked first; deleted files are gone for good.
+    /// </summary>
+    internal void RemoveOffers(IReadOnlyList<OfferItemViewModel> chosen, bool deleteFiles)
+    {
+        if (chosen.Count == 0)
+        {
+            return;
+        }
+
+        async Task RemoveAsync()
+        {
+            int downloading = chosen.Count(o => o.IsDownloading);
+            (_, int kept) = await inbox.RemoveAsync([.. chosen.Select(o => o.Key)], deleteFiles);
+            OfferSelection.Stop();
+            RefreshOffers();
+            if (downloading > 0)
+            {
+                Notice = L.F("{0} mục đang tải nên chưa xóa: hủy tải trước.", downloading);
+            }
+            else if (kept > 0)
+            {
+                Notice = L.F("Không xóa được {0} file (có thể đang mở trong app khác).", kept);
+            }
+        }
+
+        if (!deleteFiles && chosen.Count == 1)
+        {
+            _ = RemoveAsync();
+            return;
+        }
+
+        Question = new QuestionViewModel(
+            L.T("Xóa"),
+            deleteFiles
+                ? L.F("Xóa {0} mục khỏi Hộp nhận và xóa luôn file đã nhận của chúng? File bị xóa hẳn khỏi máy.", chosen.Count)
+                : L.F("Xóa {0} mục khỏi Hộp nhận? File đã nhận vẫn giữ nguyên.", chosen.Count),
+            L.T("Xóa"), null, _ => RemoveAsync(), this);
+    }
+
+    /// <summary>Takes offers out of Đã gửi; the files sent stay. Asked first for several offers, or one still open.</summary>
+    internal void RemoveSent(IReadOnlyList<SentItemViewModel> chosen)
+    {
+        if (chosen.Count == 0)
+        {
+            return;
+        }
+
+        async Task RemoveAsync()
+        {
+            await offers.RemoveAsync([.. chosen.Select(o => o.OfferId)]);
+            SentSelection.Stop();
+            RefreshSent();
+        }
+
+        if (chosen.Count == 1 && !chosen[0].CanWithdraw)
+        {
+            _ = RemoveAsync();
+            return;
+        }
+
+        Question = new QuestionViewModel(
+            L.T("Xóa"),
+            chosen.Any(o => o.CanWithdraw)
+                ? L.F("Xóa {0} mục khỏi Đã gửi? Mục còn đang mở sẽ bị thu hồi: người nhận chưa tải sẽ không tải được nữa. File gốc của bạn vẫn giữ nguyên.", chosen.Count)
+                : L.F("Xóa {0} mục khỏi Đã gửi? File gốc của bạn vẫn giữ nguyên.", chosen.Count),
+            L.T("Xóa"), null, _ => RemoveAsync(), this);
+    }
+
+    /// <summary>Reads the disk again for received files deleted or moved since ("Đã xóa file").</summary>
+    internal void CheckReceivedFiles()
+    {
+        foreach (OfferItemViewModel offer in Offers)
+        {
+            offer.CheckFiles();
+        }
+    }
+
+    partial void OnSelectedTabChanged(int value)
+    {
+        if (value == 1)
+        {
+            CheckReceivedFiles();
+        }
+    }
+
     internal void Download(OfferItemViewModel offer) => inbox.Download(offer.Key);
 
     internal Task DeclineAsync(OfferItemViewModel offer) => inbox.DeclineAsync(offer.Key);
@@ -421,6 +527,7 @@ public sealed partial class MainViewModel : ObservableObject
         progressTimer.IsEnabled = current.Any(o => o.State == InboxState.Downloading)
             || offers.GetOffers().Any(o => o.Recipients.Any(r => r.State == RecipientState.Downloading));
         OnPropertyChanged(nameof(HasNoOffers));
+        OfferSelection.Changed();
     }
 
     private void RefreshSent()
@@ -431,6 +538,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         progressTimer.IsEnabled |= current.Any(o => o.Recipients.Any(r => r.State == RecipientState.Downloading));
         OnPropertyChanged(nameof(HasNoSent));
+        SentSelection.Changed();
     }
 
     /// <summary>
@@ -659,9 +767,27 @@ public sealed partial class QuestionViewModel(string title, string? message, str
 }
 
 /// <summary>An offer in "Hộp nhận"; kept and updated as it changes, so the list is not rebuilt while scrolling.</summary>
-public sealed partial class OfferItemViewModel(ReceivedOffer offer, MainViewModel owner) : ObservableObject
+public sealed partial class OfferItemViewModel(ReceivedOffer offer, MainViewModel owner) : ObservableObject, ISelectableItem
 {
+    private ReceivedOffer current = offer;
+
+    /// <summary>Received files still on the disk, read by <see cref="CheckFiles"/>; null until read.</summary>
+    private (int Present, int Received)? onDisk;
+    private InboxState? checkedState;
+
     public OfferKey Key { get; } = new(offer.SenderId, offer.OfferId);
+
+    /// <summary>For the check box shown while Hộp nhận is in "Chọn".</summary>
+    public ListSelection Selection => owner.OfferSelection;
+
+    [ObservableProperty]
+    public partial bool IsSelected { get; set; }
+
+    partial void OnIsSelectedChanged(bool value) => owner.OfferSelection.Changed();
+
+    /// <summary>"Xóa kèm file đã nhận": some received file is still there.</summary>
+    [ObservableProperty]
+    public partial bool HasFiles { get; set; }
 
     public string? Note { get; } = offer.Files.Count == 0 ? null : offer.Note;
 
@@ -718,6 +844,15 @@ public sealed partial class OfferItemViewModel(ReceivedOffer offer, MainViewMode
 
     public void Update(ReceivedOffer value, string senderName)
     {
+        current = value;
+        // Files that just arrived are there; others are read from the disk when the tab is shown.
+        if (checkedState != value.State)
+        {
+            checkedState = value.State;
+            onDisk = null;
+        }
+
+        bool allGone = onDisk is { Received: > 0, Present: 0 };
         Title = L.F("{0} gửi cho bạn", senderName);
         Summary = $"{TransferText.Summary(value.Files.Select(f => f.RelativePath))} · {TransferText.Size(value.TotalBytes)}";
         Contents.Update([.. value.Files.Select(f => f.RelativePath)]);
@@ -738,6 +873,13 @@ public sealed partial class OfferItemViewModel(ReceivedOffer offer, MainViewMode
             InboxState.Withdrawn => L.T("Người gửi đã thu hồi"),
             _ => L.T("Đã hết hạn"),
         };
+        if (onDisk is { } files && TransferText.Gone(files) is { } gone && value.State is InboxState.Completed or InboxState.Partial)
+        {
+            Status = allGone ? gone : $"{Status} · {gone}";
+        }
+
+        IsCompleted &= !allGone;
+        HasFiles = value.Files.Any(f => !f.IsDirectory && f.State == InboxFileState.Completed) && !allGone;
         CanDownload = value.State is InboxState.New or InboxState.Failed or InboxState.Partial or InboxState.Cancelled;
         CanDecline = value.State == InboxState.New;
         IsText = value.Files.Count == 0;
@@ -756,6 +898,22 @@ public sealed partial class OfferItemViewModel(ReceivedOffer offer, MainViewMode
 
     [RelayCommand]
     private Task DeclineAsync() => owner.DeclineAsync(this);
+
+    /// <summary>Reads the disk for received files deleted or moved since.</summary>
+    public void CheckFiles()
+    {
+        onDisk = TransferText.OnDisk(current.Files);
+        Update(current, owner.NameOf(current.SenderId));
+    }
+
+    [RelayCommand]
+    private void SelectMany() => Selection.StartWith(this);
+
+    [RelayCommand]
+    private void Remove() => owner.RemoveOffers([this], deleteFiles: false);
+
+    [RelayCommand]
+    private void RemoveWithFiles() => owner.RemoveOffers([this], deleteFiles: true);
 }
 
 public sealed partial class IncomingPairingViewModel(IncomingPairing request, MainViewModel owner)
@@ -809,9 +967,17 @@ public sealed partial class OutgoingPairingViewModel(string name, MainViewModel 
 }
 
 /// <summary>An offer in "Đã gửi"; kept and updated as it changes, so the list is not rebuilt while scrolling.</summary>
-public sealed partial class SentItemViewModel(SentOffer offer, MainViewModel owner) : ObservableObject
+public sealed partial class SentItemViewModel(SentOffer offer, MainViewModel owner) : ObservableObject, ISelectableItem
 {
     public string OfferId { get; } = offer.OfferId;
+
+    /// <summary>For the check box shown while Đã gửi is in "Chọn".</summary>
+    public ListSelection Selection => owner.SentSelection;
+
+    [ObservableProperty]
+    public partial bool IsSelected { get; set; }
+
+    partial void OnIsSelectedChanged(bool value) => owner.SentSelection.Changed();
 
     public OfferContents Contents { get; } = new([]);
 
@@ -853,6 +1019,12 @@ public sealed partial class SentItemViewModel(SentOffer offer, MainViewModel own
 
     [RelayCommand]
     private Task WithdrawAsync() => owner.WithdrawAsync(this);
+
+    [RelayCommand]
+    private void SelectMany() => Selection.StartWith(this);
+
+    [RelayCommand]
+    private void Remove() => owner.RemoveSent([this]);
 
     private static string State(RecipientState state) => state switch
     {

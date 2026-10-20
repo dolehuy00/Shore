@@ -71,6 +71,7 @@ public sealed class MainActivity : AvaloniaMainActivity
         base.OnResume();
         LayoutLog.Event("resume", this);
         LayoutLog.View?.RemeasureIfCollapsed();
+        App.Resumed();
     }
 
     public override void OnWindowFocusChanged(bool hasFocus)

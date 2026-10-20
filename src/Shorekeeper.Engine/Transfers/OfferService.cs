@@ -339,6 +339,41 @@ public sealed class OfferService(
         }
     }
 
+    /// <summary>
+    /// "Xóa khỏi lịch sử" (docs/06-file-transfer.md §12): takes offers out of "Đã gửi". The files sent are the user's
+    /// own and are never touched; an offer still open is withdrawn first, so recipients stop downloading it.
+    /// </summary>
+    /// <returns>How many offers were removed.</returns>
+    public async Task<int> RemoveAsync(IReadOnlyCollection<string> offerIds)
+    {
+        foreach (string offerId in offerIds)
+        {
+            await WithdrawAsync(offerId);
+        }
+
+        List<string> removed = [];
+        lock (gate)
+        {
+            foreach (string offerId in offerIds)
+            {
+                if (offers.Remove(offerId))
+                {
+                    removed.Add(offerId);
+                }
+            }
+        }
+
+        foreach (string offerId in removed)
+        {
+            await ExecuteAsync("DELETE FROM Offers WHERE OfferId = @offerId;", new { offerId });
+            TryDeleteDirectory(Path.Combine(paths.SnapshotsDirectory, offerId));
+            logger.LogInformation("Offer {Offer} removed from history", offerId);
+            Changed?.Invoke(this, offerId);
+        }
+
+        return removed.Count;
+    }
+
     // ───────────── Background work ─────────────
 
     /// <summary>Delivers offers to recipients that were offline. <paramref name="onlyTo"/> limits it to one peer.</summary>

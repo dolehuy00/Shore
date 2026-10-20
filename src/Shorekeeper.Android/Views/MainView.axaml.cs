@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Platform.Storage;
@@ -9,6 +10,7 @@ using Avalonia.VisualTree;
 using Shorekeeper.Android.Platform;
 using Shorekeeper.Android.ViewModels;
 using Shorekeeper.Core.Localization;
+using Button = Avalonia.Controls.Button;
 
 namespace Shorekeeper.Android.Views;
 
@@ -61,6 +63,29 @@ public partial class MainView : UserControl
             (visual as Layoutable)?.InvalidateMeasure();
         }
     });
+
+    /// <summary>Long press on a card of Hộp nhận or Đã gửi: choosing starts, with that card checked.</summary>
+    private void OnCardHolding(object? sender, HoldingRoutedEventArgs e)
+    {
+        if (e.HoldingState == HoldingState.Started && (sender as Control)?.DataContext is ISelectableItem item)
+        {
+            item.Selection.StartWith(item);
+            e.Handled = true;
+        }
+    }
+
+    /// <summary>
+    /// While choosing, a tap anywhere on a card checks or unchecks it; its buttons, the check box among them, still do
+    /// their own job.
+    /// </summary>
+    private void OnCardTapped(object? sender, TappedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is ISelectableItem { Selection.IsOn: true } item
+            && (e.Source as Visual)?.FindAncestorOfType<Button>(includeSelf: true) is null)
+        {
+            item.IsSelected = !item.IsSelected;
+        }
+    }
 
     /// <summary>"Gửi file…" on a contact.</summary>
     private async void OnSendFiles(object? sender, RoutedEventArgs e)

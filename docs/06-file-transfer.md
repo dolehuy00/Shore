@@ -168,3 +168,9 @@ Mục tiêu ≥ 90 MB/s trên 1 Gbps (NFR-01). Nếu một luồng TLS không đ
 - Gửi khi máy tính online: lúc thư viện đổi (gom 10 giây), lúc máy tính vừa online, và 5 phút một lần. Mỗi đợt tối đa 200 mục hoặc 1 GB, là một lời mời bình thường gồm thư mục `Ảnh từ <tên điện thoại>/` và các file `Ảnh từ <tên điện thoại>/<yyyy-MM>/<tên>`; thời gian sửa lấy từ thư viện, làm tròn ms như mọi file gửi.
 - Mỗi lúc chỉ một đợt chờ (`photoBackupOffer`, `photoBackupOfferUpTo`). Máy tính nhận xong, nhận một phần hoặc từ chối thì mốc tiến tới cuối đợt (đợt bị từ chối không gửi lại). Đợt hỏng hoặc hết hạn thì gửi lại sau 5 phút.
 - Máy tính bật Tự nhận file cho điện thoại thì ảnh tự vào thư mục tải về; không thì chờ ở Hộp nhận như mọi lời mời.
+
+## 12. Xóa khỏi lịch sử
+
+- `InboxService.RemoveAsync(keys, deleteFiles)`: xóa offer khỏi Hộp nhận (bảng `InboxOffers`, `InboxFiles` theo cascade). Offer còn `new` thì gửi receipt `declined` trước; offer đang tải thì bỏ qua. `deleteFiles` xóa các file đã nhận (`FinalPath`) rồi các thư mục chúng để lại rỗng, từ sâu lên, dừng ở thư mục người gửi và thư mục tải về (không bao giờ xóa hai thư mục này). Trả về số offer đã xóa và số file không xóa được.
+- `OfferService.RemoveAsync(offerIds)`: xóa offer khỏi Đã gửi (`Offers`, cascade `OfferFiles`, `OfferRecipients`) và snapshot của nó; offer còn mở thì thu hồi trước. Không đụng file gốc.
+- Tự gửi ảnh: xóa đợt đang chờ thì đợt đó được coi như không ai nhận, gửi lại sau 5 phút.

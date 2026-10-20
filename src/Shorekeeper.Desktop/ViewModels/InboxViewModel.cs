@@ -56,11 +56,126 @@ public sealed partial class InboxViewModel : ObservableObject
 
     internal PeerNames Names => names;
 
+    // ───────────── "Xóa" (docs/10-ux.md §4) ─────────────
+
+    /// <summary>"Chọn nhiều" (⋮ on an offer): a check box on each offer, and the actions for the checked ones.</summary>
+    [ObservableProperty]
+    public partial bool IsSelecting { get; set; }
+
+    public int SelectedCount => Items.Count(i => i.IsSelected);
+
+    public bool HasSelection => SelectedCount > 0;
+
+    public string SelectedText => L.F("Đã chọn {0}", SelectedCount);
+
+    /// <summary>"Chọn tất cả": checked when all are, empty when none, in between otherwise.</summary>
+    public bool? AllSelected
+    {
+        get => SelectedCount == 0 ? false : SelectedCount == Items.Count ? true : null;
+        set
+        {
+            bool select = SelectedCount < Items.Count;
+            foreach (InboxItemViewModel item in Items)
+            {
+                item.IsSelected = select;
+            }
+        }
+    }
+
+    /// <summary>Called by an item whose check box changed.</summary>
+    internal void SelectionChanged()
+    {
+        OnPropertyChanged(nameof(SelectedCount));
+        OnPropertyChanged(nameof(HasSelection));
+        OnPropertyChanged(nameof(SelectedText));
+        OnPropertyChanged(nameof(AllSelected));
+    }
+
+    [RelayCommand]
+    private void StopSelecting()
+    {
+        IsSelecting = false;
+        foreach (InboxItemViewModel item in Items)
+        {
+            item.IsSelected = false;
+        }
+    }
+
+    [RelayCommand]
+    private Task RemoveSelectedAsync() => RemoveAsync([.. Items.Where(i => i.IsSelected)], deleteFiles: false);
+
+    [RelayCommand]
+    private Task RemoveSelectedWithFilesAsync() => RemoveAsync([.. Items.Where(i => i.IsSelected)], deleteFiles: true);
+
+    /// <summary>
+    /// Takes offers out of the inbox, with their received files when asked. Deleting files, or several offers at once,
+    /// is asked first; files go for good (not to the Recycle Bin).
+    /// </summary>
+    internal async Task RemoveAsync(IReadOnlyList<InboxItemViewModel> chosen, bool deleteFiles)
+    {
+        if (chosen.Count == 0)
+        {
+            return;
+        }
+
+        if (deleteFiles || chosen.Count > 1)
+        {
+            string message = deleteFiles
+                ? L.F("Xóa {0} mục khỏi Hộp nhận và xóa luôn file đã nhận của chúng? File bị xóa hẳn khỏi máy, không vào Thùng rác.", chosen.Count)
+                : L.F("Xóa {0} mục khỏi Hộp nhận? File đã nhận vẫn giữ nguyên.", chosen.Count);
+            if (await DialogService.ChooseAsync(L.T("Xóa"), message, [L.T("Xóa"), L.T("Hủy")]) != 0)
+            {
+                return;
+            }
+        }
+
+        int downloading = chosen.Count(i => i.IsDownloading);
+        (_, int kept) = await inbox.RemoveAsync([.. chosen.Select(i => i.Key)], deleteFiles);
+        RefreshAll();
+        if (IsSelecting && !HasSelection)
+        {
+            IsSelecting = false;
+        }
+
+        List<string> problems = [];
+        if (downloading > 0)
+        {
+            problems.Add(L.F("{0} mục đang tải nên chưa xóa: hủy tải trước.", downloading));
+        }
+
+        if (kept > 0)
+        {
+            problems.Add(L.F("Không xóa được {0} file (có thể đang mở trong app khác).", kept));
+        }
+
+        if (problems.Count > 0)
+        {
+            await DialogService.ChooseAsync(L.T("Xóa"), string.Join("\n", problems), [L.T("Đóng")]);
+        }
+    }
+
+    /// <summary>Reads the disk again for files deleted or moved since ("Đã xóa file"); when the page is shown.</summary>
+    public void CheckFiles()
+    {
+        foreach (InboxItemViewModel item in Items)
+        {
+            item.CheckFiles();
+        }
+    }
+
     private void RefreshAll()
     {
-        foreach (ReceivedOffer offer in inbox.GetOffers())
+        IReadOnlyList<ReceivedOffer> offers = inbox.GetOffers();
+        foreach (ReceivedOffer offer in offers)
         {
             Apply(offer);
+        }
+
+        HashSet<OfferKey> present = [.. offers.Select(o => new OfferKey(o.SenderId, o.OfferId))];
+        foreach (InboxItemViewModel gone in Items.Where(i => !present.Contains(i.Key)).ToList())
+        {
+            Items.Remove(gone);
+            SelectionChanged();
         }
 
         NewCount = Items.Count(i => i.IsNew);
@@ -76,6 +191,10 @@ public sealed partial class InboxViewModel : ObservableObject
             NewCount = Items.Count(i => i.IsNew);
             OnPropertyChanged(nameof(IsEmpty));
             UpdateRecent();
+        }
+        else if (Items.Any(i => i.Key == key))
+        {
+            RefreshAll();
         }
     }
 
@@ -122,6 +241,10 @@ public sealed partial class InboxItemViewModel(OfferKey key, InboxViewModel owne
 
     private ReceivedOffer? offer;
 
+    /// <summary>Received files still on the disk, read by <see cref="CheckFiles"/>; null until read.</summary>
+    private (int Present, int Received)? onDisk;
+    private InboxState? checkedState;
+
     /// <summary>Everything in the offer, for "Xem cả N mục".</summary>
     public OfferContents Contents { get; } = new([]);
     private string? thumbnailPath;
@@ -130,6 +253,18 @@ public sealed partial class InboxItemViewModel(OfferKey key, InboxViewModel owne
     private double speed;
 
     public OfferKey Key { get; } = key;
+
+    /// <summary>For the check box shown while the inbox is in "Chọn".</summary>
+    public InboxViewModel Owner => owner;
+
+    [ObservableProperty]
+    public partial bool IsSelected { get; set; }
+
+    partial void OnIsSelectedChanged(bool value) => Owner.SelectionChanged();
+
+    /// <summary>"Xóa kèm file đã nhận": some received file is still there.</summary>
+    [ObservableProperty]
+    public partial bool HasFiles { get; set; }
 
     public DateTimeOffset ReceivedAt => offer?.ReceivedAt ?? default;
 
@@ -265,7 +400,17 @@ public sealed partial class InboxItemViewModel(OfferKey key, InboxViewModel owne
             InboxState.Partial => L.T("Tải phần còn lại"),
             _ => L.T("Tải lại"),
         };
-        CanOpen = value.Files.Any(f => f.FinalPath is not null);
+        // Files that just arrived are there; others are read from the disk when the page is shown.
+        if (checkedState != value.State)
+        {
+            checkedState = value.State;
+            onDisk = null;
+        }
+
+        bool allGone = onDisk is { Received: > 0, Present: 0 };
+        CanOpen = value.Files.Any(f => f.FinalPath is not null) && !allGone;
+        HasFiles = value.Files.Any(f => !f.IsDirectory && f.State == InboxFileState.Completed) && !allGone;
+        IsCompleted &= !allGone;
         IsError = value.State == InboxState.Failed;
         Progress = value.TotalBytes == 0 ? 0 : 100.0 * value.BytesReceived / value.TotalBytes;
         UpdateSpeed(value.BytesReceived, now);
@@ -286,7 +431,35 @@ public sealed partial class InboxItemViewModel(OfferKey key, InboxViewModel owne
             _ when !senderOnline => L.F("Người gửi offline · {0}", TransferText.Remaining(value.ExpiresAt - now)),
             _ => L.F("Mới · {0}", TransferText.Remaining(value.ExpiresAt - now)),
         };
+        if (onDisk is { } files && TransferText.Gone(files) is { } gone && value.State is InboxState.Completed or InboxState.Partial)
+        {
+            StatusText = allGone ? gone : $"{StatusText} · {gone}";
+        }
     }
+
+    /// <summary>Reads the disk for received files deleted or moved since.</summary>
+    public void CheckFiles()
+    {
+        if (offer is not null)
+        {
+            onDisk = TransferText.OnDisk(offer.Files);
+            Update(offer);
+        }
+    }
+
+    /// <summary>"Chọn nhiều": the inbox shows its check boxes, this offer checked.</summary>
+    [RelayCommand]
+    private void SelectMany()
+    {
+        Owner.IsSelecting = true;
+        IsSelected = true;
+    }
+
+    [RelayCommand]
+    private Task RemoveAsync() => Owner.RemoveAsync([this], deleteFiles: false);
+
+    [RelayCommand]
+    private Task RemoveWithFilesAsync() => Owner.RemoveAsync([this], deleteFiles: true);
 
     [RelayCommand]
     private void Download() => owner.Inbox.Download(Key);

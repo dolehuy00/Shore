@@ -30,6 +30,14 @@ public partial class MainWindow : Window
         // Ctrl+K from anywhere; ↑/↓/Enter/Esc while searching.
         AddHandler(KeyDownEvent, OnSearchShortcut, RoutingStrategies.Tunnel);
         SearchBox.AddHandler(KeyDownEvent, OnSearchKeyDown, RoutingStrategies.Tunnel);
+        // Back from Explorer, where received files may have just been deleted ("Đã xóa file").
+        Activated += (_, _) =>
+        {
+            if (DataContext is MainWindowViewModel { IsInboxVisible: true } main)
+            {
+                main.Inbox.CheckFiles();
+            }
+        };
         DataContextChanged += (_, _) =>
         {
             if (DataContext is MainWindowViewModel main)

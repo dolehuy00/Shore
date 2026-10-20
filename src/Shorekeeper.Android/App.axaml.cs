@@ -45,6 +45,15 @@ public partial class App : Application
         }
     });
 
+    /// <summary>Back in the app: received files may have been deleted meanwhile ("Đã xóa file" on Hộp nhận).</summary>
+    internal static void Resumed() => Dispatcher.UIThread.Post(() =>
+    {
+        if (main is { IsInboxTab: true })
+        {
+            main.CheckReceivedFiles();
+        }
+    });
+
     /// <summary>A notification was tapped: 0 Xóm, 1 Hộp nhận, 2 Đã gửi.</summary>
     internal static void ShowTab(int tab) => Dispatcher.UIThread.Post(() =>
     {
