@@ -16,6 +16,7 @@ using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Identity;
 using Shorekeeper.Engine.Settings;
+using Shorekeeper.Engine.Transfers;
 using Shorekeeper.Engine.Trust;
 
 namespace Shorekeeper.Android.ViewModels;
@@ -56,6 +57,8 @@ public sealed partial class SettingsTabViewModel : ObservableObject
         device = services.GetRequiredService<LocalDevice>();
         paths = services.GetRequiredService<AppPaths>();
         Blocked = new BlockedPeersViewModel(services.GetRequiredService<TrustStore>());
+        PhotoBackup = new PhotoBackupViewModel(
+            services.GetRequiredService<PhotoBackupService>(), services.GetRequiredService<TrustStore>(), directory, main);
         this.main = main;
         DisplayName = settings.Current.DisplayName;
         AutoAcceptLimitGb = (decimal)settings.Current.AutoAcceptLimitGb;
@@ -87,6 +90,9 @@ public sealed partial class SettingsTabViewModel : ObservableObject
     }
 
     /// <summary>"Đã chặn": the only place to undo a block.</summary>
+    /// <summary>"Tự gửi ảnh về máy tính".</summary>
+    public PhotoBackupViewModel PhotoBackup { get; }
+
     public BlockedPeersViewModel Blocked { get; }
 
     // ───────────── Language ─────────────

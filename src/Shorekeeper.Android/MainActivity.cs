@@ -92,7 +92,7 @@ public sealed class MainActivity : AvaloniaMainActivity
 
     public override void OnRequestPermissionsResult(int requestCode, string[] permissions, Permission[] grantResults)
     {
-        if (!PlaybackCapture.OnPermissionResult(requestCode, grantResults))
+        if (!PlaybackCapture.OnPermissionResult(requestCode, grantResults) && !MediaPermission.OnPermissionResult(requestCode, grantResults))
         {
             base.OnRequestPermissionsResult(requestCode, permissions, grantResults);
         }

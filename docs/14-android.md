@@ -93,6 +93,12 @@ Màn hình: Xóm (danh sách, chạm để gửi), Hộp nhận, Đã gửi, Nh�
 - Chỉ thu usage media, game và unknown; app có thể cấm thu, cuộc gọi không bao giờ thu được. Bỏ qua chính Shorekeeper (`excludeUid`), để điện thoại vừa nghe vừa phát không gửi lại tiếng đang nghe.
 - `AudioRecord` PCM 16-bit 48 kHz stereo, chỉ mở khi có người nghe; luồng thu ở ưu tiên `UrgentAudio`, giữ cùng các khóa Wi-Fi và wake lock như khi nghe.
 
+### 3.7 Tự gửi ảnh
+
+- `MediaStoreLibrary` đọc `MediaStore.Files` (ảnh và video, bỏ mục `is_pending`); mốc là `_id`, tăng theo mục mới. Máy ảnh là `relative_path` DCIM/Camera, ảnh chụp màn hình là thư mục có "Screenshots". File gửi bằng content URI của mục.
+- Quyền `READ_MEDIA_IMAGES` + `READ_MEDIA_VIDEO` (API 33+) hoặc `READ_EXTERNAL_STORAGE` (API 29–32), xin lúc bật công tắc. Bị thu hồi thì không gửi gì đến khi cho lại.
+- `ContentObserver` báo thư viện đổi; engine chạy nền khi bật Luôn nhận file.
+
 ## 4. Giai đoạn
 
 ### A0 — Spike trên điện thoại thật

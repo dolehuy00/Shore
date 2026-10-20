@@ -63,6 +63,7 @@ public static class EngineHost
         builder.Services.AddSingleton<IExternalFileSource>(new ContentUriFiles(context.ContentResolver!));
         builder.Services.AddSingleton<IAudioOutput>(new AndroidAudioOutput(context.ApplicationContext ?? context));
         builder.Services.AddSingleton<IAudioCapture>(new AndroidAudioCapture(context.ApplicationContext ?? context));
+        builder.Services.AddSingleton<IMediaLibrary>(new MediaStoreLibrary(context.ApplicationContext ?? context));
         builder.Services.AddShorekeeperEngine(paths);
         builder.Services.AddTransfers();
         builder.Services.AddPeerApi();

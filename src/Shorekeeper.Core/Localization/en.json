@@ -543,5 +543,21 @@
   "Đang phát tiếng micro của điện thoại": "Playing the phone's microphone",
   "Nguồn: âm thanh đang phát": "Source: what plays on the phone",
   "Nguồn: micro (dùng điện thoại làm micro)": "Source: the microphone (phone as a microphone)",
-  "Âm thanh đang phát: mỗi lần bật, Android hỏi cho phép ghi hoặc truyền màn hình (Shorekeeper chỉ lấy âm thanh, không lấy hình); một số app (thường là app phim) không cho thu, cuộc gọi cũng không. Micro: chỉ cần quyền ghi âm; máy tính chọn Phát ra là CABLE Input thì app họp trên máy tính dùng được làm micro. Lần đầu Android hỏi quyền ghi âm.": "What plays: each time it is turned on, Android asks to allow recording or casting the screen (Shorekeeper takes only the sound, never the picture); some apps (usually video apps) don't allow it, nor do calls. Microphone: only the recording permission is needed; with the computer playing on CABLE Input, its meeting apps can use it as a microphone. The first time, Android asks for the recording permission."
+  "Âm thanh đang phát: mỗi lần bật, Android hỏi cho phép ghi hoặc truyền màn hình (Shorekeeper chỉ lấy âm thanh, không lấy hình); một số app (thường là app phim) không cho thu, cuộc gọi cũng không. Micro: chỉ cần quyền ghi âm; máy tính chọn Phát ra là CABLE Input thì app họp trên máy tính dùng được làm micro. Lần đầu Android hỏi quyền ghi âm.": "What plays: each time it is turned on, Android asks to allow recording or casting the screen (Shorekeeper takes only the sound, never the picture); some apps (usually video apps) don't allow it, nor do calls. Microphone: only the recording permission is needed; with the computer playing on CABLE Input, its meeting apps can use it as a microphone. The first time, Android asks for the recording permission.",
+  "Ảnh từ {0}": "Pictures from {0}",
+  "Tự gửi ảnh cần quyền xem ảnh và video. Nếu đã từ chối, bật lại trong Cài đặt → Ứng dụng → Shorekeeper → Quyền.": "Sending pictures needs the permission to see photos and videos. If it was refused, turn it on in Settings → Apps → Shorekeeper → Permissions.",
+  "Hãy Kết nối với máy tính trước, rồi chọn máy đó ở Gửi về.": "Connect with the computer first, then pick it in Send to.",
+  "Đang chờ {0} nhận đợt ảnh vừa gửi.": "Waiting for {0} to take the pictures just sent.",
+  "Sẽ gửi khi {0} online.": "Will send when {0} is online.",
+  "Đã gửi {0} ảnh, video lúc {1:HH:mm}.": "Sent {0} pictures and videos at {1:HH:mm}.",
+  "Chưa có ảnh mới để gửi.": "No new pictures to send.",
+  "Tự gửi ảnh về máy tính": "Send pictures to a computer",
+  "Tự gửi ảnh, video mới": "Send new pictures and videos",
+  "Chưa kết nối với máy tính nào.": "Not connected with any computer.",
+  "Gửi về": "Send to",
+  "Ảnh máy ảnh": "Camera photos",
+  "Video máy ảnh": "Camera videos",
+  "Ảnh chụp màn hình": "Screenshots",
+  "Ảnh, video khác (tải về, Zalo, Messenger…)": "Other pictures and videos (downloads, chat apps…)",
+  "Chỉ gửi những gì có từ lúc bật, mỗi khi máy tính online; chạy nền khi bật Luôn nhận file. Trên máy tính, bật Tự nhận file cho điện thoại này (menu ⋮ ở Xóm) để ảnh tự vào thư mục Ảnh từ (tên điện thoại); không thì chúng chờ ở Hộp nhận.": "Sends only what comes after it is turned on, whenever the computer is online; in the background while Always receive is on. On the computer, turn on Auto-receive for this phone (the ⋮ menu in Neighbourhood) so the pictures go straight into the folder Pictures from (phone name); otherwise they wait in the Inbox."
 }

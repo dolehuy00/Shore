@@ -716,6 +716,24 @@
             <TextBlock Classes="muted" IsVisible="{Binding AlwaysReceive}" FontSize="12" TextWrapping="Wrap"
                        Text="{l:T 'Máy OPPO, Xiaomi, Vivo… còn có trình tiết kiệm pin riêng: vào Cài đặt → Pin → Shorekeeper và cho phép hoạt động nền, nếu không hệ thống vẫn có thể tắt app.'}" />
 
+            <!-- Tự gửi ảnh: new pictures and videos to one computer, whenever it is online. -->
+            <TextBlock Classes="h3" Text="{l:T 'Tự gửi ảnh về máy tính'}" />
+            <StackPanel DataContext="{Binding PhotoBackup}" x:DataType="vm:PhotoBackupViewModel" Spacing="8">
+              <ToggleSwitch IsChecked="{Binding IsOn}" OnContent="{l:T 'Tự gửi ảnh, video mới'}" OffContent="{l:T 'Tự gửi ảnh, video mới'}" />
+              <TextBlock Classes="muted" Text="{l:T 'Chưa kết nối với máy tính nào.'}" IsVisible="{Binding HasNoComputer}" FontSize="12" />
+              <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding !HasNoComputer}">
+                <TextBlock Text="{l:T 'Gửi về'}" VerticalAlignment="Center" Margin="0,0,12,0" />
+                <ComboBox Grid.Column="1" ItemsSource="{Binding Computers}" SelectedIndex="{Binding ComputerIndex}" HorizontalAlignment="Stretch" />
+              </Grid>
+              <CheckBox IsChecked="{Binding CameraPhotos}" Content="{l:T 'Ảnh máy ảnh'}" />
+              <CheckBox IsChecked="{Binding CameraVideos}" Content="{l:T 'Video máy ảnh'}" />
+              <CheckBox IsChecked="{Binding Screenshots}" Content="{l:T 'Ảnh chụp màn hình'}" />
+              <CheckBox IsChecked="{Binding Other}" Content="{l:T 'Ảnh, video khác (tải về, Zalo, Messenger…)'}" />
+              <TextBlock Text="{Binding Status}" IsVisible="{Binding IsOn}" FontSize="13" TextWrapping="Wrap" />
+              <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
+                         Text="{l:T 'Chỉ gửi những gì có từ lúc bật, mỗi khi máy tính online; chạy nền khi bật Luôn nhận file. Trên máy tính, bật Tự nhận file cho điện thoại này (menu ⋮ ở Xóm) để ảnh tự vào thư mục Ảnh từ (tên điện thoại); không thì chúng chờ ở Hộp nhận.'}" />
+            </StackPanel>
+
             <TextBlock Classes="h3" Text="{l:T 'Sao lưu danh tính'}" />
             <TextBlock Classes="muted" Text="{l:T 'Giữ DeviceId, liên hệ và nhóm khi đổi điện thoại: không phải Kết nối lại với ai.'}"
                        FontSize="12" TextWrapping="Wrap" />

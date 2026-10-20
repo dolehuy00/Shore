@@ -40,6 +40,20 @@ public sealed record ShorekeeperSettings
     /// <summary>"Nguồn tiếng" (phone): "mic" plays the microphone, anything else what apps play.</summary>
     public string? AudioSource { get; init; }
 
+    /// <summary>"Tự gửi ảnh" (phone): the computer new photos go to, by device id; null when it is off.</summary>
+    public string? PhotoBackupTarget { get; init; }
+
+    /// <summary>What it sends, as in <see cref="Platform.MediaKindNames"/>; null for camera photos and videos.</summary>
+    public string? PhotoBackupKinds { get; init; }
+
+    /// <summary>The library marker up to which everything has been sent and taken (or was there when it was turned on).</summary>
+    public long? PhotoBackupSent { get; init; }
+
+    /// <summary>The offer on its way now, and the marker of its newest item.</summary>
+    public string? PhotoBackupOffer { get; init; }
+
+    public long? PhotoBackupOfferUpTo { get; init; }
+
     /// <summary>"Phát âm thanh" asks listeners for this password; a hash from <see cref="Audio.AudioPassword"/>, null for none.</summary>
     public string? AudioPasswordHash { get; init; }
 

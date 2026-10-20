@@ -60,6 +60,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<OfferService>();
         services.AddSingleton<InboxService>();
         services.AddHostedService<TransferWorker>();
+        // Sends only with an IMediaLibrary (Android).
+        services.AddSingleton<PhotoBackupService>();
+        services.AddHostedService(sp => sp.GetRequiredService<PhotoBackupService>());
 
         return services;
     }

@@ -708,7 +708,7 @@ public sealed class OfferService(
     private static DateTimeOffset FromMs(long ms) => DateTimeOffset.FromUnixTimeMilliseconds(ms);
 
     /// <summary>The database keeps milliseconds; compare file times at that precision.</summary>
-    private static DateTimeOffset ToMsPrecision(DateTime utc) => FromMs(new DateTimeOffset(utc, TimeSpan.Zero).ToUnixTimeMilliseconds());
+    internal static DateTimeOffset ToMsPrecision(DateTime utc) => FromMs(new DateTimeOffset(utc, TimeSpan.Zero).ToUnixTimeMilliseconds());
 
     private void TryDeleteDirectory(string dir)
     {
