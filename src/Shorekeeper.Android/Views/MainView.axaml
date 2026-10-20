@@ -147,13 +147,6 @@
       </Grid>
 
       <!-- While another device's sound plays here ("Nghe"), whatever the tab. -->
-      <Border DockPanel.Dock="Bottom" IsVisible="{Binding Audio.IsListening}" Background="{DynamicResource Sk.TileBackground}" Padding="16,6,8,6">
-        <Grid ColumnDefinitions="*,Auto">
-          <TextBlock Text="{Binding Audio.ListeningText}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-          <Button Grid.Column="1" Content="{l:T 'Dừng'}" Command="{Binding Audio.StopListeningCommand}" Padding="12,6" FontSize="13" />
-        </Grid>
-      </Border>
-
       <!-- The tab strip only: the pages below stay built and are just shown or hidden, as rebuilding one on every
            switch (what TabControl does with its content) took up to 200 ms on a phone. -->
       <TabControl x:Name="Tabs" Classes="nav" DockPanel.Dock="Bottom" TabStripPlacement="Bottom" Padding="0" SelectedIndex="{Binding SelectedTab}">
@@ -198,7 +191,18 @@
         <TabItem AutomationProperties.Name="{l:T 'Âm thanh'}">
           <TabItem.Header>
             <StackPanel Spacing="3">
-              <PathIcon Data="{StaticResource Icon.Speaker}" Width="22" Height="22" HorizontalAlignment="Center" />
+              <!-- A red dot while listening or playing; stopping is on the tab, in the notification and on the widget. -->
+              <Panel HorizontalAlignment="Center">
+                <PathIcon Data="{StaticResource Icon.Speaker}" Width="22" Height="22" />
+                <Ellipse Width="8" Height="8" Fill="#EF4444" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-1,-3,0">
+                  <Ellipse.IsVisible>
+                    <MultiBinding Converter="{x:Static BoolConverters.Or}">
+                      <Binding Path="Audio.IsListening" />
+                      <Binding Path="Audio.IsPlaying" />
+                    </MultiBinding>
+                  </Ellipse.IsVisible>
+                </Ellipse>
+              </Panel>
               <TextBlock Text="{l:T 'Âm thanh'}" HorizontalAlignment="Center" />
             </StackPanel>
           </TabItem.Header>
