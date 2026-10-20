@@ -213,6 +213,10 @@ public sealed partial class MainWindowViewModel : ObservableObject
         {
             Diagnostics.RefreshCommand.Execute(null);
         }
+        else if (value.Page == NavPage.Audio)
+        {
+            Audio.RefreshOutputDevices();
+        }
     }
 
     /// <summary>Used share of the drive holding the download folder, 0 to 1 ("this device" card).</summary>

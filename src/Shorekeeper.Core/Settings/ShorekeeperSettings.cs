@@ -34,6 +34,12 @@ public sealed record ShorekeeperSettings
     /// <summary>"low", "stable" or "preserve": how much sound the listener keeps in hand (low when null).</summary>
     public string? AudioLatency { get; init; }
 
+    /// <summary>"Phát ra" (computer): the device "Nghe" plays on, by its system id; null for the default one.</summary>
+    public string? AudioOutputDevice { get; init; }
+
+    /// <summary>"Nguồn tiếng" (phone): "mic" plays the microphone, anything else what apps play.</summary>
+    public string? AudioSource { get; init; }
+
     /// <summary>"Phát âm thanh" asks listeners for this password; a hash from <see cref="Audio.AudioPassword"/>, null for none.</summary>
     public string? AudioPasswordHash { get; init; }
 

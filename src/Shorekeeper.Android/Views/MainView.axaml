@@ -539,6 +539,11 @@
                   <ToggleSwitch Grid.Column="2" IsChecked="{Binding IsPlaying}" IsEnabled="{Binding CanPlay}" OnContent="" OffContent=""
                                 MinWidth="0" VerticalAlignment="Center" AutomationProperties.Name="{l:T 'Phát âm thanh'}" />
                 </Grid>
+                <!-- Nguồn tiếng: what apps play, or the microphone (the phone as a microphone); set while not playing. -->
+                <ComboBox SelectedIndex="{Binding SourceIndex}" IsEnabled="{Binding !IsPlaying}" IsVisible="{Binding CanChooseSource}" HorizontalAlignment="Stretch">
+                  <ComboBoxItem Content="{l:T 'Nguồn: âm thanh đang phát'}" />
+                  <ComboBoxItem Content="{l:T 'Nguồn: micro (dùng điện thoại làm micro)'}" />
+                </ComboBox>
                 <!-- Optional password: a listener types it once, then its device remembers it. -->
                 <StackPanel Spacing="6">
                   <Grid ColumnDefinitions="Auto,*">
@@ -574,7 +579,7 @@
               </StackPanel>
             </Border>
             <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
-                       Text="{l:T 'Mỗi lần bật, Android hỏi cho phép ghi hoặc truyền màn hình: Shorekeeper chỉ lấy âm thanh, không lấy hình. Lần đầu còn hỏi quyền ghi âm. Một số app (thường là app phim) không cho thu âm thanh; cuộc gọi cũng không.'}" />
+                       Text="{l:T 'Âm thanh đang phát: mỗi lần bật, Android hỏi cho phép ghi hoặc truyền màn hình (Shorekeeper chỉ lấy âm thanh, không lấy hình); một số app (thường là app phim) không cho thu, cuộc gọi cũng không. Micro: chỉ cần quyền ghi âm; máy tính chọn Phát ra là CABLE Input thì app họp trên máy tính dùng được làm micro. Lần đầu Android hỏi quyền ghi âm.'}" />
 
             <!-- Nghe: contacts with "Phát âm thanh" on. -->
             <TextBlock Classes="h3" Text="{l:T 'Nghe'}" />

@@ -1,6 +1,7 @@
 using Android.Content;
 using Android.Content.PM;
 using Android.Media;
+using Android.Media.Audiofx;
 using Android.Media.Projection;
 using Android.OS;
 using Android.Runtime;
@@ -17,11 +18,17 @@ namespace Shorekeeper.Android.Platform;
 /// It needs the microphone permission and, each time it is turned on, the user's consent to a media projection, held
 /// by <see cref="AudioCaptureService"/> until it is turned off. Only media, game and unknown sound can be captured,
 /// and apps may forbid it; our own playback ("Nghe") is left out so two phones never echo each other.
+/// With "Nguồn tiếng: Micro" it is the microphone instead (the phone as a microphone), which needs the permission only.
 /// </summary>
 internal sealed class AndroidAudioCapture(Context context) : IAudioCapture
 {
     public IDisposable Start(AudioFrameHandler onFrame)
     {
+        if (PlaybackCapture.Microphone)
+        {
+            return StartMicrophone(onFrame);
+        }
+
         if (PlaybackCapture.Projection is not { } projection)
         {
             throw new InvalidOperationException(L.T("Chưa được phép thu âm thanh của điện thoại."));
@@ -48,21 +55,47 @@ internal sealed class AndroidAudioCapture(Context context) : IAudioCapture
             throw new InvalidOperationException(L.T("Không thu được âm thanh của điện thoại."), ex);
         }
 
-        return new Capturing(context, record, onFrame);
+        return new Capturing(context, record, onFrame, mono: false);
+    }
+
+    /// <summary>The microphone, mono, its noise suppressed where the phone can: both channels get it.</summary>
+    private Capturing StartMicrophone(AudioFrameHandler onFrame)
+    {
+        AudioRecord record;
+        try
+        {
+            int minimum = AudioRecord.GetMinBufferSize(AudioStreamFormat.SampleRate, ChannelIn.Mono, Encoding.Pcm16bit);
+            record = new AudioRecord.Builder()
+                .SetAudioSource(AudioSource.Mic)!
+                .SetAudioFormat(new AudioFormat.Builder().SetEncoding(Encoding.Pcm16bit)!.SetSampleRate(AudioStreamFormat.SampleRate)!.SetChannelMask((ChannelOut)(int)ChannelIn.Mono)!.Build()!)!
+                .SetBufferSizeInBytes(Math.Max(minimum, 4 * AudioStreamFormat.FrameSamples * sizeof(short)))!
+                .Build()!;
+        }
+        catch (Java.Lang.Exception ex)
+        {
+            throw new InvalidOperationException(L.T("Không thu được tiếng micro của điện thoại."), ex);
+        }
+
+        return new Capturing(context, record, onFrame, mono: true);
     }
 
     private sealed class Capturing : IDisposable
     {
         private readonly AudioRecord record;
         private readonly AudioFrameHandler onFrame;
+        private readonly bool mono;
+        private readonly NoiseSuppressor? noise;
         private readonly AudioLocks locks;
         private readonly Thread thread;
         private volatile bool stopping;
 
-        public Capturing(Context context, AudioRecord record, AudioFrameHandler onFrame)
+        public Capturing(Context context, AudioRecord record, AudioFrameHandler onFrame, bool mono)
         {
             this.record = record;
             this.onFrame = onFrame;
+            this.mono = mono;
+            noise = mono && NoiseSuppressor.IsAvailable ? NoiseSuppressor.Create(record.AudioSessionId) : null;
+            noise?.SetEnabled(true);
             locks = new AudioLocks(context);
             thread = new Thread(Run) { IsBackground = true, Name = "Audio capture" };
             thread.Start();
@@ -72,6 +105,7 @@ internal sealed class AndroidAudioCapture(Context context) : IAudioCapture
         {
             stopping = true;
             thread.Join();
+            noise?.Release();
             record.Release();
             locks.Dispose();
         }
@@ -79,7 +113,7 @@ internal sealed class AndroidAudioCapture(Context context) : IAudioCapture
         private void Run()
         {
             AndroidProcess.SetThreadPriority(global::Android.OS.ThreadPriority.UrgentAudio);
-            short[] pcm = new short[AudioStreamFormat.FrameValues];
+            short[] pcm = new short[mono ? AudioStreamFormat.FrameSamples : AudioStreamFormat.FrameValues];
             float[] frame = new float[AudioStreamFormat.FrameValues];
             record.StartRecording();
             while (!stopping)
@@ -99,9 +133,9 @@ internal sealed class AndroidAudioCapture(Context context) : IAudioCapture
 
                 if (filled == pcm.Length)
                 {
-                    for (int i = 0; i < pcm.Length; i++)
+                    for (int i = 0; i < frame.Length; i++)
                     {
-                        frame[i] = pcm[i] / 32768f;
+                        frame[i] = pcm[mono ? i / 2 : i] / 32768f;
                     }
 
                     onFrame(frame);
@@ -113,7 +147,10 @@ internal sealed class AndroidAudioCapture(Context context) : IAudioCapture
     }
 }
 
-/// <summary>Asking for the permissions playback capture needs, and the media projection it runs on.</summary>
+/// <summary>
+/// Asking for what capturing the phone needs: the microphone permission, then the media projection playback capture
+/// runs on, or, for the microphone, only the service that keeps it recording with the screen off.
+/// </summary>
 internal static class PlaybackCapture
 {
     private const int MicrophoneRequest = 20;
@@ -122,16 +159,22 @@ internal static class PlaybackCapture
     private static TaskCompletionSource<bool>? microphone;
     private static TaskCompletionSource<bool>? consent;
 
-    /// <summary>Set while "Phát âm thanh" is on.</summary>
+    /// <summary>Set while "Phát âm thanh" is on, playing what apps play.</summary>
     public static MediaProjection? Projection { get; private set; }
+
+    /// <summary>"Phát âm thanh" is on, playing the microphone.</summary>
+    public static bool Microphone { get; private set; }
 
     /// <summary>The user stopped it from outside the app: the notification's "Dừng" or the system's cast tile.</summary>
     public static event Action? Stopped;
 
-    /// <summary>Asks for the microphone permission (once) and the consent to capture (each time).</summary>
+    /// <summary>
+    /// Asks for the microphone permission (once) and, for what apps play, the consent to capture (each time); the
+    /// microphone needs only the permission.
+    /// </summary>
     /// <returns>False when the user declined to capture this time.</returns>
     /// <exception cref="InvalidOperationException">The microphone permission was refused.</exception>
-    public static async Task<bool> RequestAsync(Activity activity)
+    public static async Task<bool> RequestAsync(Activity activity, bool microphoneSource)
     {
         if (activity.CheckSelfPermission(global::Android.Manifest.Permission.RecordAudio) != Permission.Granted)
         {
@@ -142,6 +185,13 @@ internal static class PlaybackCapture
                 // Refused twice, Android stops asking: only the app's settings can grant it then.
                 throw new InvalidOperationException(L.T("Phát âm thanh cần quyền micrô. Nếu đã từ chối, bật lại trong Cài đặt → Ứng dụng → Shorekeeper → Quyền."));
             }
+        }
+
+        if (microphoneSource)
+        {
+            consent = new TaskCompletionSource<bool>();
+            AudioCaptureService.StartMicrophone(activity);
+            return await consent.Task;
         }
 
         var manager = (MediaProjectionManager)activity.GetSystemService(Context.MediaProjectionService)!;
@@ -194,9 +244,22 @@ internal static class PlaybackCapture
         consent?.TrySetResult(projection is not null);
     }
 
+    /// <summary>Called by the service once it runs for the microphone.</summary>
+    internal static void MicrophoneStarted()
+    {
+        Microphone = true;
+        consent?.TrySetResult(true);
+    }
+
     /// <summary>"Phát âm thanh" went off: give the projection back and end the service.</summary>
     public static void Release(Context context)
     {
+        if (Microphone)
+        {
+            Microphone = false;
+            AudioCaptureService.Stop(context);
+        }
+
         if (Projection is not { } projection)
         {
             return;
@@ -210,11 +273,15 @@ internal static class PlaybackCapture
     internal static void OnStopped() => Stopped?.Invoke();
 }
 
-/// <summary>Holds the media projection while "Phát âm thanh" is on; its notification says so and has "Dừng".</summary>
-[Service(Exported = false, ForegroundServiceType = ForegroundService.TypeMediaProjection)]
+/// <summary>
+/// Holds the media projection, or keeps the microphone recording, while "Phát âm thanh" is on; its notification says
+/// so and has "Dừng".
+/// </summary>
+[Service(Exported = false, ForegroundServiceType = ForegroundService.TypeMediaProjection | ForegroundService.TypeMicrophone)]
 public sealed class AudioCaptureService : Service
 {
     public const string ActionStop = "dev.shorekeeper.AUDIO_CAPTURE_STOP";
+    private const string ActionMicrophone = "dev.shorekeeper.AUDIO_CAPTURE_MICROPHONE";
     private const string ExtraResultCode = "resultCode";
     private const string ExtraData = "data";
     private const int NotificationId = 4;
@@ -230,7 +297,24 @@ public sealed class AudioCaptureService : Service
             return StartCommandResult.NotSticky;
         }
 
-        StartForeground(NotificationId, Notifications.Playing(this), ForegroundService.TypeMediaProjection);
+        if (intent?.Action == ActionMicrophone)
+        {
+            // Android 10 has no microphone type and does not ask for one.
+            Notification notification = Notifications.Playing(this, microphone: true);
+            if (OperatingSystem.IsAndroidVersionAtLeast(30))
+            {
+                StartForeground(NotificationId, notification, ForegroundService.TypeMicrophone);
+            }
+            else
+            {
+                StartForeground(NotificationId, notification);
+            }
+
+            PlaybackCapture.MicrophoneStarted();
+            return StartCommandResult.NotSticky;
+        }
+
+        StartForeground(NotificationId, Notifications.Playing(this, microphone: false), ForegroundService.TypeMediaProjection);
         MediaProjection? projection = null;
         if (Data(intent) is { } data)
         {
@@ -250,6 +334,10 @@ public sealed class AudioCaptureService : Service
 
     internal static void Start(Context context, int resultCode, Intent data) =>
         context.StartForegroundService(new Intent(context, typeof(AudioCaptureService)).PutExtra(ExtraResultCode, resultCode).PutExtra(ExtraData, data));
+
+    /// <summary>Started while the app is in front: Android lets only such a service use the microphone.</summary>
+    internal static void StartMicrophone(Context context) =>
+        context.StartForegroundService(new Intent(context, typeof(AudioCaptureService)).SetAction(ActionMicrophone));
 
     internal static void Stop(Context context) => context.StopService(new Intent(context, typeof(AudioCaptureService)));
 

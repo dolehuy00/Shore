@@ -1,10 +1,11 @@
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.Marshalling;
 using Shorekeeper.Core.Audio;
+using Shorekeeper.Core.Platform;
 
 namespace Shorekeeper.Platform.Windows.Audio;
 
-/// <summary>What capture and playback share: the default speakers' audio client and the stream format.</summary>
+/// <summary>What capture and playback share: the speakers' audio client and the stream format.</summary>
 internal static partial class Wasapi
 {
     public const int SharedMode = 0;
@@ -14,21 +15,82 @@ internal static partial class Wasapi
     private const int ClsctxAll = 0x17;
     private const int Render = 0;
     private const int Console = 0;
+    private const uint DeviceStateActive = 1;
+    private const int StgmRead = 0;
+    private const ushort VtLpwstr = 31;
+    // COM already initialised on this thread in the other model (the UI thread is STA): fine for what we do.
+    private const int ChangedMode = unchecked((int)0x80010106);
 
     private static readonly Guid ClsidDeviceEnumerator = new("BCDE0395-E52F-467C-8E3D-C4579291692E");
     private static readonly Guid IidDeviceEnumerator = new("A95664D2-9614-4F35-A746-DE8DB63617E6");
     private static readonly Guid IidAudioClient = new("1CB9AD4C-DBFA-4C32-B178-C2F568A703B2");
     private static readonly Guid SubtypeFloat = new("00000003-0000-0010-8000-00AA00389B71");
+    private static readonly PropertyKey FriendlyName = new(new Guid("A45C254E-DF1C-4EFD-8020-67D146A850E0"), 14);
 
-    /// <summary>The default speakers' audio client; COM is initialised for the calling thread first.</summary>
-    public static IAudioClient OpenSpeakers(StrategyBasedComWrappers wrappers)
+    /// <summary>
+    /// The audio client of the speakers with this id, or of the default ones when <paramref name="id"/> is null or
+    /// that device is not active; COM is initialised for the calling thread first.
+    /// </summary>
+    public static IAudioClient OpenSpeakers(StrategyBasedComWrappers wrappers, string? id = null)
     {
-        ThrowIfFailed(CoInitializeEx(0, 0));
-        ThrowIfFailed(CoCreateInstance(ClsidDeviceEnumerator, 0, ClsctxAll, IidDeviceEnumerator, out nint enumeratorPointer));
-        var enumerator = Wrap<IMMDeviceEnumerator>(wrappers, enumeratorPointer);
-        ThrowIfFailed(enumerator.GetDefaultAudioEndpoint(Render, Console, out IMMDevice device));
+        IMMDeviceEnumerator enumerator = Enumerator(wrappers);
+        IMMDevice? device = null;
+        if (id is not null && enumerator.GetDevice(id, out IMMDevice chosen) >= 0 && chosen.GetState(out uint state) >= 0 && state == DeviceStateActive)
+        {
+            device = chosen;
+        }
+
+        if (device is null)
+        {
+            ThrowIfFailed(enumerator.GetDefaultAudioEndpoint(Render, Console, out device));
+        }
+
         ThrowIfFailed(device.Activate(IidAudioClient, ClsctxAll, 0, out nint clientPointer));
         return Wrap<IAudioClient>(wrappers, clientPointer);
+    }
+
+    /// <summary>The playback devices active now, with the names Windows shows.</summary>
+    public static IReadOnlyList<AudioOutputDevice> ActiveSpeakers()
+    {
+        var wrappers = new StrategyBasedComWrappers();
+        IMMDeviceEnumerator enumerator = Enumerator(wrappers);
+        ThrowIfFailed(enumerator.EnumAudioEndpoints(Render, DeviceStateActive, out nint collectionPointer));
+        var collection = Wrap<IMMDeviceCollection>(wrappers, collectionPointer);
+        ThrowIfFailed(collection.GetCount(out uint count));
+        List<AudioOutputDevice> devices = [];
+        for (uint i = 0; i < count; i++)
+        {
+            ThrowIfFailed(collection.Item(i, out IMMDevice device));
+            ThrowIfFailed(device.GetId(out nint idPointer));
+            string id = Marshal.PtrToStringUni(idPointer) ?? "";
+            Marshal.FreeCoTaskMem(idPointer);
+            string name = id;
+            if (device.OpenPropertyStore(StgmRead, out IPropertyStore store) >= 0 && store.GetValue(FriendlyName, out PropVariant value) >= 0)
+            {
+                if (value.Type == VtLpwstr && Marshal.PtrToStringUni(value.Pointer) is { Length: > 0 } shown)
+                {
+                    name = shown;
+                }
+
+                _ = PropVariantClear(ref value);
+            }
+
+            devices.Add(new AudioOutputDevice(id, name));
+        }
+
+        return devices;
+    }
+
+    private static IMMDeviceEnumerator Enumerator(StrategyBasedComWrappers wrappers)
+    {
+        int initialized = CoInitializeEx(0, 0);
+        if (initialized != ChangedMode)
+        {
+            ThrowIfFailed(initialized);
+        }
+
+        ThrowIfFailed(CoCreateInstance(ClsidDeviceEnumerator, 0, ClsctxAll, IidDeviceEnumerator, out nint enumeratorPointer));
+        return Wrap<IMMDeviceEnumerator>(wrappers, enumeratorPointer);
     }
 
     public static T Service<T>(StrategyBasedComWrappers wrappers, IAudioClient client, Guid iid)
@@ -95,17 +157,48 @@ internal static partial class Wasapi
 
     [LibraryImport("ole32.dll")]
     private static partial int CoCreateInstance(in Guid clsid, nint outer, int context, in Guid iid, out nint instance);
+
+    [LibraryImport("ole32.dll")]
+    private static partial int PropVariantClear(ref PropVariant value);
 }
 
-[GeneratedComInterface]
+internal readonly record struct PropertyKey(Guid FormatId, uint PropertyId);
+
+/// <summary>PROPVARIANT, for a string: its type, then the pointer.</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct PropVariant
+{
+    public ushort Type;
+    public ushort Reserved1;
+    public ushort Reserved2;
+    public ushort Reserved3;
+    public nint Pointer;
+    public nint Pointer2;
+}
+
+[GeneratedComInterface(StringMarshalling = StringMarshalling.Utf16)]
 [Guid("A95664D2-9614-4F35-A746-DE8DB63617E6")]
 internal partial interface IMMDeviceEnumerator
 {
     [PreserveSig]
-    int EnumAudioEndpoints(int dataFlow, int stateMask, out nint devices);
+    int EnumAudioEndpoints(int dataFlow, uint stateMask, out nint devices);
 
     [PreserveSig]
     int GetDefaultAudioEndpoint(int dataFlow, int role, out IMMDevice endpoint);
+
+    [PreserveSig]
+    int GetDevice(string id, out IMMDevice device);
+}
+
+[GeneratedComInterface]
+[Guid("0BD7A1BE-7A1A-44DB-8397-CC5392387B5E")]
+internal partial interface IMMDeviceCollection
+{
+    [PreserveSig]
+    int GetCount(out uint count);
+
+    [PreserveSig]
+    int Item(uint index, out IMMDevice device);
 }
 
 [GeneratedComInterface]
@@ -114,6 +207,30 @@ internal partial interface IMMDevice
 {
     [PreserveSig]
     int Activate(in Guid iid, int context, nint activationParameters, out nint instance);
+
+    [PreserveSig]
+    int OpenPropertyStore(int access, out IPropertyStore store);
+
+    /// <summary>The id, allocated with CoTaskMemAlloc.</summary>
+    [PreserveSig]
+    int GetId(out nint id);
+
+    [PreserveSig]
+    int GetState(out uint state);
+}
+
+[GeneratedComInterface]
+[Guid("886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99")]
+internal partial interface IPropertyStore
+{
+    [PreserveSig]
+    int GetCount(out uint count);
+
+    [PreserveSig]
+    int GetAt(uint index, out PropertyKey key);
+
+    [PreserveSig]
+    int GetValue(in PropertyKey key, out PropVariant value);
 }
 
 [GeneratedComInterface]

@@ -16,6 +16,8 @@
        permission and a media projection held by a mediaProjection foreground service. -->
   <uses-permission android:name="android.permission.RECORD_AUDIO" />
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+  <!-- ...or the microphone ("Nguồn tiếng: Micro"), held by a microphone foreground service. -->
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
   <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
   <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
   <uses-permission android:name="android.permission.WAKE_LOCK" />

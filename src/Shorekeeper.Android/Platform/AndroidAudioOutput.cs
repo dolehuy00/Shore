@@ -24,7 +24,7 @@ internal sealed class AndroidAudioOutput(Context context) : IAudioOutput
     /// <summary>The notification's "Phát/Dừng" and "Bài sau", when the source can be controlled.</summary>
     internal static Action<MediaKey>? KeyRequested { get; private set; }
 
-    public IDisposable Start(AudioFrameReader read, string title, Action stopRequested, Action<MediaKey>? keyRequested = null)
+    public IDisposable Start(AudioFrameReader read, string title, Action stopRequested, Action<MediaKey>? keyRequested = null, string? device = null)
     {
         StopRequested = stopRequested;
         KeyRequested = keyRequested;

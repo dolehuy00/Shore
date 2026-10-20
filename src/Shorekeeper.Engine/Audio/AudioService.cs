@@ -387,7 +387,7 @@ public sealed class AudioService : IDisposable
                 && (await PeerClient.ReadAsync<AudioJoinResponse>(response, cancellationToken)).Control;
             await PeerClient.EnsureSuccessAsync(response, cancellationToken);
             session.Play(output, L.F("Đang nghe âm thanh từ {0}", name), () => _ = StopListeningAsync(),
-                session.CanControl ? key => _ = PressFromOutsideAsync(key, name) : null);
+                session.CanControl ? key => _ = PressFromOutsideAsync(key, name) : null, settings.Current.AudioOutputDevice);
         }
         catch (PeerApiException ex) when (remembered is not null && ex.Code is ApiErrorCodes.WrongPassword or ApiErrorCodes.PasswordRequired)
         {
@@ -933,10 +933,10 @@ public sealed class AudioService : IDisposable
         /// <summary>The source said we may press its media keys.</summary>
         public bool CanControl { get; set; }
 
-        public void Play(IAudioOutput output, string title, Action stopRequested, Action<MediaKey>? keyRequested)
+        public void Play(IAudioOutput output, string title, Action stopRequested, Action<MediaKey>? keyRequested, string? device)
         {
             Interlocked.Exchange(ref lastHeard, Stopwatch.GetTimestamp());
-            playing = output.Start(decoder.Read, title, stopRequested, keyRequested);
+            playing = output.Start(decoder.Read, title, stopRequested, keyRequested, device);
         }
 
         /// <summary>Tells the source we still listen; also opens the way back through the source's firewall.</summary>

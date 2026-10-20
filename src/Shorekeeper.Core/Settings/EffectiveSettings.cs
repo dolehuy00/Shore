@@ -41,6 +41,12 @@ public sealed record EffectiveSettings
 
     public AudioLatency AudioLatency { get; init; }
 
+    /// <inheritdoc cref="ShorekeeperSettings.AudioOutputDevice"/>
+    public string? AudioOutputDevice { get; init; }
+
+    /// <summary>"Phát âm thanh" on a phone plays its microphone rather than what apps play.</summary>
+    public bool AudioFromMicrophone { get; init; }
+
     public int DiscoveryPort { get; init; } = DefaultDiscoveryPort;
 
     public int ApiPort { get; init; } = DefaultApiPort;

@@ -82,16 +82,23 @@ public sealed partial class AudioViewModel : ObservableObject
     private readonly TrustStore trust;
     private readonly SettingsService settings;
     private readonly IBluetoothAudioReceiver? bluetooth;
+    private readonly IAudioOutputDevices? outputDevices;
+    private IReadOnlyList<AudioOutputDevice> outputs = [];
     private bool refreshing;
 
     /// <param name="bluetooth">Null where the platform cannot receive Bluetooth audio (Android, Linux, macOS).</param>
-    public AudioViewModel(AudioService audio, PeerDirectory directory, TrustStore trust, SettingsService settings, IBluetoothAudioReceiver? bluetooth = null)
+    /// <param name="outputDevices">Null where "Nghe" always plays on the default device (Android).</param>
+    public AudioViewModel(
+        AudioService audio, PeerDirectory directory, TrustStore trust, SettingsService settings,
+        IBluetoothAudioReceiver? bluetooth = null, IAudioOutputDevices? outputDevices = null)
     {
         this.audio = audio;
         this.directory = directory;
         this.trust = trust;
         this.settings = settings;
         this.bluetooth = bluetooth;
+        this.outputDevices = outputDevices;
+        RefreshOutputDevices();
         if (bluetooth is not null)
         {
             bluetooth.Changed += (_, _) => Dispatcher.UIThread.Post(RefreshBluetooth);
@@ -157,6 +164,82 @@ public sealed partial class AudioViewModel : ObservableObject
     public partial string? ControlTitle { get; set; }
 
     public bool CanControl => ControlTitle is not null;
+
+    /// <summary>"Nguồn tiếng" is shown: the phone can play its microphone instead of what apps play (Android).</summary>
+    public bool CanChooseSource { get; init; }
+
+    /// <summary>"Nguồn tiếng": 0 what apps play, 1 the microphone. Changed while not playing.</summary>
+    public int SourceIndex
+    {
+        get => settings.Current.AudioFromMicrophone ? 1 : 0;
+        set
+        {
+            settings.Update(s => s with { AudioSource = value == 1 ? "mic" : null });
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>"Phát ra" is shown (Windows).</summary>
+    public bool CanChooseOutput => outputDevices is not null;
+
+    /// <summary>"Phát ra": the default speakers first, then the active devices, then the chosen one if it is gone.</summary>
+    [ObservableProperty]
+    public partial IReadOnlyList<string> OutputChoices { get; set; } = [];
+
+    public int OutputIndex
+    {
+        get
+        {
+            if (settings.Current.AudioOutputDevice is not { } chosen)
+            {
+                return 0;
+            }
+
+            int index = outputs.ToList().FindIndex(d => d.Id == chosen);
+            return index >= 0 ? index + 1 : OutputChoices.Count - 1;
+        }
+        set
+        {
+            // The last entry may be the chosen device that is gone: picking it changes nothing.
+            if (value >= 0 && value <= outputs.Count && value != OutputIndex)
+            {
+                settings.Update(s => s with { AudioOutputDevice = value == 0 ? null : outputs[value - 1].Id });
+            }
+        }
+    }
+
+    /// <summary>Devices come and go (headphones, a virtual cable installed): read again when the list opens.</summary>
+    public void RefreshOutputDevices()
+    {
+        if (outputDevices is null)
+        {
+            return;
+        }
+
+        IReadOnlyList<AudioOutputDevice> now;
+        try
+        {
+            now = outputDevices.GetAll();
+        }
+        catch (Exception ex) when (ex is System.Runtime.InteropServices.COMException or InvalidCastException)
+        {
+            now = [];
+        }
+
+        bool missing = settings.Current.AudioOutputDevice is { } chosen && now.All(d => d.Id != chosen);
+        List<string> choices = [L.T("Loa mặc định của Windows"), .. now.Select(d => d.Name)];
+        if (missing)
+        {
+            choices.Add(L.T("Thiết bị đã chọn (đang không có: phát ra loa mặc định)"));
+        }
+
+        if (!choices.SequenceEqual(OutputChoices))
+        {
+            outputs = now;
+            OutputChoices = choices;
+            OnPropertyChanged(nameof(OutputIndex));
+        }
+    }
 
     /// <summary>"Nhận âm thanh qua Bluetooth" is shown (Windows).</summary>
     public bool CanReceiveBluetooth => bluetooth is not null;

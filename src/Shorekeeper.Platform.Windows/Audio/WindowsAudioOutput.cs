@@ -6,9 +6,10 @@ using Shorekeeper.Core.Platform;
 namespace Shorekeeper.Platform.Windows.Audio;
 
 /// <summary>
-/// "Nghe" on a computer: the sound through the default speakers, WASAPI shared mode driven by the device's events.
-/// Only two frames wait in the device's buffer; the thread runs at "Pro Audio" priority so it is never late for them.
-/// When the speakers change (headphones plugged in, Bluetooth), it moves to the new default.
+/// "Nghe" on a computer: the sound through the chosen device ("Phát ra") or the default speakers, WASAPI shared mode
+/// driven by the device's events. Only two frames wait in the device's buffer; the thread runs at "Pro Audio" priority
+/// so it is never late for them. When the default speakers change (headphones plugged in, Bluetooth), it moves to the
+/// new default; when the chosen device goes away, to the default.
 /// </summary>
 public sealed partial class WindowsAudioOutput : IAudioOutput
 {
@@ -18,18 +19,21 @@ public sealed partial class WindowsAudioOutput : IAudioOutput
 
     private static readonly Guid IidRenderClient = new("F294ACFC-3146-4483-A7BF-ADDCA7C260E2");
 
-    public IDisposable Start(AudioFrameReader read, string title, Action stopRequested, Action<MediaKey>? keyRequested = null) => new Playing(read);
+    public IDisposable Start(AudioFrameReader read, string title, Action stopRequested, Action<MediaKey>? keyRequested = null, string? device = null) =>
+        new Playing(read, device);
 
     private sealed class Playing : IDisposable
     {
         private readonly AudioFrameReader read;
+        private readonly string? device;
         private readonly WlanStreamingMode? wlan = WlanStreamingMode.TryEnable();
         private readonly Thread thread;
         private volatile bool stopping;
 
-        public Playing(AudioFrameReader read)
+        public Playing(AudioFrameReader read, string? device)
         {
             this.read = read;
+            this.device = device;
             thread = new Thread(Run) { IsBackground = true, Name = "Audio play" };
             thread.Start();
         }
@@ -75,7 +79,7 @@ public sealed partial class WindowsAudioOutput : IAudioOutput
         private void Play(short[] pcm, nint wake)
         {
             var wrappers = new StrategyBasedComWrappers();
-            IAudioClient client = Wasapi.OpenSpeakers(wrappers);
+            IAudioClient client = Wasapi.OpenSpeakers(wrappers, device);
             nint format = Wasapi.Pcm16StereoFormat();
             try
             {

@@ -859,6 +859,17 @@
                   <ComboBoxItem Content="{l:T 'Bảo toàn: không hụt tiếng, trễ hơn'}" />
                 </ComboBox>
               </Grid>
+
+              <!-- Phát ra: a virtual cable's input here makes what we hear a microphone for this computer's apps. -->
+              <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding Audio.CanChooseOutput}">
+                <StackPanel Spacing="2" Margin="0,0,12,0" VerticalAlignment="Center">
+                  <TextBlock Text="{l:T 'Phát ra'}" />
+                  <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
+                             Text="{l:T 'Dùng điện thoại làm micro: cài VB-CABLE (miễn phí, vb-audio.com), chọn CABLE Input ở đây, điện thoại chọn nguồn Micro rồi bật Phát âm thanh, máy này bấm Nghe; trong Zoom, Discord, OBS… chọn micro CABLE Output. Áp dụng từ lần nghe sau.'}" />
+                </StackPanel>
+                <ComboBox Grid.Column="1" ItemsSource="{Binding Audio.OutputChoices}" SelectedIndex="{Binding Audio.OutputIndex}"
+                          MinWidth="200" MaxWidth="320" VerticalAlignment="Center" />
+              </Grid>
             </StackPanel>
           </Border>
 
@@ -917,7 +928,7 @@
           </Border>
 
           <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
-                     Text="{l:T 'Phát lấy tiếng từ loa mặc định của Windows, nghe cũng phát ra loa đó. Bật nhanh Phát âm thanh từ biểu tượng khay.'}" />
+                     Text="{l:T 'Phát lấy tiếng từ loa mặc định của Windows; Nghe phát ra thiết bị chọn ở Phát ra. Bật nhanh Phát âm thanh từ biểu tượng khay.'}" />
         </StackPanel>
 
         <!-- Cài đặt -->

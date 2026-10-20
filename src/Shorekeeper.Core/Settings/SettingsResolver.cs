@@ -103,6 +103,8 @@ public static class SettingsResolver
                 "preserve" => AudioLatency.Preserve,
                 _ => AudioLatency.Low,
             },
+            AudioOutputDevice = string.IsNullOrWhiteSpace(user.AudioOutputDevice) ? null : user.AudioOutputDevice,
+            AudioFromMicrophone = string.Equals(user.AudioSource, "mic", StringComparison.OrdinalIgnoreCase),
             DiscoveryPort = discoveryPort,
             ApiPort = apiPort,
             BridgeEnabled = bridgeEnabled,

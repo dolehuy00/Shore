@@ -60,7 +60,10 @@ public sealed partial class MainViewModel : ObservableObject
         Audio = new AudioViewModel(
             services.GetRequiredService<AudioService>(), directory, trust, settings)
         {
-            AllowPlaying = () => MainActivity.Current is { } activity ? PlaybackCapture.RequestAsync(activity) : Task.FromResult(false),
+            AllowPlaying = () => MainActivity.Current is { } activity
+                ? PlaybackCapture.RequestAsync(activity, settings.Current.AudioFromMicrophone)
+                : Task.FromResult(false),
+            CanChooseSource = true,
         };
         Audio.Notice += (_, message) => Notice = message;
         Audio.AskPassword = AskPasswordAsync;

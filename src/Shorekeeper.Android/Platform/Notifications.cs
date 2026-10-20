@@ -65,13 +65,13 @@ internal static class Notifications
         return new Notification.Action.Builder(Icon.CreateWithResource(context, icon), label, press).Build()!;
     }
 
-    /// <summary>"Đang phát âm thanh của điện thoại" with [Dừng], while <see cref="AudioCaptureService"/> runs.</summary>
-    public static Notification Playing(Context context)
+    /// <summary>"Đang phát âm thanh của điện thoại" (or its microphone) with [Dừng], while <see cref="AudioCaptureService"/> runs.</summary>
+    public static Notification Playing(Context context, bool microphone)
     {
         PendingIntent stop = PendingIntent.GetService(
             context, 0, new Intent(context, typeof(AudioCaptureService)).SetAction(AudioCaptureService.ActionStop), PendingIntentFlags.Immutable)!;
         return new Notification.Builder(context, AudioChannel)
-            .SetContentTitle(L.T("Đang phát âm thanh của điện thoại"))!
+            .SetContentTitle(microphone ? L.T("Đang phát tiếng micro của điện thoại") : L.T("Đang phát âm thanh của điện thoại"))!
             .SetContentText(L.T("Máy đã kết nối có thể bấm Nghe."))!
             .SetSmallIcon(Resource.Drawable.ic_stat_shorekeeper)!
             .SetOngoing(true)!

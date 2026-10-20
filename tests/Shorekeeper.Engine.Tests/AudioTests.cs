@@ -352,7 +352,7 @@ public sealed class AudioTests : IAsyncLifetime
 
         public int SoundFrames => Volatile.Read(ref soundFrames);
 
-        public IDisposable Start(AudioFrameReader read, string title, Action stopRequested, Action<MediaKey>? keyRequested = null)
+        public IDisposable Start(AudioFrameReader read, string title, Action stopRequested, Action<MediaKey>? keyRequested = null, string? device = null)
         {
             running = true;
             var thread = new Thread(() =>
