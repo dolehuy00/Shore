@@ -198,7 +198,8 @@ public sealed partial class MainViewModel : ObservableObject
             maxBytes => trust.SetAutoAcceptAsync(peer.DeviceId, maxBytes), () => AutoAccept = null);
 
     internal void AskText(PeerItemViewModel peer) =>
-        Question = new QuestionViewModel(L.T("Gửi văn bản"), L.F("Văn bản hoặc link gửi cho {0}:", peer.Name), L.T("Gửi"), "",
+        Question = new QuestionViewModel(L.T("Gửi văn bản"), L.F("Văn bản hoặc link gửi cho {0}:", peer.Name), L.T("Gửi"),
+            TextActions.Copied(global::Android.App.Application.Context),
             async text =>
             {
                 if (!string.IsNullOrWhiteSpace(text) && await SendAsync([], [(peer.DeviceId, null)], text) is { } error)

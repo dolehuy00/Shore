@@ -1,3 +1,5 @@
+using Avalonia.Controls;
+using Avalonia.Input.Platform;
 using Avalonia.Threading;
 using Shorekeeper.Core.Identity;
 using Shorekeeper.Core.Localization;
@@ -80,6 +82,28 @@ public sealed class QuickSendService(
         window = opened;
         opened.Show();
         opened.Activate();
+        if (paths.Count == 0)
+        {
+            _ = FillFromClipboardAsync(opened, viewModel);
+        }
+    }
+
+    /// <summary>
+    /// Opened by the shortcut or the tray while a link or some text is copied (and no files): it is filled in, so copy,
+    /// shortcut, pick the phone, Enter. It shows in the box before anything is sent.
+    /// </summary>
+    private static async Task FillFromClipboardAsync(TopLevel window, QuickSendViewModel viewModel)
+    {
+        if (window.Clipboard is not { } clipboard || (await clipboard.TryGetFilesAsync())?.Length > 0)
+        {
+            return;
+        }
+
+        if (await clipboard.TryGetTextAsync() is { Length: <= OfferService.MaxNoteLength } text && !string.IsNullOrWhiteSpace(text)
+            && viewModel.Text.Length == 0)
+        {
+            viewModel.Text = text;
+        }
     }
 
     private void ApplyHotkey(EffectiveSettings current)

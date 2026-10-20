@@ -75,7 +75,7 @@ API của Shorekeeper nhỏ (khoảng 25 endpoint, JSON, `Range` khi tải file,
 | .NET MAUI | Control native, tài liệu Android nhiều hơn | Stack UI thứ hai phải duy trì |
 | Kotlin native | Tốt nhất về nền tảng | Viết lại toàn bộ giao thức, discovery, mTLS: hai codebase |
 
-Màn hình: Xóm (danh sách, chạm để gửi), Hộp nhận, Đã gửi, Nhóm, Cài đặt. Gửi từ app khác: **Chia sẻ → Shorekeeper** mở màn chọn người (giống cửa sổ Gửi nhanh).
+Màn hình: Xóm (danh sách, chạm để gửi), Hộp nhận, Đã gửi, Nhóm, Cài đặt. Gửi từ app khác: **Chia sẻ → Shorekeeper** mở màn chọn người (giống cửa sổ Gửi nhanh). **Gửi văn bản…** (liên hệ, nhóm) điền sẵn chữ đang copy trên điện thoại (chỉ chữ thuần, không quá giới hạn gửi); Android báo app đã đọc bảng nhớ tạm.
 
 ### 3.5 Nghe âm thanh
 

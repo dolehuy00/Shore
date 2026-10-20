@@ -3,6 +3,7 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
+using Shorekeeper.Android.Platform;
 using Shorekeeper.Core.Discovery;
 using Shorekeeper.Core.Identity;
 using Shorekeeper.Core.Localization;
@@ -74,7 +75,8 @@ public sealed partial class GroupsTabViewModel : ObservableObject
 
     /// <summary>"Gửi văn bản cho nhóm…": a link or a few lines to every other member.</summary>
     internal void AskText(GroupItemViewModel group) =>
-        main.Question = new QuestionViewModel(L.T("Gửi văn bản"), L.F("Văn bản hoặc link gửi cho nhóm {0}:", group.Name), L.T("Gửi"), "",
+        main.Question = new QuestionViewModel(L.T("Gửi văn bản"), L.F("Văn bản hoặc link gửi cho nhóm {0}:", group.Name), L.T("Gửi"),
+            TextActions.Copied(global::Android.App.Application.Context),
             async text =>
             {
                 if (!string.IsNullOrWhiteSpace(text) && await SendAsync(group, [], text) is { } error)

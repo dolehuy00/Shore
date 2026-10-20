@@ -1,12 +1,27 @@
 using Android.Content;
 using Shorekeeper.Desktop.ViewModels;
+using Shorekeeper.Engine.Transfers;
 using AndroidUri = Android.Net.Uri;
 
 namespace Shorekeeper.Android.Platform;
 
-/// <summary>What can be done with received text ("Gửi văn bản"): copy it, or open it when it is a web address.</summary>
+/// <summary>
+/// Text in "Gửi văn bản": what is copied starts the text to send; received text can be copied, or opened when it is a
+/// web address.
+/// </summary>
 internal static class TextActions
 {
+    /// <summary>
+    /// The text copied on the phone, to start "Gửi văn bản…" with (copy, open Shorekeeper, send); empty when nothing
+    /// or no plain text is copied, or it is too long to send. Android shows that the app read the clipboard.
+    /// </summary>
+    public static string Copied(Context context)
+    {
+        var clipboard = (ClipboardManager)context.GetSystemService(Context.ClipboardService)!;
+        string text = clipboard.PrimaryClip is { ItemCount: > 0 } clip ? clip.GetItemAt(0)?.Text ?? "" : "";
+        return text.Length <= OfferService.MaxNoteLength && !string.IsNullOrWhiteSpace(text) ? text : "";
+    }
+
     public static void Copy(Context context, string text)
     {
         var clipboard = (ClipboardManager)context.GetSystemService(Context.ClipboardService)!;
