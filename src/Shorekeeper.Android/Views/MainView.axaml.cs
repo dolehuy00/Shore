@@ -1,6 +1,10 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Layout;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Shorekeeper.Android.Platform;
 using Shorekeeper.Android.ViewModels;
 using Shorekeeper.Core.Localization;
@@ -10,12 +14,38 @@ namespace Shorekeeper.Android.Views;
 /// <summary>Pickers need the window, so the buttons that open one are handled here.</summary>
 public partial class MainView : UserControl
 {
+    private long lastRemeasure;
+
     public MainView()
     {
         InitializeComponent();
         LayoutLog.View = this;
         SizeChanged += (_, e) => LayoutLog.Event($"size {e.PreviousSize.Width:0}x{e.PreviousSize.Height:0} -> {e.NewSize.Width:0}x{e.NewSize.Height:0}");
+        LayoutUpdated += (_, _) => RemeasureIfCollapsed();
     }
+
+    /// <summary>
+    /// Rarely, back from the background, the header and the tab strip are 0 high while the window keeps its size, so the
+    /// pages slide under the status and navigation bars (layout.log, 2026-10-20: measured against no height while in the
+    /// background, then never measured again; turning the phone fixed it). Measures them again when that is seen. Called
+    /// after each layout pass, and on resume and focus, which may come with no layout pass at all.
+    /// </summary>
+    public void RemeasureIfCollapsed() => Dispatcher.UIThread.Post(() =>
+    {
+        bool collapsed = Header.IsEffectivelyVisible && Bounds.Height > 100 && (Header.Bounds.Height <= 0 || Tabs.Bounds.Height <= 0);
+        if (!collapsed || Environment.TickCount64 - lastRemeasure < 2000)
+        {
+            return;
+        }
+
+        lastRemeasure = Environment.TickCount64;
+        LayoutLog.Event("collapsed header or tabs, measuring again");
+        // Up to the window too: a control measured again on its own reuses its last constraint, the zero height.
+        foreach (Visual visual in Header.GetSelfAndVisualAncestors().Concat(Header.GetVisualDescendants()).Concat(Tabs.GetSelfAndVisualDescendants()))
+        {
+            (visual as Layoutable)?.InvalidateMeasure();
+        }
+    });
 
     /// <summary>"Gửi file…" on a contact.</summary>
     private async void OnSendFiles(object? sender, RoutedEventArgs e)
