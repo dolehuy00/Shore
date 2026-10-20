@@ -192,9 +192,16 @@ public partial class MainWindow : Window
         string[] paths = [.. (await clipboard.TryGetFilesAsync() ?? []).Select(f => f.TryGetLocalPath()).OfType<string>()];
         // No files: a copied link or paragraph goes as text, shown first so nothing is sent by surprise.
         string? text = paths.Length == 0 ? await clipboard.TryGetTextAsync() : null;
+        // Neither: a picture copied as a picture (Win+Shift+S, "Copy image"). Text first, as Word and Excel copy a
+        // picture of the text along with it.
+        if (paths.Length == 0 && string.IsNullOrWhiteSpace(text) && await ClipboardImage.SaveAsync(clipboard, main.ClipboardDirectory) is { } picture)
+        {
+            paths = [picture];
+        }
+
         if (paths.Length == 0 && string.IsNullOrWhiteSpace(text))
         {
-            await DialogService.ChooseAsync(L.T("Không có gì để gửi"), L.T("Hãy copy file, thư mục hoặc một đoạn chữ rồi nhấn Ctrl+V."), [L.T("Đóng")]);
+            await DialogService.ChooseAsync(L.T("Không có gì để gửi"), L.T("Hãy copy file, thư mục, ảnh hoặc một đoạn chữ rồi nhấn Ctrl+V."), [L.T("Đóng")]);
         }
         else if (!(paths.Length > 0 ? await main.Neighborhood.SendToSelectedAsync(paths) : await main.Neighborhood.SendTextToSelectedAsync(text!)))
         {

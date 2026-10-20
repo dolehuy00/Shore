@@ -418,6 +418,10 @@ public sealed class DialogService(
         }
     }
 
+    /// <summary>Puts a received picture on the clipboard as a picture, off the UI thread (large photos take a moment).</summary>
+    /// <returns>False when the file cannot be read any more.</returns>
+    public static Task<bool> CopyImageAsync(string path) => Task.Run(() => ClipboardImage.Copy(path));
+
     /// <summary>Opens <paramref name="text"/> in the browser when it is a web address; anything else is left alone.</summary>
     public static void OpenLink(string text)
     {

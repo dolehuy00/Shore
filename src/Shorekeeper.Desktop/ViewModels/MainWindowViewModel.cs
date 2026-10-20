@@ -88,6 +88,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         DisplayName = settings.Current.DisplayName;
         DownloadDirectory = settings.Current.DownloadDirectory;
         DataDirectory = paths.DataDirectory;
+        ClipboardDirectory = paths.ClipboardDirectory;
         AppVersion = typeof(MainWindowViewModel).Assembly
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0]
             ?? "0.0.0";
@@ -158,6 +159,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public partial string DownloadDirectory { get; set; }
 
     public string DataDirectory { get; }
+
+    /// <summary>Where a picture pasted with Ctrl+V is saved before it is sent.</summary>
+    public string ClipboardDirectory { get; }
 
     public string AppVersion { get; }
 

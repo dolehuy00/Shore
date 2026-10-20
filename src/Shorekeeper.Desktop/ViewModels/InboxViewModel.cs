@@ -374,6 +374,27 @@ public sealed partial class InboxItemViewModel(OfferKey key, InboxViewModel owne
     [RelayCommand]
     private void OpenLink() => DialogService.OpenLink(Text);
 
+    /// <summary>"Sao chép" on a received picture: the picture itself, to paste into a chat or a document.</summary>
+    [ObservableProperty]
+    public partial bool CanCopyImage { get; set; }
+
+    [RelayCommand]
+    private async Task CopyImageAsync()
+    {
+        if (offer?.Files.FirstOrDefault(IsPicture)?.FinalPath is { } path && await DialogService.CopyImageAsync(path))
+        {
+            CopyText = L.T("Đã chép");
+            DispatcherTimer.RunOnce(() => CopyText = L.T("Sao chép"), TimeSpan.FromSeconds(2));
+        }
+        else
+        {
+            await ShowMissingAsync();
+        }
+    }
+
+    private static bool IsPicture(InboxFile file) =>
+        !file.IsDirectory && file.State == InboxFileState.Completed && file.FinalPath is not null && TransferText.IsImage(file.FinalPath);
+
     public void Update(ReceivedOffer value)
     {
         offer = value;
@@ -423,6 +444,8 @@ public sealed partial class InboxItemViewModel(OfferKey key, InboxViewModel owne
         bool allGone = onDisk is { Received: > 0, Present: 0 };
         CanOpen = value.Files.Any(f => f.FinalPath is not null) && !allGone;
         HasFiles = value.Files.Any(f => !f.IsDirectory && f.State == InboxFileState.Completed) && !allGone;
+        // One picture received (not an album, which goes to a folder): it can be copied as a picture.
+        CanCopyImage = !allGone && value.Files.Count(f => !f.IsDirectory) == 1 && value.Files.Count(IsPicture) == 1;
         IsCompleted &= !allGone;
         IsError = value.State == InboxState.Failed;
         Progress = value.TotalBytes == 0 ? 0 : 100.0 * value.BytesReceived / value.TotalBytes;

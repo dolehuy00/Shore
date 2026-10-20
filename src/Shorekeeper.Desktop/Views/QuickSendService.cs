@@ -28,6 +28,7 @@ public sealed class QuickSendService(
     PeerNames names,
     LocalDevice device,
     SettingsService settings,
+    AppPaths appPaths,
     IGlobalHotkey hotkey)
 {
     private QuickSendWindow? window;
@@ -84,25 +85,32 @@ public sealed class QuickSendService(
         opened.Activate();
         if (paths.Count == 0)
         {
-            _ = FillFromClipboardAsync(opened, viewModel);
+            _ = FillFromClipboardAsync(opened, viewModel, appPaths.ClipboardDirectory);
         }
     }
 
     /// <summary>
     /// Opened by the shortcut or the tray while a link or some text is copied (and no files): it is filled in, so copy,
-    /// shortcut, pick the phone, Enter. It shows in the box before anything is sent.
+    /// shortcut, pick the phone, Enter. A picture copied as a picture (Win+Shift+S) is added as a PNG instead. Either
+    /// shows in the window before anything is sent.
     /// </summary>
-    private static async Task FillFromClipboardAsync(TopLevel window, QuickSendViewModel viewModel)
+    private static async Task FillFromClipboardAsync(TopLevel window, QuickSendViewModel viewModel, string pictures)
     {
         if (window.Clipboard is not { } clipboard || (await clipboard.TryGetFilesAsync())?.Length > 0)
         {
             return;
         }
 
-        if (await clipboard.TryGetTextAsync() is { Length: <= OfferService.MaxNoteLength } text && !string.IsNullOrWhiteSpace(text)
-            && viewModel.Text.Length == 0)
+        if (await clipboard.TryGetTextAsync() is { Length: <= OfferService.MaxNoteLength } text && !string.IsNullOrWhiteSpace(text))
         {
-            viewModel.Text = text;
+            if (viewModel.Text.Length == 0)
+            {
+                viewModel.Text = text;
+            }
+        }
+        else if (await ClipboardImage.SaveAsync(clipboard, pictures) is { } picture)
+        {
+            viewModel.Add([picture]);
         }
     }
 

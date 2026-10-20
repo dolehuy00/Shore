@@ -422,7 +422,7 @@
   "Không mở được: {0}": "Couldn't open it: {0}",
   "Kéo file hoặc thư mục vào một người để gửi. Click chọn người rồi nhấn Ctrl+V để gửi file hoặc đoạn chữ đã copy; Ctrl+click để chọn nhiều người.": "Drag files or folders onto a person to send them. Click a person and press Ctrl+V to send copied files or text; Ctrl+click to pick several people.",
   "Không có gì để gửi": "Nothing to send",
-  "Hãy copy file, thư mục hoặc một đoạn chữ rồi nhấn Ctrl+V.": "Copy files, a folder or some text, then press Ctrl+V.",
+  "Hãy copy file, thư mục, ảnh hoặc một đoạn chữ rồi nhấn Ctrl+V.": "Copy files, a folder, a picture or some text, then press Ctrl+V.",
   "Có gửi đến": "Something was sent to you",
   "Sao chép": "Copy",
   "Đã chép": "Copied",
@@ -586,5 +586,7 @@
   "Xóa kèm file đã nhận…": "Remove and delete received files…",
   "Xong": "Done",
   "Xóa khỏi lịch sử (giữ file)": "Remove from history (keep files)",
-  "Chọn nhiều": "Select several"
+  "Chọn nhiều": "Select several",
+  "Ảnh {0}": "Picture {0}",
+  "Chép ảnh để dán vào Zalo, Word…": "Copy the picture to paste it into a chat or a document"
 }

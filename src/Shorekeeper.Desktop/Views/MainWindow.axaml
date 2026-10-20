@@ -517,6 +517,8 @@
                       <Button Content="{Binding DownloadText}" Command="{Binding DownloadCommand}" IsVisible="{Binding CanDownload}" Classes="accent" />
                       <Button Content="{l:T 'Mở'}" Command="{Binding OpenLinkCommand}" IsVisible="{Binding IsLink}" />
                       <Button Content="{Binding CopyText}" Command="{Binding CopyCommand}" IsVisible="{Binding IsText}" Classes="accent" />
+                      <Button Content="{Binding CopyText}" Command="{Binding CopyImageCommand}" IsVisible="{Binding CanCopyImage}"
+                              ToolTip.Tip="{l:T 'Chép ảnh để dán vào Zalo, Word…'}" />
                       <Button Content="{l:T 'Chọn file…'}" Command="{Binding PickFilesCommand}" IsVisible="{Binding CanPick}" />
                       <Button Content="{l:T 'Bỏ qua'}" Command="{Binding DeclineCommand}" IsVisible="{Binding IsNew}" />
                       <Button Content="{l:T 'Hủy'}" Command="{Binding CancelCommand}" IsVisible="{Binding IsDownloading}" />

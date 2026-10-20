@@ -36,6 +36,9 @@ public sealed class AppPaths
 
     public string SnapshotsDirectory => Path.Combine(DataDirectory, "snapshots");
 
+    /// <summary>Pictures copied as pictures (not files) and sent, saved as PNG to be offered (desktop).</summary>
+    public string ClipboardDirectory => Path.Combine(DataDirectory, "clipboard");
+
     public static AppPaths ForCurrentUser()
     {
         string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
