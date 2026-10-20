@@ -28,6 +28,18 @@
     <Style Selector="Border.card.pick.picked">
       <Setter Property="Background" Value="{DynamicResource Sk.TileBackground}" />
     </Style>
+    <!-- The ✕ that ends choosing (Hộp nhận, Đã gửi). -->
+    <Style Selector="Button.close">
+      <Setter Property="Width" Value="30" />
+      <Setter Property="Height" Value="30" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="CornerRadius" Value="15" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Background" Value="{DynamicResource Sk.TileBackground}" />
+      <Setter Property="Foreground" Value="{DynamicResource Sk.MutedText}" />
+    </Style>
     <!-- A checked card in "Chọn" (Hộp nhận, Đã gửi); the change is animated in Themes/Motion.axaml. -->
     <Style Selector="Border.card.picked">
       <!-- A light wash of the accent blue, so the icon tile still stands out in light and dark themes. -->
@@ -315,9 +327,10 @@
               <Grid ColumnDefinitions="Auto,*,Auto,Auto">
                 <CheckBox IsChecked="{Binding All}" Content="{l:T 'Chọn tất cả'}" />
                 <TextBlock Grid.Column="1" Classes="muted" Text="{Binding Text}" FontSize="12" Margin="8,0" VerticalAlignment="Center" />
-                <Button Grid.Column="2" Command="{Binding StopCommand}" Padding="8" Background="Transparent" BorderThickness="0"
+                <!-- A small round close, as on Android chips: a light disc with a thin, muted ✕. -->
+                <Button Grid.Column="2" Classes="close" Command="{Binding StopCommand}" VerticalAlignment="Center"
                         AutomationProperties.Name="{l:T 'Xong'}" ToolTip.Tip="{l:T 'Xong'}">
-                  <PathIcon Data="{StaticResource Icon.Dismiss}" Width="16" Height="16" />
+                  <PathIcon Data="{StaticResource Icon.Dismiss}" Width="12" Height="12" />
                 </Button>
                 <Button Grid.Column="3" Padding="8" Margin="0,0,-6,0" Background="Transparent" BorderThickness="0" IsEnabled="{Binding HasAny}"
                         AutomationProperties.Name="{l:T 'Thêm'}">
@@ -428,9 +441,10 @@
               <Grid ColumnDefinitions="Auto,*,Auto,Auto">
                 <CheckBox IsChecked="{Binding All}" Content="{l:T 'Chọn tất cả'}" />
                 <TextBlock Grid.Column="1" Classes="muted" Text="{Binding Text}" FontSize="12" Margin="8,0" VerticalAlignment="Center" />
-                <Button Grid.Column="2" Command="{Binding StopCommand}" Padding="8" Background="Transparent" BorderThickness="0"
+                <!-- A small round close, as on Android chips: a light disc with a thin, muted ✕. -->
+                <Button Grid.Column="2" Classes="close" Command="{Binding StopCommand}" VerticalAlignment="Center"
                         AutomationProperties.Name="{l:T 'Xong'}" ToolTip.Tip="{l:T 'Xong'}">
-                  <PathIcon Data="{StaticResource Icon.Dismiss}" Width="16" Height="16" />
+                  <PathIcon Data="{StaticResource Icon.Dismiss}" Width="12" Height="12" />
                 </Button>
                 <Button Grid.Column="3" Padding="8" Margin="0,0,-6,0" Background="Transparent" BorderThickness="0" IsEnabled="{Binding HasAny}"
                         AutomationProperties.Name="{l:T 'Thêm'}">
