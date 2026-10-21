@@ -783,6 +783,7 @@
               <TextBlock Classes="muted" Text="{Binding Notice}" IsVisible="{Binding HasNotice}" FontSize="12" TextWrapping="Wrap" />
               <Grid ColumnDefinitions="*,Auto">
                 <TextBox Text="{Binding Draft}" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="120" IsEnabled="{Binding CanWrite}" CornerRadius="20" Padding="14,9"
+                         VerticalContentAlignment="Center"
                          PlaceholderText="{l:T 'Nhập tin nhắn…'}" AutomationProperties.Name="{l:T 'Tin nhắn'}" IsVisible="{Binding IsComposing}" />
                 <Border IsVisible="{Binding IsRecording}" Background="{DynamicResource Sk.TileBackground}" CornerRadius="20" Height="42" Padding="16,0">
                   <Grid ColumnDefinitions="Auto,Auto,*">
