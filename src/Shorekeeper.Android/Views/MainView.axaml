@@ -950,9 +950,9 @@
                             <TextBlock Text="{Binding RecalledText}" FontStyle="Italic" TextWrapping="Wrap" />
                             <TextBlock Classes="muted" Text="{Binding StatusText}" FontSize="12" HorizontalAlignment="Right" />
                           </StackPanel>
-                          <!-- An offer of pictures shows them; click one to open it. -->
+                          <!-- An offer of pictures shows the first few, or all of them small after "+N ảnh"; click one to open it. -->
                           <StackPanel IsVisible="{Binding HasPictures}" Spacing="4">
-                            <ItemsControl ItemsSource="{Binding Pictures}">
+                            <ItemsControl ItemsSource="{Binding Pictures}" IsVisible="{Binding !IsExpanded}">
                               <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
                                   <StackPanel Spacing="4" />
@@ -968,8 +968,26 @@
                                 </DataTemplate>
                               </ItemsControl.ItemTemplate>
                             </ItemsControl>
+                            <ItemsControl ItemsSource="{Binding AllPictures}" IsVisible="{Binding IsExpanded}">
+                              <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                  <UniformGrid Columns="3" ColumnSpacing="4" RowSpacing="4" />
+                                </ItemsPanelTemplate>
+                              </ItemsControl.ItemsPanel>
+                              <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="dvm:ChatPicture">
+                                  <Button Classes="picture" Command="{Binding $parent[ItemsControl].((dvm:ChatFileViewModel)DataContext).OpenPictureCommand}" CommandParameter="{Binding}">
+                                    <Border CornerRadius="6" ClipToBounds="True">
+                                      <Image Source="{Binding Image}" Width="84" Height="84" Stretch="UniformToFill" />
+                                    </Border>
+                                  </Button>
+                                </DataTemplate>
+                              </ItemsControl.ItemTemplate>
+                            </ItemsControl>
                             <Grid ColumnDefinitions="*,Auto">
-                              <TextBlock Classes="muted" Text="{Binding MoreText}" IsVisible="{Binding HasMore}" FontSize="12" />
+                              <Button Classes="link" Command="{Binding ToggleMoreCommand}" Click="OnMorePictures" IsVisible="{Binding HasMore}" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding MoreText}" FontSize="12" />
+                              </Button>
                               <TextBlock Grid.Column="1" Classes="muted" Text="{Binding StatusText}" FontSize="11" />
                             </Grid>
                           </StackPanel>

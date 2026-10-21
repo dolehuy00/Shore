@@ -1098,6 +1098,7 @@ public sealed partial class ChatFileViewModel(string id, ChatViewModel owner) : 
     private OfferKey? key;
     private string? offerId;
     private string? picturesShown;
+    private IReadOnlyList<string> locations = [];
 
     /// <summary>Until when "Thu hồi" is offered: never for theirs, any time while it waits to be delivered.</summary>
     private DateTimeOffset recallUntil;
@@ -1120,12 +1121,38 @@ public sealed partial class ChatFileViewModel(string id, ChatViewModel owner) : 
     [ObservableProperty]
     public partial string RecalledText { get; set; } = "";
 
-    /// <summary>"+3" when more pictures came than show.</summary>
+    /// <summary>"+3 ảnh" when more pictures came than show, "Thu gọn" while all of them show.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasMore))]
     public partial string? MoreText { get; set; }
 
     public bool HasMore => MoreText is not null;
+
+    /// <summary>All the pictures show, small, in place of the first few.</summary>
+    [ObservableProperty]
+    public partial bool IsExpanded { get; set; }
+
+    /// <summary>All the pictures, small; loaded only while <see cref="IsExpanded"/>.</summary>
+    [ObservableProperty]
+    public partial IReadOnlyList<ChatPicture> AllPictures { get; set; } = [];
+
+    /// <summary>"+N ảnh" / "Thu gọn". All of them load before the card grows, so it changes size once.</summary>
+    [RelayCommand]
+    private async Task ToggleMoreAsync()
+    {
+        if (IsExpanded)
+        {
+            IsExpanded = false;
+            AllPictures = [];
+        }
+        else if (await LoadAsync(locations, picturesShown) is { } all)
+        {
+            AllPictures = all;
+            IsExpanded = true;
+        }
+
+        ShowMoreText();
+    }
 
     /// <summary>Ours and still open: it can be withdrawn.</summary>
     [ObservableProperty]
@@ -1161,17 +1188,43 @@ public sealed partial class ChatFileViewModel(string id, ChatViewModel owner) : 
         }
 
         picturesShown = shown;
-        MoreText = locations.Count > ShownPictures ? $"+{locations.Count - ShownPictures}" : null;
+        this.locations = locations;
+        if (locations.Count <= ShownPictures)
+        {
+            IsExpanded = false;
+            AllPictures = [];
+        }
+
+        ShowMoreText();
         if (locations.Count == 0)
         {
             Pictures = [];
             return;
         }
 
-        _ = LoadAsync([.. locations.Take(ShownPictures)], shown);
+        _ = ShowAsync();
+
+        async Task ShowAsync()
+        {
+            if (await LoadAsync([.. locations.Take(ShownPictures)], shown) is { } first)
+            {
+                Pictures = first;
+            }
+
+            if (IsExpanded && await LoadAsync(locations, shown) is { } all && IsExpanded)
+            {
+                AllPictures = all;
+            }
+        }
     }
 
-    private async Task LoadAsync(IReadOnlyList<string> locations, string shown)
+    private void ShowMoreText() =>
+        MoreText = locations.Count <= ShownPictures ? null
+            : IsExpanded ? L.T("Thu gọn")
+            : L.F("+{0} ảnh", locations.Count - ShownPictures);
+
+    /// <summary>The pictures, or null when where they are has changed meanwhile.</summary>
+    private async Task<List<ChatPicture>?> LoadAsync(IReadOnlyList<string> locations, string? shown)
     {
         List<ChatPicture> loaded = await Task.Run(() =>
         {
@@ -1191,10 +1244,7 @@ public sealed partial class ChatFileViewModel(string id, ChatViewModel owner) : 
 
             return pictures;
         });
-        if (picturesShown == shown)
-        {
-            Pictures = loaded;
-        }
+        return picturesShown == shown ? loaded : null;
     }
 
     /// <summary>Sent by us: on the right, like our messages.</summary>

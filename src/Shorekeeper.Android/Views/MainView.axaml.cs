@@ -23,6 +23,7 @@ namespace Shorekeeper.Android.Views;
 public partial class MainView : UserControl
 {
     private long lastRemeasure;
+    private ChatScroll? chatScroll;
 
     /// <summary>When a message or card was last held: letting go is not a tap on the picture or link under the finger.</summary>
     private long heldAt;
@@ -64,8 +65,8 @@ public partial class MainView : UserControl
         {
             if (DataContext is MainViewModel main)
             {
-                var chatScroll = new ChatScroll(ChatScroller);
-                main.Chat.ScrollToEndRequested += (_, _) => chatScroll.ToEnd();
+                chatScroll = new ChatScroll(ChatScroller);
+                main.Chat.ScrollToEndRequested += (_, _) => chatScroll?.ToEnd();
                 // 📎 in a conversation: the same picker as "Gửi file…" on a card.
                 main.Chat.PickFiles = () => PickAsync(L.F("Gửi cho {0}", main.Chat.Current?.Name), allowMultiple: true);
             }
@@ -162,6 +163,15 @@ public partial class MainView : UserControl
             heldAt = Environment.TickCount64;
             FlyoutBase.ShowAttachedFlyout(card);
             e.Handled = true;
+        }
+    }
+
+    /// <summary>"+N ảnh" / "Thu gọn": the card changes size where it is, its top kept in place.</summary>
+    private void OnMorePictures(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control button)
+        {
+            chatScroll?.Hold(button);
         }
     }
 
