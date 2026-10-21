@@ -247,6 +247,13 @@ public sealed class DialogService(
     }
 
     /// <summary>
+    /// A message: a Windows toast with the sender and the text; clicking it runs <paramref name="open"/> on the UI
+    /// thread. With toasts off nothing pops up: the badge on "Tin nhắn" is enough for a message.
+    /// </summary>
+    public void ShowIncomingMessage(string senderName, string text, Action open) =>
+        notifier.TryShow(senderName, [TransferText.Preview(text, 200)], [], _ => Dispatcher.UIThread.Post(open));
+
+    /// <summary>
     /// "Huy gửi cho bạn …" [Tải] [Bỏ qua] [Xem] (docs/10-ux.md §4): a Windows toast, or a small popup in the corner
     /// of the screen when toasts are off.
     /// </summary>

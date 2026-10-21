@@ -3,7 +3,9 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
+using Shorekeeper.Android.Platform;
 using Shorekeeper.Android.ViewModels;
+using Shorekeeper.Core.Identity;
 using Shorekeeper.Android.Views;
 using Application = Avalonia.Application;
 
@@ -13,6 +15,7 @@ public partial class App : Application
 {
     private static MainViewModel? main;
     private static (IReadOnlyList<string> Locations, string? Text)? pendingShare;
+    private static DeviceId? pendingChat;
 
     /// <summary>Set by <see cref="AndroidApp"/> before Avalonia starts.</summary>
     internal static Task<IServiceProvider>? Engine { get; set; }
@@ -48,18 +51,50 @@ public partial class App : Application
     /// <summary>Back in the app: received files may have been deleted meanwhile ("Đã xóa file" on Hộp nhận).</summary>
     internal static void Resumed() => Dispatcher.UIThread.Post(() =>
     {
-        if (main is { IsInboxTab: true })
+        if (main is null)
+        {
+            return;
+        }
+
+        main.IsInForeground = true;
+        if (main.IsInboxTab)
         {
             main.CheckReceivedFiles();
         }
     });
 
-    /// <summary>A notification was tapped: 0 Xóm, 1 Hộp nhận, 2 Đã gửi.</summary>
+    /// <summary>Out of sight: messages that arrive are not read, and get their notification.</summary>
+    internal static void Paused() => Dispatcher.UIThread.Post(() =>
+    {
+        if (main is not null)
+        {
+            main.IsInForeground = false;
+        }
+    });
+
+    /// <summary>A notification was tapped: 0 Xóm, 1 Hộp nhận (File), 4 Âm thanh.</summary>
     internal static void ShowTab(int tab) => Dispatcher.UIThread.Post(() =>
     {
         if (main is not null)
         {
+            main.FilesShowSent = false;
             main.SelectedTab = tab;
+        }
+    });
+
+    /// <summary>A message notification was tapped: its conversation.</summary>
+    internal static void ShowChat(string peer) => Dispatcher.UIThread.Post(() =>
+    {
+        if (DeviceId.TryParse(peer, out DeviceId id))
+        {
+            if (main is null)
+            {
+                pendingChat = id;
+            }
+            else
+            {
+                main.OpenChat(id);
+            }
         }
     });
 
@@ -68,8 +103,14 @@ public partial class App : Application
         IServiceProvider services = await engine;
         await Dispatcher.UIThread.InvokeAsync(() =>
         {
-            main = new MainViewModel(services);
+            main = new MainViewModel(services) { IsInForeground = true };
             view.DataContext = main;
+            ChatNotifications.IsReading = peer => main.Chat.ReadingPeer == peer;
+            if (pendingChat is { } chat)
+            {
+                pendingChat = null;
+                main.OpenChat(chat);
+            }
             if (pendingShare is { } share)
             {
                 pendingShare = null;

@@ -69,6 +69,9 @@ public sealed partial class NeighborhoodViewModel : ObservableObject
 
     public string OthersHeader => L.F("Đang online trong mạng ({0})", Others.Count);
 
+    /// <summary>"Nhắn tin" on a card: the main window opens the conversation.</summary>
+    public event EventHandler<DeviceId>? ChatRequested;
+
     [RelayCommand]
     private Task AddPeerAsync() => dialogs.AddPeerAsync();
 
@@ -189,6 +192,8 @@ public sealed partial class NeighborhoodViewModel : ObservableObject
     }
 
     /// <summary>"Gửi văn bản…": a link or a few lines, to the card or to every selected card.</summary>
+    internal void RequestChat(PeerCardViewModel card) => ChatRequested?.Invoke(this, card.DeviceId);
+
     internal async Task SendTextAsync(PeerCardViewModel card, string initialText = "")
     {
         int count = card.IsSelected ? Contacts.Count(c => c.IsSelected) : 1;
@@ -396,6 +401,9 @@ public sealed partial class PeerCardViewModel(DeviceId deviceId, NeighborhoodVie
 
     [RelayCommand]
     private Task SendTextAsync() => owner.SendTextAsync(this);
+
+    [RelayCommand]
+    private void Message() => owner.RequestChat(this);
 
     [RelayCommand]
     private Task RenameAsync() => owner.RenameAsync(this);

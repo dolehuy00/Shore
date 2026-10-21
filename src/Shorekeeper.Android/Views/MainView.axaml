@@ -131,6 +131,60 @@
         </Animation>
       </Style.Animations>
     </Style>
+    <!-- File: "Nhận | Đã gửi", a segmented switch, the chosen side raised like a card. -->
+    <Style Selector="Border.segments">
+      <Setter Property="Background" Value="{DynamicResource Sk.TileBackground}" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="3" />
+    </Style>
+    <Style Selector="Button.segment">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="0,7" />
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.segment.on">
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.segment.on /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource Sk.CardBackground}" />
+    </Style>
+    <!-- Tin nhắn: a row of the list, and the bubbles, ours on the right in the accent color. -->
+    <Style Selector="Button.person">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="4,8" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    </Style>
+    <Style Selector="TextBlock.unread">
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Border.bubble">
+      <Setter Property="Padding" Value="12,7" />
+      <Setter Property="Margin" Value="0,2" />
+      <Setter Property="CornerRadius" Value="16" />
+      <Setter Property="MaxWidth" Value="290" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Sk.CardBorder}" />
+      <Setter Property="Background" Value="{DynamicResource Sk.CardBackground}" />
+    </Style>
+    <Style Selector="Border.bubble.mine">
+      <Setter Property="HorizontalAlignment" Value="Right" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Background" Value="{DynamicResource AccentButtonBackground}" />
+    </Style>
+    <Style Selector="Border.bubble.mine TextBlock, Border.bubble.mine SelectableTextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource AccentButtonForeground}" />
+    </Style>
+    <Style Selector="Border.bubble.unknown TextBlock.body">
+      <Setter Property="FontStyle" Value="Italic" />
+    </Style>
     <!-- A notice floats like an Android toast: dark rounded box near the bottom, rising in as it appears. -->
     <Style Selector="Border.toast">
       <Setter Property="Background" Value="#E6323232" />
@@ -190,19 +244,24 @@
             </StackPanel>
           </TabItem.Header>
         </TabItem>
-        <TabItem AutomationProperties.Name="{l:T 'Hộp nhận'}">
+        <TabItem AutomationProperties.Name="File">
           <TabItem.Header>
             <StackPanel Spacing="3">
-              <PathIcon Data="{StaticResource Icon.Download}" Width="22" Height="22" HorizontalAlignment="Center" />
-              <TextBlock Text="{l:T 'Hộp nhận'}" HorizontalAlignment="Center" />
+              <PathIcon Data="{StaticResource Icon.FolderOpen}" Width="22" Height="22" HorizontalAlignment="Center" />
+              <TextBlock Text="File" HorizontalAlignment="Center" />
             </StackPanel>
           </TabItem.Header>
         </TabItem>
-        <TabItem AutomationProperties.Name="{l:T 'Đã gửi'}">
+        <TabItem AutomationProperties.Name="{l:T 'Tin nhắn'}">
           <TabItem.Header>
             <StackPanel Spacing="3">
-              <PathIcon Data="{StaticResource Icon.Upload}" Width="22" Height="22" HorizontalAlignment="Center" />
-              <TextBlock Text="{l:T 'Đã gửi'}" HorizontalAlignment="Center" />
+              <!-- A red dot while something is unread. -->
+              <Panel HorizontalAlignment="Center">
+                <PathIcon Data="{StaticResource Icon.Chat}" Width="22" Height="22" />
+                <Ellipse Width="8" Height="8" Fill="#EF4444" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-1,-3,0"
+                         IsVisible="{Binding Chat.HasUnread}" />
+              </Panel>
+              <TextBlock Text="{l:T 'Tin nhắn'}" HorizontalAlignment="Center" />
             </StackPanel>
           </TabItem.Header>
         </TabItem>
@@ -286,6 +345,7 @@
                           </PathIcon>
                           <Button.Flyout>
                             <MenuFlyout>
+                              <MenuItem Header="{l:T 'Nhắn tin'}" Command="{Binding MessageCommand}" IsVisible="{Binding IsTrusted}" />
                               <MenuItem Header="{l:T 'Tự nhận file…'}" Command="{Binding ChooseAutoAcceptCommand}" IsVisible="{Binding IsTrusted}"
                                         ToggleType="CheckBox" IsChecked="{Binding IsAutoAccept, Mode=OneWay}" />
                               <MenuItem Header="{l:T 'Gửi văn bản…'}" Command="{Binding SendTextCommand}" IsVisible="{Binding IsTrusted}" />
@@ -295,7 +355,11 @@
                             </MenuFlyout>
                           </Button.Flyout>
                         </Button>
-                        <Panel Grid.Row="2" HorizontalAlignment="Right">
+                        <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                          <Button Command="{Binding MessageCommand}" IsVisible="{Binding IsTrusted}" Padding="9,7"
+                                  AutomationProperties.Name="{l:T 'Nhắn tin'}">
+                            <PathIcon Data="{StaticResource Icon.Chat}" Width="16" Height="16" />
+                          </Button>
                           <Button Content="{l:T 'Kết nối'}" Command="{Binding ConnectCommand}" IsVisible="{Binding CanConnect}" Classes="accent"
                                   Padding="12,6" FontSize="13" />
                           <Button Click="OnSendFiles" IsVisible="{Binding CanSend}" Classes="accent" Padding="12,6" FontSize="13"
@@ -305,7 +369,7 @@
                               <TextBlock Text="{l:T 'Gửi file…'}" />
                             </StackPanel>
                           </Button>
-                        </Panel>
+                        </StackPanel>
                       </Grid>
                     </Grid>
                   </Border>
@@ -322,6 +386,15 @@
           </Button>
         </Panel>
         </Panel>
+        <!-- File (docs/15-chat.md §6.2): "Nhận" and "Đã gửi" share one tab, so "Tin nhắn" has room in the tab strip. -->
+        <DockPanel IsVisible="{Binding IsFilesTab}">
+        <Border DockPanel.Dock="Top" Classes="segments" Margin="0,0,0,10">
+          <Grid ColumnDefinitions="*,*">
+            <Button Classes="segment" Classes.on="{Binding !FilesShowSent}" Command="{Binding ShowReceivedCommand}" Content="{l:T 'Nhận'}" />
+            <Button Grid.Column="1" Classes="segment" Classes.on="{Binding FilesShowSent}" Command="{Binding ShowSentFilesCommand}" Content="{l:T 'Đã gửi'}" />
+          </Grid>
+        </Border>
+        <Panel>
         <Panel Classes="page" IsVisible="{Binding IsInboxTab}">
         <Panel>
           <StackPanel IsVisible="{Binding HasNoOffers}" Spacing="6" Margin="16,48" HorizontalAlignment="Center">
@@ -532,6 +605,108 @@
               </ItemsControl.ItemTemplate>
             </ItemsControl>
           </ScrollViewer>
+          </DockPanel>
+        </Panel>
+        </Panel>
+        </Panel>
+        </DockPanel>
+
+        <!-- Tin nhắn (docs/15-chat.md §6.2): the list, or one conversation over it; ← and the Back button return to the list. -->
+        <Panel Classes="page" IsVisible="{Binding IsChatTab}">
+        <Panel DataContext="{Binding Chat}" x:DataType="dvm:ChatViewModel">
+          <Panel IsVisible="{Binding !IsOpen}">
+            <StackPanel IsVisible="{Binding !HasConversations}" Spacing="6" Margin="16,48" HorizontalAlignment="Center">
+              <PathIcon Data="{StaticResource Icon.Chat}" Width="40" Height="40" Opacity="0.5" HorizontalAlignment="Center" />
+              <TextBlock Classes="muted" Text="{l:T 'Kết nối với một máy ở Xóm để nhắn tin cho nhau.'}" TextWrapping="Wrap" TextAlignment="Center" />
+            </StackPanel>
+            <ScrollViewer>
+              <ItemsControl ItemsSource="{Binding Conversations}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="dvm:ChatPersonViewModel">
+                    <Button Classes="person" Command="{Binding OpenCommand}" AutomationProperties.Name="{Binding Name}">
+                      <Grid ColumnDefinitions="Auto,*,Auto">
+                        <Panel>
+                          <Border Classes="tile" VerticalAlignment="Center">
+                            <Panel>
+                              <PathIcon Data="{StaticResource Icon.Laptop}" IsVisible="{Binding !IsPhone}" Width="22" Height="22" />
+                              <PathIcon Data="{StaticResource Icon.Phone}" IsVisible="{Binding IsPhone}" Width="22" Height="22" />
+                            </Panel>
+                          </Border>
+                          <Ellipse Classes="dot" Classes.busy="{Binding IsBusy}" IsVisible="{Binding IsOnline}" Width="12" Height="12"
+                                   HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-2,-2"
+                                   Stroke="{DynamicResource Sk.WindowBackground}" StrokeThickness="2" />
+                        </Panel>
+                        <StackPanel Grid.Column="1" Spacing="2" Margin="12,0,8,0" VerticalAlignment="Center">
+                          <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                          <TextBlock Classes.muted="{Binding !HasUnread}" Classes.unread="{Binding HasUnread}" Text="{Binding Preview}" FontSize="13" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" Spacing="4" VerticalAlignment="Center">
+                          <TextBlock Classes="muted" Text="{Binding TimeText}" FontSize="12" HorizontalAlignment="Right" />
+                          <Border Background="#EF4444" CornerRadius="9" MinWidth="18" Padding="5,0" HorizontalAlignment="Right" IsVisible="{Binding HasUnread}">
+                            <TextBlock Text="{Binding Unread}" FontSize="11" Foreground="White" HorizontalAlignment="Center" />
+                          </Border>
+                        </StackPanel>
+                      </Grid>
+                    </Button>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+          </Panel>
+
+          <DockPanel IsVisible="{Binding IsOpen}">
+            <!-- ← Who, and whether they are there. -->
+            <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*" Margin="0,0,0,6">
+              <Button Classes="round" Command="{Binding CloseCommand}" Width="40" Height="40" CornerRadius="20" Margin="-6,0,4,0"
+                      AutomationProperties.Name="{l:T 'Quay lại'}">
+                <PathIcon Data="{StaticResource Icon.ArrowLeft}" Width="20" Height="20" />
+              </Button>
+              <StackPanel Grid.Column="1" DataContext="{Binding Current}" x:DataType="dvm:ChatPersonViewModel" VerticalAlignment="Center">
+                <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <Ellipse Classes="dot" Classes.busy="{Binding IsBusy}" Classes.muted="{Binding !IsOnline}" />
+                  <TextBlock Classes="muted" Text="{Binding StatusText}" FontSize="12" />
+                </StackPanel>
+              </StackPanel>
+            </Grid>
+
+            <!-- The box, and ➤. -->
+            <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0,6,0,10">
+              <TextBlock Classes="muted" Text="{Binding Notice}" IsVisible="{Binding HasNotice}" FontSize="12" TextWrapping="Wrap" />
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBox Text="{Binding Draft}" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="120" IsEnabled="{Binding CanWrite}" CornerRadius="20" Padding="14,9"
+                         PlaceholderText="{l:T 'Nhập tin nhắn…'}" AutomationProperties.Name="{l:T 'Tin nhắn'}" />
+                <Button Grid.Column="1" Classes="accent" Command="{Binding SendCommand}" Width="42" Height="42" CornerRadius="21" Padding="0" Margin="8,0,0,0"
+                        VerticalAlignment="Bottom" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" AutomationProperties.Name="{l:T 'Gửi'}">
+                  <PathIcon Data="{StaticResource Icon.Send}" Width="18" Height="18" />
+                </Button>
+              </Grid>
+            </StackPanel>
+
+            <Panel>
+              <TextBlock Classes="muted" IsVisible="{Binding HasNoMessages}" Text="{l:T 'Chưa có tin nhắn. Gửi lời chào đi!'}"
+                         HorizontalAlignment="Center" VerticalAlignment="Center" />
+              <ScrollViewer x:Name="ChatScroller">
+                <ItemsControl ItemsSource="{Binding Messages}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="dvm:ChatBubbleViewModel">
+                      <StackPanel>
+                        <TextBlock Classes="muted" Text="{Binding DayText}" IsVisible="{Binding HasDay}" FontSize="12" HorizontalAlignment="Center" Margin="0,10,0,6" />
+                        <Border Classes="bubble" Classes.mine="{Binding IsMine}" Classes.unknown="{Binding IsUnknown}">
+                          <StackPanel Spacing="2">
+                            <SelectableTextBlock Classes="body" Text="{Binding Text}" TextWrapping="Wrap" FontSize="15" />
+                            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                              <TextBlock Text="{Binding StatusText}" FontSize="11" Opacity="0.75" VerticalAlignment="Center" />
+                              <Button Content="{l:T 'Gửi lại'}" Command="{Binding RetryCommand}" IsVisible="{Binding IsFailed}" Padding="8,2" FontSize="12" />
+                            </StackPanel>
+                          </StackPanel>
+                        </Border>
+                      </StackPanel>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+            </Panel>
           </DockPanel>
         </Panel>
         </Panel>

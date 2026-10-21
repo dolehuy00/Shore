@@ -12,6 +12,7 @@ using Shorekeeper.Core.Trust;
 using Shorekeeper.Desktop.ViewModels;
 using Shorekeeper.Engine;
 using Shorekeeper.Engine.Audio;
+using Shorekeeper.Engine.Chat;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Groups;
 using Shorekeeper.Engine.Settings;
@@ -24,8 +25,8 @@ namespace Shorekeeper.Android.ViewModels;
 
 /// <summary>
 /// The phone's one screen (docs/14-android.md, A2–A5): "Xóm" (contacts and who is online, Kết nối, Gửi file),
-/// "Hộp nhận" (download into Download/Shorekeeper), "Đã gửi", "Nhóm", "Âm thanh" and "Cài đặt". Connect requests and
-/// the recipients of a share show as overlays.
+/// "File" (Nhận: download into Download/Shorekeeper; Đã gửi), "Tin nhắn", "Nhóm", "Âm thanh" and "Cài đặt". Connect
+/// requests and the recipients of a share show as overlays.
 /// </summary>
 public sealed partial class MainViewModel : ObservableObject
 {
@@ -68,6 +69,7 @@ public sealed partial class MainViewModel : ObservableObject
         Audio.Notice += (_, message) => Notice = message;
         Audio.AskPassword = AskPasswordAsync;
         Settings = new SettingsTabViewModel(services, this);
+        Chat = new ChatViewModel(services.GetRequiredService<ChatService>(), trust, directory);
         OfferSelection = new ListSelection(() => Offers, () => RemoveCheckedOffers(deleteFiles: false), () => RemoveCheckedOffers(deleteFiles: true));
         SentSelection = new ListSelection(() => Sent, RemoveCheckedSent);
         settings.Changed += (_, _) => Dispatcher.UIThread.Post(() => OnPropertyChanged(nameof(Title)));
@@ -107,6 +109,9 @@ public sealed partial class MainViewModel : ObservableObject
 
     public SettingsTabViewModel Settings { get; }
 
+    /// <summary>"Tin nhắn".</summary>
+    public ChatViewModel Chat { get; }
+
     public ObservableCollection<PeerItemViewModel> Peers { get; } = [];
 
     public ObservableCollection<OfferItemViewModel> Offers { get; } = [];
@@ -121,16 +126,30 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>"Chọn" on Đã gửi.</summary>
     public ListSelection SentSelection { get; }
 
-    /// <summary>0 Xóm, 1 Hộp nhận, 2 Đã gửi, 3 Nhóm, 4 Âm thanh, 5 Cài đặt.</summary>
+    /// <summary>0 Xóm, 1 File (Nhận or Đã gửi, <see cref="FilesShowSent"/>), 2 Tin nhắn, 3 Nhóm, 4 Âm thanh, 5 Cài đặt.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsNearbyTab), nameof(IsInboxTab), nameof(IsSentTab), nameof(IsGroupsTab), nameof(IsAudioTab), nameof(IsSettingsTab))]
+    [NotifyPropertyChangedFor(nameof(IsNearbyTab), nameof(IsFilesTab), nameof(IsInboxTab), nameof(IsSentTab), nameof(IsChatTab), nameof(IsGroupsTab),
+        nameof(IsAudioTab), nameof(IsSettingsTab))]
     public partial int SelectedTab { get; set; }
+
+    /// <summary>"Đã gửi" rather than "Nhận" on the File tab (docs/15-chat.md §6.2).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsInboxTab), nameof(IsSentTab))]
+    public partial bool FilesShowSent { get; set; }
+
+    /// <summary>The app is on screen (resumed): with "Tin nhắn" shown, what arrives there is read.</summary>
+    [ObservableProperty]
+    public partial bool IsInForeground { get; set; }
 
     public bool IsNearbyTab => SelectedTab == 0;
 
-    public bool IsInboxTab => SelectedTab == 1;
+    public bool IsFilesTab => SelectedTab == 1;
 
-    public bool IsSentTab => SelectedTab == 2;
+    public bool IsInboxTab => SelectedTab == 1 && !FilesShowSent;
+
+    public bool IsSentTab => SelectedTab == 1 && FilesShowSent;
+
+    public bool IsChatTab => SelectedTab == 2;
 
     public bool IsGroupsTab => SelectedTab == 3;
 
@@ -348,7 +367,7 @@ public sealed partial class MainViewModel : ObservableObject
                     await offers.CreateAsync(new PreparedOffer([], []), [.. batch.Select(r => r.Id)], text, snapshotLocked: false, groupId: batch.Key, CancellationToken.None);
                 }
 
-                SelectedTab = 2;
+                ShowSentFiles();
             }
 
             return null;
@@ -374,7 +393,7 @@ public sealed partial class MainViewModel : ObservableObject
             await offers.CreateAsync(prepared, [.. batch.Select(r => r.Id)], text, snapshotLocked: false, groupId: batch.Key, CancellationToken.None);
         }
 
-        SelectedTab = 2;
+        ShowSentFiles();
         return prepared.Unreadable.Count > 0 ? L.F("{0} mục không đọc được đã bị bỏ qua.", prepared.Unreadable.Count) : null;
     }
 
@@ -480,9 +499,37 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    [RelayCommand]
+    private void ShowReceived() => FilesShowSent = false;
+
+    [RelayCommand]
+    private void ShowSentFiles()
+    {
+        FilesShowSent = true;
+        SelectedTab = 1;
+    }
+
+    /// <summary>"Nhắn tin" on a card, or a message notification.</summary>
+    internal void OpenChat(DeviceId peer)
+    {
+        Chat.Open(peer);
+        SelectedTab = 2;
+    }
+
+    partial void OnIsInForegroundChanged(bool value) => Chat.IsShown = value && IsChatTab;
+
+    partial void OnFilesShowSentChanged(bool value)
+    {
+        if (!value && IsFilesTab)
+        {
+            CheckReceivedFiles();
+        }
+    }
+
     partial void OnSelectedTabChanged(int value)
     {
-        if (value == 1)
+        Chat.IsShown = IsInForeground && value == 2;
+        if (value == 1 && !FilesShowSent)
         {
             CheckReceivedFiles();
         }
@@ -652,6 +699,9 @@ public sealed partial class PeerItemViewModel(
 
     [RelayCommand]
     private void SendText() => owner.AskText(this);
+
+    [RelayCommand]
+    private void Message() => owner.OpenChat(DeviceId);
 
     [RelayCommand]
     private void Disconnect() => owner.ConfirmDisconnect(this);

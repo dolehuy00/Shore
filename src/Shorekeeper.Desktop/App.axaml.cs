@@ -9,6 +9,7 @@ using Shorekeeper.Core.Discovery;
 using Shorekeeper.Core.Localization;
 using Shorekeeper.Desktop.ViewModels;
 using Shorekeeper.Desktop.Views;
+using Shorekeeper.Engine.Chat;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Transfers;
 using Shorekeeper.Engine.Trust;
@@ -67,6 +68,21 @@ public partial class App : Application
                 }
             });
             dialogs.PageRequested += (_, _) => ShowMainWindow();
+
+            // Messages: a toast unless "Bận" or the conversation is open in front (docs/15-chat.md §6.1).
+            var chat = Services.GetRequiredService<ChatService>();
+            var main = (MainWindowViewModel)mainWindow.DataContext;
+            chat.Received += (_, message) => Dispatcher.UIThread.Post(() =>
+            {
+                if (presence.Status != MyStatus.Busy && main.Chat.ReadingPeer != message.Peer)
+                {
+                    dialogs.ShowIncomingMessage(names.Of(message.Peer), ChatBubbleViewModel.TextOf(message), () =>
+                    {
+                        main.OpenChat(message.Peer);
+                        ShowMainWindow();
+                    });
+                }
+            });
 
             quickSend = Services.GetRequiredService<QuickSendService>();
             quickSend.Start();

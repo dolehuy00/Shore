@@ -6,6 +6,7 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Shorekeeper.Core.Discovery;
+using Shorekeeper.Core.Identity;
 using Shorekeeper.Core.Localization;
 using Shorekeeper.Desktop.Views;
 using Shorekeeper.Engine;
@@ -18,6 +19,7 @@ namespace Shorekeeper.Desktop.ViewModels;
 public enum NavPage
 {
     Neighborhood,
+    Messages,
     Inbox,
     Sent,
     Groups,
@@ -68,9 +70,11 @@ public sealed partial class MainWindowViewModel : ObservableObject
         GroupsViewModel groups,
         AudioViewModel audio,
         StatsViewModel stats,
+        ChatViewModel chat,
         DialogService dialogs)
     {
         Groups = groups;
+        Chat = chat;
         Stats = stats;
         Audio = audio;
         Settings = settingsPage;
@@ -97,22 +101,31 @@ public sealed partial class MainWindowViewModel : ObservableObject
         SelectedNavItem = NavItems[0];
         SelectedStatus = StatusOptions.First(o => o.Status == presence.Status);
 
-        NavItems[1].Badge = inbox.NewCount;
+        Nav(NavPage.Inbox).Badge = inbox.NewCount;
         inbox.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(InboxViewModel.NewCount))
             {
-                NavItems[1].Badge = inbox.NewCount;
+                Nav(NavPage.Inbox).Badge = inbox.NewCount;
             }
         };
-        NavItems[3].Badge = groups.AttentionCount;
+        Nav(NavPage.Groups).Badge = groups.AttentionCount;
         groups.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(GroupsViewModel.AttentionCount))
             {
-                NavItems[3].Badge = groups.AttentionCount;
+                Nav(NavPage.Groups).Badge = groups.AttentionCount;
             }
         };
+        Nav(NavPage.Messages).Badge = chat.UnreadTotal;
+        chat.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(ChatViewModel.UnreadTotal))
+            {
+                Nav(NavPage.Messages).Badge = chat.UnreadTotal;
+            }
+        };
+        neighborhood.ChatRequested += (_, peer) => OpenChat(peer);
         // Downloads fill the disk without telling the window; once a minute is enough for the card.
         RefreshStorage();
         DispatcherTimer.Run(() =>
@@ -121,8 +134,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
             return true;
         }, TimeSpan.FromMinutes(1));
         Search = new SearchViewModel(neighborhood, groups, inbox, sent, Reveal);
-        dialogs.OfferSent += (_, _) => SelectedNavItem = NavItems[2];
-        dialogs.PageRequested += (_, page) => SelectedNavItem = NavItems.First(i => i.Page == page);
+        dialogs.OfferSent += (_, _) => SelectedNavItem = Nav(NavPage.Sent);
+        dialogs.PageRequested += (_, page) => SelectedNavItem = Nav(page);
         audio.Notice += (_, message) => dialogs.Ask(L.T("Âm thanh"), [message], [], NavPage.Audio, _ => { });
         audio.AskPassword = question => question.Masked
             ? DialogService.PromptPasswordAsync(question.Title, question.Label, question.OkText, confirm: false, _ => Task.FromResult<string?>(null))
@@ -150,6 +163,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public SearchViewModel Search { get; }
 
+    /// <summary>"Tin nhắn".</summary>
+    public ChatViewModel Chat { get; }
+
     /// <summary>A search result was chosen: the view scrolls to this row's view model and points at it.</summary>
     public event EventHandler<object>? RevealRequested;
 
@@ -173,6 +189,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public IReadOnlyList<NavItem> NavItems { get; } =
     [
         new(NavPage.Neighborhood, L.T("Xóm"), "Icon.People"),
+        new(NavPage.Messages, L.T("Tin nhắn"), "Icon.Chat"),
         new(NavPage.Inbox, L.T("Hộp nhận"), "Icon.Download"),
         new(NavPage.Sent, L.T("Đã gửi"), "Icon.Upload"),
         new(NavPage.Groups, L.T("Nhóm"), "Icon.Team"),
@@ -188,8 +205,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
     ];
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ComingSoonText), nameof(IsComingSoonVisible), nameof(IsNeighborhoodVisible),
-        nameof(IsInboxVisible), nameof(IsSentVisible), nameof(IsGroupsVisible), nameof(IsAudioVisible), nameof(IsSettingsVisible))]
+    [NotifyPropertyChangedFor(nameof(ComingSoonText), nameof(IsComingSoonVisible), nameof(IsNeighborhoodVisible), nameof(IsMessagesVisible),
+        nameof(IsPageScrollerVisible), nameof(IsInboxVisible), nameof(IsSentVisible), nameof(IsGroupsVisible), nameof(IsAudioVisible), nameof(IsSettingsVisible))]
     public partial NavItem SelectedNavItem { get; set; }
 
     [ObservableProperty]
@@ -201,6 +218,11 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public bool IsHidden => SelectedStatus.Status == MyStatus.Hidden;
 
     public bool IsNeighborhoodVisible => SelectedNavItem.Page == NavPage.Neighborhood;
+
+    /// <summary>"Tin nhắn" lays out its own scrolling: the list, the messages, and the box pinned at the bottom.</summary>
+    public bool IsMessagesVisible => SelectedNavItem.Page == NavPage.Messages;
+
+    public bool IsPageScrollerVisible => !IsMessagesVisible;
 
     public bool IsInboxVisible => SelectedNavItem.Page == NavPage.Inbox;
 
@@ -216,8 +238,22 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public string ComingSoonText => L.F("Mục \"{0}\" sẽ có ở {1}.", SelectedNavItem.Title, SelectedNavItem.Milestone);
 
+    /// <summary>The main window is in front: with "Tin nhắn" shown, what arrives there is read.</summary>
+    [ObservableProperty]
+    public partial bool IsWindowActive { get; set; }
+
+    partial void OnIsWindowActiveChanged(bool value) => Chat.IsShown = value && IsMessagesVisible;
+
+    /// <summary>"Nhắn tin" on a card, or a message's toast.</summary>
+    public void OpenChat(DeviceId peer)
+    {
+        Chat.Open(peer);
+        ShowPage(NavPage.Messages);
+    }
+
     partial void OnSelectedNavItemChanged(NavItem value)
     {
+        Chat.IsShown = IsWindowActive && value.Page == NavPage.Messages;
         if (value.Page == NavPage.Settings)
         {
             Diagnostics.RefreshCommand.Execute(null);
@@ -245,7 +281,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public bool HasStorage => StorageText is not null;
 
     [RelayCommand]
-    private void ShowPage(NavPage page) => SelectedNavItem = NavItems.First(i => i.Page == page);
+    private void ShowPage(NavPage page) => SelectedNavItem = Nav(page);
+
+    private NavItem Nav(NavPage page) => NavItems.First(i => i.Page == page);
 
     private void Reveal(SearchResult result)
     {

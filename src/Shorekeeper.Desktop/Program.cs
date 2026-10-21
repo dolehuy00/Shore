@@ -139,6 +139,7 @@ internal static class Program
         builder.Services.AddSingleton<GroupsViewModel>();
         builder.Services.AddSingleton<AudioViewModel>();
         builder.Services.AddSingleton<StatsViewModel>();
+        builder.Services.AddSingleton<ChatViewModel>();
         builder.Services.AddSingleton<MainWindowViewModel>();
 
         return builder.Build();

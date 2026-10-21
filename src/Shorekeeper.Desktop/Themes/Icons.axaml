@@ -1,7 +1,7 @@
 <!--
   Icons from Fluent UI System Icons 1.1.344 (https://github.com/microsoft/fluentui-system-icons),
   Copyright (c) 2020 Microsoft Corporation, MIT License (THIRD-PARTY-NOTICES.md). Path data only, 24x24.
-  F1 = nonzero fill, as in the SVGs. Icon.Dismiss and Icon.Text are drawn in the same style (1.5-wide strokes).
+  F1 = nonzero fill, as in the SVGs. Icon.Dismiss, Icon.Text and Icon.Chat are drawn in the same style (1.5-wide strokes).
 -->
 <ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
@@ -31,4 +31,7 @@
   <StreamGeometry x:Key="Icon.Search">F1 M16.1 17.16a8 8 0 1 1 1.06-1.06l4.62 4.62a.75.75 0 1 1-1.06 1.06zM17.5 11a6.5 6.5 0 1 0-13 0 6.5 6.5 0 0 0 13 0</StreamGeometry>
   <StreamGeometry x:Key="Icon.Dismiss">F1 M4.47 4.47a.75.75 0 0 1 1.06 0L12 10.94l6.47-6.47a.75.75 0 1 1 1.06 1.06L13.06 12l6.47 6.47a.75.75 0 1 1-1.06 1.06L12 13.06l-6.47 6.47a.75.75 0 0 1-1.06-1.06L10.94 12 4.47 5.53a.75.75 0 0 1 0-1.06z</StreamGeometry>
   <StreamGeometry x:Key="Icon.Text">F1 M4 5.75A.75.75 0 0 1 4.75 5h14.5a.75.75 0 0 1 0 1.5H4.75A.75.75 0 0 1 4 5.75m0 4.5A.75.75 0 0 1 4.75 9.5h14.5a.75.75 0 0 1 0 1.5H4.75A.75.75 0 0 1 4 10.25m0 4.5A.75.75 0 0 1 4.75 14h14.5a.75.75 0 0 1 0 1.5H4.75A.75.75 0 0 1 4 14.75m0 4.5a.75.75 0 0 1 .75-.75h9.5a.75.75 0 0 1 0 1.5h-9.5a.75.75 0 0 1-.75-.75z</StreamGeometry>
+  <!-- A speech bubble ("Tin nhắn"); even-odd, so the inner shape is the hole. -->
+  <StreamGeometry x:Key="Icon.Chat">F0 M5.25 3h13.5A3.25 3.25 0 0 1 22 6.25v8.5A3.25 3.25 0 0 1 18.75 18H12.3l-5.05 3.79A.75.75 0 0 1 6 21.19V18h-.75A3.25 3.25 0 0 1 2 14.75v-8.5A3.25 3.25 0 0 1 5.25 3z M5.25 4.5A1.75 1.75 0 0 0 3.5 6.25v8.5c0 .97.78 1.75 1.75 1.75h1.5c.41 0 .75.34.75.75v2.44l4.05-3.04a.75.75 0 0 1 .45-.15h6.75c.97 0 1.75-.78 1.75-1.75v-8.5c0-.97-.78-1.75-1.75-1.75z</StreamGeometry>
+  <StreamGeometry x:Key="Icon.ArrowLeft">F1 M10.73 5.2a.75.75 0 0 0-1.06.02l-6.5 6.25a.75.75 0 0 0 0 1.06l6.5 6.25a.75.75 0 1 0 1.04-1.08L5.66 12.75h14.59a.75.75 0 0 0 0-1.5H5.66l5.1-4.95a.75.75 0 0 0-.03-1.1z</StreamGeometry>
 </ResourceDictionary>

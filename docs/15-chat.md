@@ -1,6 +1,6 @@
 # 15 — Tin nhắn
 
-> Trạng thái: **C1 xong** (2026-10-21: engine, văn bản), C2–C5 kế hoạch. Đã chốt (2026-10-21): hội thoại **1-1 trước**, nhóm sau; trên điện thoại **gộp Hộp nhận + Đã gửi** thành tab "File" để có chỗ cho tab "Tin nhắn"; file gửi qua lại giữa hai người **hiện thành thẻ** trong hội thoại.
+> Trạng thái: **C1, C2 xong** (2026-10-21: engine và giao diện văn bản trên máy tính, điện thoại), C3–C5 kế hoạch. Đã chốt (2026-10-21): hội thoại **1-1 trước**, nhóm sau; trên điện thoại **gộp Hộp nhận + Đã gửi** thành tab "File" để có chỗ cho tab "Tin nhắn"; file gửi qua lại giữa hai người **hiện thành thẻ** trong hội thoại.
 
 ## 1. Mục tiêu
 
@@ -25,19 +25,21 @@ Tin nhắn **không đi qua offer**: offer là để người nhận chọn tả
 - Gửi: lưu tin với trạng thái `pending` rồi `POST /chat/messages`. Máy kia offline (`PeerUnreachableException`), bận (`429`) hay lỗi máy chủ (`5xx`) thì để nguyên; khi `PeerDirectory` báo máy đó online thì gửi tiếp các tin `pending` theo thứ tự, giống `OfferService.DeliverPendingAsync`, và cứ 30 giây thử lại với máy đang online. Mỗi máy chỉ một luồng gửi, nên thứ tự giữ nguyên.
 - Bị từ chối (`403`: máy kia đã Ngắt kết nối / chặn, hoặc là bản chưa có chat; `400`) thì `failed`, bấm vào để gửi lại.
 - Thứ tự hiển thị theo giờ gửi của người gửi (`sentAt`), cùng giờ thì theo ID. Giờ hai máy lệch nhau không làm đảo tin của cùng một người.
-- **Đã xem**: mở hội thoại (cửa sổ đang hiện, đúng hội thoại đó) thì gửi `POST /chat/receipts` với ID tin cuối đã đọc; máy kia đánh dấu ✓✓ mọi tin tới ID đó. Receipt cũng chờ gửi khi offline, nhưng chỉ giữ cái mới nhất.
+- **Đã xem**: mở hội thoại (cửa sổ đang hiện, đúng hội thoại đó) thì gửi `POST /chat/receipts` với ID tin cuối đã đọc; máy kia đánh dấu "Đã xem" mọi tin tới ID đó. Receipt cũng chờ gửi khi offline, nhưng chỉ giữ cái mới nhất.
 - Presence thêm `caps: "chat"` (`PeerInfo.CanChat`). Máy nghe trực tiếp mà không có `chat` (bản cũ) thì ô soạn khóa lại với dòng "Máy này chưa cập nhật để nhận tin nhắn", vì bản cũ trả `403` cho route lạ. Máy chỉ thấy qua Bridge hay thêm bằng địa chỉ thì không biết `caps` (Bridge không chuyển), nên vẫn cho gửi.
 - Giới hạn: văn bản 4.000 ký tự; thoại 5 phút; 20 tin/giây mỗi máy gửi (quá thì `429`).
 - Bộ đếm Thống kê ([10](10-ux.md) §15) thêm số tin gửi/nhận (C4).
 
 ### 2.1 Trạng thái một tin (phía người gửi)
 
+Hiện dưới bong bóng, sau giờ gửi ("09:29 · Đã xem"): "Chờ gửi" và "Không gửi được" trên mọi tin như thế, "Đã nhận" / "Đã xem" chỉ dưới tin mới nhất của mình (tin trước đó tất nhiên cũng đã tới).
+
 | Trạng thái | Hiện | Khi nào |
 |---|---|---|
-| `pending` | 🕓 | Chưa tới được máy kia |
-| `delivered` | ✓ | Máy kia trả `204` |
-| `read` | ✓✓ (màu nhấn) | Có receipt tới ID này hoặc sau |
-| `failed` | ⚠ + "Bấm để gửi lại" | `403` / lỗi không thử lại được |
+| `pending` | Chờ gửi | Chưa tới được máy kia |
+| `delivered` | Đã nhận | Máy kia trả `204` |
+| `read` | Đã xem | Có receipt tới ID này hoặc sau |
+| `failed` | Không gửi được + [Gửi lại] | `403` / lỗi không thử lại được |
 
 ## 3. Tin nhắn thoại
 
@@ -90,17 +92,21 @@ Migration `0006_chat.sql` ([09](09-data-storage.md)):
 ### 6.1 Máy tính
 
 - Trang mới **Tin nhắn** ở thanh bên, dưới Xóm; chấm đỏ khi có tin chưa đọc (kiểu indicator như Âm thanh).
-- Trái: danh sách hội thoại (ảnh, tên, chấm online, dòng tin cuối, giờ, số chưa đọc), mới nhất lên trên, ô tìm theo tên.
+- Trái: danh sách hội thoại (máy tính / điện thoại, chấm online, tên, dòng tin cuối, giờ, số chưa đọc; tin chưa đọc in đậm), mới nhất lên trên; sau đó các liên hệ chưa nhắn lần nào ("Chưa có tin nhắn"), theo tên, để bắt đầu nhắn ngay từ đây. Không có ô tìm riêng: liên hệ trong LAN thường ít, và đã có `Ctrl+K`.
 - Phải: luồng tin. Bong bóng của mình bên phải màu nhấn, của người kia bên trái; ngăn ngày ("Hôm nay", "Hôm qua", "20/10"); giờ + trạng thái dưới tin cuối mỗi cụm.
-- Ô soạn: Enter gửi, Shift+Enter xuống dòng; Ctrl+V ảnh/file thì thành offer gửi cho người này. 🎤 bấm để ghi (đồng hồ + mức âm), bấm ➤ để gửi, ✕ để hủy. 📎 chọn file → offer.
-- Thẻ người ở Xóm thêm **Nhắn tin**; toast tin mới, bấm thì mở đúng hội thoại.
+- Phải: tên + trạng thái, bong bóng (của mình bên phải màu nhấn), ngăn ngày, ô soạn dưới cùng. Không viết được thì ô soạn khóa và nói vì sao (chưa kết nối, bản cũ); máy kia offline thì vẫn viết được, kèm dòng "tin nhắn sẽ được gửi khi máy online".
+- Ô soạn: Enter gửi, Shift+Enter xuống dòng. (C3: 🎤 bấm để ghi, bấm ➤ để gửi, ✕ để hủy. C4: 📎 chọn file, Ctrl+V file → offer cho người này.)
+- Thẻ người ở Xóm thêm nút 💬 và mục **Nhắn tin** (liên hệ). Toast tin mới (trừ khi "Bận", hoặc đang mở đúng hội thoại đó và cửa sổ ở trước), bấm thì mở đúng hội thoại; tắt toast thì chỉ còn số chưa đọc trên "Tin nhắn".
+- Tin đọc khi trang Tin nhắn đang mở đúng hội thoại **và** cửa sổ đang ở trước (thu nhỏ, ở khay hay sau cửa sổ khác thì chưa).
 
 ### 6.2 Điện thoại
 
 - Tab: **Xóm · File · Tin nhắn · Nhóm · Âm thanh · Cài đặt**. Tab **File** = Hộp nhận và Đã gửi gộp lại, công tắc **Nhận / Đã gửi** ở trên; chọn nhiều, xóa giữ như hiện tại.
-- Tab Tin nhắn: danh sách hội thoại; chạm một hội thoại thì mở màn hình riêng đè lên tab, nút Back của Android quay lại.
-- 🎤 **giữ để ghi**, vuốt trái để hủy, thả tay để gửi (như Zalo/Messenger); rung nhẹ khi bắt đầu ghi.
-- Thông báo kiểu tin nhắn (`MessagingStyle`), gộp theo người, có **Trả lời** ngay trên thông báo (`RemoteInput`) và **Đánh dấu đã đọc**.
+- Tab Tin nhắn (chấm đỏ khi có tin chưa đọc): danh sách như máy tính; chạm một người thì hội thoại thay chỗ danh sách, ← hoặc nút Back của Android quay lại danh sách.
+- Bàn phím hiện thì nội dung được đẩy lên trên nó (ô soạn ngay trên bàn phím) và thanh tab ẩn đi; app không tự co lại khi bàn phím mở (Avalonia `InputPane`).
+- (C3) 🎤 **giữ để ghi**, vuốt trái để hủy, thả tay để gửi (như Zalo/Messenger); rung nhẹ khi bắt đầu ghi.
+- Thông báo kiểu tin nhắn (`MessagingStyle`, kênh "Tin nhắn"), một thông báo mỗi người với tối đa 8 tin chưa đọc, có **Trả lời** ngay trên thông báo (`RemoteInput`) và **Đánh dấu đã đọc**; chạm thì mở đúng hội thoại. Trả lời là đã đọc: app gỡ thông báo. ColorOS vẫn giữ thẻ đã trả lời (kèm "Bạn: …" do Android thêm) trong khung thông báo tới khi vuốt bỏ, dù hệ thống đã gỡ nó.
+- Không có thông báo khi đang mở đúng hội thoại đó và app ở trước.
 - Widget: dòng trạng thái thêm "2 tin chưa đọc" (C4).
 
 ### 6.3 File trong hội thoại
@@ -121,7 +127,8 @@ Offer chỉ gửi cho đúng người đó (hoặc người đó gửi cho mình
 
 | Rủi ro | Cách xử lý |
 |---|---|
-| Hai máy không cùng online thì tin không tới | Hiện 🕓 rõ ràng; tin chờ gửi giữ mãi, không hết hạn |
+| Hai máy không cùng online thì tin không tới | Hiện "Chờ gửi" rõ ràng; tin chờ gửi giữ mãi, không hết hạn |
+| Tin tới lúc app Android ở nền bị đo bố cục sai (cùng lỗi header cao 0, [14](14-android.md)) | Thấy lỗi đó thì đo lại cả màn hình, không chỉ header và tab |
 | Giờ hai máy lệch | Chỉ dùng để xếp; giờ nhận lưu riêng; thứ tự tin của một người không đổi |
 | Micro bị app khác giữ / chưa cấp quyền | Báo lỗi trong ô soạn, không gửi tin rỗng; Android xin quyền lần đầu bấm 🎤 |
 | Gộp tab File làm đổi thói quen người dùng | Giữ nguyên nội dung và thao tác của hai danh sách, chỉ đổi chỗ vào |

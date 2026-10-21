@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Platform;
 using Avalonia.Controls.Presenters;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -40,6 +41,43 @@ public partial class MainView : UserControl
         LayoutLog.View = this;
         SizeChanged += (_, e) => LayoutLog.Event($"size {e.PreviousSize.Width:0}x{e.PreviousSize.Height:0} -> {e.NewSize.Width:0}x{e.NewSize.Height:0}");
         LayoutUpdated += (_, _) => RemeasureIfCollapsed();
+        DataContextChanged += (_, _) =>
+        {
+            if (DataContext is MainViewModel main)
+            {
+                // After the new bubbles are laid out, so the end is where they are.
+                main.Chat.ScrollToEndRequested += (_, _) => Dispatcher.UIThread.Post(() => ChatScroller.ScrollToEnd(), DispatcherPriority.Loaded);
+            }
+        };
+    }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        // Android's Back closes an open conversation before it leaves the app.
+        if (TopLevel.GetTopLevel(this) is { } top)
+        {
+            top.BackRequested += (_, back) =>
+            {
+                if (DataContext is MainViewModel { IsChatTab: true, Chat.IsOpen: true } main)
+                {
+                    main.Chat.CloseCommand.Execute(null);
+                    back.Handled = true;
+                }
+            };
+            // The keyboard is drawn over the app, which keeps its size: lift the content above it (the message box),
+            // and hide the tab strip meanwhile, as other apps do.
+            if (top.InputPane is { } keyboard)
+            {
+                keyboard.StateChanged += (_, change) =>
+                {
+                    double covered = change.NewState == InputPaneState.Open ? Math.Max(0, Bounds.Height - change.EndRect.Top) : 0;
+                    LayoutLog.Event($"keyboard {change.NewState} {change.EndRect} covers {covered:0}");
+                    Padding = new Thickness(0, 0, 0, covered);
+                    Tabs.IsVisible = covered == 0;
+                };
+            }
+        }
     }
 
     /// <summary>
@@ -58,8 +96,9 @@ public partial class MainView : UserControl
 
         lastRemeasure = Environment.TickCount64;
         LayoutLog.Event("collapsed header or tabs, measuring again");
-        // Up to the window too: a control measured again on its own reuses its last constraint, the zero height.
-        foreach (Visual visual in Header.GetSelfAndVisualAncestors().Concat(Header.GetVisualDescendants()).Concat(Tabs.GetSelfAndVisualDescendants()))
+        // Up to the window too: a control measured again on its own reuses its last constraint, the zero height. And
+        // everything below: what changed meanwhile (messages that arrived in the background) was measured wrong too.
+        foreach (Visual visual in this.GetVisualAncestors().Concat(this.GetSelfAndVisualDescendants()))
         {
             (visual as Layoutable)?.InvalidateMeasure();
         }

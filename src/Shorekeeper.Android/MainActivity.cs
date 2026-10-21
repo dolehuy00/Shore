@@ -21,6 +21,9 @@ public sealed class MainActivity : AvaloniaMainActivity
     /// <summary>Tab to show when a notification opens the app.</summary>
     public const string ExtraTab = "tab";
 
+    /// <summary>The conversation a message notification opens: the peer's DeviceId.</summary>
+    public const string ExtraChat = "chat";
+
     /// <summary>A button of the home screen widget: <see cref="WidgetFiles"/> or <see cref="WidgetText"/>.</summary>
     public const string ExtraWidget = "widget";
 
@@ -62,6 +65,7 @@ public sealed class MainActivity : AvaloniaMainActivity
         {
             HandleShare(Intent);
             HandleTab(Intent);
+            HandleChat(Intent);
             HandleWidget(Intent);
         }
     }
@@ -72,6 +76,12 @@ public sealed class MainActivity : AvaloniaMainActivity
         LayoutLog.Event("resume", this);
         LayoutLog.View?.RemeasureIfCollapsed();
         App.Resumed();
+    }
+
+    protected override void OnPause()
+    {
+        App.Paused();
+        base.OnPause();
     }
 
     public override void OnWindowFocusChanged(bool hasFocus)
@@ -143,6 +153,7 @@ public sealed class MainActivity : AvaloniaMainActivity
         base.OnNewIntent(intent);
         HandleShare(intent);
         HandleTab(intent);
+        HandleChat(intent);
         HandleWidget(intent);
     }
 
@@ -179,6 +190,14 @@ public sealed class MainActivity : AvaloniaMainActivity
         if (intent is not null && !intent.Flags.HasFlag(ActivityFlags.LaunchedFromHistory) && intent.GetIntExtra(ExtraTab, -1) is >= 0 and var tab)
         {
             App.ShowTab(tab);
+        }
+    }
+
+    private static void HandleChat(Intent? intent)
+    {
+        if (intent is not null && !intent.Flags.HasFlag(ActivityFlags.LaunchedFromHistory) && intent.GetStringExtra(ExtraChat) is { } peer)
+        {
+            App.ShowChat(peer);
         }
     }
 

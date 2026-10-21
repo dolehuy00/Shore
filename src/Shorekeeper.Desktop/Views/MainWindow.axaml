@@ -156,6 +156,43 @@
         </Animation>
       </Style.Animations>
     </Style>
+    <!-- Tin nhắn: a row of the list (the open one washed in the accent blue), and the bubbles, ours on the right. -->
+    <Style Selector="Button.person">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="10,8" />
+      <Setter Property="Margin" Value="0,1" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    </Style>
+    <Style Selector="Button.person.current /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#263B82F6" />
+    </Style>
+    <Style Selector="TextBlock.unread">
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Border.bubble">
+      <Setter Property="Padding" Value="12,7" />
+      <Setter Property="Margin" Value="0,2" />
+      <Setter Property="CornerRadius" Value="14" />
+      <Setter Property="MaxWidth" Value="520" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Sk.CardBorder}" />
+      <Setter Property="Background" Value="{DynamicResource Sk.CardBackground}" />
+    </Style>
+    <Style Selector="Border.bubble.mine">
+      <Setter Property="HorizontalAlignment" Value="Right" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Background" Value="{DynamicResource AccentButtonBackground}" />
+    </Style>
+    <Style Selector="Border.bubble.mine TextBlock, Border.bubble.mine SelectableTextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource AccentButtonForeground}" />
+    </Style>
+    <Style Selector="Border.bubble.unknown TextBlock.body">
+      <Setter Property="FontStyle" Value="Italic" />
+    </Style>
     <Style Selector="Border.tag">
       <Setter Property="Background" Value="#33F59E0B" />
       <Setter Property="CornerRadius" Value="4" />
@@ -171,6 +208,7 @@
               DragDrop.AllowDrop="True">
         <Border.ContextMenu>
           <ContextMenu>
+            <MenuItem Header="{l:T 'Nhắn tin'}" Command="{Binding MessageCommand}" IsVisible="{Binding IsTrusted}" />
             <MenuItem Header="{l:T 'Gửi file…'}" Command="{Binding SendFilesCommand}" IsVisible="{Binding CanSend}" />
             <MenuItem Header="{l:T 'Gửi thư mục…'}" Command="{Binding SendFolderCommand}" IsVisible="{Binding CanSend}" />
             <MenuItem Header="{l:T 'Gửi văn bản…'}" Command="{Binding SendTextCommand}" IsVisible="{Binding CanSend}" />
@@ -216,6 +254,10 @@
           </StackPanel>
 
           <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <Button Command="{Binding MessageCommand}" IsVisible="{Binding IsTrusted}" Padding="9,7"
+                    ToolTip.Tip="{l:T 'Nhắn tin'}" AutomationProperties.Name="{l:T 'Nhắn tin'}">
+              <PathIcon Data="{StaticResource Icon.Chat}" Width="16" Height="16" />
+            </Button>
             <Button Command="{Binding SendFilesCommand}" IsVisible="{Binding CanSend}" AutomationProperties.Name="{l:T 'Gửi file…'}">
               <StackPanel Orientation="Horizontal" Spacing="8">
                 <PathIcon Data="{StaticResource Icon.Send}" Width="16" Height="16" />
@@ -344,8 +386,114 @@
       </DockPanel>
     </Border>
 
+    <!-- Tin nhắn (docs/15-chat.md §6.1): conversations on the left; the open one on the right, its box pinned at the bottom. -->
+    <Panel Grid.Row="1" Grid.Column="1" IsVisible="{Binding IsMessagesVisible}">
+    <Grid ColumnDefinitions="290,*" DataContext="{Binding Chat}" x:DataType="vm:ChatViewModel">
+      <Border BorderThickness="0,0,1,0" BorderBrush="{DynamicResource Sk.Divider}">
+        <DockPanel>
+          <TextBlock DockPanel.Dock="Top" Classes="h2" Text="{l:T 'Tin nhắn'}" Margin="20,20,20,10" />
+          <TextBlock DockPanel.Dock="Top" Classes="muted" IsVisible="{Binding !HasConversations}" TextWrapping="Wrap" Margin="20,0"
+                     Text="{l:T 'Kết nối với một máy ở Xóm để nhắn tin cho nhau.'}" />
+          <ScrollViewer>
+            <ItemsControl ItemsSource="{Binding Conversations}" Margin="8,0,8,8">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:ChatPersonViewModel">
+                  <Button Classes="person" Classes.current="{Binding IsCurrent}" Command="{Binding OpenCommand}" AutomationProperties.Name="{Binding Name}">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                      <Panel>
+                        <Border Classes="tile" Width="40" Height="40">
+                          <Panel>
+                            <PathIcon Data="{StaticResource Icon.Laptop}" IsVisible="{Binding !IsPhone}" Width="20" Height="20" />
+                            <PathIcon Data="{StaticResource Icon.Phone}" IsVisible="{Binding IsPhone}" Width="20" Height="20" />
+                          </Panel>
+                        </Border>
+                        <Ellipse Classes="dot" Classes.busy="{Binding IsBusy}" IsVisible="{Binding IsOnline}" Width="11" Height="11"
+                                 HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-2,-2"
+                                 Stroke="{DynamicResource Sk.WindowBackground}" StrokeThickness="2" />
+                      </Panel>
+                      <StackPanel Grid.Column="1" Margin="10,0,8,0" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Classes.muted="{Binding !HasUnread}" Classes.unread="{Binding HasUnread}" Text="{Binding Preview}" FontSize="12" TextTrimming="CharacterEllipsis" />
+                      </StackPanel>
+                      <StackPanel Grid.Column="2" Spacing="4" VerticalAlignment="Center">
+                        <TextBlock Classes="muted" Text="{Binding TimeText}" FontSize="11" HorizontalAlignment="Right" />
+                        <Border Classes="badge" IsVisible="{Binding HasUnread}" HorizontalAlignment="Right">
+                          <TextBlock Text="{Binding Unread}" FontSize="11" Foreground="White" HorizontalAlignment="Center" />
+                        </Border>
+                      </StackPanel>
+                    </Grid>
+                  </Button>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </DockPanel>
+      </Border>
+
+      <Panel Grid.Column="1">
+        <StackPanel IsVisible="{Binding !IsOpen}" Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center">
+          <PathIcon Data="{StaticResource Icon.Chat}" Width="40" Height="40" Opacity="0.5" HorizontalAlignment="Center" />
+          <TextBlock Classes="muted" Text="{l:T 'Chọn một người để nhắn tin.'}" HorizontalAlignment="Center" />
+        </StackPanel>
+
+        <DockPanel IsVisible="{Binding IsOpen}">
+          <!-- Who, and whether they are there. -->
+          <Border DockPanel.Dock="Top" Padding="20,12" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource Sk.Divider}">
+            <StackPanel DataContext="{Binding Current}" x:DataType="vm:ChatPersonViewModel">
+              <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <Ellipse Classes="dot" Classes.busy="{Binding IsBusy}" Classes.muted="{Binding !IsOnline}" Width="8" Height="8" />
+                <TextBlock Classes="muted" Text="{Binding StatusText}" FontSize="12" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- The box: Enter sends, Shift+Enter starts a new line. -->
+          <Border DockPanel.Dock="Bottom" Padding="16,10" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource Sk.Divider}">
+            <StackPanel Spacing="6">
+              <TextBlock Classes="muted" Text="{Binding Notice}" IsVisible="{Binding HasNotice}" FontSize="12" TextWrapping="Wrap" />
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBox x:Name="ChatBox" Text="{Binding Draft}" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="140" IsEnabled="{Binding CanWrite}"
+                         PlaceholderText="{l:T 'Nhập tin nhắn… (Enter để gửi, Shift+Enter xuống dòng)'}" AutomationProperties.Name="{l:T 'Tin nhắn'}" />
+                <Button Grid.Column="1" Classes="accent" Command="{Binding SendCommand}" Margin="8,0,0,0" VerticalAlignment="Bottom" Padding="12,8"
+                        ToolTip.Tip="{l:T 'Gửi'}" AutomationProperties.Name="{l:T 'Gửi'}">
+                  <PathIcon Data="{StaticResource Icon.Send}" Width="16" Height="16" />
+                </Button>
+              </Grid>
+            </StackPanel>
+          </Border>
+
+          <Panel>
+            <TextBlock Classes="muted" IsVisible="{Binding HasNoMessages}" Text="{l:T 'Chưa có tin nhắn. Gửi lời chào đi!'}"
+                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+            <ScrollViewer x:Name="ChatScroller">
+              <ItemsControl ItemsSource="{Binding Messages}" Margin="20,10">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:ChatBubbleViewModel">
+                    <StackPanel>
+                      <TextBlock Classes="muted" Text="{Binding DayText}" IsVisible="{Binding HasDay}" FontSize="12" HorizontalAlignment="Center" Margin="0,10,0,6" />
+                      <Border Classes="bubble" Classes.mine="{Binding IsMine}" Classes.unknown="{Binding IsUnknown}">
+                        <StackPanel Spacing="2">
+                          <SelectableTextBlock Classes="body" Text="{Binding Text}" TextWrapping="Wrap" />
+                          <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                            <TextBlock Text="{Binding StatusText}" FontSize="11" Opacity="0.75" VerticalAlignment="Center" />
+                            <Button Content="{l:T 'Gửi lại'}" Command="{Binding RetryCommand}" IsVisible="{Binding IsFailed}" Padding="8,2" FontSize="11" />
+                          </StackPanel>
+                        </StackPanel>
+                      </Border>
+                    </StackPanel>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+          </Panel>
+        </DockPanel>
+      </Panel>
+    </Grid>
+    </Panel>
+
     <!-- Content: one scroller for every page, back at the top whenever the page changes. -->
-    <ScrollViewer x:Name="PageScroller" Grid.Row="1" Grid.Column="1">
+    <ScrollViewer x:Name="PageScroller" Grid.Row="1" Grid.Column="1" IsVisible="{Binding IsPageScrollerVisible}">
       <StackPanel Margin="28,24" Spacing="18">
 
         <!-- Pages not built yet -->

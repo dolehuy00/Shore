@@ -30,12 +30,26 @@ public partial class MainWindow : Window
         // Ctrl+K from anywhere; ↑/↓/Enter/Esc while searching.
         AddHandler(KeyDownEvent, OnSearchShortcut, RoutingStrategies.Tunnel);
         SearchBox.AddHandler(KeyDownEvent, OnSearchKeyDown, RoutingStrategies.Tunnel);
+        // Enter sends a message, Shift+Enter starts a new line.
+        ChatBox.AddHandler(KeyDownEvent, OnChatKeyDown, RoutingStrategies.Tunnel);
         // Back from Explorer, where received files may have just been deleted ("Đã xóa file").
         Activated += (_, _) =>
         {
-            if (DataContext is MainWindowViewModel { IsInboxVisible: true } main)
+            if (DataContext is MainWindowViewModel main)
             {
-                main.Inbox.CheckFiles();
+                main.IsWindowActive = true;
+                if (main.IsInboxVisible)
+                {
+                    main.Inbox.CheckFiles();
+                }
+            }
+        };
+        // Minimized, behind another window or in the tray: messages that arrive are not read.
+        Deactivated += (_, _) =>
+        {
+            if (DataContext is MainWindowViewModel main)
+            {
+                main.IsWindowActive = false;
             }
         };
         DataContextChanged += (_, _) =>
@@ -43,6 +57,8 @@ public partial class MainWindow : Window
             if (DataContext is MainWindowViewModel main)
             {
                 main.RevealRequested += (_, item) => Dispatcher.UIThread.Post(() => Reveal(item), DispatcherPriority.Loaded);
+                // After the new bubbles are laid out, so the end is where they are.
+                main.Chat.ScrollToEndRequested += (_, _) => Dispatcher.UIThread.Post(() => ChatScroller.ScrollToEnd(), DispatcherPriority.Loaded);
                 // Pages share the scroller: a new page starts at its top, not where the last one was left.
                 main.PropertyChanged += (_, e) =>
                 {
@@ -206,6 +222,18 @@ public partial class MainWindow : Window
         else if (!(paths.Length > 0 ? await main.Neighborhood.SendToSelectedAsync(paths) : await main.Neighborhood.SendTextToSelectedAsync(text!)))
         {
             await DialogService.ChooseAsync(L.T("Chưa chọn người nhận"), L.T("Click vào thẻ một người đã kết nối rồi nhấn Ctrl+V."), [L.T("Đóng")]);
+        }
+    }
+
+    private void OnChatKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter && !e.KeyModifiers.HasFlag(KeyModifiers.Shift) && DataContext is MainWindowViewModel main)
+        {
+            e.Handled = true;
+            if (main.Chat.SendCommand.CanExecute(null))
+            {
+                main.Chat.SendCommand.Execute(null);
+            }
         }
     }
 
