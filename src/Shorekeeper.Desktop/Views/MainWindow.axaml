@@ -190,6 +190,80 @@
     <Style Selector="Border.bubble.mine TextBlock, Border.bubble.mine SelectableTextBlock">
       <Setter Property="Foreground" Value="{DynamicResource AccentButtonForeground}" />
     </Style>
+    <!-- The box at the bottom of a conversation: one rounded bar, its outline in the accent color while typing. -->
+    <Style Selector="Border.composer">
+      <Setter Property="CornerRadius" Value="21" />
+      <Setter Property="Padding" Value="4" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Sk.CardBorder}" />
+      <Setter Property="Background" Value="{DynamicResource Sk.CardBackground}" />
+    </Style>
+    <Style Selector="Border.composer:focus-within">
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentButtonBackground}" />
+    </Style>
+    <!-- 📎 🎤 ✕ in the bar: bare round buttons, lit only under the mouse. -->
+    <Style Selector="Button.icon">
+      <Setter Property="Width" Value="34" />
+      <Setter Property="Height" Value="34" />
+      <Setter Property="CornerRadius" Value="17" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.icon:disabled /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Button.icon:disabled">
+      <Setter Property="Opacity" Value="0.4" />
+    </Style>
+    <!-- ➤: a round accent button, faded (not gray) while there is nothing to send. -->
+    <Style Selector="Button.send">
+      <Setter Property="Width" Value="34" />
+      <Setter Property="Height" Value="34" />
+      <Setter Property="CornerRadius" Value="17" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Background" Value="{DynamicResource AccentButtonBackground}" />
+      <Setter Property="Foreground" Value="{DynamicResource AccentButtonForeground}" />
+    </Style>
+    <Style Selector="Button.send:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource AccentButtonBackgroundPointerOver}" />
+      <Setter Property="Foreground" Value="{DynamicResource AccentButtonForeground}" />
+    </Style>
+    <Style Selector="Button.send:disabled /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource AccentButtonBackground}" />
+      <Setter Property="Foreground" Value="{DynamicResource AccentButtonForeground}" />
+    </Style>
+    <Style Selector="Button.send:disabled">
+      <Setter Property="Opacity" Value="0.35" />
+    </Style>
+    <!-- The text box inside the bar: no frame or fill of its own, whatever its state. -->
+    <Style Selector="TextBox.bare">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="MinHeight" Value="34" />
+      <Setter Property="Padding" Value="6,7" />
+    </Style>
+    <Style Selector="TextBox.bare /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="TextBox.bare:pointerover /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="TextBox.bare:focus /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="TextBox.bare:disabled /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
     <!-- Files dragged over a conversation: dropped, they go to that person. -->
     <Style Selector="Border.dropzone">
       <Setter Property="BorderThickness" Value="2" />
@@ -546,37 +620,41 @@
           <Border DockPanel.Dock="Bottom" Padding="16,10" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource Sk.Divider}">
             <StackPanel Spacing="6">
               <TextBlock Classes="muted" Text="{Binding Notice}" IsVisible="{Binding HasNotice}" FontSize="12" TextWrapping="Wrap" />
-              <!-- Writing: 📎 🎤 [box] ➤ (Ctrl+V files or a picture sends them too). Recording: ✕ ● 0:07 level ➤. -->
-              <Grid ColumnDefinitions="Auto,*,Auto" IsVisible="{Binding IsComposing}">
-                <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,8,0" VerticalAlignment="Bottom">
-                  <Button Command="{Binding AttachCommand}" IsEnabled="{Binding CanAttach}" Padding="10,8"
-                          ToolTip.Tip="{l:T 'Gửi file… (hoặc kéo thả, Ctrl+V)'}" AutomationProperties.Name="{l:T 'Gửi file…'}">
-                    <PathIcon Data="{StaticResource Icon.Attach}" Width="16" Height="16" />
-                  </Button>
-                  <Button Command="{Binding RecordCommand}" IsVisible="{Binding HasMicrophone}" IsEnabled="{Binding CanWrite}" Padding="10,8"
-                          ToolTip.Tip="{l:T 'Ghi tin nhắn thoại'}" AutomationProperties.Name="{l:T 'Ghi tin nhắn thoại'}">
-                    <PathIcon Data="{StaticResource Icon.Mic}" Width="16" Height="16" />
-                  </Button>
-                </StackPanel>
-                <TextBox Grid.Column="1" x:Name="ChatBox" Text="{Binding Draft}" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="140" IsEnabled="{Binding CanWrite}"
-                         PlaceholderText="{l:T 'Nhập tin nhắn… (Enter để gửi, Shift+Enter xuống dòng)'}" AutomationProperties.Name="{l:T 'Tin nhắn'}" />
-                <Button Grid.Column="2" Classes="accent" Command="{Binding SendCommand}" Margin="8,0,0,0" VerticalAlignment="Bottom" Padding="12,8"
-                        ToolTip.Tip="{l:T 'Gửi'}" AutomationProperties.Name="{l:T 'Gửi'}">
-                  <PathIcon Data="{StaticResource Icon.Send}" Width="16" Height="16" />
-                </Button>
-              </Grid>
-              <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto" IsVisible="{Binding IsRecording}" Height="34">
-                <Button Command="{Binding CancelRecordingCommand}" Padding="10,8" ToolTip.Tip="{l:T 'Hủy'}" AutomationProperties.Name="{l:T 'Hủy ghi âm'}">
-                  <PathIcon Data="{StaticResource Icon.Dismiss}" Width="14" Height="14" />
-                </Button>
-                <Ellipse Grid.Column="1" Classes="dot error" Classes.recording="{Binding IsRecording}" Margin="14,0,8,0" />
-                <TextBlock Grid.Column="2" Text="{Binding RecordingText}" VerticalAlignment="Center" FontFamily="Consolas,monospace" />
-                <ProgressBar Grid.Column="3" Value="{Binding RecordingLevel}" Maximum="100" MinWidth="0" Margin="14,0" VerticalAlignment="Center" />
-                <Button Grid.Column="4" Classes="accent" Command="{Binding SendRecordingCommand}" Padding="12,8"
-                        ToolTip.Tip="{l:T 'Gửi'}" AutomationProperties.Name="{l:T 'Gửi tin nhắn thoại'}">
-                  <PathIcon Data="{StaticResource Icon.Send}" Width="16" Height="16" />
-                </Button>
-              </Grid>
+              <!-- One rounded bar, as chat apps have. Writing: 📎 🎤 [box] ➤ (Ctrl+V of files or a picture sends them too).
+                   Recording: ✕ ● 0:07 [level] ➤. -->
+              <Border Classes="composer">
+                <Panel>
+                  <Grid ColumnDefinitions="Auto,Auto,*,Auto" IsVisible="{Binding IsComposing}">
+                    <Button Classes="icon" Command="{Binding AttachCommand}" IsEnabled="{Binding CanAttach}" VerticalAlignment="Bottom"
+                            ToolTip.Tip="{l:T 'Gửi file… (hoặc kéo thả, Ctrl+V)'}" AutomationProperties.Name="{l:T 'Gửi file…'}">
+                      <PathIcon Data="{StaticResource Icon.Attach}" Width="18" Height="18" />
+                    </Button>
+                    <Button Grid.Column="1" Classes="icon" Command="{Binding RecordCommand}" IsVisible="{Binding HasMicrophone}" IsEnabled="{Binding CanWrite}"
+                            VerticalAlignment="Bottom" ToolTip.Tip="{l:T 'Ghi tin nhắn thoại'}" AutomationProperties.Name="{l:T 'Ghi tin nhắn thoại'}">
+                      <PathIcon Data="{StaticResource Icon.Mic}" Width="18" Height="18" />
+                    </Button>
+                    <TextBox Grid.Column="2" Classes="bare" x:Name="ChatBox" Text="{Binding Draft}" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="140"
+                             IsEnabled="{Binding CanWrite}" VerticalContentAlignment="Center" Margin="4,0"
+                             PlaceholderText="{l:T 'Nhập tin nhắn…'}" ToolTip.Tip="{l:T 'Enter để gửi, Shift+Enter xuống dòng'}" AutomationProperties.Name="{l:T 'Tin nhắn'}" />
+                    <Button Grid.Column="3" Classes="send" Command="{Binding SendCommand}" VerticalAlignment="Bottom"
+                            ToolTip.Tip="{l:T 'Gửi'}" AutomationProperties.Name="{l:T 'Gửi'}">
+                      <PathIcon Data="{StaticResource Icon.Send}" Width="16" Height="16" />
+                    </Button>
+                  </Grid>
+                  <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto" IsVisible="{Binding IsRecording}">
+                    <Button Classes="icon" Command="{Binding CancelRecordingCommand}" ToolTip.Tip="{l:T 'Hủy'}" AutomationProperties.Name="{l:T 'Hủy ghi âm'}">
+                      <PathIcon Data="{StaticResource Icon.Dismiss}" Width="14" Height="14" />
+                    </Button>
+                    <Ellipse Grid.Column="1" Classes="dot error" Classes.recording="{Binding IsRecording}" Margin="10,0,8,0" />
+                    <TextBlock Grid.Column="2" Text="{Binding RecordingText}" VerticalAlignment="Center" FontFamily="Consolas,monospace" />
+                    <ProgressBar Grid.Column="3" Value="{Binding RecordingLevel}" Maximum="100" MinWidth="0" Margin="14,0" VerticalAlignment="Center" />
+                    <Button Grid.Column="4" Classes="send" Command="{Binding SendRecordingCommand}"
+                            ToolTip.Tip="{l:T 'Gửi'}" AutomationProperties.Name="{l:T 'Gửi tin nhắn thoại'}">
+                      <PathIcon Data="{StaticResource Icon.Send}" Width="16" Height="16" />
+                    </Button>
+                  </Grid>
+                </Panel>
+              </Border>
             </StackPanel>
           </Border>
 
