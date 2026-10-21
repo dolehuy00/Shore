@@ -187,7 +187,8 @@ CREATE TABLE ChatCleared (                  -- 0010: "Xóa hội thoại"; thẻ
 CREATE TABLE ChatGroups (                   -- tên nhóm, giữ cho hội thoại cả khi nhóm không còn
   GroupId TEXT PRIMARY KEY, Name TEXT NOT NULL,
   ClearedAt INTEGER,                        -- "Xóa hội thoại": tin tới lúc này không quay lại
-  HistoryBefore INTEGER                     -- lần kéo đầu: tin chuyển hộ từ trước đó là tin cũ, đã đọc
+  HistoryBefore INTEGER,                    -- lần kéo đầu: tin chuyển hộ từ trước đó là tin cũ, đã đọc
+  Muted INTEGER NOT NULL DEFAULT 0          -- "Tắt thông báo"
 );
 
 CREATE TABLE ChatGroupMessages (

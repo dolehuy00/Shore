@@ -556,7 +556,8 @@
                       <Panel>
                         <Border Classes="tile" Width="40" Height="40">
                           <Panel>
-                            <PathIcon Data="{StaticResource Icon.Laptop}" IsVisible="{Binding !IsPhone}" Width="20" Height="20" />
+                            <PathIcon Data="{StaticResource Icon.Team}" IsVisible="{Binding IsGroup}" Width="20" Height="20" />
+                            <PathIcon Data="{StaticResource Icon.Laptop}" IsVisible="{Binding IsComputer}" Width="20" Height="20" />
                             <PathIcon Data="{StaticResource Icon.Phone}" IsVisible="{Binding IsPhone}" Width="20" Height="20" />
                           </Panel>
                         </Border>
@@ -569,7 +570,11 @@
                         <TextBlock Classes.muted="{Binding !HasUnread}" Classes.unread="{Binding HasUnread}" Text="{Binding Preview}" FontSize="12" TextTrimming="CharacterEllipsis" />
                       </StackPanel>
                       <StackPanel Grid.Column="2" Spacing="4" VerticalAlignment="Center">
-                        <TextBlock Classes="muted" Text="{Binding TimeText}" FontSize="11" HorizontalAlignment="Right" />
+                        <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right">
+                          <PathIcon Data="{StaticResource Icon.Muted}" IsVisible="{Binding IsMuted}" Width="12" Height="12" Opacity="0.6"
+                                    ToolTip.Tip="{l:T 'Đã tắt thông báo'}" />
+                          <TextBlock Classes="muted" Text="{Binding TimeText}" FontSize="11" />
+                        </StackPanel>
                         <Border Classes="badge" IsVisible="{Binding HasUnread}" HorizontalAlignment="Right">
                           <TextBlock Text="{Binding Unread}" FontSize="11" Foreground="White" HorizontalAlignment="Center" />
                         </Border>
@@ -597,6 +602,8 @@
               <PathIcon Data="{StaticResource Icon.More}" Width="16" Height="16" />
               <Button.Flyout>
                 <MenuFlyout Placement="BottomEdgeAlignedRight">
+                  <MenuItem Header="{l:T 'Thành viên'}" Command="{Binding ShowMembersCommand}" IsVisible="{Binding Current.IsGroup, FallbackValue=False}" />
+                  <MenuItem Header="{Binding Current.MuteText, FallbackValue=''}" Command="{Binding ToggleMuteCommand}" IsVisible="{Binding Current.IsGroup, FallbackValue=False}" />
                   <MenuItem Header="{l:T 'Xóa hội thoại…'}" Command="{Binding DeleteConversationCommand}" />
                 </MenuFlyout>
               </Button.Flyout>
@@ -604,7 +611,7 @@
             <StackPanel DataContext="{Binding Current}" x:DataType="vm:ChatPersonViewModel">
               <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
               <StackPanel Orientation="Horizontal" Spacing="6">
-                <Ellipse Classes="dot" Classes.busy="{Binding IsBusy}" Classes.muted="{Binding !IsOnline}" Width="8" Height="8" />
+                <Ellipse Classes="dot" Classes.busy="{Binding IsBusy}" Classes.muted="{Binding !IsOnline}" IsVisible="{Binding !IsGroup}" Width="8" Height="8" />
                 <TextBlock Classes="muted" Text="{Binding StatusText}" FontSize="12" />
               </StackPanel>
             </StackPanel>
@@ -669,6 +676,33 @@
           <Panel>
             <TextBlock Classes="muted" IsVisible="{Binding HasNoMessages}" Text="{l:T 'Chưa có tin nhắn. Gửi lời chào đi!'}"
                        HorizontalAlignment="Center" VerticalAlignment="Center" />
+            <Border Classes="panel" ZIndex="1" IsVisible="{Binding HasDetails}" Width="300" MaxHeight="420" Margin="16"
+                    HorizontalAlignment="Right" VerticalAlignment="Top">
+              <DockPanel>
+                <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,8">
+                  <TextBlock Text="{Binding DetailsTitle}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                  <Button Grid.Column="1" Classes="icon" Command="{Binding CloseDetailsCommand}" ToolTip.Tip="{l:T 'Đóng'}" AutomationProperties.Name="{l:T 'Đóng'}">
+                    <PathIcon Data="{StaticResource Icon.Dismiss}" Width="12" Height="12" />
+                  </Button>
+                </Grid>
+                <ScrollViewer>
+                  <ItemsControl ItemsSource="{Binding Details}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:ChatMemberViewModel">
+                        <Grid ColumnDefinitions="*,Auto" Margin="0,4">
+                          <StackPanel>
+                            <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Classes="muted" Text="{Binding StateText}" FontSize="12" />
+                          </StackPanel>
+                          <Button Grid.Column="1" Content="{l:T 'Gửi lại'}" Command="{Binding RetryCommand}" IsVisible="{Binding CanRetry}"
+                                  Padding="8,2" FontSize="11" VerticalAlignment="Center" />
+                        </Grid>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </ScrollViewer>
+              </DockPanel>
+            </Border>
             <ScrollViewer x:Name="ChatScroller">
               <ItemsControl ItemsSource="{Binding Messages}" Margin="20,10">
                 <ItemsControl.DataTemplates>
@@ -676,20 +710,27 @@
                     <StackPanel>
                       <TextBlock Classes="muted" Text="{Binding DayText}" IsVisible="{Binding HasDay}" FontSize="12" HorizontalAlignment="Center" Margin="0,10,0,6" />
                       <!-- While choosing, a click anywhere on the row checks or unchecks the message. -->
-                      <Grid Classes="chatrow" Classes.picked="{Binding IsSelected}" ColumnDefinitions="Auto,*" Tapped="OnChatRowTapped">
+                      <Grid Classes="chatrow" Classes.picked="{Binding IsSelected}" ColumnDefinitions="Auto,Auto,*" Tapped="OnChatRowTapped">
                       <CheckBox Classes="pick" IsChecked="{Binding IsSelected}" IsVisible="{Binding Owner.IsSelecting}" VerticalAlignment="Center" MinWidth="0" Width="24" Padding="0" Margin="0,0,10,0"
                                 AutomationProperties.Name="{l:T 'Chọn'}" />
-                      <Border Grid.Column="1" Classes="bubble" Classes.mine="{Binding IsMine}" Classes.unknown="{Binding IsUnknown}">
+                      <Panel Grid.Column="1" Width="30" Margin="0,5,8,0" VerticalAlignment="Top" IsVisible="{Binding HasAvatarSpace}">
+                        <Border Width="30" Height="30" CornerRadius="15" Background="{Binding AuthorBrush}" IsVisible="{Binding ShowsAuthor}">
+                          <TextBlock Text="{Binding AuthorInitial}" Foreground="White" FontWeight="SemiBold" FontSize="13" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                      </Panel>
+                      <Border Grid.Column="2" Classes="bubble" Classes.mine="{Binding IsMine}" Classes.unknown="{Binding IsUnknown}">
                         <!-- Right click: copy the words, choose several, or take the message away here. -->
                         <Border.ContextMenu>
                           <ContextMenu>
                             <MenuItem Header="{l:T 'Sao chép'}" Command="{Binding CopyCommand}" IsVisible="{Binding CanCopy}" />
                             <MenuItem Header="{l:T 'Thu hồi'}" Command="{Binding RecallCommand}" IsVisible="{Binding CanRecall}" />
+                            <MenuItem Header="{l:T 'Chi tiết'}" Command="{Binding ShowDetailsCommand}" IsVisible="{Binding CanShowDetails}" />
                             <MenuItem Header="{l:T 'Chọn nhiều'}" Command="{Binding SelectManyCommand}" />
                             <MenuItem Header="{l:T 'Xóa tin nhắn'}" Command="{Binding DeleteCommand}" />
                           </ContextMenu>
                         </Border.ContextMenu>
                         <StackPanel Spacing="2">
+                          <TextBlock Text="{Binding AuthorName}" Foreground="{Binding AuthorBrush}" IsVisible="{Binding ShowsAuthor}" FontSize="12" FontWeight="SemiBold" />
                           <SelectableTextBlock Classes="body" Text="{Binding Text}" TextWrapping="Wrap" IsVisible="{Binding IsText}" ContextFlyout="{x:Null}"
                                                IsHitTestVisible="{Binding !Owner.IsSelecting}" />
                           <ItemsControl ItemsSource="{Binding Links}" IsVisible="{Binding HasLinks}">
@@ -1207,6 +1248,9 @@
                         <TextBlock Classes="muted" Text="{Binding Subtitle}" FontSize="12" />
                       </StackPanel>
                       <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <Button Command="{Binding ChatCommand}" IsVisible="{Binding CanDrop}" Padding="9,7" ToolTip.Tip="{l:T 'Nhắn tin'}" AutomationProperties.Name="{l:T 'Nhắn tin'}">
+                          <PathIcon Data="{StaticResource Icon.Chat}" Width="16" Height="16" />
+                        </Button>
                         <Button Command="{Binding SendFilesCommand}" Classes="accent" IsVisible="{Binding CanDrop}" AutomationProperties.Name="{l:T 'Gửi file cho nhóm'}">
                           <StackPanel Orientation="Horizontal" Spacing="8">
                             <PathIcon Data="{StaticResource Icon.Send}" Width="16" Height="16" />

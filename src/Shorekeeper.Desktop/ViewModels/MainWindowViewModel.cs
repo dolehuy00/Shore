@@ -128,6 +128,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
             }
         };
         neighborhood.ChatRequested += (_, peer) => OpenChat(peer);
+        groups.ChatRequested += (_, groupId) => OpenGroupChat(groupId);
+        chat.ShowsGroups = true;
         chat.CopyText = text => _ = DialogService.CopyTextAsync(text);
         chat.OpenLink = DialogService.OpenLink;
         chat.Confirm = async (title, question, action) => await DialogService.ChooseAsync(title, question, [action, L.T("Hủy")]) == 0;
@@ -272,6 +274,13 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public void OpenChat(DeviceId peer)
     {
         Chat.Open(peer);
+        ShowPage(NavPage.Messages);
+    }
+
+    /// <summary>"Nhắn tin" on a group, or a group message's toast.</summary>
+    public void OpenGroupChat(string groupId)
+    {
+        Chat.OpenGroup(groupId);
         ShowPage(NavPage.Messages);
     }
 

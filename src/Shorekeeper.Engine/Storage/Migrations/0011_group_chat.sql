@@ -1,11 +1,12 @@
 -- Group conversations (docs/16-group-chat.md §5): one per group, messages signed by their authors.
 -- ClearedAt: "Xóa hội thoại", messages up to then never come back. HistoryBefore: set at the first pull from other
--- members; what they pass on from before it is history, already read and never notified.
+-- members; what they pass on from before it is history, already read and never notified. Muted: "Tắt thông báo".
 CREATE TABLE ChatGroups (
   GroupId       TEXT PRIMARY KEY,
   Name          TEXT NOT NULL,
   ClearedAt     INTEGER,
-  HistoryBefore INTEGER
+  HistoryBefore INTEGER,
+  Muted         INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE ChatGroupMessages (

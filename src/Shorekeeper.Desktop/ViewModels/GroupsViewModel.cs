@@ -93,6 +93,11 @@ public sealed partial class GroupsViewModel : ObservableObject
 
     // ───────────── Actions used by the cards ─────────────
 
+    /// <summary>"Nhắn tin" on a group: the window opens its conversation.</summary>
+    public event EventHandler<string>? ChatRequested;
+
+    internal void RequestChat(GroupCardViewModel card) => ChatRequested?.Invoke(this, card.Id);
+
     internal async Task SendAsync(GroupCardViewModel card, IReadOnlyList<string> paths, string? text = null)
     {
         if ((paths.Count == 0 && string.IsNullOrWhiteSpace(text)) || store.Get(card.Id) is not { Role: not GroupRole.Pending } group)
@@ -457,6 +462,9 @@ public sealed partial class GroupCardViewModel(string id, GroupsViewModel owner)
             Detail = detail,
         };
     }
+
+    [RelayCommand]
+    private void Chat() => owner.RequestChat(this);
 
     [RelayCommand]
     private async Task SendFilesAsync() => await owner.SendAsync(this, await DialogService.PickFilesAsync());

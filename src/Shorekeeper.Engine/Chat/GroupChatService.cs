@@ -238,6 +238,48 @@ public sealed class GroupChatService(
         return DateTimeOffset.FromUnixTimeMilliseconds(next);
     }
 
+    /// <summary>The members of the group besides us; null when we are not in it (left, removed, closed, or groups are off).</summary>
+    public IReadOnlyList<GroupMember>? OthersIn(string groupId) =>
+        settings.Current.GroupsEnabled && groups.Get(groupId) is { Role: not GroupRole.Pending } group
+            ? [.. group.Members.Where(m => m.DeviceId != engine.Identity.DeviceId)]
+            : null;
+
+    /// <summary>"Tắt thông báo" (docs/16-group-chat.md §6): no toast or notification for the group, only its unread count.</summary>
+    public async Task SetMutedAsync(string groupId, bool muted, CancellationToken cancellationToken)
+    {
+        await WriteAsync(
+            """
+            INSERT INTO ChatGroups (GroupId, Name, Muted) VALUES (@groupId, @name, @muted)
+            ON CONFLICT (GroupId) DO UPDATE SET Muted = excluded.Muted;
+            """,
+            new { groupId, name = groups.Get(groupId)?.Name ?? groupId, muted },
+            cancellationToken);
+        Changed?.Invoke(this, groupId);
+    }
+
+    /// <summary>The groups whose notifications are off.</summary>
+    public async Task<IReadOnlySet<string>> GetMutedAsync(CancellationToken cancellationToken)
+    {
+        await using SqliteConnection connection = await database.OpenAsync(cancellationToken);
+        return (await connection.QueryAsync<string>("SELECT GroupId FROM ChatGroups WHERE Muted = 1;")).ToHashSet();
+    }
+
+    /// <summary>"Gửi lại" on one of our messages: to every member it failed for (or found too old) so far.</summary>
+    public async Task RetryAsync(string groupId, string id, CancellationToken cancellationToken)
+    {
+        List<string> peers;
+        await using (SqliteConnection connection = await database.OpenAsync(cancellationToken))
+        {
+            peers = [.. await connection.QueryAsync<string>(
+                "SELECT PeerId FROM ChatGroupDeliveries WHERE GroupId = @groupId AND Id = @id AND State IN ('failed', 'old');", new { groupId, id })];
+        }
+
+        foreach (string peer in peers)
+        {
+            await RetryAsync(groupId, id, DeviceId.Parse(peer), cancellationToken);
+        }
+    }
+
     /// <summary>Sends one of our messages to a member again, after it failed there.</summary>
     public async Task RetryAsync(string groupId, string id, DeviceId peer, CancellationToken cancellationToken)
     {

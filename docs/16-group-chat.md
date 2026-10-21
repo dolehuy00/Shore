@@ -1,6 +1,6 @@
 # 16 — Chat nhóm (C5)
 
-> Trạng thái: **C5a–C5b xong** (2026-10-21: engine gửi thẳng, ký, đã nhận / đã xem theo người, thu hồi; chuyển hộ và tin cũ), C5c–C5e kế hoạch. Nối tiếp [15](15-chat.md) (C1–C4, hội thoại 1-1) trên nền Nhóm ở [07](07-groups.md).
+> Trạng thái: **C5a–C5c xong** (2026-10-21: engine gửi thẳng, ký, đã nhận / đã xem theo người, thu hồi; chuyển hộ và tin cũ; giao diện máy tính), C5d–C5e kế hoạch. Nối tiếp [15](15-chat.md) (C1–C4, hội thoại 1-1) trên nền Nhóm ở [07](07-groups.md).
 >
 > Đã chốt (2026-10-21), chi tiết ở §9:
 > - thành viên **chuyển tin hộ** khi người gửi offline;
@@ -145,9 +145,9 @@ Tin nhóm như tin 1-1, thêm các trường ký:
 
 ## 5. Lưu trữ
 
-Migration `0011_group_chat.sql` cho C5a–C5b (chưa phát hành nên C5b sửa thẳng vào đó); C5c–C5e thêm migration của mình ([09](09-data-storage.md)):
+Migration `0011_group_chat.sql` cho C5a–C5c (chưa phát hành nên C5b, C5c sửa thẳng vào đó). Từ C5c nó đã chạy trên máy thật, nên C5d–C5e thêm migration của mình ([09](09-data-storage.md)):
 
-- `ChatGroups` (`GroupId`, `Name`, `ClearedAt`, `HistoryBefore`): giữ tên nhóm cho hội thoại sau khi rời, bị loại hay nhóm đóng (bảng `Groups` khi đó đã xóa nhóm), lúc "Xóa hội thoại", lúc kéo nhóm lần đầu (§3.6). Cờ tắt thông báo thêm ở C5c.
+- `ChatGroups` (`GroupId`, `Name`, `ClearedAt`, `HistoryBefore`, `Muted`): giữ tên nhóm cho hội thoại sau khi rời, bị loại hay nhóm đóng (bảng `Groups` khi đó đã xóa nhóm), lúc "Xóa hội thoại", lúc kéo nhóm lần đầu (§3.6), và "Tắt thông báo".
 - `ChatGroupMessages` (khóa `GroupId` + `Id`):
   - nội dung như `ChatMessages`: `AuthorId`, `AuthorName`, `Outgoing`, `Kind`, `Text`, `VoicePath`, `DurationMs`, `Wave`, `SentAt`, `ReceivedAt`, `State` (tin nhận: `unread` → `read`);
   - thêm `AuthorKey`, `Sig`, `RecallSig`, `Deleted` (dấu xóa) và `Seq` (§3.6).
@@ -165,14 +165,14 @@ Migration `0011_group_chat.sql` cho C5a–C5b (chưa phát hành nên C5b sửa 
 - **Danh sách hội thoại**:
   - Nhóm nằm xen giữa người, theo giờ tin cuối; biểu tượng nhóm; dòng cuối "Minh: …" / "Bạn: …"; số chưa đọc. Nhóm tắt thông báo có biểu tượng chuông gạch.
   - Nhóm chưa nhắn lần nào nằm cùng các liên hệ chưa nhắn ("Chưa có tin nhắn").
-- **Đầu hội thoại**: tên nhóm, "12 thành viên · 5 online". ⋮ gồm **Thành viên**, **Tắt thông báo** / **Bật thông báo** và **Xóa hội thoại…**.
+- **Đầu hội thoại**: tên nhóm, "12 thành viên · 5 online" (kể cả mình), không có chấm online. ⋮ gồm **Thành viên** (bảng nổi góc trên bên phải: tên, Online/Offline, Host), **Tắt thông báo** / **Bật thông báo** và **Xóa hội thoại…**. Nhóm tắt thông báo có chuông gạch cạnh giờ trong danh sách; số chưa đọc vẫn tính vào "Tin nhắn".
 - **Bong bóng**:
   - Tin người khác có tên người gửi (màu riêng theo `DeviceId`) trên tin đầu mỗi cụm, và một vòng tròn chữ cái đầu bên trái.
   - Tin của mình như 1-1, dưới tin cuối hiện trạng thái chung (§3.3).
-- **Chuột phải** tin của mình có thêm **Chi tiết**: danh sách thành viên với Đã xem / Đã nhận / Chờ gửi / Bản cũ / Không gửi được, kèm [Gửi lại].
+- **Chuột phải** tin của mình có thêm **Chi tiết** (cùng bảng nổi đó): từng thành viên với Đã xem / Đã nhận / Chờ gửi / Bản cũ / Không gửi được, kèm [Gửi lại] cho người lỗi. [Gửi lại] dưới bong bóng gửi lại cho mọi người lỗi.
 - Vào nhóm mà đang kéo tin cũ thì đầu hội thoại có dòng "Đang lấy tin cũ…".
 - **Ô soạn**:
-  - Như 1-1. 📎 / Ctrl+V / kéo thả gửi một offer cho cả nhóm (mọi thành viên khác, có `groupId`), hiện thành thẻ trong hội thoại nhóm.
+  - Như 1-1. 📎 / Ctrl+V / kéo thả gửi một offer cho cả nhóm (mọi thành viên khác, có `groupId`), hiện thành thẻ trong hội thoại nhóm (C5e; tới lúc đó 📎 tắt trong nhóm).
   - Ô soạn khóa khi rời, bị loại, nhóm đóng ("Bạn không còn trong nhóm này"), hoặc nhóm chỉ có mình.
 - **Trang Nhóm**: thêm nút **Nhắn tin** trên mỗi nhóm.
 - **Toast**: "Minh · Build QA: …", trừ nhóm đã tắt thông báo.
@@ -200,7 +200,7 @@ Migration `0011_group_chat.sql` cho C5a–C5b (chưa phát hành nên C5b sửa 
 |---|---|---|
 | **C5a** Engine gửi thẳng ✅ | Migration, ký và kiểm chữ ký, route `messages` / `receipts` / `recalls`, fan-out, chờ gửi theo từng người, chống trùng, thứ tự (§3.2), đã nhận / đã xem theo người, thu hồi, `caps: "chat-group"`, `not_member` thử lại 2 phút | Test engine 3 máy loopback (bảng dưới, `GroupChatTests`), cả MiniHttpServer lẫn Kestrel |
 | **C5b** Chuyển hộ & tin cũ ✅ | `Seq`, `index` / `fetch`, con trỏ, kéo khi online / khi vào nhóm, cửa sổ 30 ngày / 1.000 tin, dấu xóa, thu hồi qua chuyển hộ | Test engine (bảng dưới, `GroupChatTests`), cả MiniHttpServer lẫn Kestrel |
-| **C5c** Máy tính | Danh sách + hội thoại nhóm, tên người gửi, Chi tiết, Tắt thông báo, nút ở trang Nhóm, toast | Nhắn thật PC (Host) ↔ điện thoại (thành viên) |
+| **C5c** Máy tính ✅ | Danh sách + hội thoại nhóm, tên người gửi, Chi tiết, Tắt thông báo, nút ở trang Nhóm, toast | PC (Host) gửi tới điện thoại (thành viên), Thành viên, Chi tiết, tắt / bật thông báo, thu hồi; tin nhóm đến PC (tên, màu, toast) thử ở C5d, khi điện thoại gửi được |
 | **C5d** Điện thoại | Như C5c + thông báo nhóm có Trả lời | Nhắn thật, cả khi app ở nền |
 | **C5e** File | `InboxOffers.GroupId`, gửi file từ hội thoại nhóm, thẻ, thu hồi offer nhóm | Test engine + thử ảnh / file thật |
 

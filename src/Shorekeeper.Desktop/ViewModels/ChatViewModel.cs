@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using Avalonia.Media;
+using Avalonia.Media.Immutable;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -11,6 +13,7 @@ using Shorekeeper.Core.Trust;
 using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Chat;
 using Shorekeeper.Engine.Discovery;
+using Shorekeeper.Engine.Groups;
 using Shorekeeper.Engine.Monitoring;
 using Shorekeeper.Engine.Settings;
 using Shorekeeper.Engine.Transfers;
@@ -23,10 +26,13 @@ namespace Shorekeeper.Desktop.ViewModels;
 /// written to yet; the open one's messages and the box to write in. What the peer sent is read while the
 /// conversation is shown (<see cref="IsShown"/>, set by the window). Voice messages are recorded with the microphone
 /// and played one at a time (docs/15-chat.md §3). Files sent between the two show among the messages as cards (§6.3).
+/// Groups have conversations too (docs/16-group-chat.md §6), listed among the people's once <see cref="ShowsGroups"/>.
 /// </summary>
 public sealed partial class ChatViewModel : ObservableObject
 {
     private readonly ChatService chat;
+    private readonly GroupChatService groupChat;
+    private readonly GroupStore groups;
     private readonly TrustStore trust;
     private readonly PeerDirectory directory;
     private readonly OfferService offers;
@@ -36,6 +42,8 @@ public sealed partial class ChatViewModel : ObservableObject
     private readonly IMicrophone? microphone;
     private readonly IVoicePlayer? player;
     private readonly Dictionary<DeviceId, ChatPersonViewModel> people = [];
+    private readonly Dictionary<string, ChatPersonViewModel> groupRows = [];
+    private IReadOnlySet<string> muted = new HashSet<string>();
     private VoiceRecorder? recorder;
     private IDisposable? recording;
     private IDisposable? recordingTimer;
@@ -43,10 +51,12 @@ public sealed partial class ChatViewModel : ObservableObject
     private bool filesQueued;
 
     public ChatViewModel(
-        ChatService chat, TrustStore trust, PeerDirectory directory, OfferService offers, InboxService inbox, SettingsService settings,
-        IExternalFileSource? external = null, IMicrophone? microphone = null, IVoicePlayer? player = null)
+        ChatService chat, GroupChatService groupChat, GroupStore groups, TrustStore trust, PeerDirectory directory, OfferService offers,
+        InboxService inbox, SettingsService settings, IExternalFileSource? external = null, IMicrophone? microphone = null, IVoicePlayer? player = null)
     {
         this.chat = chat;
+        this.groupChat = groupChat;
+        this.groups = groups;
         this.trust = trust;
         this.directory = directory;
         this.offers = offers;
@@ -57,6 +67,8 @@ public sealed partial class ChatViewModel : ObservableObject
         this.player = player;
         chat.Changed += (_, peer) => Dispatcher.UIThread.Post(() => _ = RefreshAsync(peer));
         trust.Changed += (_, _) => Dispatcher.UIThread.Post(() => _ = RefreshAsync(null));
+        groupChat.Changed += (_, _) => Dispatcher.UIThread.Post(() => _ = RefreshAsync(null));
+        groups.Changed += (_, _) => Dispatcher.UIThread.Post(() => _ = RefreshAsync(null));
         directory.Changed += (_, _) => Dispatcher.UIThread.Post(RefreshPresence);
         // Progress comes several times a second while files move: one refresh at a time is enough.
         offers.Changed += (_, _) => QueueFilesRefresh();
@@ -102,6 +114,12 @@ public sealed partial class ChatViewModel : ObservableObject
         }
     }
 
+    /// <summary>Group conversations are listed too (docs/16-group-chat.md §6), on the platforms whose views show them.</summary>
+    [ObservableProperty]
+    public partial bool ShowsGroups { get; set; }
+
+    partial void OnShowsGroupsChanged(bool value) => _ = RefreshAsync(null);
+
     /// <summary>The system's file picker for 📎 (set by the window); empty when nothing was picked.</summary>
     public Func<Task<IReadOnlyList<string>>>? PickFiles { get; set; }
 
@@ -112,7 +130,7 @@ public sealed partial class ChatViewModel : ObservableObject
     /// Files can go to the open conversation's person: a contact. Unlike messages this does not need a version with
     /// chat, as files always went.
     /// </summary>
-    public bool CanAttach => Current is { } person && SendFiles is not null && trust.GetLevel(person.Peer) == TrustLevel.Trusted;
+    public bool CanAttach => Current is { IsGroup: false } person && SendFiles is not null && trust.GetLevel(person.Peer) == TrustLevel.Trusted;
 
     /// <summary>Files are being dragged over the conversation (desktop).</summary>
     [ObservableProperty]
@@ -186,29 +204,36 @@ public sealed partial class ChatViewModel : ObservableObject
     public partial bool IsShown { get; set; }
 
     /// <summary>The peer whose messages are being read right now, so no notification is needed for them.</summary>
-    public DeviceId? ReadingPeer => IsShown ? Current?.Peer : null;
+    public DeviceId? ReadingPeer => IsShown && Current is { IsGroup: false } person ? person.Peer : null;
+
+    /// <summary>The group whose messages are being read right now.</summary>
+    public string? ReadingGroup => IsShown ? Current?.GroupId : null;
 
     /// <summary>New messages were added at the end: the view scrolls down to them.</summary>
     public event EventHandler? ScrollToEndRequested;
 
     /// <summary>Opens the conversation with <paramref name="peer"/>, from the list, "Nhắn tin" or a notification.</summary>
-    public void Open(DeviceId peer)
+    public void Open(DeviceId peer) => Open(Person(peer));
+
+    /// <summary>Opens a group's conversation, from the list, "Nhắn tin" on the group or a notification.</summary>
+    public void OpenGroup(string groupId) => Open(GroupRow(groupId));
+
+    internal void Open(ChatPersonViewModel row)
     {
-        ChatPersonViewModel person = Person(peer);
-        if (!Conversations.Contains(person))
+        if (!Conversations.Contains(row))
         {
-            Conversations.Add(person);
+            Conversations.Add(row);
             OnPropertyChanged(nameof(HasConversations));
         }
 
-        if (Current != person)
+        if (Current != row)
         {
             Messages.Clear();
             Draft = "";
-            Current = person;
+            Current = row;
         }
 
-        _ = RefreshAsync(peer);
+        _ = RefreshAsync(row.IsGroup ? null : row.Peer);
     }
 
     /// <summary>Voice messages can be recorded here.</summary>
@@ -318,7 +343,14 @@ public sealed partial class ChatViewModel : ObservableObject
             return;
         }
 
-        await chat.SendVoiceAsync(person.Peer, note, CancellationToken.None);
+        if (person.GroupId is { } groupId)
+        {
+            await groupChat.SendVoiceAsync(groupId, note, CancellationToken.None);
+        }
+        else
+        {
+            await chat.SendVoiceAsync(person.Peer, note, CancellationToken.None);
+        }
     }
 
     /// <summary>▶ on a voice message: plays it, or stops it when it is the one playing.</summary>
@@ -384,16 +416,27 @@ public sealed partial class ChatViewModel : ObservableObject
 
         string text = Draft;
         Draft = "";
-        await chat.SendTextAsync(person.Peer, text, CancellationToken.None);
+        if (person.GroupId is { } groupId)
+        {
+            await groupChat.SendTextAsync(groupId, text, CancellationToken.None);
+        }
+        else
+        {
+            await chat.SendTextAsync(person.Peer, text, CancellationToken.None);
+        }
     }
 
+    /// <summary>"Gửi lại": to the peer, or to every member it failed for.</summary>
     internal Task RetryAsync(ChatBubbleViewModel bubble) =>
-        Current is { } person ? chat.RetryAsync(person.Peer, bubble.Id, CancellationToken.None) : Task.CompletedTask;
+        Current is { GroupId: { } groupId } ? groupChat.RetryAsync(groupId, bubble.Id, CancellationToken.None)
+        : Current is { } person ? chat.RetryAsync(person.Peer, bubble.Id, CancellationToken.None)
+        : Task.CompletedTask;
 
     partial void OnCurrentChanged(ChatPersonViewModel? oldValue, ChatPersonViewModel? newValue)
     {
         StopPlaying();
         IsSelecting = false;
+        CloseDetails();
         _ = FinishRecordingAsync(send: false);
         if (oldValue is not null)
         {
@@ -418,7 +461,7 @@ public sealed partial class ChatViewModel : ObservableObject
     {
         if (value && Current is { } person)
         {
-            _ = RefreshAsync(person.Peer);
+            _ = RefreshAsync(person.IsGroup ? null : person.Peer);
         }
     }
 
@@ -428,39 +471,60 @@ public sealed partial class ChatViewModel : ObservableObject
         IReadOnlyList<ChatConversation> conversations = await chat.GetConversationsAsync(CancellationToken.None);
         // A file card is said in the conversation too: the newest of a message or an offer leads, by its time.
         Dictionary<DeviceId, ChatLastFile> files = LastFiles(await chat.GetClearedAsync(CancellationToken.None));
+        bool withGroups = ShowsGroups && settings.Current.GroupsEnabled;
+        IReadOnlyList<GroupChatConversation> groupConversations = withGroups ? await groupChat.GetConversationsAsync(CancellationToken.None) : [];
+        muted = withGroups ? await groupChat.GetMutedAsync(CancellationToken.None) : new HashSet<string>();
         List<ChatPersonViewModel> ordered =
         [
             .. conversations.Select(c => c.Peer).Union(files.Keys)
                 .Select(p => (Peer: p, Conversation: conversations.FirstOrDefault(c => c.Peer == p), File: files.GetValueOrDefault(p)))
-                .OrderByDescending(x => x.File is { } file && (x.Conversation is null || file.At > x.Conversation.Last.SentAt) ? file.At : x.Conversation!.Last.SentAt)
-                .Select(x => Person(x.Peer).Update(x.Conversation, x.File)),
+                .Select(x => (
+                    At: x.File is { } file && (x.Conversation is null || file.At > x.Conversation.Last.SentAt) ? file.At : x.Conversation!.Last.SentAt,
+                    Row: Person(x.Peer).Update(x.Conversation, x.File)))
+                .Concat(groupConversations.Select(c => (At: c.Last.SentAt, Row: GroupRow(c.GroupId).Update(c, AuthorOf(c.GroupId, c.Last), muted.Contains(c.GroupId)))))
+                .OrderByDescending(x => x.At)
+                .Select(x => x.Row),
         ];
 
-        // Contacts not written to yet come after, by name, so a conversation can start from here too.
+        // Contacts not written to yet come after, by name, so a conversation can start from here too; then groups.
         ordered.AddRange(trust.GetAll(TrustLevel.Trusted)
-            .Where(c => !ordered.Any(p => p.Peer == c.DeviceId))
+            .Where(c => !ordered.Any(p => !p.IsGroup && p.Peer == c.DeviceId))
             .OrderBy(c => c.ShownName, StringComparer.CurrentCultureIgnoreCase)
             .Select(c => Person(c.DeviceId).Update(null, null)));
+        if (withGroups)
+        {
+            ordered.AddRange(groups.GetAll()
+                .Where(g => g.Role != GroupRole.Pending && !ordered.Any(r => r.GroupId == g.Id))
+                .OrderBy(g => g.Name, StringComparer.CurrentCultureIgnoreCase)
+                .Select(g => GroupRow(g.Id).Update(null, null, muted.Contains(g.Id))));
+        }
+
         if (Current is { } current && !ordered.Contains(current))
         {
             // Open with nothing left in it (just deleted): nothing to say under its name either.
-            ordered.Add(current.Update(null, null));
+            ordered.Add(current.GroupId is { } open ? current.Update(null, null, muted.Contains(open)) : current.Update(null, null));
         }
 
         Sync(Conversations, ordered);
         OnPropertyChanged(nameof(CanAttach));
-        UnreadTotal = conversations.Sum(c => c.Unread);
+        UnreadTotal = conversations.Sum(c => c.Unread) + groupConversations.Sum(c => c.Unread);
         OnPropertyChanged(nameof(HasConversations));
         RefreshPresence();
 
-        if (Current is { } open && (peer is null || peer == open.Peer))
+        if (Current is { } shown && (peer is null || (!shown.IsGroup && peer == shown.Peer)))
         {
-            await RefreshMessagesAsync(open);
+            await RefreshMessagesAsync(shown);
         }
     }
 
     private async Task RefreshMessagesAsync(ChatPersonViewModel person)
     {
+        if (person.GroupId is { } groupId)
+        {
+            await RefreshGroupMessagesAsync(person, groupId);
+            return;
+        }
+
         IReadOnlyList<ChatMessage> messages = await chat.GetMessagesAsync(person.Peer, CancellationToken.None);
         IReadOnlyDictionary<DeviceId, DateTimeOffset> cleared = await chat.GetClearedAsync(CancellationToken.None);
         if (Current != person)
@@ -541,6 +605,156 @@ public sealed partial class ChatViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// A group conversation (docs/16-group-chat.md §6.1): each member's messages under their name, and how far our newest
+    /// one got among the members ("Đã nhận 4/7", "Đã xem 3/7").
+    /// </summary>
+    private async Task RefreshGroupMessagesAsync(ChatPersonViewModel row, string groupId)
+    {
+        IReadOnlyList<GroupChatMessage> messages = await groupChat.GetMessagesAsync(groupId, CancellationToken.None);
+        GroupChatMessage? lastMine = messages.LastOrDefault(m => m.Outgoing);
+        IReadOnlyList<GroupDelivery> reached = lastMine is null ? [] : await groupChat.GetDeliveriesAsync(groupId, lastMine.Id, CancellationToken.None);
+        if (Current != row)
+        {
+            return;
+        }
+
+        // Unless the order changed, only states change and messages are added.
+        bool prefix = Messages.Count <= messages.Count && Messages.Select(b => b.Id).SequenceEqual(messages.Take(Messages.Count).Select(m => m.Id));
+        if (!prefix)
+        {
+            Messages.Clear();
+        }
+
+        int added = messages.Count - Messages.Count;
+        for (int i = 0; i < messages.Count; i++)
+        {
+            GroupChatMessage message = messages[i];
+            DateTime day = message.SentAt.ToLocalTime().Date;
+            bool newDay = i == 0 || messages[i - 1].SentAt.ToLocalTime().Date != day;
+            ChatBubbleViewModel bubble = i < Messages.Count ? (ChatBubbleViewModel)Messages[i] : new ChatBubbleViewModel(message.Id, this);
+            bubble.DayText = newDay ? DayText(day) : null;
+            // The name over the first of each run of one member's messages.
+            bubble.Update(message, AuthorOf(groupId, message), newDay || messages[i - 1].Author != message.Author, message == lastMine ? reached : null);
+            if (i >= Messages.Count)
+            {
+                Messages.Add(bubble);
+            }
+        }
+
+        OnPropertyChanged(nameof(HasNoMessages));
+        if (IsSelecting)
+        {
+            SelectionChanged();
+        }
+
+        if (added > 0)
+        {
+            ScrollToEndRequested?.Invoke(this, EventArgs.Empty);
+        }
+
+        if (IsShown && messages.Any(m => m.State == ChatMessageState.Unread))
+        {
+            await groupChat.MarkReadAsync(groupId, CancellationToken.None);
+        }
+    }
+
+    /// <summary>Who wrote a group message: "Bạn", the contact's name, the member list's, or the name it came with.</summary>
+    private string AuthorOf(string groupId, GroupChatMessage message) =>
+        message.Outgoing ? L.T("Bạn") : NameOf(groupId, message.Author, message.AuthorName);
+
+    /// <summary>A member's name: as a contact, else in the group's member list, else <paramref name="fallback"/>.</summary>
+    public string NameOf(string groupId, DeviceId member, string fallback) =>
+        trust.Get(member)?.ShownName ?? groups.Get(groupId)?.Members.FirstOrDefault(m => m.DeviceId == member)?.Name ?? fallback;
+
+    /// <summary>A group's name, for a notification.</summary>
+    public string GroupNameOf(string groupId) => groupRows.GetValueOrDefault(groupId)?.Name ?? groups.Get(groupId)?.Name ?? "";
+
+    /// <summary>Notifications are off for this group ("Tắt thông báo").</summary>
+    public bool IsMuted(string groupId) => muted.Contains(groupId);
+
+    // ───────────── "Chi tiết" and "Thành viên" (docs/16-group-chat.md §6.1) ─────────────
+
+    /// <summary>Over the conversation: who one of our messages reached, or who is in the group. Null when closed.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasDetails))]
+    public partial string? DetailsTitle { get; set; }
+
+    public bool HasDetails => DetailsTitle is not null;
+
+    public ObservableCollection<ChatMemberViewModel> Details { get; } = [];
+
+    [RelayCommand]
+    private void CloseDetails()
+    {
+        DetailsTitle = null;
+        Details.Clear();
+    }
+
+    /// <summary>⋮ → "Thành viên": everyone in the group, online first.</summary>
+    [RelayCommand]
+    private void ShowMembers()
+    {
+        if (Current?.GroupId is not { } groupId || groups.Get(groupId) is not { } group)
+        {
+            return;
+        }
+
+        Dictionary<DeviceId, PeerInfo> live = directory.Snapshot().ToDictionary(p => p.DeviceId);
+        IReadOnlyList<GroupMember> others = groupChat.OthersIn(groupId) ?? [];
+        Details.Clear();
+        foreach (GroupMember member in group.Members.OrderByDescending(m => !others.Contains(m) || live.GetValueOrDefault(m.DeviceId) is { State: PeerState.Online })
+                     .ThenBy(m => m.Name, StringComparer.CurrentCultureIgnoreCase))
+        {
+            bool me = !others.Contains(member);
+            bool online = me || live.GetValueOrDefault(member.DeviceId) is { State: PeerState.Online };
+            string state = online ? "Online" : "Offline";
+            Details.Add(new ChatMemberViewModel(
+                me ? L.T("Bạn") : NameOf(groupId, member.DeviceId, member.Name), member.IsHost ? $"{state} · Host" : state, online, null));
+        }
+
+        DetailsTitle = L.F("{0} thành viên", group.Members.Count);
+    }
+
+    /// <summary>"Chi tiết" on one of our group messages: where it is with each member, and [Gửi lại] where it failed.</summary>
+    internal async Task ShowDetailsAsync(ChatBubbleViewModel bubble)
+    {
+        if (Current?.GroupId is not { } groupId)
+        {
+            return;
+        }
+
+        IReadOnlyList<GroupDelivery> deliveries = await groupChat.GetDeliveriesAsync(groupId, bubble.Id, CancellationToken.None);
+        Details.Clear();
+        foreach (GroupDelivery delivery in deliveries.OrderBy(d => d.State).ThenBy(d => NameOf(groupId, d.Peer, d.Peer.ShortForm), StringComparer.CurrentCultureIgnoreCase))
+        {
+            Func<Task>? retry = delivery.State is GroupDeliveryState.Failed or GroupDeliveryState.Old
+                ? async () =>
+                {
+                    await groupChat.RetryAsync(groupId, bubble.Id, delivery.Peer, CancellationToken.None);
+                    await ShowDetailsAsync(bubble);
+                }
+                : null;
+            Details.Add(new ChatMemberViewModel(NameOf(groupId, delivery.Peer, delivery.Peer.ShortForm), DeliveryText(delivery.State), false, retry));
+        }
+
+        DetailsTitle = L.T("Chi tiết tin nhắn");
+    }
+
+    private static string DeliveryText(GroupDeliveryState state) => state switch
+    {
+        GroupDeliveryState.Read => L.T("Đã xem"),
+        GroupDeliveryState.Delivered => L.T("Đã nhận"),
+        GroupDeliveryState.Pending => L.T("Chờ gửi"),
+        GroupDeliveryState.Old => L.T("Bản cũ, chưa nhận được tin nhóm"),
+        _ => L.T("Không gửi được"),
+    };
+
+    /// <summary>⋮ → "Tắt thông báo" / "Bật thông báo" of the open group.</summary>
+    [RelayCommand]
+    private Task ToggleMuteAsync() =>
+        Current is { GroupId: { } groupId } row ? groupChat.SetMutedAsync(groupId, !row.IsMuted, CancellationToken.None) : Task.CompletedTask;
+
     private void QueueFilesRefresh() => Dispatcher.UIThread.Post(() =>
     {
         if (filesQueued)
@@ -615,7 +829,14 @@ public sealed partial class ChatViewModel : ObservableObject
             StopPlaying();
         }
 
-        await chat.DeleteAsync(person.Peer, [bubble.Id], CancellationToken.None);
+        if (person.GroupId is { } groupId)
+        {
+            await groupChat.DeleteAsync(groupId, [bubble.Id], CancellationToken.None);
+        }
+        else
+        {
+            await chat.DeleteAsync(person.Peer, [bubble.Id], CancellationToken.None);
+        }
     }
 
     // ───────────── "Chọn nhiều": check messages, then delete them at once ─────────────
@@ -679,7 +900,11 @@ public sealed partial class ChatViewModel : ObservableObject
         List<ChatBubbleViewModel> chosen = [.. Bubbles.Where(b => b.IsSelected)];
         if (Current is not { } person || chosen.Count == 0
             || (chosen.Count > 1 && Confirm is { } confirm && !await confirm(
-                L.T("Xóa tin nhắn"), L.F("Xóa {0} tin nhắn trên máy này? Máy kia vẫn giữ tin của nó.", chosen.Count), L.T("Xóa"))))
+                L.T("Xóa tin nhắn"),
+                person.IsGroup
+                    ? L.F("Xóa {0} tin nhắn trên máy này? Các thành viên khác vẫn giữ tin của họ.", chosen.Count)
+                    : L.F("Xóa {0} tin nhắn trên máy này? Máy kia vẫn giữ tin của nó.", chosen.Count),
+                L.T("Xóa"))))
         {
             return;
         }
@@ -690,13 +915,26 @@ public sealed partial class ChatViewModel : ObservableObject
         }
 
         StopSelecting();
-        await chat.DeleteAsync(person.Peer, [.. chosen.Select(b => b.Id)], CancellationToken.None);
+        if (person.GroupId is { } groupId)
+        {
+            await groupChat.DeleteAsync(groupId, [.. chosen.Select(b => b.Id)], CancellationToken.None);
+        }
+        else
+        {
+            await chat.DeleteAsync(person.Peer, [.. chosen.Select(b => b.Id)], CancellationToken.None);
+        }
     }
 
     /// <summary>"Xóa hội thoại…": every message and file card with this person, here only, after asking.</summary>
     [RelayCommand]
     private async Task DeleteConversationAsync()
     {
+        if (Current is { GroupId: { } groupId } row)
+        {
+            await DeleteGroupConversationAsync(row, groupId);
+            return;
+        }
+
         if (Current is not { } person
             || (Confirm is { } confirm && !await confirm(
                 L.T("Xóa hội thoại"),
@@ -710,6 +948,25 @@ public sealed partial class ChatViewModel : ObservableObject
         await chat.DeleteConversationAsync(person.Peer, CancellationToken.None);
         // Someone no longer a contact has no conversation left to show: back to the list, where it is gone too.
         if (trust.GetLevel(person.Peer) != TrustLevel.Trusted && Current == person)
+        {
+            Current = null;
+        }
+    }
+
+    /// <summary>The group's messages here; the members keep theirs. A group we are no longer in then leaves the list.</summary>
+    private async Task DeleteGroupConversationAsync(ChatPersonViewModel row, string groupId)
+    {
+        if (Confirm is { } confirm && !await confirm(
+                L.T("Xóa hội thoại"),
+                L.F("Xóa mọi tin nhắn trong {0} trên máy này? Các thành viên khác vẫn giữ tin của họ.", row.Name),
+                L.T("Xóa")))
+        {
+            return;
+        }
+
+        StopPlaying();
+        await groupChat.DeleteConversationAsync(groupId, CancellationToken.None);
+        if (groupChat.OthersIn(groupId) is null && Current == row)
         {
             Current = null;
         }
@@ -730,7 +987,14 @@ public sealed partial class ChatViewModel : ObservableObject
             StopPlaying();
         }
 
-        await chat.RecallAsync(person.Peer, [bubble.Id], CancellationToken.None);
+        if (person.GroupId is { } groupId)
+        {
+            await groupChat.RecallAsync(groupId, [bubble.Id], CancellationToken.None);
+        }
+        else
+        {
+            await chat.RecallAsync(person.Peer, [bubble.Id], CancellationToken.None);
+        }
     }
 
     /// <summary>"Ngừng chia sẻ" on a file card we sent, past the time to take it back: the person can no longer download it.</summary>
@@ -775,13 +1039,30 @@ public sealed partial class ChatViewModel : ObservableObject
         Dictionary<DeviceId, PeerInfo> live = directory.Snapshot().ToDictionary(p => p.DeviceId);
         foreach (ChatPersonViewModel person in Conversations)
         {
-            person.Refresh(trust.Get(person.Peer), live.GetValueOrDefault(person.Peer));
+            if (person.GroupId is { } groupId)
+            {
+                person.Refresh(groups.Get(groupId), groupChat.OthersIn(groupId), live);
+            }
+            else
+            {
+                person.Refresh(trust.Get(person.Peer), live.GetValueOrDefault(person.Peer));
+            }
         }
 
         if (Current is not { } current)
         {
             CanWrite = false;
             Notice = null;
+            return;
+        }
+
+        if (current.GroupId is { } open)
+        {
+            IReadOnlyList<GroupMember>? others = groupChat.OthersIn(open);
+            CanWrite = others is { Count: > 0 };
+            Notice = others is null ? L.T("Bạn không còn trong nhóm này.")
+                : others.Count == 0 ? L.T("Nhóm chưa có ai khác để nhắn.")
+                : null;
             return;
         }
 
@@ -802,6 +1083,18 @@ public sealed partial class ChatViewModel : ObservableObject
             CanWrite = true;
             Notice = peer is null ? L.T("Máy này đang offline: tin nhắn sẽ được gửi khi máy online.") : null;
         }
+    }
+
+    private ChatPersonViewModel GroupRow(string groupId)
+    {
+        if (!groupRows.TryGetValue(groupId, out ChatPersonViewModel? row))
+        {
+            row = new ChatPersonViewModel(groupId, this);
+            row.Refresh(groups.Get(groupId), groupChat.OthersIn(groupId), directory.Snapshot().ToDictionary(p => p.DeviceId));
+            groupRows[groupId] = row;
+        }
+
+        return row;
     }
 
     private ChatPersonViewModel Person(DeviceId peer)
@@ -857,16 +1150,52 @@ public sealed partial class ChatViewModel : ObservableObject
     }
 }
 
-/// <summary>A row of "Tin nhắn": a contact, with the last message when there is one.</summary>
-public sealed partial class ChatPersonViewModel(DeviceId peer, ChatViewModel owner) : ObservableObject
+/// <summary>A row of "Tin nhắn": a contact or a group, with the last message when there is one.</summary>
+public sealed partial class ChatPersonViewModel : ObservableObject
 {
-    public DeviceId Peer { get; } = peer;
+    private readonly ChatViewModel owner;
+
+    public ChatPersonViewModel(DeviceId peer, ChatViewModel owner)
+    {
+        Peer = peer;
+        this.owner = owner;
+    }
+
+    public ChatPersonViewModel(string groupId, ChatViewModel owner)
+    {
+        GroupId = groupId;
+        this.owner = owner;
+    }
+
+    /// <summary>The person; empty for a group.</summary>
+    public DeviceId Peer { get; }
+
+    /// <summary>A group's conversation (docs/16-group-chat.md §6) rather than one with <see cref="Peer"/>.</summary>
+    public string? GroupId { get; }
+
+    public bool IsGroup => GroupId is not null;
+
+    /// <summary>A group whose notifications are off.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(MuteText))]
+    public partial bool IsMuted { get; set; }
+
+    public string MuteText => IsMuted ? L.T("Bật thông báo") : L.T("Tắt thông báo");
+
+    /// <summary>A group's "12 thành viên · 5 online".</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StatusText))]
+    public partial string MembersText { get; set; } = "";
 
     [ObservableProperty]
     public partial string Name { get; set; } = "";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsComputer))]
     public partial bool IsPhone { get; set; }
+
+    /// <summary>A person on a computer: neither a phone nor a group.</summary>
+    public bool IsComputer => !IsPhone && !IsGroup;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StatusText))]
@@ -876,7 +1205,7 @@ public sealed partial class ChatPersonViewModel(DeviceId peer, ChatViewModel own
     [NotifyPropertyChangedFor(nameof(StatusText))]
     public partial bool IsBusy { get; set; }
 
-    public string StatusText => !IsOnline ? "Offline" : IsBusy ? L.T("Bận") : "Online";
+    public string StatusText => IsGroup ? MembersText : !IsOnline ? "Offline" : IsBusy ? L.T("Bận") : "Online";
 
     /// <summary>"Bạn: được rồi", or "Chưa có tin nhắn".</summary>
     [ObservableProperty]
@@ -896,7 +1225,7 @@ public sealed partial class ChatPersonViewModel(DeviceId peer, ChatViewModel own
     public partial bool IsCurrent { get; set; }
 
     [RelayCommand]
-    private void Open() => owner.Open(Peer);
+    private void Open() => owner.Open(this);
 
     /// <param name="file">The newest offer with this person; it shows when newer than the last message.</param>
     internal ChatPersonViewModel Update(ChatConversation? conversation, ChatLastFile? file)
@@ -914,6 +1243,34 @@ public sealed partial class ChatPersonViewModel(DeviceId peer, ChatViewModel own
             : conversation.Last.Outgoing ? L.F("Bạn: {0}", TransferText.Preview(ChatBubbleViewModel.TextOf(conversation.Last)))
             : TransferText.Preview(ChatBubbleViewModel.TextOf(conversation.Last));
         return this;
+    }
+
+    /// <param name="author">"Bạn", or the member who wrote the last message.</param>
+    internal ChatPersonViewModel Update(GroupChatConversation? conversation, string? author, bool muted)
+    {
+        IsMuted = muted;
+        Unread = conversation?.Unread ?? 0;
+        if (conversation is not null)
+        {
+            Name = conversation.Name;
+        }
+
+        TimeText = conversation is null ? "" : ChatViewModel.ShortTime(conversation.Last.SentAt);
+        Preview = conversation is null ? L.T("Chưa có tin nhắn")
+            : L.F("{0}: {1}", author, TransferText.Preview(ChatBubbleViewModel.TextOf(conversation.Last.Kind, conversation.Last.Text, conversation.Last.DurationMs)));
+        return this;
+    }
+
+    /// <param name="others">The members besides us; null when we are no longer in the group.</param>
+    internal void Refresh(Group? group, IReadOnlyList<GroupMember>? others, Dictionary<DeviceId, PeerInfo> live)
+    {
+        if (group is not null)
+        {
+            Name = group.Name;
+        }
+
+        MembersText = others is null ? L.T("Bạn không còn trong nhóm")
+            : L.F("{0} thành viên · {1} online", others.Count + 1, others.Count(m => live.GetValueOrDefault(m.DeviceId) is { State: PeerState.Online }) + 1);
     }
 
     internal void Refresh(PeerRecord? record, PeerInfo? live)
@@ -965,7 +1322,41 @@ public sealed partial class ChatBubbleViewModel(string id, ChatViewModel owner) 
     private void SelectMany() => owner.StartSelecting(this);
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasAvatarSpace), nameof(CanShowDetails))]
     public partial bool IsMine { get; set; }
+
+    /// <summary>In a group's conversation: others' messages keep room on the left for the member's initial.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasAvatarSpace), nameof(CanShowDetails))]
+    public partial bool IsInGroup { get; set; }
+
+    public bool HasAvatarSpace => IsInGroup && !IsMine;
+
+    /// <summary>The first of a run of one member's messages: their name above it and their initial beside it.</summary>
+    [ObservableProperty]
+    public partial bool ShowsAuthor { get; set; }
+
+    [ObservableProperty]
+    public partial string AuthorName { get; set; } = "";
+
+    [ObservableProperty]
+    public partial string AuthorInitial { get; set; } = "";
+
+    /// <summary>Each member keeps one color, from their DeviceId.</summary>
+    [ObservableProperty]
+    public partial IBrush? AuthorBrush { get; set; }
+
+    /// <summary>Ours in a group: "Chi tiết" lists where it is with each member.</summary>
+    public bool CanShowDetails => IsInGroup && IsMine;
+
+    [RelayCommand]
+    private Task ShowDetailsAsync() => owner.ShowDetailsAsync(this);
+
+    private static readonly IBrush[] AuthorBrushes =
+    [
+        .. ((string[])["#E11D48", "#D97706", "#059669", "#0284C7", "#7C3AED", "#DB2777", "#0D9488", "#65A30D"])
+            .Select(hex => (IBrush)new ImmutableSolidColorBrush(Color.Parse(hex))),
+    ];
 
     [ObservableProperty]
     public partial string Text { get; set; } = "";
@@ -1053,30 +1444,6 @@ public sealed partial class ChatBubbleViewModel(string id, ChatViewModel owner) 
     /// <param name="lastMine">Our newest message: it says how far the peer got even when delivered or read.</param>
     internal ChatBubbleViewModel Update(ChatMessage message, bool lastMine)
     {
-        IsMine = message.Outgoing;
-        IsVoice = message.Kind == ChatKinds.Voice;
-        IsUnknown = message.Kind is not (ChatKinds.Text or ChatKinds.Voice);
-        CanCopy = message.Kind == ChatKinds.Text;
-        recallUntil = !message.Outgoing || message.Kind is not (ChatKinds.Text or ChatKinds.Voice) ? DateTimeOffset.MinValue
-            : message.State == ChatMessageState.Pending ? DateTimeOffset.MaxValue
-            : message.SentAt + ChatService.RecallWindow;
-        RefreshRecall();
-        Text = TextOf(message);
-        // New lists only when the message changed (sent, recalled): every refresh would build the rows again.
-        bool changed = message.Kind != kind;
-        kind = message.Kind;
-        if (changed)
-        {
-            Links = message.Kind == ChatKinds.Text ? TransferText.LinksIn(Text) : [];
-        }
-        VoicePath = message.VoicePath;
-        DurationMs = message.DurationMs;
-        if (changed)
-        {
-            Bars = IsVoice ? [.. Enumerable.Range(0, VoiceRecorder.WaveBars).Select(i => 3 + (21.0 * (message.Wave is { } wave && i < wave.Length ? wave[i] : 0) / 255))] : [];
-        }
-        IsFailed = message.State == ChatMessageState.Failed;
-        string time = message.SentAt.ToLocalTime().ToString("HH:mm", L.Culture);
         string? state = !message.Outgoing || message.Kind == ChatKinds.Recalled ? null : message.State switch
         {
             ChatMessageState.Pending => L.T("Chờ gửi"),
@@ -1085,15 +1452,71 @@ public sealed partial class ChatBubbleViewModel(string id, ChatViewModel owner) 
             ChatMessageState.Read when lastMine => L.T("Đã xem"),
             _ => null,
         };
-        StatusText = state is null ? time : $"{time} · {state}";
+        Show(message.Outgoing, message.Kind, TextOf(message), message.SentAt, message.State, message.DurationMs, message.Wave, message.VoicePath, state);
         return this;
     }
 
-    /// <summary>The words, or what stands for them in a list or a notification.</summary>
-    internal static string TextOf(ChatMessage message) => message.Kind switch
+    /// <param name="author">"Bạn", or the member's name.</param>
+    /// <param name="first">The first of a run of this member's messages.</param>
+    /// <param name="reached">Our newest message: where it is with each member.</param>
+    internal ChatBubbleViewModel Update(GroupChatMessage message, string author, bool first, IReadOnlyList<GroupDelivery>? reached)
     {
-        ChatKinds.Text => message.Text ?? "",
-        ChatKinds.Voice => L.F("Tin nhắn thoại {0}", ChatViewModel.Duration(message.DurationMs)),
+        IsInGroup = true;
+        AuthorName = author;
+        AuthorInitial = author.Length > 0 ? author[..1].ToUpper(L.Culture) : "?";
+        AuthorBrush = AuthorBrushes[(int)((uint)message.Author.Value.Aggregate(17, (h, c) => (h * 31) + c) % AuthorBrushes.Length)];
+        ShowsAuthor = !message.Outgoing && first;
+        string? state = !message.Outgoing || message.Kind == ChatKinds.Recalled ? null
+            : message.State == ChatMessageState.Pending ? L.T("Chờ gửi")
+            : message.State == ChatMessageState.Failed ? L.T("Không gửi được")
+            : reached is { Count: > 0 } all
+                ? all.Any(d => d.State == GroupDeliveryState.Read)
+                    ? L.F("Đã xem {0}/{1}", all.Count(d => d.State == GroupDeliveryState.Read), all.Count)
+                    : L.F("Đã nhận {0}/{1}", all.Count(d => d.State == GroupDeliveryState.Delivered), all.Count)
+                : null;
+        Show(message.Outgoing, message.Kind, TextOf(message.Kind, message.Text, message.DurationMs), message.SentAt, message.State,
+            message.DurationMs, message.Wave, message.VoicePath, state);
+        return this;
+    }
+
+    private void Show(
+        bool outgoing, string messageKind, string text, DateTimeOffset sentAt, ChatMessageState messageState, int durationMs, byte[]? wave,
+        string? voicePath, string? state)
+    {
+        IsMine = outgoing;
+        IsVoice = messageKind == ChatKinds.Voice;
+        IsUnknown = messageKind is not (ChatKinds.Text or ChatKinds.Voice);
+        CanCopy = messageKind == ChatKinds.Text;
+        recallUntil = !outgoing || messageKind is not (ChatKinds.Text or ChatKinds.Voice) ? DateTimeOffset.MinValue
+            : messageState == ChatMessageState.Pending ? DateTimeOffset.MaxValue
+            : sentAt + ChatService.RecallWindow;
+        RefreshRecall();
+        Text = text;
+        // New lists only when the message changed (sent, recalled): every refresh would build the rows again.
+        bool changed = messageKind != kind;
+        kind = messageKind;
+        if (changed)
+        {
+            Links = messageKind == ChatKinds.Text ? TransferText.LinksIn(Text) : [];
+        }
+        VoicePath = voicePath;
+        DurationMs = durationMs;
+        if (changed)
+        {
+            Bars = IsVoice ? [.. Enumerable.Range(0, VoiceRecorder.WaveBars).Select(i => 3 + (21.0 * (wave is not null && i < wave.Length ? wave[i] : 0) / 255))] : [];
+        }
+        IsFailed = messageState == ChatMessageState.Failed;
+        string time = sentAt.ToLocalTime().ToString("HH:mm", L.Culture);
+        StatusText = state is null ? time : $"{time} · {state}";
+    }
+
+    /// <summary>The words, or what stands for them in a list or a notification.</summary>
+    internal static string TextOf(ChatMessage message) => TextOf(message.Kind, message.Text, message.DurationMs);
+
+    internal static string TextOf(string kind, string? text, int durationMs) => kind switch
+    {
+        ChatKinds.Text => text ?? "",
+        ChatKinds.Voice => L.F("Tin nhắn thoại {0}", ChatViewModel.Duration(durationMs)),
         ChatKinds.Recalled => L.T("Tin nhắn đã được thu hồi"),
         _ => L.T("Tin nhắn này cần bản Shorekeeper mới hơn."),
     };
@@ -1373,3 +1796,19 @@ public sealed record ChatPicture(Bitmap Image, string Location);
 
 /// <summary>The newest offer with someone, for the conversation list: when, whose, and what it was.</summary>
 public sealed record ChatLastFile(DateTimeOffset At, bool Outgoing, string Text);
+
+/// <summary>A member in "Chi tiết" or "Thành viên": who, and where the message is with them or whether they are there.</summary>
+public sealed partial class ChatMemberViewModel(string name, string stateText, bool isOnline, Func<Task>? retry) : ObservableObject
+{
+    public string Name { get; } = name;
+
+    public string StateText { get; } = stateText;
+
+    public bool IsOnline { get; } = isOnline;
+
+    /// <summary>It failed with them (or they had an old version): "Gửi lại".</summary>
+    public bool CanRetry => retry is not null;
+
+    [RelayCommand]
+    private Task RetryAsync() => retry?.Invoke() ?? Task.CompletedTask;
+}

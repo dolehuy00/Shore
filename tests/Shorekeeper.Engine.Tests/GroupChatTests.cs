@@ -358,6 +358,18 @@ public sealed class GroupChatTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_group_can_be_muted_and_unmuted()
+    {
+        await mai.GroupChat.SetMutedAsync(groupId, true, Ct);
+        Assert.Contains(groupId, await mai.GroupChat.GetMutedAsync(Ct));
+
+        await mai.GroupChat.SetMutedAsync(groupId, false, Ct);
+        Assert.Empty(await mai.GroupChat.GetMutedAsync(Ct));
+        Assert.Equal(new[] { host.Id, tuan.Id }.OrderBy(d => d.Value), mai.GroupChat.OthersIn(groupId)!.Select(m => m.DeviceId).OrderBy(d => d.Value));
+        Assert.Null(mai.GroupChat.OthersIn("0123456789abcdef0123456789abcdef"));
+    }
+
+    [Fact]
     public async Task Members_announce_group_messages()
     {
         PresencePacket packet = mai.Get<ILocalPresence>().CreatePacket(PresencePacketTypes.Heartbeat);

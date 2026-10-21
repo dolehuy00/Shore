@@ -84,6 +84,20 @@ public partial class App : Application
                 }
             });
 
+            // Group messages: "Minh · Build QA", unless the group's notifications are off (docs/16-group-chat.md §6.1).
+            Services.GetRequiredService<GroupChatService>().Received += (_, message) => Dispatcher.UIThread.Post(() =>
+            {
+                if (presence.Status != MyStatus.Busy && main.Chat.ReadingGroup != message.GroupId && !main.Chat.IsMuted(message.GroupId))
+                {
+                    string title = L.F("{0} · {1}", main.Chat.NameOf(message.GroupId, message.Author, message.AuthorName), main.Chat.GroupNameOf(message.GroupId));
+                    dialogs.ShowIncomingMessage(title, ChatBubbleViewModel.TextOf(message.Kind, message.Text, message.DurationMs), () =>
+                    {
+                        main.OpenGroupChat(message.GroupId);
+                        ShowMainWindow();
+                    });
+                }
+            });
+
             quickSend = Services.GetRequiredService<QuickSendService>();
             quickSend.Start();
 
