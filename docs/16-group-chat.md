@@ -1,6 +1,6 @@
 # 16 — Chat nhóm (C5)
 
-> Trạng thái: **C5a–C5c xong** (2026-10-21: engine gửi thẳng, ký, đã nhận / đã xem theo người, thu hồi; chuyển hộ và tin cũ; giao diện máy tính), C5d–C5e kế hoạch. Nối tiếp [15](15-chat.md) (C1–C4, hội thoại 1-1) trên nền Nhóm ở [07](07-groups.md).
+> Trạng thái: **C5a–C5d xong** (2026-10-21: engine gửi thẳng, ký, đã nhận / đã xem theo người, thu hồi; chuyển hộ và tin cũ; giao diện máy tính và điện thoại, thông báo), C5e kế hoạch. Nối tiếp [15](15-chat.md) (C1–C4, hội thoại 1-1) trên nền Nhóm ở [07](07-groups.md).
 >
 > Đã chốt (2026-10-21), chi tiết ở §9:
 > - thành viên **chuyển tin hộ** khi người gửi offline;
@@ -179,12 +179,13 @@ Migration `0011_group_chat.sql` cho C5a–C5c (chưa phát hành nên C5b, C5c s
 
 ### 6.2 Điện thoại
 
-- Như máy tính, trong tab Tin nhắn. Nhấn giữ tin của mình có **Chi tiết**; tab Nhóm có [Nhắn tin].
-- **Thông báo**:
-  - Kiểu tin nhắn nhóm (`MessagingStyle` với `setGroupConversation`): tên nhóm là tiêu đề, mỗi dòng có tên người gửi.
-  - **Trả lời** trên thông báo gửi vào nhóm.
-  - Nhóm đã tắt thông báo thì chỉ còn số chưa đọc.
+- Như máy tính, trong tab Tin nhắn (cùng `ChatViewModel`, `ShowsGroups`). Nhấn giữ tin của mình có **Chi tiết**; "Chi tiết" / "Thành viên" là thẻ nổi trên đầu hội thoại, nút Back đóng nó trước rồi mới đóng hội thoại. Thẻ nhóm ở tab Nhóm có nút 💬 cạnh [Gửi file…].
+- **Thông báo** (`ChatNotifications`, mỗi nhóm một thông báo, tag `group:{id}`):
+  - Kiểu tin nhắn nhóm (`MessagingStyle` với `setGroupConversation`): tên nhóm là tiêu đề, mỗi dòng có tên người gửi (tên liên hệ, hay tên trong danh sách thành viên).
+  - **Trả lời** trên thông báo gửi vào nhóm (nếu mình còn trong nhóm và còn người khác); trả lời hay **Đánh dấu đã đọc** là đã đọc, thông báo tự đi. Chạm thì mở đúng hội thoại nhóm.
+  - Nhóm đã tắt thông báo thì chỉ còn số chưa đọc. Đang mở đúng nhóm đó thì không báo.
   - Tin cũ kéo về khi mới vào nhóm không báo, và không tính chưa đọc.
+- Widget đếm cả tin nhóm chưa đọc.
 - Điện thoại chỉ làm thành viên, không làm Host ([14](14-android.md)); chat nhóm không cần Host nên điện thoại nhắn, chuyển hộ và cho kéo tin như máy tính.
 
 ### 6.3 File trong hội thoại nhóm
@@ -201,7 +202,7 @@ Migration `0011_group_chat.sql` cho C5a–C5c (chưa phát hành nên C5b, C5c s
 | **C5a** Engine gửi thẳng ✅ | Migration, ký và kiểm chữ ký, route `messages` / `receipts` / `recalls`, fan-out, chờ gửi theo từng người, chống trùng, thứ tự (§3.2), đã nhận / đã xem theo người, thu hồi, `caps: "chat-group"`, `not_member` thử lại 2 phút | Test engine 3 máy loopback (bảng dưới, `GroupChatTests`), cả MiniHttpServer lẫn Kestrel |
 | **C5b** Chuyển hộ & tin cũ ✅ | `Seq`, `index` / `fetch`, con trỏ, kéo khi online / khi vào nhóm, cửa sổ 30 ngày / 1.000 tin, dấu xóa, thu hồi qua chuyển hộ | Test engine (bảng dưới, `GroupChatTests`), cả MiniHttpServer lẫn Kestrel |
 | **C5c** Máy tính ✅ | Danh sách + hội thoại nhóm, tên người gửi, Chi tiết, Tắt thông báo, nút ở trang Nhóm, toast | PC (Host) gửi tới điện thoại (thành viên), Thành viên, Chi tiết, tắt / bật thông báo, thu hồi; tin nhóm đến PC (tên, màu, toast) thử ở C5d, khi điện thoại gửi được |
-| **C5d** Điện thoại | Như C5c + thông báo nhóm có Trả lời | Nhắn thật, cả khi app ở nền |
+| **C5d** Điện thoại ✅ | Như C5c + thông báo nhóm có Trả lời | Nhắn thật PC ↔ điện thoại: tên, màu, chữ cái đầu, "Đã xem 1/1", Chi tiết, Thành viên, tắt / bật thông báo (không còn thông báo), thông báo nhóm và Trả lời trên đó, toast nhóm trên PC, nút 💬 ở tab Nhóm |
 | **C5e** File | `InboxOffers.GroupId`, gửi file từ hội thoại nhóm, thẻ, thu hồi offer nhóm | Test engine + thử ảnh / file thật |
 
 Test engine của C5a:

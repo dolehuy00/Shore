@@ -16,6 +16,7 @@ public partial class App : Application
     private static MainViewModel? main;
     private static (IReadOnlyList<string> Locations, string? Text)? pendingShare;
     private static DeviceId? pendingChat;
+    private static string? pendingGroupChat;
 
     /// <summary>Set by <see cref="AndroidApp"/> before Avalonia starts.</summary>
     internal static Task<IServiceProvider>? Engine { get; set; }
@@ -98,6 +99,19 @@ public partial class App : Application
         }
     });
 
+    /// <summary>A group message notification was tapped: the group's conversation.</summary>
+    internal static void ShowGroupChat(string groupId) => Dispatcher.UIThread.Post(() =>
+    {
+        if (main is null)
+        {
+            pendingGroupChat = groupId;
+        }
+        else
+        {
+            main.OpenGroupChat(groupId);
+        }
+    });
+
     private static async Task ShowWhenReadyAsync(Control view, Task<IServiceProvider> engine)
     {
         IServiceProvider services = await engine;
@@ -106,10 +120,17 @@ public partial class App : Application
             main = new MainViewModel(services) { IsInForeground = true };
             view.DataContext = main;
             ChatNotifications.IsReading = peer => main.Chat.ReadingPeer == peer;
+            ChatNotifications.IsReadingGroup = groupId => main.Chat.ReadingGroup == groupId;
             if (pendingChat is { } chat)
             {
                 pendingChat = null;
                 main.OpenChat(chat);
+            }
+
+            if (pendingGroupChat is { } groupChat)
+            {
+                pendingGroupChat = null;
+                main.OpenGroupChat(groupChat);
             }
             if (pendingShare is { } share)
             {

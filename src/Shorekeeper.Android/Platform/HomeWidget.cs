@@ -70,14 +70,17 @@ public sealed class HomeWidget : AppWidgetProvider
         services.GetRequiredService<TrustStore>().Changed += (_, _) => Update(context);
         services.GetRequiredService<AudioService>().Changed += (_, _) => Update(context);
         var chat = services.GetRequiredService<ChatService>();
-        chat.Changed += (_, _) => _ = CountUnreadAsync(context, chat);
-        _ = CountUnreadAsync(context, chat);
+        var groupChat = services.GetRequiredService<GroupChatService>();
+        chat.Changed += (_, _) => _ = CountUnreadAsync(context, chat, groupChat);
+        groupChat.Changed += (_, _) => _ = CountUnreadAsync(context, chat, groupChat);
+        _ = CountUnreadAsync(context, chat, groupChat);
     }
 
-    /// <summary>Messages not read yet, for the status line; counted again whenever a conversation changes.</summary>
-    private static async Task CountUnreadAsync(Context context, ChatService chat)
+    /// <summary>Messages not read yet, groups' too, for the status line; counted again whenever a conversation changes.</summary>
+    private static async Task CountUnreadAsync(Context context, ChatService chat, GroupChatService groupChat)
     {
-        unread = (await chat.GetConversationsAsync(CancellationToken.None)).Sum(c => c.Unread);
+        unread = (await chat.GetConversationsAsync(CancellationToken.None)).Sum(c => c.Unread)
+            + (await groupChat.GetConversationsAsync(CancellationToken.None)).Sum(c => c.Unread);
         Update(context);
     }
 

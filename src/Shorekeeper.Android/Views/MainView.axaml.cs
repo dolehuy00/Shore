@@ -76,12 +76,17 @@ public partial class MainView : UserControl
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
-        // Android's Back closes an open conversation before it leaves the app.
+        // Android's Back closes "Chi tiết" / "Thành viên", then an open conversation, before it leaves the app.
         if (TopLevel.GetTopLevel(this) is { } top)
         {
             top.BackRequested += (_, back) =>
             {
-                if (DataContext is MainViewModel { IsChatTab: true, Chat.IsOpen: true } main)
+                if (DataContext is MainViewModel { IsChatTab: true, Chat.HasDetails: true } shown)
+                {
+                    shown.Chat.CloseDetailsCommand.Execute(null);
+                    back.Handled = true;
+                }
+                else if (DataContext is MainViewModel { IsChatTab: true, Chat.IsOpen: true } main)
                 {
                     main.Chat.CloseCommand.Execute(null);
                     back.Handled = true;

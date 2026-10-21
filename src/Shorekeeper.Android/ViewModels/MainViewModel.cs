@@ -75,6 +75,7 @@ public sealed partial class MainViewModel : ObservableObject
             services.GetService<IMicrophone>(), services.GetService<IVoicePlayer>())
         {
             AllowRecording = AllowRecordingAsync,
+            ShowsGroups = true,
             CopyText = text =>
             {
                 TextActions.Copy(global::Android.App.Application.Context, text);
@@ -596,6 +597,13 @@ public sealed partial class MainViewModel : ObservableObject
     internal void OpenChat(DeviceId peer)
     {
         Chat.Open(peer);
+        SelectedTab = 2;
+    }
+
+    /// <summary>"Nhắn tin" on a group, or a group message notification.</summary>
+    internal void OpenGroupChat(string groupId)
+    {
+        Chat.OpenGroup(groupId);
         SelectedTab = 2;
     }
 

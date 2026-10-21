@@ -24,6 +24,9 @@ public sealed class MainActivity : AvaloniaMainActivity
     /// <summary>The conversation a message notification opens: the peer's DeviceId.</summary>
     public const string ExtraChat = "chat";
 
+    /// <summary>A group message notification was tapped: the group's id.</summary>
+    public const string ExtraChatGroup = "chatGroup";
+
     /// <summary>A button of the home screen widget: <see cref="WidgetFiles"/> or <see cref="WidgetText"/>.</summary>
     public const string ExtraWidget = "widget";
 
@@ -203,6 +206,11 @@ public sealed class MainActivity : AvaloniaMainActivity
         if (intent is not null && !intent.Flags.HasFlag(ActivityFlags.LaunchedFromHistory) && intent.GetStringExtra(ExtraChat) is { } peer)
         {
             App.ShowChat(peer);
+        }
+
+        if (intent is not null && !intent.Flags.HasFlag(ActivityFlags.LaunchedFromHistory) && intent.GetStringExtra(ExtraChatGroup) is { } groupId)
+        {
+            App.ShowGroupChat(groupId);
         }
     }
 

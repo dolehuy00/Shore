@@ -74,6 +74,9 @@ public sealed partial class GroupsTabViewModel : ObservableObject
             : Task.FromResult<string?>(L.T("Chưa ở trong nhóm này."));
 
     /// <summary>"Gửi văn bản cho nhóm…": a link or a few lines to every other member.</summary>
+    /// <summary>"Nhắn tin" on a group: its conversation in Tin nhắn.</summary>
+    internal void OpenChat(GroupItemViewModel group) => main.OpenGroupChat(group.Id);
+
     internal void AskText(GroupItemViewModel group) =>
         main.Question = new QuestionViewModel(L.T("Gửi văn bản"), L.F("Văn bản hoặc link gửi cho nhóm {0}:", group.Name), L.T("Gửi"),
             TextActions.Copied(global::Android.App.Application.Context),
@@ -243,6 +246,9 @@ public sealed partial class GroupItemViewModel(Group group, string detail, IRead
 
     [RelayCommand]
     private void SendText() => owner.AskText(this);
+
+    [RelayCommand]
+    private void Chat() => owner.OpenChat(this);
 }
 
 public sealed partial class NetworkGroupItemViewModel(PresenceGroup group, DeviceId hostId, string hostName, GroupsTabViewModel owner)
