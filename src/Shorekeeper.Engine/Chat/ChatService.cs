@@ -70,6 +70,9 @@ public sealed class ChatService(
     private readonly HashSet<DeviceId> sendAgain = [];
     private readonly Dictionary<DeviceId, (long Second, int Count)> rates = [];
 
+    /// <summary>The time given to the last message sent from here, in milliseconds.</summary>
+    private long lastSentAt;
+
     /// <summary>Raised with the peer whenever its conversation changes.</summary>
     public event EventHandler<DeviceId>? Changed;
 
@@ -91,7 +94,7 @@ public sealed class ChatService(
             throw new ArgumentException(L.F("Tin nhắn dài tối đa {0:N0} ký tự.", MaxTextLength), nameof(text));
         }
 
-        DateTimeOffset now = timeProvider.GetUtcNow();
+        DateTimeOffset now = NextSentAt();
         var message = new ChatMessage(
             peer, Guid.CreateVersion7(now).ToString("N"), true, ChatKinds.Text, text, FromMs(now.ToUnixTimeMilliseconds()), ChatMessageState.Pending);
         await WriteAsync(
@@ -104,6 +107,24 @@ public sealed class ChatService(
         return message;
     }
 
+    /// <summary>
+    /// Now, but always after the message sent before: messages are ordered by this time, then by id, and a UUIDv7 is
+    /// random within its millisecond, so two sent in the same one could swap places on both sides.
+    /// </summary>
+    private DateTimeOffset NextSentAt()
+    {
+        long now = timeProvider.GetUtcNow().ToUnixTimeMilliseconds();
+        long last, next;
+        do
+        {
+            last = Interlocked.Read(ref lastSentAt);
+            next = Math.Max(now, last + 1);
+        }
+        while (Interlocked.CompareExchange(ref lastSentAt, next, last) != last);
+
+        return DateTimeOffset.FromUnixTimeMilliseconds(next);
+    }
+
     /// <summary>Stores a recorded voice message, then sends it like a text.</summary>
     /// <exception cref="ArgumentException">Empty, too long, or not a voice message.</exception>
     public async Task<ChatMessage> SendVoiceAsync(DeviceId peer, VoiceNote note, CancellationToken cancellationToken)
@@ -113,7 +134,7 @@ public sealed class ChatService(
             throw new ArgumentException("Not a voice message that can be sent.", nameof(note));
         }
 
-        DateTimeOffset now = timeProvider.GetUtcNow();
+        DateTimeOffset now = NextSentAt();
         string id = Guid.CreateVersion7(now).ToString("N");
         string path = VoicePath(id);
         Directory.CreateDirectory(paths.ChatVoiceDirectory);

@@ -67,7 +67,7 @@ public sealed class InboxService(
         await connection.ExecuteAsync("UPDATE InboxOffers SET State = 'failed' WHERE State = 'downloading';");
 
         var offerRows = await connection.QueryAsync<InboxOfferRow>(
-            "SELECT SenderId, OfferId, Note, TotalBytes, ReceivedAt, ExpiresAt, State FROM InboxOffers WHERE ReceivedAt >= @since;", new { since });
+            "SELECT SenderId, OfferId, Note, TotalBytes, ReceivedAt, SentAt, ExpiresAt, State FROM InboxOffers WHERE ReceivedAt >= @since;", new { since });
         var fileRows = (await connection.QueryAsync<InboxFileRow>(
             "SELECT SenderId, OfferId, FileId, RelativePath, Size, ModifiedAt, State, FinalPath, Error FROM InboxFiles;"))
             .ToLookup(f => (f.SenderId, f.OfferId));
@@ -77,7 +77,9 @@ public sealed class InboxService(
             foreach (InboxOfferRow row in offerRows)
             {
                 var key = new OfferKey(DeviceId.Parse(row.SenderId), row.OfferId);
-                var item = new Item(key, row.Note, DateTimeOffset.FromUnixTimeMilliseconds(row.ReceivedAt), DateTimeOffset.FromUnixTimeMilliseconds(row.ExpiresAt))
+                var item = new Item(
+                    key, row.Note, DateTimeOffset.FromUnixTimeMilliseconds(row.ReceivedAt), DateTimeOffset.FromUnixTimeMilliseconds(row.SentAt ?? row.ReceivedAt),
+                    DateTimeOffset.FromUnixTimeMilliseconds(row.ExpiresAt))
                 {
                     State = Enum.Parse<InboxState>(row.State, true),
                 };
@@ -304,7 +306,9 @@ public sealed class InboxService(
 
         var key = new OfferKey(sender, manifest.OfferId);
         // Text alone ("Gửi văn bản") has nothing to download: it is received with the offer.
-        var item = new Item(key, manifest.Note, timeProvider.GetUtcNow(), manifest.ExpiresAt)
+        DateTimeOffset now = timeProvider.GetUtcNow();
+        // As for messages: a sender's clock ahead of ours does not put the offer after what comes next.
+        var item = new Item(key, manifest.Note, now, manifest.CreatedAt < now ? manifest.CreatedAt : now, manifest.ExpiresAt)
         {
             State = files.Count == 0 ? InboxState.Completed : InboxState.New,
         };
@@ -719,13 +723,13 @@ public sealed class InboxService(
         await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync();
         await connection.ExecuteAsync(
             """
-            INSERT INTO InboxOffers (SenderId, OfferId, Note, TotalBytes, ReceivedAt, ExpiresAt, State)
-            VALUES (@sender, @offerId, @note, @total, @receivedAt, @expiresAt, @state);
+            INSERT INTO InboxOffers (SenderId, OfferId, Note, TotalBytes, ReceivedAt, SentAt, ExpiresAt, State)
+            VALUES (@sender, @offerId, @note, @total, @receivedAt, @sentAt, @expiresAt, @state);
             """,
             new
             {
                 sender = item.Key.SenderId.Value, offerId = item.Key.OfferId, note = item.Note, total = item.TotalBytes,
-                receivedAt = item.ReceivedAt.ToUnixTimeMilliseconds(), expiresAt = item.ExpiresAt.ToUnixTimeMilliseconds(),
+                receivedAt = item.ReceivedAt.ToUnixTimeMilliseconds(), sentAt = item.SentAt.ToUnixTimeMilliseconds(), expiresAt = item.ExpiresAt.ToUnixTimeMilliseconds(),
                 state = Name(item.State),
             },
             transaction);
@@ -746,13 +750,15 @@ public sealed class InboxService(
     private static string Name<T>(T value)
         where T : struct, Enum => value.ToString().ToLowerInvariant();
 
-    private sealed class Item(OfferKey key, string? note, DateTimeOffset receivedAt, DateTimeOffset expiresAt)
+    private sealed class Item(OfferKey key, string? note, DateTimeOffset receivedAt, DateTimeOffset sentAt, DateTimeOffset expiresAt)
     {
         public OfferKey Key { get; } = key;
 
         public string? Note { get; } = note;
 
         public DateTimeOffset ReceivedAt { get; } = receivedAt;
+
+        public DateTimeOffset SentAt { get; } = sentAt;
 
         public DateTimeOffset ExpiresAt { get; } = expiresAt;
 
@@ -773,7 +779,7 @@ public sealed class InboxService(
         public ReceivedOffer ToSnapshot() => new(
             Key.SenderId, Key.OfferId, Note, TotalBytes, ReceivedAt, ExpiresAt, State,
             Files.Sum(f => f.BytesReceived), ReconnectingUntil, Error,
-            [.. Files.Select(f => new InboxFile(f.FileId, f.RelativePath, f.Size, f.IsDirectory, f.State, f.FinalPath, f.Error))]);
+            [.. Files.Select(f => new InboxFile(f.FileId, f.RelativePath, f.Size, f.IsDirectory, f.State, f.FinalPath, f.Error))], SentAt);
     }
 
     private sealed class FileItem(string fileId, string relativePath, string[] segments, long size, bool isDirectory, DateTimeOffset? modifiedAt)
@@ -815,6 +821,8 @@ public sealed class InboxService(
         public long TotalBytes { get; init; }
 
         public long ReceivedAt { get; init; }
+
+        public long? SentAt { get; init; }
 
         public long ExpiresAt { get; init; }
 

@@ -462,7 +462,7 @@ public sealed partial class ChatViewModel : ObservableObject
             .. offers.GetOffers()
                 .Where(o => o.GroupId is null && o.Recipients.Any(r => r.DeviceId == person.Peer))
                 .Select(o => (o.CreatedAt, "sent:" + o.OfferId, (object)o)),
-            .. inbox.GetOffers().Where(o => o.SenderId == person.Peer).Select(o => (o.ReceivedAt, "received:" + o.OfferId, (object)o)),
+            .. inbox.GetOffers().Where(o => o.SenderId == person.Peer).Select(o => (o.SentAt, "received:" + o.OfferId, (object)o)),
         ];
         entries.Sort((x, y) => x.At != y.At ? x.At.CompareTo(y.At) : string.CompareOrdinal(x.Id, y.Id));
 
@@ -558,7 +558,7 @@ public sealed partial class ChatViewModel : ObservableObject
         {
             string[] paths = [.. received.Files.Select(f => f.RelativePath)];
             bool pictures = received.Files.Count > 0 && received.Files.All(f => !f.IsDirectory && StorageReport.IsPicture(f.RelativePath));
-            Keep(received.SenderId, new ChatLastFile(received.ReceivedAt, false, FileText(received.Note, paths, pictures)));
+            Keep(received.SenderId, new ChatLastFile(received.SentAt, false, FileText(received.Note, paths, pictures)));
         }
 
         return last;
@@ -1194,7 +1194,7 @@ public sealed partial class ChatFileViewModel(string id, ChatViewModel owner) : 
                 _ => L.T("lỗi"),
             },
         };
-        StatusText = IsText ? state : $"{TransferText.Size(offer.TotalBytes)} · {state}";
+        StatusText = Status(offer.CreatedAt, offer.TotalBytes, state);
         CanDownload = false;
         Progress = -1;
     }
@@ -1220,9 +1220,16 @@ public sealed partial class ChatFileViewModel(string id, ChatViewModel owner) : 
             InboxState.Withdrawn => L.T("Người gửi đã thu hồi"),
             _ => L.T("Đã hết hạn"),
         };
-        StatusText = IsText ? state : $"{TransferText.Size(offer.TotalBytes)} · {state}";
+        StatusText = Status(offer.SentAt, offer.TotalBytes, state);
         CanDownload = offer.State == InboxState.New && senderOnline && offer.ExpiresAt > DateTimeOffset.UtcNow;
         Progress = offer.State == InboxState.Downloading && offer.TotalBytes > 0 ? 100.0 * offer.BytesReceived / offer.TotalBytes : -1;
+    }
+
+    /// <summary>"16:10 · 75 KB · đã nhận", the time as under a message.</summary>
+    private string Status(DateTimeOffset at, long totalBytes, string state)
+    {
+        string time = at.ToLocalTime().ToString("HH:mm", L.Culture);
+        return IsText ? $"{time} · {state}" : $"{time} · {TransferText.Size(totalBytes)} · {state}";
     }
 }
 

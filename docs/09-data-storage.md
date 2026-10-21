@@ -107,6 +107,7 @@ CREATE TABLE InboxOffers (
   Note       TEXT,
   TotalBytes INTEGER NOT NULL,
   ReceivedAt INTEGER NOT NULL,
+  SentAt     INTEGER,                   -- 0008: createdAt của người gửi (không muộn hơn ReceivedAt), xếp thẻ trong Tin nhắn; trống thì dùng ReceivedAt
   ExpiresAt  INTEGER NOT NULL,
   State      TEXT NOT NULL,             -- new|seen|downloading|completed|partial|failed|declined|withdrawn|expired
   PRIMARY KEY (SenderId, OfferId)

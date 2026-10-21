@@ -171,6 +171,21 @@ public sealed class TransferTests : IAsyncLifetime
         await WaitUntil(() => a.Offers.GetOffers().Single().Recipients.Single().State == RecipientState.Delivered);
     }
 
+    [Fact]
+    public async Task An_offer_delivered_late_keeps_when_it_was_sent()
+    {
+        a.Directory.Remove(b.Id);
+        string offerId = await SendAsync(a, [WriteFile(a, "later.txt", "hi"u8.ToArray())], b.Id);
+        await Task.Delay(1500, Ct);
+        a.Sees(b);
+
+        ReceivedOffer received = await WaitForOfferAsync(b, offerId);
+
+        // Ordered among the messages by when it was sent, as the sender orders it, not by when it arrived.
+        Assert.Equal(a.Offers.GetOffers().Single().CreatedAt.ToUnixTimeMilliseconds(), received.SentAt.ToUnixTimeMilliseconds());
+        Assert.True(received.ReceivedAt - received.SentAt >= TimeSpan.FromSeconds(1));
+    }
+
     [Fact(Skip = "Only Windows refuses to share a file another program is writing", SkipType = typeof(TestPlatform), SkipUnless = nameof(TestPlatform.IsWindows))]
     public async Task File_open_for_writing_is_sent_as_a_temporary_copy()
     {
