@@ -29,7 +29,7 @@ Trong công ty, chuyển file giữa các máy (build, backup, log, installer, t
 - Tải tiếp sau khi thoát app / khởi động lại máy. Chỉ nối lại được trong cùng phiên chạy, với rớt mạng ngắn.
 - Tự xóa file ở máy nhận. File nhận được là **bản sao vĩnh viễn**.
 - Server trung tâm; kho file chung; nhóm chứa file.
-- Đồng bộ thư mục, quản lý phiên bản, chat.
+- Đồng bộ thư mục, quản lý phiên bản. (Chat: đã có kế hoạch, [15](15-chat.md).)
 - Internet / ngoài mạng công ty; mobile; Linux/macOS (kiến trúc sẵn sàng, chưa phát hành).
 
 ## 4. Use case chính
