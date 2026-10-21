@@ -75,7 +75,7 @@ API của Shorekeeper nhỏ (khoảng 25 endpoint, JSON, `Range` khi tải file,
 | .NET MAUI | Control native, tài liệu Android nhiều hơn | Stack UI thứ hai phải duy trì |
 | Kotlin native | Tốt nhất về nền tảng | Viết lại toàn bộ giao thức, discovery, mTLS: hai codebase |
 
-Màn hình: Xóm (danh sách, chạm để gửi), File (Nhận / Đã gửi), Tin nhắn ([15](15-chat.md) §6.2), Nhóm, Âm thanh, Cài đặt. Gửi từ app khác: **Chia sẻ → Shorekeeper** mở màn chọn người (giống cửa sổ Gửi nhanh). Nút + ở Xóm: **Quét mã QR** trên máy tính (kết nối ngay, docs/04-identity-security.md §4.4; trình quét của Google Play services, gói `Xamarin.GooglePlayServices.Code.Scanner`, không cần quyền camera) hoặc nhập tên/IP. **Gửi văn bản…** (liên hệ, nhóm) điền sẵn chữ đang copy trên điện thoại (chỉ chữ thuần, không quá giới hạn gửi); Android báo app đã đọc bảng nhớ tạm.
+Màn hình: Xóm (danh sách, chạm để gửi), File (Nhận / Đã gửi), Tin nhắn ([15](15-chat.md) §6.2), Nhóm, Âm thanh, Cài đặt. Trên cùng mỗi tab là tên tab chữ lớn; riêng Cài đặt là thông tin máy này (logo, tên, mã ngắn, thư mục nhận), và hội thoại đang mở chỉ có thanh ← tên người. Gửi từ app khác: **Chia sẻ → Shorekeeper** mở màn chọn người (giống cửa sổ Gửi nhanh). Nút + ở Xóm: **Quét mã QR** trên máy tính (kết nối ngay, docs/04-identity-security.md §4.4; trình quét của Google Play services, gói `Xamarin.GooglePlayServices.Code.Scanner`, không cần quyền camera) hoặc nhập tên/IP. **Gửi văn bản…** (liên hệ, nhóm) điền sẵn chữ đang copy trên điện thoại (chỉ chữ thuần, không quá giới hạn gửi); Android báo app đã đọc bảng nhớ tạm.
 
 ### 3.5 Nghe âm thanh
 

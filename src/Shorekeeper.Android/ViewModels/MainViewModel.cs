@@ -103,6 +103,13 @@ public sealed partial class MainViewModel : ObservableObject
         OfferSelection = new ListSelection(() => Offers, () => RemoveCheckedOffers(deleteFiles: false), () => RemoveCheckedOffers(deleteFiles: true));
         SentSelection = new ListSelection(() => Sent, RemoveCheckedSent);
         settings.Changed += (_, _) => Dispatcher.UIThread.Post(() => OnPropertyChanged(nameof(Title)));
+        Chat.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(ChatViewModel.IsOpen))
+            {
+                OnPropertyChanged(nameof(HasPageTitle));
+            }
+        };
 
         directory.Changed += (_, _) => Dispatcher.UIThread.Post(RefreshPeers);
         trust.Changed += (_, _) => Dispatcher.UIThread.Post(RefreshPeers);
@@ -159,7 +166,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>0 Xóm, 1 File (Nhận or Đã gửi, <see cref="FilesShowSent"/>), 2 Tin nhắn, 3 Nhóm, 4 Âm thanh, 5 Cài đặt.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsNearbyTab), nameof(IsFilesTab), nameof(IsInboxTab), nameof(IsSentTab), nameof(IsChatTab), nameof(IsGroupsTab),
-        nameof(IsAudioTab), nameof(IsSettingsTab))]
+        nameof(IsAudioTab), nameof(IsSettingsTab), nameof(PageTitle), nameof(HasPageTitle))]
     public partial int SelectedTab { get; set; }
 
     /// <summary>"Đã gửi" rather than "Nhận" on the File tab (docs/15-chat.md §6.2).</summary>
@@ -186,6 +193,20 @@ public sealed partial class MainViewModel : ObservableObject
     public bool IsAudioTab => SelectedTab == 4;
 
     public bool IsSettingsTab => SelectedTab == 5;
+
+    /// <summary>The tab's name, large above its page; Cài đặt has this phone's name instead.</summary>
+    public string PageTitle => SelectedTab switch
+    {
+        0 => L.T("Xóm"),
+        1 => "File",
+        2 => L.T("Tin nhắn"),
+        3 => L.T("Nhóm"),
+        4 => L.T("Âm thanh"),
+        _ => "",
+    };
+
+    /// <summary>Not in Cài đặt, nor over an open conversation, which has its own bar (← name).</summary>
+    public bool HasPageTitle => !IsSettingsTab && !(IsChatTab && Chat.IsOpen);
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasShare))]

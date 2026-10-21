@@ -96,7 +96,10 @@ public partial class MainView : UserControl
     /// </summary>
     public void RemeasureIfCollapsed() => Dispatcher.UIThread.Post(() =>
     {
-        bool collapsed = Header.IsEffectivelyVisible && Bounds.Height > 100 && (Header.Bounds.Height <= 0 || Tabs.Bounds.Height <= 0);
+        // The header shows in Cài đặt only, the page title elsewhere, the tabs not while typing: only what shows counts.
+        bool collapsed = (Header.Parent as Visual)?.IsEffectivelyVisible == true && Bounds.Height > 100
+            && ((Header.IsVisible && Header.Bounds.Height <= 0) || (PageTitle.IsVisible && PageTitle.Bounds.Height <= 0)
+                || (Tabs.IsVisible && Tabs.Bounds.Height <= 0));
         if (!collapsed || Environment.TickCount64 - lastRemeasure < 2000)
         {
             return;
