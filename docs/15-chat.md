@@ -133,5 +133,5 @@ Offer chỉ gửi cho đúng người đó (hoặc người đó gửi cho mình
 | Tin tới lúc app Android ở nền bị đo bố cục sai (cùng lỗi header cao 0, [14](14-android.md)) | Thấy lỗi đó thì đo lại cả màn hình, không chỉ header và tab |
 | Giờ hai máy lệch | Chỉ dùng để xếp; giờ nhận lưu riêng; thứ tự tin của một người không đổi |
 | Micro bị app khác giữ / chưa cấp quyền | Báo lỗi trong ô soạn, không gửi tin rỗng; Android xin quyền lần đầu giữ 🎤 |
-| Điện thoại thử nghiệm (OPPO, Android 13) tự khởi động lại (`kernel_panic`) hai lần trong lúc làm app, một lần ngay sau lần ghi âm đầu tiên | Không thấy lỗi nào của app trong log; chưa rõ nguyên nhân. Ghi lại thời điểm nếu gặp lại |
+| Điện thoại thử nghiệm (OPPO, Android 13) tự khởi động lại hai lần trong lúc làm app | Không do app: log nhân lần trước (trong báo cáo lỗi, "LAST KMSG") ghi dm-verity thấy khối hỏng trên phân vùng chỉ-đọc `my_product` của ColorOS rồi panic (lỗi bộ nhớ hoặc firmware). Gặp lại thì tạo báo cáo lỗi để đọc |
 | Gộp tab File làm đổi thói quen người dùng | Giữ nguyên nội dung và thao tác của hai danh sách, chỉ đổi chỗ vào |
