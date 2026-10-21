@@ -200,7 +200,9 @@ Giữa các thành viên một nhóm, theo danh sách thành viên của máy đ
 |---|---|---|---|
 | POST | `/chat/groups/{groupId}/messages` | Thành viên | `{ id, authorId, authorName, authorKey, sentAt, kind, sig, text?, durationMs?, wave?, audio? }` → `204`. Như `/chat/messages`; `authorId` phải là người gọi, `authorKey` (SubjectPublicKeyInfo, base64) có SHA-256 đúng bằng `authorId`, `sig` đúng với các trường đã ký; sai thì `400`. `sentAt` không bị kẹp (mọi máy phải xếp như nhau), nhưng muộn hơn giờ máy nhận quá 1 ngày thì `400`. `authorName` không ký, chỉ để hiện |
 | POST | `/chat/groups/{groupId}/receipts` | Thành viên | `{ readUpTo }`: máy gọi đã đọc tin **của máy này** trong nhóm tới `id` đó → `204`. Chỉ gửi cho tác giả |
-| POST | `/chat/groups/{groupId}/recalls` | Thành viên | `{ recalls: [{ id, sig }] }`, 1–500 lệnh thu hồi do tác giả (người gọi) ký → `204`. Tin đó thành `recalled`; lệnh ký sai hay tin không phải của người gọi thì bỏ qua |
+| POST | `/chat/groups/{groupId}/recalls` | Thành viên | `{ recalls: [{ id, sig }] }`, 1–500 lệnh thu hồi do tác giả (người gọi) ký (kèm `sentAt` của tin) → `204`. Tin đó thành `recalled`; lệnh ký sai hay tin không phải của người gọi thì bỏ qua |
+| GET | `/chat/groups/{groupId}/index?after=` | Thành viên | `{ entries: [{ seq, id, authorId, sentAt, recalled }], next, more }`: tin máy này giữ, lưu hay thu hồi sau `after` (theo `seq` của máy này), tối đa 500, chỉ trong 30 ngày và 1.000 tin gần nhất, không có tin đã xóa ở đây. Hỏi tiếp từ `next`; `more` thì hỏi ngay. Quá 10 lần/giây `429` |
+| POST | `/chat/groups/{groupId}/fetch` | Thành viên | `{ ids }`, 1–50 → `{ messages, recalled }`: tin như tác giả đã ký (như body `/messages`, kèm `audio`), tin đã thu hồi thành `{ id, authorId, authorName, authorKey, sentAt, sig }` (lệnh thu hồi đã ký). Dừng khi quá 2 MB âm thanh; `id` không có thì bỏ qua. Máy kéo kiểm chữ ký từng tin, không tin người đưa |
 
 ## 5. Timeout & giới hạn
 

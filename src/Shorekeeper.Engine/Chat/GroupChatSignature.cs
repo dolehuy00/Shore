@@ -25,11 +25,12 @@ internal static class GroupChatSignature
     public static bool VerifyMessage(byte[] authorKey, byte[] sig, GroupChatContent content) =>
         Verify(authorKey, sig, content.Author, MessageBytes(content));
 
-    public static byte[] SignRecall(ECDsa key, string groupId, string id, DeviceId author) =>
-        key.SignData(RecallBytes(groupId, id, author), HashAlgorithmName.SHA256);
+    /// <summary>Signs taking a message back; its time is in it, so whoever passes the recall on cannot move it.</summary>
+    public static byte[] SignRecall(ECDsa key, string groupId, string id, DeviceId author, long sentAtMs) =>
+        key.SignData(RecallBytes(groupId, id, author, sentAtMs), HashAlgorithmName.SHA256);
 
-    public static bool VerifyRecall(byte[] authorKey, byte[] sig, string groupId, string id, DeviceId author) =>
-        Verify(authorKey, sig, author, RecallBytes(groupId, id, author));
+    public static bool VerifyRecall(byte[] authorKey, byte[] sig, string groupId, string id, DeviceId author, long sentAtMs) =>
+        Verify(authorKey, sig, author, RecallBytes(groupId, id, author, sentAtMs));
 
     private static bool Verify(byte[] authorKey, byte[] sig, DeviceId author, byte[] data)
     {
@@ -68,13 +69,14 @@ internal static class GroupChatSignature
         return stream.ToArray();
     }
 
-    private static byte[] RecallBytes(string groupId, string id, DeviceId author)
+    private static byte[] RecallBytes(string groupId, string id, DeviceId author, long sentAtMs)
     {
         using var stream = new MemoryStream();
         Write(stream, RecallPurpose);
         Write(stream, groupId);
         Write(stream, id);
         Write(stream, author.Value);
+        Write(stream, sentAtMs);
         return stream.ToArray();
     }
 

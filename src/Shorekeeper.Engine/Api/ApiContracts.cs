@@ -138,6 +138,27 @@ public sealed record GroupChatRecallBody(IReadOnlyList<GroupChatRecall> Recalls)
 
 public sealed record GroupChatRecall(string Id, byte[] Sig);
 
+/// <summary>
+/// Answer to <c>GET /api/v1/chat/groups/{groupId}/index?after=</c> (docs/16-group-chat.md §3.6): what the member holds
+/// that was stored or taken back after <c>after</c>, oldest first. Ask again from <paramref name="Next"/>, at once while
+/// <paramref name="More"/>.
+/// </summary>
+public sealed record GroupChatIndexResponse(IReadOnlyList<GroupChatIndexEntry> Entries, long Next, bool More);
+
+public sealed record GroupChatIndexEntry(long Seq, string Id, string AuthorId, DateTimeOffset SentAt, bool Recalled);
+
+/// <summary>Body of <c>POST /api/v1/chat/groups/{groupId}/fetch</c>: messages wanted from the index.</summary>
+public sealed record GroupChatFetchBody(IReadOnlyList<string> Ids);
+
+/// <summary>
+/// Answer to <c>POST /api/v1/chat/groups/{groupId}/fetch</c>: the messages as their authors signed them, and those
+/// taken back as their signed recalls. Ids not given back (too much at once, or gone) are asked for again.
+/// </summary>
+public sealed record GroupChatFetchResponse(IReadOnlyList<GroupChatMessageBody> Messages, IReadOnlyList<GroupChatRecalledEntry> Recalled);
+
+/// <summary>A message its author took back: only who, when, and the author's signed recall.</summary>
+public sealed record GroupChatRecalledEntry(string Id, string AuthorId, string AuthorName, byte[] AuthorKey, DateTimeOffset SentAt, byte[] Sig);
+
 public static class ChatKinds
 {
     public const string Text = "text";

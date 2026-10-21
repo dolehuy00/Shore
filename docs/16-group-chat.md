@@ -1,6 +1,6 @@
 # 16 — Chat nhóm (C5)
 
-> Trạng thái: **C5a xong** (2026-10-21: engine gửi thẳng, ký, đã nhận / đã xem theo người, thu hồi), C5b–C5e kế hoạch. Nối tiếp [15](15-chat.md) (C1–C4, hội thoại 1-1) trên nền Nhóm ở [07](07-groups.md).
+> Trạng thái: **C5a–C5b xong** (2026-10-21: engine gửi thẳng, ký, đã nhận / đã xem theo người, thu hồi; chuyển hộ và tin cũ), C5c–C5e kế hoạch. Nối tiếp [15](15-chat.md) (C1–C4, hội thoại 1-1) trên nền Nhóm ở [07](07-groups.md).
 >
 > Đã chốt (2026-10-21), chi tiết ở §9:
 > - thành viên **chuyển tin hộ** khi người gửi offline;
@@ -87,24 +87,26 @@ Thành viên một **Nhóm** nhắn cho cả nhóm văn bản và tin nhắn tho
 
   Như vậy không cần đã Kết nối hay từng gặp tác giả.
 - Phần được ký là chuỗi byte cố định: tiền tố phiên bản (`shorekeeper-group-chat/1`), rồi lần lượt `groupId`, `id`, `authorId`, `sentAt` (ms), `kind`, `text`, `durationMs`, `wave`, SHA-256 của `audio`. Mỗi trường có độ dài đi trước, để không ghép nhầm hai trường thành một.
-- **Lệnh thu hồi** ký `shorekeeper-group-recall/1`, `groupId`, `id`, `authorId`.
+- **Lệnh thu hồi** ký `shorekeeper-group-recall/1`, `groupId`, `id`, `authorId`, `sentAt` của tin: người chuyển hộ không đổi được tin đã thu hồi nằm ở đâu.
 - Tin ký sai hay khóa không khớp thì bỏ, và ghi log người chuyển tới.
 
 ### 3.6 Chuyển hộ và tin cũ
 
 Một cơ chế cho cả hai việc: **thành viên kéo tin còn thiếu từ thành viên khác** (pull). Nhờ vậy máy chỉ nhận những tin nó chưa có, và người mới vào lấy được tin cũ.
 
-- Mỗi máy đánh số thứ tự các tin nhóm nó lưu (`Seq`, tăng mỗi khi thêm tin hay thu hồi).
+- Mỗi máy đánh số thứ tự các tin nhóm nó lưu (`Seq`, một dãy chung cho mọi nhóm, tăng mỗi khi thêm tin hay thu hồi).
 - `GET /chat/groups/{id}/index?after={seq}` trả danh sách gọn, tối đa 500 mục: `seq`, `id`, `authorId`, `sentAt`, đã thu hồi hay chưa. Chỉ có tin trong cửa sổ lịch sử: **30 ngày** và **1.000 tin** gần nhất mỗi nhóm.
-- Máy kéo so với những gì nó có (kể cả dấu xóa) rồi gọi `POST /chat/groups/{id}/fetch { ids }`. Mỗi lần trả tối đa 50 tin hay 2 MB, nguyên chữ ký, kèm âm thanh thoại và lệnh thu hồi.
-- Máy kéo nhớ con trỏ `after` cho mỗi cặp (nhóm, thành viên). Lần sau chỉ hỏi phần mới, thường là trống.
-- **Khi nào kéo**:
-  - khi app mở: từ mọi thành viên đang online;
+- Máy kéo so với những gì nó có rồi gọi `POST /chat/groups/{id}/fetch { ids }`. Nó bỏ qua tin đã có, tin đã xóa ở đây (dấu xóa), tin của chính mình, và tin từ trước lúc "Xóa hội thoại". Tin đang hiện mà ở người kia đã thu hồi thì vẫn hỏi, để lấy lệnh thu hồi.
+- `fetch` trả tối đa 50 tin, nguyên chữ ký, kèm âm thanh thoại; tin đã thu hồi thì chỉ có lệnh thu hồi đã ký (kèm tác giả, khóa, giờ gửi). Quá 2 MB âm thanh thì dừng; máy kéo hỏi lại phần còn thiếu, tới khi người kia không đưa thêm được gì (tin đã xóa, file ghi âm mất).
+- Máy kéo nhớ con trỏ `after` cho mỗi cặp (nhóm, thành viên), chỉ tiến lên khi đã lấy xong trang đó. Lần sau chỉ hỏi phần mới, thường là trống. `next` vượt qua cả những tin không được đưa (đã xóa, ngoài cửa sổ).
+- **Khi nào kéo** (`PullAllAsync`, một luồng mỗi thành viên như gửi):
+  - khi app mở, và 5 phút một lần: từ mọi thành viên đang online;
   - khi một thành viên vừa online (`PeerDirectory`);
-  - khi mình vừa được duyệt vào nhóm.
+  - khi danh sách nhóm đổi, trong đó có lúc mình vừa được duyệt vào nhóm.
 
-  Với mỗi thành viên, các nhóm chung được kéo lần lượt.
+  Với mỗi thành viên, các nhóm chung được kéo lần lượt; không gọi được thì thôi người đó tới lần sau.
 - **Người mới vào nhóm**: con trỏ bắt đầu từ 0, nên lần kéo đầu lấy cả cửa sổ lịch sử. Kéo lần lượt từ từng thành viên online; thành viên sau thường chỉ còn vài tin thiếu.
+- **Tin cũ hay tin bị lỡ**: lần kéo đầu tiên của một nhóm ghi lại giờ đó (`ChatGroups.HistoryBefore`). Tin chuyển hộ tới có `sentAt` trước giờ đó là tin cũ: đã đọc, không thông báo. Tin sau giờ đó (tác giả offline khi gửi) thì như tin gửi thẳng: chưa đọc, có thông báo.
 - **Ai được nhận qua chuyển hộ**:
   - Người chuyển (người gọi) phải đang là thành viên.
   - Tin phải ký đúng.
@@ -143,9 +145,9 @@ Tin nhóm như tin 1-1, thêm các trường ký:
 
 ## 5. Lưu trữ
 
-Migration `0011_group_chat.sql` cho C5a; C5b–C5e thêm migration của mình ([09](09-data-storage.md)):
+Migration `0011_group_chat.sql` cho C5a–C5b (chưa phát hành nên C5b sửa thẳng vào đó); C5c–C5e thêm migration của mình ([09](09-data-storage.md)):
 
-- `ChatGroups` (`GroupId`, `Name`): giữ tên nhóm cho hội thoại sau khi rời, bị loại hay nhóm đóng (bảng `Groups` khi đó đã xóa nhóm). Cờ tắt thông báo và lúc vào nhóm thêm ở giai đoạn cần chúng.
+- `ChatGroups` (`GroupId`, `Name`, `ClearedAt`, `HistoryBefore`): giữ tên nhóm cho hội thoại sau khi rời, bị loại hay nhóm đóng (bảng `Groups` khi đó đã xóa nhóm), lúc "Xóa hội thoại", lúc kéo nhóm lần đầu (§3.6). Cờ tắt thông báo thêm ở C5c.
 - `ChatGroupMessages` (khóa `GroupId` + `Id`):
   - nội dung như `ChatMessages`: `AuthorId`, `AuthorName`, `Outgoing`, `Kind`, `Text`, `VoicePath`, `DurationMs`, `Wave`, `SentAt`, `ReceivedAt`, `State` (tin nhận: `unread` → `read`);
   - thêm `AuthorKey`, `Sig`, `RecallSig`, `Deleted` (dấu xóa) và `Seq` (§3.6).
@@ -153,7 +155,7 @@ Migration `0011_group_chat.sql` cho C5a; C5b–C5e thêm migration của mình (
 - `ChatGroupReceipts` (`GroupId`, `AuthorId`, `ReadUpTo`) và `ChatGroupRecalls` (`GroupId`, `PeerId`, `Id`): còn chờ gửi thẳng.
 - `ChatGroupCursors` (`GroupId`, `PeerId`, `After`): đã kéo tới đâu ở mỗi thành viên.
 - `InboxOffers.GroupId`: offer nhận qua nhóm hiện trong hội thoại nhóm thay vì hội thoại 1-1 với người gửi. Offer nhận trước migration không có giá trị này, nên vẫn ở 1-1.
-- `ChatCleared` thêm khóa cho nhóm.
+- Thẻ file của nhóm ẩn sau "Xóa hội thoại" theo `ChatGroups.ClearedAt` (C5e).
 - Ngoài cửa sổ lịch sử (30 ngày / 1.000 tin) thì tin vẫn ở máy mình, chỉ không đưa cho người khác kéo.
 
 ## 6. Giao diện
@@ -197,7 +199,7 @@ Migration `0011_group_chat.sql` cho C5a; C5b–C5e thêm migration của mình (
 | Giai đoạn | Nội dung | Xong khi |
 |---|---|---|
 | **C5a** Engine gửi thẳng ✅ | Migration, ký và kiểm chữ ký, route `messages` / `receipts` / `recalls`, fan-out, chờ gửi theo từng người, chống trùng, thứ tự (§3.2), đã nhận / đã xem theo người, thu hồi, `caps: "chat-group"`, `not_member` thử lại 2 phút | Test engine 3 máy loopback (bảng dưới, `GroupChatTests`), cả MiniHttpServer lẫn Kestrel |
-| **C5b** Chuyển hộ & tin cũ | `Seq`, `index` / `fetch`, con trỏ, kéo khi online / khi vào nhóm, cửa sổ 30 ngày / 1.000 tin, dấu xóa, thu hồi qua chuyển hộ | Test engine (bảng dưới) |
+| **C5b** Chuyển hộ & tin cũ ✅ | `Seq`, `index` / `fetch`, con trỏ, kéo khi online / khi vào nhóm, cửa sổ 30 ngày / 1.000 tin, dấu xóa, thu hồi qua chuyển hộ | Test engine (bảng dưới, `GroupChatTests`), cả MiniHttpServer lẫn Kestrel |
 | **C5c** Máy tính | Danh sách + hội thoại nhóm, tên người gửi, Chi tiết, Tắt thông báo, nút ở trang Nhóm, toast | Nhắn thật PC (Host) ↔ điện thoại (thành viên) |
 | **C5d** Điện thoại | Như C5c + thông báo nhóm có Trả lời | Nhắn thật, cả khi app ở nền |
 | **C5e** File | `InboxOffers.GroupId`, gửi file từ hội thoại nhóm, thẻ, thu hồi offer nhóm | Test engine + thử ảnh / file thật |

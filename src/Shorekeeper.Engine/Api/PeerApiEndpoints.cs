@@ -242,6 +242,15 @@ public static class PeerApiEndpoints
                 ? await groupChat.HandleRecallAsync(request.Caller, request.Route("groupId"), body)
                 : Invalid());
 
+        // Members pull what they lack from each other (docs/16-group-chat.md §3.6).
+        api.Map("GET", "/chat/groups/{groupId}/index", RequiredAccess.AnyPeer, async request =>
+            await groupChat.HandleIndexAsync(request.Caller, request.Route("groupId"), Math.Max(request.QueryInt64("after") ?? 0, 0)));
+
+        api.Map("POST", "/chat/groups/{groupId}/fetch", RequiredAccess.AnyPeer, async request =>
+            await request.ReadJsonAsync<GroupChatFetchBody>() is { } body
+                ? await groupChat.HandleFetchAsync(request.Caller, request.Route("groupId"), body)
+                : Invalid());
+
         return api;
     }
 

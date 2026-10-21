@@ -162,8 +162,9 @@ public sealed class GroupChatTests : IAsyncLifetime
         Assert.Null(Messages(mai).Single().Text);
         Assert.Equal(ChatMessageState.Read, Messages(mai).Single().State);
         Online(tuan);
+        // At most its note, passed on by Mai: never the words.
         await Task.Delay(500, Ct);
-        Assert.Empty(Messages(tuan));
+        Assert.All(Messages(tuan), m => Assert.Equal((ChatKinds.Recalled, null), (m.Kind, m.Text)));
     }
 
     [Fact]
@@ -228,6 +229,135 @@ public sealed class GroupChatTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_member_passes_on_what_the_author_sent_while_another_was_away()
+    {
+        var received = new List<GroupChatMessage>();
+        tuan.GroupChat.Received += (_, m) => received.Add(m);
+        Offline(tuan);
+        GroupChatMessage sent = await host.GroupChat.SendTextAsync(groupId, "Chiều nay họp lúc 3 giờ", Ct);
+        await WaitUntil(() => Messages(mai).Count == 1);
+
+        // Tuấn sees Mai come online; Huy is still out of reach.
+        tuan.Directory.Remove(mai.Id);
+        tuan.Sees(mai);
+
+        await WaitUntil(() => Messages(tuan).Count == 1);
+        GroupChatMessage got = Messages(tuan).Single();
+        Assert.Equal((sent.Id, host.Id, "Chiều nay họp lúc 3 giờ", ChatMessageState.Unread), (got.Id, got.Author, got.Text, got.State));
+        Assert.Equal(sent.Id, Assert.Single(received).Id);
+        // Huy only knows once it reaches Tuấn itself.
+        Assert.Equal(GroupDeliveryState.Pending, Delivery(host, sent.Id, tuan));
+        Online(tuan);
+        await WaitUntil(() => Delivery(host, sent.Id, tuan) == GroupDeliveryState.Delivered);
+        Assert.Single(Messages(tuan));
+    }
+
+    [Fact]
+    public async Task A_message_changed_by_whoever_passes_it_on_is_dropped()
+    {
+        Offline(tuan);
+        GroupChatMessage sent = await host.GroupChat.SendTextAsync(groupId, "3 giờ", Ct);
+        await WaitUntil(() => Messages(mai).Count == 1);
+        using (SqliteConnection connection = await mai.Get<SqliteDatabase>().OpenAsync(Ct))
+        {
+            await connection.ExecuteAsync("UPDATE ChatGroupMessages SET Text = '4 giờ' WHERE Id = @Id;", new { sent.Id });
+        }
+
+        await tuan.GroupChat.PullAllAsync(Ct);
+
+        Assert.Empty(Messages(tuan));
+        Online(tuan);
+        await WaitUntil(() => Messages(tuan).Count == 1);
+        Assert.Equal("3 giờ", Messages(tuan).Single().Text);
+    }
+
+    [Fact]
+    public async Task Taking_back_reaches_a_member_who_got_it_from_someone_else()
+    {
+        Offline(tuan);
+        GroupChatMessage sent = await host.GroupChat.SendTextAsync(groupId, "nhầm nhóm", Ct);
+        await WaitUntil(() => Messages(mai).Count == 1);
+        await tuan.GroupChat.PullAllAsync(Ct);
+        Assert.Equal("nhầm nhóm", Messages(tuan).Single().Text);
+
+        await host.GroupChat.RecallAsync(groupId, [sent.Id], Ct);
+        await WaitUntil(() => Messages(mai).Single().Kind == ChatKinds.Recalled);
+        await tuan.GroupChat.PullAllAsync(Ct);
+
+        GroupChatMessage got = Messages(tuan).Single();
+        Assert.Equal((ChatKinds.Recalled, null, ChatMessageState.Read), (got.Kind, got.Text, got.State));
+    }
+
+    [Fact]
+    public async Task A_message_taken_back_before_a_member_saw_it_never_shows_there()
+    {
+        Offline(tuan);
+        GroupChatMessage sent = await host.GroupChat.SendTextAsync(groupId, "nhầm nhóm", Ct);
+        await WaitUntil(() => Messages(mai).Count == 1);
+        await host.GroupChat.RecallAsync(groupId, [sent.Id], Ct);
+        await WaitUntil(() => Messages(mai).Single().Kind == ChatKinds.Recalled);
+
+        await tuan.GroupChat.PullAllAsync(Ct);
+
+        GroupChatMessage got = Messages(tuan).Single();
+        Assert.Equal((sent.Id, ChatKinds.Recalled, null, sent.SentAt), (got.Id, got.Kind, got.Text, got.SentAt));
+    }
+
+    [Fact]
+    public async Task What_was_deleted_here_does_not_come_back()
+    {
+        GroupChatMessage sent = await host.GroupChat.SendTextAsync(groupId, "một", Ct);
+        await WaitUntil(() => Messages(mai).Count == 1 && Messages(tuan).Count == 1);
+
+        await mai.GroupChat.DeleteAsync(groupId, [sent.Id], Ct);
+        await mai.GroupChat.PullAllAsync(Ct);
+
+        Assert.Empty(Messages(mai));
+        await mai.GroupChat.DeleteConversationAsync(groupId, Ct);
+        await mai.GroupChat.PullAllAsync(Ct);
+        Assert.Empty(Messages(mai));
+    }
+
+    [Fact]
+    public async Task Pulling_again_asks_only_for_what_is_new()
+    {
+        Offline(tuan);
+        await host.GroupChat.SendTextAsync(groupId, "một", Ct);
+        await WaitUntil(() => Messages(mai).Count == 1);
+
+        await tuan.GroupChat.PullAllAsync(Ct);
+
+        long newest = Query<long>(mai, "SELECT MAX(Seq) FROM ChatGroupMessages WHERE GroupId = @groupId;", new { groupId });
+        Assert.Equal(newest, Query<long>(tuan, "SELECT After FROM ChatGroupCursors WHERE GroupId = @groupId AND PeerId = @mai;", new { groupId, mai = mai.Id.Value }));
+    }
+
+    [Fact]
+    public async Task A_new_member_gets_the_last_thirty_days_already_read()
+    {
+        Group other = await host.Groups.CreateAsync("Kế toán", Ct);
+        await host.Groups.InviteAsync(other.Id, mai.Id, mai.Id.ShortForm, "PC", Ct);
+        await mai.Groups.AcceptInvitationAsync(mai.Groups.GetInvitations().Single(), Ct);
+        await WaitUntil(() => mai.GroupStore.Get(other.Id) is { Members.Count: 2 } && host.GroupStore.Get(other.Id) is { Members.Count: 2 });
+        // Too old to pass on, and recent.
+        Assert.Equal(HttpStatusCode.NoContent, (await PostAsync(
+            host, mai, $"chat/groups/{other.Id}/messages", Signed(host, "cũ", DateTimeOffset.UtcNow - TimeSpan.FromDays(31), other.Id))).Status);
+        await host.GroupChat.SendTextAsync(other.Id, "mới", Ct);
+        await WaitUntil(() => Messages(mai, other.Id).Count == 2);
+        var received = new List<GroupChatMessage>();
+        tuan.GroupChat.Received += (_, m) => received.Add(m);
+
+        await host.Groups.InviteAsync(other.Id, tuan.Id, tuan.Id.ShortForm, "PC", Ct);
+        await tuan.Groups.AcceptInvitationAsync(tuan.Groups.GetInvitations().Single(), Ct);
+
+        await WaitUntil(() => Messages(tuan, other.Id).Count == 1);
+        await tuan.GroupChat.PullAllAsync(Ct);
+        GroupChatMessage got = Messages(tuan, other.Id).Single();
+        Assert.Equal(("mới", ChatMessageState.Read), (got.Text, got.State));
+        Assert.Empty(received);
+        Assert.Equal(0, Assert.Single(await tuan.GroupChat.GetConversationsAsync(Ct)).Unread);
+    }
+
+    [Fact]
     public async Task Members_announce_group_messages()
     {
         PresencePacket packet = mai.Get<ILocalPresence>().CreatePacket(PresencePacketTypes.Heartbeat);
@@ -237,30 +367,52 @@ public sealed class GroupChatTests : IAsyncLifetime
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    /// <summary>Huy cannot reach the member: it is gone from the directory, and so are the addresses that once worked.</summary>
+    /// <summary>
+    /// Huy and the member cannot reach each other: each is gone from the other's directory, and so are the addresses
+    /// that once worked. Others still reach both.
+    /// </summary>
     private void Offline(TestNode member)
     {
-        host.Directory.Remove(member.Id);
-        using SqliteConnection connection = host.Get<SqliteDatabase>().OpenAsync(Ct).Result;
-        connection.Execute("DELETE FROM PeerEndpoints WHERE DeviceId = @id;", new { id = member.Id.Value });
+        Forget(host, member);
+        Forget(member, host);
     }
 
-    private void Online(TestNode member) => host.Sees(member);
+    private void Online(TestNode member)
+    {
+        host.Sees(member);
+        member.Sees(host);
+    }
 
-    private List<GroupChatMessage> Messages(TestNode node) => [.. node.GroupChat.GetMessagesAsync(groupId, Ct).Result];
+    private static void Forget(TestNode node, TestNode other)
+    {
+        node.Directory.Remove(other.Id);
+        using SqliteConnection connection = node.Get<SqliteDatabase>().OpenAsync(Ct).Result;
+        connection.Execute("DELETE FROM PeerEndpoints WHERE DeviceId = @id;", new { id = other.Id.Value });
+    }
+
+    private static T Query<T>(TestNode node, string sql, object parameters)
+    {
+        using SqliteConnection connection = node.Get<SqliteDatabase>().OpenAsync(Ct).Result;
+        return connection.ExecuteScalar<T>(sql, parameters)!;
+    }
+
+    private List<GroupChatMessage> Messages(TestNode node) => Messages(node, groupId);
+
+    private static List<GroupChatMessage> Messages(TestNode node, string group) => [.. node.GroupChat.GetMessagesAsync(group, Ct).Result];
 
     private GroupDeliveryState? Delivery(TestNode author, string id, TestNode peer) =>
         author.GroupChat.GetDeliveriesAsync(groupId, id, Ct).Result.SingleOrDefault(d => d.Peer == peer.Id)?.State;
 
-    /// <summary>A text from <paramref name="author"/> to the group, signed as the app would.</summary>
-    private GroupChatMessageBody Signed(TestNode author, string text)
+    /// <summary>A text from <paramref name="author"/> to the group, signed as the app would, sent now or at <paramref name="at"/>.</summary>
+    private GroupChatMessageBody Signed(TestNode author, string text, DateTimeOffset? at = null, string? group = null)
     {
         X509Certificate2 certificate = author.Get<ShorekeeperEngine>().Identity.Certificate;
-        DateTimeOffset now = DateTimeOffset.FromUnixTimeMilliseconds(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
-        string id = Guid.CreateVersion7(now).ToString("N");
+        DateTimeOffset sentAt = DateTimeOffset.FromUnixTimeMilliseconds((at ?? DateTimeOffset.UtcNow).ToUnixTimeMilliseconds());
+        string id = Guid.CreateVersion7(sentAt).ToString("N");
         using ECDsa key = certificate.GetECDsaPrivateKey()!;
-        byte[] sig = GroupChatSignature.SignMessage(key, new GroupChatContent(groupId, id, author.Id, now.ToUnixTimeMilliseconds(), ChatKinds.Text, text, 0, null, null));
-        return new GroupChatMessageBody(id, author.Id.Value, "peer", certificate.PublicKey.ExportSubjectPublicKeyInfo(), now, ChatKinds.Text, sig, text);
+        byte[] sig = GroupChatSignature.SignMessage(
+            key, new GroupChatContent(group ?? groupId, id, author.Id, sentAt.ToUnixTimeMilliseconds(), ChatKinds.Text, text, 0, null, null));
+        return new GroupChatMessageBody(id, author.Id.Value, "peer", certificate.PublicKey.ExportSubjectPublicKeyInfo(), sentAt, ChatKinds.Text, sig, text);
     }
 
     /// <summary>A tone recorded as the microphone would deliver it.</summary>

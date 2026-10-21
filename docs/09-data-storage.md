@@ -185,7 +185,9 @@ CREATE TABLE ChatCleared (                  -- 0010: "Xóa hội thoại"; thẻ
 
 -- ───────────── Tin nhóm (0011, docs/16-group-chat.md §5) ─────────────
 CREATE TABLE ChatGroups (                   -- tên nhóm, giữ cho hội thoại cả khi nhóm không còn
-  GroupId TEXT PRIMARY KEY, Name TEXT NOT NULL
+  GroupId TEXT PRIMARY KEY, Name TEXT NOT NULL,
+  ClearedAt INTEGER,                        -- "Xóa hội thoại": tin tới lúc này không quay lại
+  HistoryBefore INTEGER                     -- lần kéo đầu: tin chuyển hộ từ trước đó là tin cũ, đã đọc
 );
 
 CREATE TABLE ChatGroupMessages (
@@ -197,7 +199,14 @@ CREATE TABLE ChatGroupMessages (
   State TEXT NOT NULL,                      -- tin nhận: unread|read; tin mình: theo ChatGroupDeliveries
   DurationMs INTEGER, Wave BLOB, VoicePath TEXT,
   Sig BLOB NOT NULL, RecallSig BLOB,        -- chữ ký tin và lệnh thu hồi của tác giả
+  Seq INTEGER NOT NULL,                     -- thứ tự lưu / thu hồi ở máy này, thành viên kéo theo nó
+  Deleted INTEGER NOT NULL DEFAULT 0,       -- đã xóa ở đây: chỉ còn id, để không ai đưa lại
   PRIMARY KEY (GroupId, Id)
+);
+
+CREATE TABLE ChatGroupCursors (             -- đã kéo tới Seq nào ở mỗi thành viên
+  GroupId TEXT NOT NULL, PeerId TEXT NOT NULL, After INTEGER NOT NULL,
+  PRIMARY KEY (GroupId, PeerId)
 );
 
 CREATE TABLE ChatGroupDeliveries (          -- tin mình gửi, mỗi thành viên một dòng

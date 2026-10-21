@@ -68,8 +68,31 @@ public sealed class GroupChatService(
     /// <summary>A member's list may lag behind the Host's for a long-poll or two: "not a member" is tried again this long.</summary>
     public static readonly TimeSpan NotMemberGrace = TimeSpan.FromMinutes(2);
 
+    /// <summary>What members pass on to each other (docs/16-group-chat.md §3.6): this far back, and at most this many.</summary>
+    public static readonly TimeSpan HistoryWindow = TimeSpan.FromDays(30);
+
+    public const int HistoryMessages = 1_000;
+
     /// <summary>Further ahead than this, a message's time is a broken clock or an attempt to stay at the bottom.</summary>
     private static readonly TimeSpan MaxAhead = TimeSpan.FromDays(1);
+
+    private const int MaxIndexEntries = 500;
+    private const int MaxFetch = 50;
+
+    /// <summary>A fetch answer stops adding voice messages past this (always at least one message).</summary>
+    private const int MaxFetchBytes = 2 * 1024 * 1024;
+
+    /// <summary>Index and fetch calls a member may make each second.</summary>
+    private const int MaxPullsPerSecond = 10;
+
+    /// <summary>Members online are pulled from this often, besides when they come online and when groups change.</summary>
+    private static readonly TimeSpan PullEvery = TimeSpan.FromMinutes(5);
+
+    /// <summary>The next <c>Seq</c>: storing or taking back a message puts it after everything members pulled before.</summary>
+    private const string NextSeq = "(SELECT COALESCE(MAX(Seq), 0) + 1 FROM ChatGroupMessages)";
+
+    /// <summary>Deleted here: only the id stays, so nobody passes it on to us again (docs/16-group-chat.md §3.4).</summary>
+    private const string Tombstone = "Deleted = 1, Text = NULL, VoicePath = NULL, DurationMs = NULL, Wave = NULL, State = 'read'";
 
     private static readonly TimeSpan RetryEvery = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(15);
@@ -83,6 +106,11 @@ public sealed class GroupChatService(
 
     /// <summary>A voice message goes to at most this many members at once: up to 2 MB each, to a group of up to 100.</summary>
     private readonly SemaphoreSlim voiceUploads = new(4);
+
+    /// <summary>One pull per member at a time, like sending; a call while it runs makes it pull once more when done.</summary>
+    private readonly HashSet<DeviceId> pulling = [];
+    private readonly HashSet<DeviceId> pullAgain = [];
+    private readonly Dictionary<DeviceId, (long Second, int Count)> pullRates = [];
 
     /// <summary>The time given to the last message sent from here, in milliseconds.</summary>
     private long lastSentAt;
@@ -162,10 +190,10 @@ public sealed class GroupChatService(
         await using (SqliteTransaction transaction = connection.BeginTransaction())
         {
             await connection.ExecuteAsync(
-                """
+                $"""
                 INSERT INTO ChatGroups (GroupId, Name) VALUES (@groupId, @name) ON CONFLICT (GroupId) DO UPDATE SET Name = excluded.Name;
-                INSERT INTO ChatGroupMessages (GroupId, Id, AuthorId, AuthorName, AuthorKey, Outgoing, Kind, Text, SentAt, State, DurationMs, Wave, VoicePath, Sig)
-                VALUES (@groupId, @id, @me, @name2, @key, 1, @kind, @text, @sentAt, 'pending', @durationMs, @wave, @path, @sig);
+                INSERT INTO ChatGroupMessages (GroupId, Id, AuthorId, AuthorName, AuthorKey, Outgoing, Kind, Text, SentAt, State, DurationMs, Wave, VoicePath, Sig, Seq)
+                VALUES (@groupId, @id, @me, @name2, @key, 1, @kind, @text, @sentAt, 'pending', @durationMs, @wave, @path, @sig, {NextSeq});
                 """,
                 new
                 {
@@ -228,7 +256,7 @@ public sealed class GroupChatService(
 
     /// <summary>
     /// Takes messages out of the conversation on this device only, with their voice files; the members keep theirs. One
-    /// of ours still waiting for someone is never sent to them.
+    /// of ours still waiting for someone is never sent to them. Their ids stay, so no member passes them on to us again.
     /// </summary>
     public async Task DeleteAsync(string groupId, IReadOnlyCollection<string> ids, CancellationToken cancellationToken)
     {
@@ -238,8 +266,8 @@ public sealed class GroupChatService(
             files = [.. await connection.QueryAsync<string?>(
                 "SELECT VoicePath FROM ChatGroupMessages WHERE GroupId = @groupId AND Id IN @ids AND VoicePath IS NOT NULL;", new { groupId, ids })];
             await connection.ExecuteAsync(
-                """
-                DELETE FROM ChatGroupMessages WHERE GroupId = @groupId AND Id IN @ids;
+                $"""
+                UPDATE ChatGroupMessages SET {Tombstone} WHERE GroupId = @groupId AND Id IN @ids;
                 DELETE FROM ChatGroupDeliveries WHERE GroupId = @groupId AND Id IN @ids;
                 """,
                 new { groupId, ids });
@@ -249,7 +277,10 @@ public sealed class GroupChatService(
         Changed?.Invoke(this, groupId);
     }
 
-    /// <summary>The whole group conversation, on this device only. A recall not told yet stays.</summary>
+    /// <summary>
+    /// The whole group conversation, on this device only. A recall not told yet stays. Members passing on messages from
+    /// before now are not listened to: what was deleted stays deleted.
+    /// </summary>
     public async Task DeleteConversationAsync(string groupId, CancellationToken cancellationToken)
     {
         List<string?> files;
@@ -258,12 +289,13 @@ public sealed class GroupChatService(
             files = [.. await connection.QueryAsync<string?>(
                 "SELECT VoicePath FROM ChatGroupMessages WHERE GroupId = @groupId AND VoicePath IS NOT NULL;", new { groupId })];
             await connection.ExecuteAsync(
-                """
-                DELETE FROM ChatGroupMessages WHERE GroupId = @groupId;
+                $"""
+                UPDATE ChatGroupMessages SET {Tombstone} WHERE GroupId = @groupId;
                 DELETE FROM ChatGroupDeliveries WHERE GroupId = @groupId;
                 DELETE FROM ChatGroupReceipts WHERE GroupId = @groupId;
+                UPDATE ChatGroups SET ClearedAt = @now WHERE GroupId = @groupId;
                 """,
-                new { groupId });
+                new { groupId, now = timeProvider.GetUtcNow().ToUnixTimeMilliseconds() });
         }
 
         DeleteFiles(files);
@@ -284,14 +316,15 @@ public sealed class GroupChatService(
         await using (SqliteConnection connection = await database.OpenAsync(cancellationToken))
         {
             long since = (timeProvider.GetUtcNow() - ChatService.RecallWindow).ToUnixTimeMilliseconds();
-            List<string> mine = [.. await connection.QueryAsync<string>(
+            Dictionary<string, long> sentAts = (await connection.QueryAsync<(string Id, long SentAt)>(
                 """
-                SELECT Id FROM ChatGroupMessages m
-                WHERE GroupId = @groupId AND Id IN @ids AND Outgoing = 1 AND Kind <> 'recalled'
+                SELECT Id, SentAt FROM ChatGroupMessages m
+                WHERE GroupId = @groupId AND Id IN @ids AND Outgoing = 1 AND Kind <> 'recalled' AND Deleted = 0
                   AND (SentAt >= @since OR NOT EXISTS (
                     SELECT 1 FROM ChatGroupDeliveries d WHERE d.GroupId = m.GroupId AND d.Id = m.Id AND d.State IN ('delivered', 'read')));
                 """,
-                new { groupId, ids, since })];
+                new { groupId, ids, since })).ToDictionary(r => r.Id, r => r.SentAt);
+            List<string> mine = [.. sentAts.Keys];
             if (mine.Count == 0)
             {
                 return;
@@ -301,7 +334,7 @@ public sealed class GroupChatService(
             {
                 foreach (string id in mine)
                 {
-                    sigs[id] = GroupChatSignature.SignRecall(privateKey, groupId, id, me);
+                    sigs[id] = GroupChatSignature.SignRecall(privateKey, groupId, id, me, sentAts[id]);
                 }
             }
 
@@ -311,9 +344,10 @@ public sealed class GroupChatService(
                 "SELECT Id, PeerId FROM ChatGroupDeliveries WHERE GroupId = @groupId AND Id IN @mine AND State IN ('delivered', 'read');",
                 new { groupId, mine })];
             await using SqliteTransaction transaction = connection.BeginTransaction();
+            // Members who got it some other way learn of the recall by pulling: it moves up in Seq.
             await connection.ExecuteAsync(
-                """
-                UPDATE ChatGroupMessages SET Kind = 'recalled', Text = NULL, VoicePath = NULL, DurationMs = NULL, Wave = NULL, RecallSig = @sig
+                $"""
+                UPDATE ChatGroupMessages SET Kind = 'recalled', Text = NULL, VoicePath = NULL, DurationMs = NULL, Wave = NULL, RecallSig = @sig, Seq = {NextSeq}
                 WHERE GroupId = @groupId AND Id = @id;
                 DELETE FROM ChatGroupDeliveries WHERE GroupId = @groupId AND Id = @id AND State = 'pending';
                 """,
@@ -343,7 +377,7 @@ public sealed class GroupChatService(
             SELECT m.{Columns.Replace(", ", ", m.")}, g.Name AS GroupName,
                    (SELECT COUNT(*) FROM ChatGroupMessages u WHERE u.GroupId = m.GroupId AND u.State = 'unread') AS Unread
             FROM ChatGroupMessages m JOIN ChatGroups g ON g.GroupId = m.GroupId
-            WHERE m.Id = (SELECT l.Id FROM ChatGroupMessages l WHERE l.GroupId = m.GroupId ORDER BY l.SentAt DESC, l.Id DESC LIMIT 1)
+            WHERE m.Id = (SELECT l.Id FROM ChatGroupMessages l WHERE l.GroupId = m.GroupId AND l.Deleted = 0 ORDER BY l.SentAt DESC, l.Id DESC LIMIT 1)
             ORDER BY m.SentAt DESC;
             """)).ToList();
         Dictionary<(string, string), ChatMessageState> states = await OutgoingStatesAsync(connection, rows);
@@ -356,7 +390,7 @@ public sealed class GroupChatService(
     {
         await using SqliteConnection connection = await database.OpenAsync(cancellationToken);
         var rows = (await connection.QueryAsync<MessageRow>(
-            $"SELECT {Columns} FROM ChatGroupMessages WHERE GroupId = @groupId ORDER BY SentAt, Id;", new { groupId })).ToList();
+            $"SELECT {Columns} FROM ChatGroupMessages WHERE GroupId = @groupId AND Deleted = 0 ORDER BY SentAt, Id;", new { groupId })).ToList();
         Dictionary<(string, string), ChatMessageState> states = await OutgoingStatesAsync(connection, rows);
         return [.. rows.Select(r => r.ToMessage(states))];
     }
@@ -424,31 +458,66 @@ public sealed class GroupChatService(
             return PeerResponse.Problem(HttpStatusCode.TooManyRequests, ApiErrorCodes.RateLimited);
         }
 
-        DateTimeOffset now = timeProvider.GetUtcNow();
+        if (body.AuthorId != caller.Value || !IsValid(groupId, body, caller, caller))
+        {
+            return PeerResponse.Problem(HttpStatusCode.BadRequest, ApiErrorCodes.InvalidRequest);
+        }
+
+        await StoreReceivedAsync(groupId, body, caller, relayed: false);
+        return PeerResponse.Empty(HttpStatusCode.NoContent);
+    }
+
+    /// <summary>
+    /// A well-formed message for this group signed by <paramref name="author"/>, whoever it came <paramref name="from"/>.
+    /// Checked exactly as it came, kinds from newer versions included: what is checked is what the author signed.
+    /// </summary>
+    private bool IsValid(string groupId, GroupChatMessageBody body, DeviceId author, DeviceId from)
+    {
         string? text = body.Kind == ChatKinds.Text ? body.Text?.Trim() : null;
-        bool voice = body.Kind == ChatKinds.Voice;
-        if (!Guid.TryParseExact(body.Id, "N", out Guid parsed)
-            || body.AuthorId != caller.Value
+        if (!Guid.TryParseExact(body.Id, "N", out _)
             || body.Kind is not { Length: > 0 and <= 32 } || body.Kind == ChatKinds.Recalled
             || (body.Kind == ChatKinds.Text && text is not { Length: > 0 and <= ChatService.MaxTextLength })
-            || (voice && !ChatService.IsVoice(body.Audio, body.DurationMs ?? 0, body.Wave))
-            || body.SentAt > now + MaxAhead
+            || (body.Kind == ChatKinds.Voice && !ChatService.IsVoice(body.Audio, body.DurationMs ?? 0, body.Wave))
+            || body.SentAt > timeProvider.GetUtcNow() + MaxAhead
             || body.AuthorKey is null || body.Sig is null)
         {
-            return PeerResponse.Problem(HttpStatusCode.BadRequest, ApiErrorCodes.InvalidRequest);
+            return false;
         }
 
-        // Exactly as it came, kinds from newer versions included: what is checked is what the author signed.
         if (!GroupChatSignature.VerifyMessage(body.AuthorKey, body.Sig, new GroupChatContent(
-                groupId, body.Id, caller, body.SentAt.ToUnixTimeMilliseconds(), body.Kind, body.Text, body.DurationMs ?? 0, body.Wave, body.Audio)))
+                groupId, body.Id, author, body.SentAt.ToUnixTimeMilliseconds(), body.Kind, body.Text, body.DurationMs ?? 0, body.Wave, body.Audio)))
         {
-            logger.LogWarning("Group message {Id} from {Peer} has no valid signature of its author", body.Id, caller);
-            return PeerResponse.Problem(HttpStatusCode.BadRequest, ApiErrorCodes.InvalidRequest);
+            logger.LogWarning("Group message {Id} from {Peer} has no valid signature of its author {Author}", body.Id, from, author);
+            return false;
         }
 
-        string id = parsed.ToString("N");
+        return true;
+    }
+
+    /// <summary>
+    /// Stores a checked message, sent by its author or passed on by a member (<paramref name="relayed"/>), unless here
+    /// already. One passed on from before we first pulled the group is history: read, and not announced. One from before
+    /// "Xóa hội thoại" only leaves its id.
+    /// </summary>
+    private async Task StoreReceivedAsync(string groupId, GroupChatMessageBody body, DeviceId author, bool relayed)
+    {
+        string id = Guid.ParseExact(body.Id, "N").ToString("N");
+        long sentAt = body.SentAt.ToUnixTimeMilliseconds();
+        long now = timeProvider.GetUtcNow().ToUnixTimeMilliseconds();
+        bool voice = body.Kind == ChatKinds.Voice;
+        await using SqliteConnection connection = await database.OpenAsync();
+        if (await connection.ExecuteScalarAsync<long>(
+                "SELECT COUNT(*) FROM ChatGroupMessages WHERE GroupId = @groupId AND Id = @id;", new { groupId, id }) > 0)
+        {
+            return;
+        }
+
+        var group = (await connection.QueryAsync<(long? ClearedAt, long? HistoryBefore)>(
+            "SELECT ClearedAt, HistoryBefore FROM ChatGroups WHERE GroupId = @groupId;", new { groupId })).FirstOrDefault();
+        bool cleared = sentAt <= (group.ClearedAt ?? long.MinValue);
+        bool history = relayed && sentAt < (group.HistoryBefore ?? long.MinValue);
         string? path = null;
-        if (voice)
+        if (voice && !cleared)
         {
             // Written before the row, so a stored voice message always has its file; a resent one writes the same bytes.
             path = VoicePath(id);
@@ -456,34 +525,37 @@ public sealed class GroupChatService(
             await File.WriteAllBytesAsync(path, body.Audio!);
         }
 
-        string name = body.AuthorName is { Length: > 0 } n ? n.Length > PresenceCodec.MaxNameLength ? n[..PresenceCodec.MaxNameLength] : n : caller.ShortForm;
+        string name = body.AuthorName is { Length: > 0 } n ? n.Length > PresenceCodec.MaxNameLength ? n[..PresenceCodec.MaxNameLength] : n : author.ShortForm;
         var message = new GroupChatMessage(
-            groupId, id, caller, name, false, body.Kind, body.Text, body.SentAt, ChatMessageState.Unread,
-            voice ? body.DurationMs!.Value : 0, voice ? body.Wave : null, path);
-        int added = await WriteAsync(
-            """
+            groupId, id, author, name, false, body.Kind, cleared ? null : body.Text, body.SentAt,
+            cleared || history ? ChatMessageState.Read : ChatMessageState.Unread, cleared ? 0 : body.DurationMs ?? 0, cleared ? null : body.Wave, path);
+        // As it came (duration and waveform of any kind): a member pulling it from here checks the same signature.
+        int added = await connection.ExecuteAsync(
+            $"""
             INSERT INTO ChatGroups (GroupId, Name) VALUES (@groupId, @groupName) ON CONFLICT (GroupId) DO UPDATE SET Name = excluded.Name;
             INSERT OR IGNORE INTO ChatGroupMessages
-              (GroupId, Id, AuthorId, AuthorName, AuthorKey, Outgoing, Kind, Text, SentAt, ReceivedAt, State, DurationMs, Wave, VoicePath, Sig)
-            VALUES (@groupId, @Id, @author, @AuthorName, @key, 0, @Kind, @Text, @sentAt, @now, 'unread', @durationMs, @Wave, @VoicePath, @sig);
+              (GroupId, Id, AuthorId, AuthorName, AuthorKey, Outgoing, Kind, Text, SentAt, ReceivedAt, State, DurationMs, Wave, VoicePath, Sig, Seq, Deleted)
+            VALUES (@groupId, @Id, @author, @AuthorName, @key, 0, @Kind, @Text, @sentAt, @now, @state, @durationMs, @Wave, @VoicePath, @sig, {NextSeq}, @cleared);
             """,
             new
             {
-                groupId, groupName = groups.Get(groupId)!.Name, message.Id, author = caller.Value, message.AuthorName, key = body.AuthorKey,
-                message.Kind, message.Text, sentAt = body.SentAt.ToUnixTimeMilliseconds(), now = now.ToUnixTimeMilliseconds(),
-                durationMs = voice ? body.DurationMs : null, message.Wave, message.VoicePath, sig = body.Sig,
-            },
-            CancellationToken.None);
+                groupId, groupName = groups.Get(groupId)?.Name ?? groupId, message.Id, author = author.Value, message.AuthorName,
+                key = body.AuthorKey, message.Kind, message.Text, sentAt, now, state = message.State == ChatMessageState.Read ? "read" : "unread",
+                durationMs = cleared ? null : body.DurationMs, message.Wave, message.VoicePath, sig = body.Sig, cleared,
+            });
 
         // The first statement always changes a row; the message is new only when the second did too.
-        if (added > 1)
+        if (added < 2 || cleared)
         {
-            usage.AddMessage(caller, sent: false);
-            Changed?.Invoke(this, groupId);
-            Received?.Invoke(this, message);
+            return;
         }
 
-        return PeerResponse.Empty(HttpStatusCode.NoContent);
+        usage.AddMessage(author, sent: false);
+        Changed?.Invoke(this, groupId);
+        if (!history)
+        {
+            Received?.Invoke(this, message);
+        }
     }
 
     internal async Task<PeerResponse> HandleReceiptAsync(DeviceId caller, string groupId, ChatReceiptBody body)
@@ -532,25 +604,7 @@ public sealed class GroupChatService(
         {
             foreach (GroupChatRecall recall in body.Recalls)
             {
-                string id = Guid.ParseExact(recall.Id, "N").ToString("N");
-                // Only the author takes a message back, by a recall signed with the key the message came with.
-                var found = (await connection.QueryAsync<(string AuthorId, byte[] AuthorKey, string? VoicePath)>(
-                    "SELECT AuthorId, AuthorKey, VoicePath FROM ChatGroupMessages WHERE GroupId = @groupId AND Id = @id AND Outgoing = 0 AND Kind <> 'recalled';",
-                    new { groupId, id })).ToList();
-                if (found is not [var message] || message.AuthorId != caller.Value
-                    || !GroupChatSignature.VerifyRecall(message.AuthorKey, recall.Sig, groupId, id, caller))
-                {
-                    continue;
-                }
-
-                files.Add(message.VoicePath);
-                // Read: nothing left to read, and its notification goes.
-                changed += await connection.ExecuteAsync(
-                    """
-                    UPDATE ChatGroupMessages SET Kind = 'recalled', Text = NULL, VoicePath = NULL, DurationMs = NULL, Wave = NULL, State = 'read', RecallSig = @sig
-                    WHERE GroupId = @groupId AND Id = @id;
-                    """,
-                    new { groupId, id, sig = recall.Sig });
+                changed += await ApplyRecallAsync(connection, groupId, Guid.ParseExact(recall.Id, "N").ToString("N"), caller, recall.Sig, files) ? 1 : 0;
             }
         }
 
@@ -563,16 +617,405 @@ public sealed class GroupChatService(
         return PeerResponse.Empty(HttpStatusCode.NoContent);
     }
 
+    /// <summary>
+    /// Takes back a message here by its author's recall, signed with the key the message came with; false when it is not
+    /// here, already taken back or deleted, or the recall is not the author's. Moves up in Seq, so members pulling learn.
+    /// </summary>
+    private static async Task<bool> ApplyRecallAsync(SqliteConnection connection, string groupId, string id, DeviceId author, byte[] sig, List<string?> files)
+    {
+        var found = (await connection.QueryAsync<(string AuthorId, byte[] AuthorKey, long SentAt, string? VoicePath)>(
+            "SELECT AuthorId, AuthorKey, SentAt, VoicePath FROM ChatGroupMessages WHERE GroupId = @groupId AND Id = @id AND Outgoing = 0 AND Kind <> 'recalled' AND Deleted = 0;",
+            new { groupId, id })).ToList();
+        if (found is not [var message] || message.AuthorId != author.Value
+            || !GroupChatSignature.VerifyRecall(message.AuthorKey, sig, groupId, id, author, message.SentAt))
+        {
+            return false;
+        }
+
+        files.Add(message.VoicePath);
+        // Read: nothing left to read, and its notification goes.
+        await connection.ExecuteAsync(
+            $"""
+            UPDATE ChatGroupMessages SET Kind = 'recalled', Text = NULL, VoicePath = NULL, DurationMs = NULL, Wave = NULL, State = 'read', RecallSig = @sig, Seq = {NextSeq}
+            WHERE GroupId = @groupId AND Id = @id;
+            """,
+            new { groupId, id, sig });
+        return true;
+    }
+
+    // ───────────── Passing on (docs/16-group-chat.md §3.6) ─────────────
+
+    /// <summary>What we hold of the group, in the order we stored or took it back, within the history window.</summary>
+    internal async Task<PeerResponse> HandleIndexAsync(DeviceId caller, string groupId, long after)
+    {
+        if (Refusal(caller, groupId) is { } refusal)
+        {
+            return refusal;
+        }
+
+        if (!TakePull(caller))
+        {
+            return PeerResponse.Problem(HttpStatusCode.TooManyRequests, ApiErrorCodes.RateLimited);
+        }
+
+        await using SqliteConnection connection = await database.OpenAsync();
+        List<IndexRow> rows = [.. await connection.QueryAsync<IndexRow>(
+            """
+            SELECT Seq, Id, AuthorId, SentAt, Kind FROM ChatGroupMessages
+            WHERE GroupId = @groupId AND Seq > @after AND Deleted = 0 AND SentAt >= @since
+              AND (Kind <> 'recalled' OR RecallSig IS NOT NULL)
+              AND Id IN (SELECT Id FROM ChatGroupMessages WHERE GroupId = @groupId AND Deleted = 0 ORDER BY SentAt DESC, Id DESC LIMIT @history)
+            ORDER BY Seq LIMIT @take;
+            """,
+            new
+            {
+                groupId, after, since = (timeProvider.GetUtcNow() - HistoryWindow).ToUnixTimeMilliseconds(),
+                history = HistoryMessages, take = MaxIndexEntries + 1,
+            })];
+        bool more = rows.Count > MaxIndexEntries;
+        rows = [.. rows.Take(MaxIndexEntries)];
+        // Past what was left out too (deleted, too old), so the next pull starts after it.
+        long next = more ? rows[^1].Seq
+            : Math.Max(after, await connection.ExecuteScalarAsync<long?>("SELECT MAX(Seq) FROM ChatGroupMessages WHERE GroupId = @groupId;", new { groupId }) ?? 0);
+        return PeerResponse.Json(new GroupChatIndexResponse(
+            [.. rows.Select(r => new GroupChatIndexEntry(r.Seq, r.Id, r.AuthorId, FromMs(r.SentAt), r.Kind == ChatKinds.Recalled))], next, more));
+    }
+
+    /// <summary>The messages asked for, as their authors signed them; those taken back as their signed recalls.</summary>
+    internal async Task<PeerResponse> HandleFetchAsync(DeviceId caller, string groupId, GroupChatFetchBody body)
+    {
+        if (Refusal(caller, groupId) is { } refusal)
+        {
+            return refusal;
+        }
+
+        if (!TakePull(caller))
+        {
+            return PeerResponse.Problem(HttpStatusCode.TooManyRequests, ApiErrorCodes.RateLimited);
+        }
+
+        if (body.Ids is not { Count: > 0 and <= MaxFetch } || !body.Ids.All(id => Guid.TryParseExact(id, "N", out _)))
+        {
+            return PeerResponse.Problem(HttpStatusCode.BadRequest, ApiErrorCodes.InvalidRequest);
+        }
+
+        string[] ids = [.. body.Ids.Select(id => Guid.ParseExact(id, "N").ToString("N"))];
+        List<FetchRow> rows;
+        await using (SqliteConnection connection = await database.OpenAsync())
+        {
+            rows = [.. await connection.QueryAsync<FetchRow>(
+                $"SELECT {Columns}, RecallSig FROM ChatGroupMessages WHERE GroupId = @groupId AND Id IN @ids AND Deleted = 0 ORDER BY SentAt, Id;",
+                new { groupId, ids })];
+        }
+
+        List<GroupChatMessageBody> messages = [];
+        List<GroupChatRecalledEntry> recalled = [];
+        long bytes = 0;
+        foreach (FetchRow row in rows)
+        {
+            if (row.Kind == ChatKinds.Recalled)
+            {
+                if (row.RecallSig is { } sig)
+                {
+                    recalled.Add(new GroupChatRecalledEntry(row.Id, row.AuthorId, row.AuthorName, row.AuthorKey, FromMs(row.SentAt), sig));
+                }
+
+                continue;
+            }
+
+            byte[]? audio = null;
+            if (row.VoicePath is { } path)
+            {
+                if (!File.Exists(path))
+                {
+                    continue;
+                }
+
+                // Not more than this at once; the rest is asked for again.
+                if (messages.Count > 0 && bytes + new FileInfo(path).Length > MaxFetchBytes)
+                {
+                    break;
+                }
+
+                audio = await File.ReadAllBytesAsync(path);
+                bytes += audio.Length;
+            }
+
+            messages.Add(new GroupChatMessageBody(
+                row.Id, row.AuthorId, row.AuthorName, row.AuthorKey, FromMs(row.SentAt), row.Kind, row.Sig, row.Text, (int?)row.DurationMs, row.Wave, audio));
+        }
+
+        return PeerResponse.Json(new GroupChatFetchResponse(messages, recalled));
+    }
+
+    /// <summary>Pulls what members online hold and we lack, in every group shared with them (docs/16-group-chat.md §3.6).</summary>
+    public async Task PullAllAsync(CancellationToken cancellationToken)
+    {
+        foreach (PeerInfo peer in directory.Snapshot().Where(p => p.State == PeerState.Online))
+        {
+            await PullFromAsync(peer.DeviceId, cancellationToken);
+        }
+    }
+
+    private void KickPull(DeviceId peer) => _ = PullFromAsync(peer, CancellationToken.None);
+
+    private async Task PullFromAsync(DeviceId peer, CancellationToken cancellationToken)
+    {
+        lock (gate)
+        {
+            if (!pulling.Add(peer))
+            {
+                pullAgain.Add(peer);
+                return;
+            }
+        }
+
+        try
+        {
+            while (true)
+            {
+                foreach (Group group in groups.GetAll().Where(g => groups.IsMember(g.Id, peer)))
+                {
+                    // Not reachable: no use asking about its other groups now.
+                    if (!await PullAsync(group, peer, cancellationToken))
+                    {
+                        break;
+                    }
+                }
+
+                lock (gate)
+                {
+                    if (!pullAgain.Remove(peer))
+                    {
+                        pulling.Remove(peer);
+                        return;
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            lock (gate)
+            {
+                pulling.Remove(peer);
+                pullAgain.Remove(peer);
+            }
+
+            if (ex is not OperationCanceledException)
+            {
+                logger.LogWarning(ex, "Pulling group messages from {Peer} failed", peer);
+            }
+        }
+    }
+
+    /// <returns>False when the member did not answer as one that passes messages on.</returns>
+    private async Task<bool> PullAsync(Group group, DeviceId peer, CancellationToken cancellationToken)
+    {
+        long after;
+        await using (SqliteConnection connection = await database.OpenAsync(cancellationToken))
+        {
+            // The first pull of a group: what members pass on from before now is history.
+            await connection.ExecuteAsync(
+                """
+                INSERT INTO ChatGroups (GroupId, Name, HistoryBefore) VALUES (@Id, @Name, @now)
+                ON CONFLICT (GroupId) DO UPDATE SET HistoryBefore = COALESCE(HistoryBefore, excluded.HistoryBefore);
+                """,
+                new { group.Id, group.Name, now = timeProvider.GetUtcNow().ToUnixTimeMilliseconds() });
+            after = await connection.ExecuteScalarAsync<long?>(
+                "SELECT After FROM ChatGroupCursors WHERE GroupId = @Id AND PeerId = @peer;", new { group.Id, peer = peer.Value }) ?? 0;
+        }
+
+        while (true)
+        {
+            GroupChatIndexResponse? index = await RequestAsync<GroupChatIndexResponse>(
+                peer, HttpMethod.Get, $"chat/groups/{group.Id}/index?after={after}", null, cancellationToken);
+            if (index is null || !await FetchAsync(group.Id, peer, await WantedAsync(group.Id, index.Entries), cancellationToken))
+            {
+                return false;
+            }
+
+            after = index.Next;
+            await WriteAsync(
+                """
+                INSERT INTO ChatGroupCursors (GroupId, PeerId, After) VALUES (@Id, @peer, @after)
+                ON CONFLICT (GroupId, PeerId) DO UPDATE SET After = excluded.After;
+                """,
+                new { group.Id, peer = peer.Value, after },
+                cancellationToken);
+            if (!index.More)
+            {
+                return true;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Of what a member holds, what we lack: messages not here (nor deleted here, nor ours, nor from before "Xóa hội
+    /// thoại"), and recalls of messages we still show.
+    /// </summary>
+    private async Task<List<string>> WantedAsync(string groupId, IReadOnlyList<GroupChatIndexEntry> entries)
+    {
+        string me = engine.Identity.DeviceId.Value;
+        string[] ids = [.. entries.Select(e => e.Id).Where(id => Guid.TryParseExact(id, "N", out _))];
+        await using SqliteConnection connection = await database.OpenAsync();
+        Dictionary<string, (string Kind, long Deleted)> here = (await connection.QueryAsync<(string Id, string Kind, long Deleted)>(
+                "SELECT Id, Kind, Deleted FROM ChatGroupMessages WHERE GroupId = @groupId AND Id IN @ids;", new { groupId, ids }))
+            .ToDictionary(r => r.Id, r => (r.Kind, r.Deleted));
+        long clearedAt = await connection.ExecuteScalarAsync<long?>(
+            "SELECT ClearedAt FROM ChatGroups WHERE GroupId = @groupId;", new { groupId }) ?? long.MinValue;
+        return
+        [
+            .. entries.Where(e => ids.Contains(e.Id) && e.AuthorId != me && (here.TryGetValue(e.Id, out var local)
+                ? local.Deleted == 0 && e.Recalled && local.Kind != ChatKinds.Recalled
+                : e.SentAt.ToUnixTimeMilliseconds() > clearedAt))
+                .Select(e => e.Id),
+        ];
+    }
+
+    /// <returns>False when the member stopped answering; true once it gave what it still has.</returns>
+    private async Task<bool> FetchAsync(string groupId, DeviceId peer, List<string> wanted, CancellationToken cancellationToken)
+    {
+        DeviceId me = engine.Identity.DeviceId;
+        while (wanted.Count > 0)
+        {
+            string[] batch = [.. wanted.Take(MaxFetch)];
+            GroupChatFetchResponse? answer = await RequestAsync<GroupChatFetchResponse>(
+                peer, HttpMethod.Post, $"chat/groups/{groupId}/fetch", new GroupChatFetchBody(batch), cancellationToken);
+            if (answer is null)
+            {
+                return false;
+            }
+
+            HashSet<string> got = [];
+            foreach (GroupChatMessageBody message in answer.Messages.Where(m => batch.Contains(m.Id)))
+            {
+                got.Add(message.Id);
+                if (DeviceId.TryParse(message.AuthorId, out DeviceId author) && author != me && IsValid(groupId, message, author, peer))
+                {
+                    await StoreReceivedAsync(groupId, message, author, relayed: true);
+                }
+            }
+
+            foreach (GroupChatRecalledEntry recall in answer.Recalled.Where(r => batch.Contains(r.Id)))
+            {
+                got.Add(recall.Id);
+                if (DeviceId.TryParse(recall.AuthorId, out DeviceId author) && author != me)
+                {
+                    await StoreRecalledAsync(groupId, recall, author, peer);
+                }
+            }
+
+            // It no longer has the rest (deleted, or a recording gone): nothing more to ask it for.
+            if (got.Count == 0)
+            {
+                return true;
+            }
+
+            wanted.RemoveAll(got.Contains);
+        }
+
+        return true;
+    }
+
+    /// <summary>A message taken back before it reached us: only its note, if the recall is its author's.</summary>
+    private async Task StoreRecalledAsync(string groupId, GroupChatRecalledEntry recall, DeviceId author, DeviceId from)
+    {
+        if (recall.AuthorKey is null || recall.Sig is null || !Guid.TryParseExact(recall.Id, "N", out Guid parsed)
+            || !GroupChatSignature.VerifyRecall(recall.AuthorKey, recall.Sig, groupId, parsed.ToString("N"), author, recall.SentAt.ToUnixTimeMilliseconds()))
+        {
+            logger.LogWarning("Recall {Id} from {Peer} is not signed by its author {Author}", recall.Id, from, author);
+            return;
+        }
+
+        string id = parsed.ToString("N");
+        List<string?> files = [];
+        bool changed;
+        await using (SqliteConnection connection = await database.OpenAsync())
+        {
+            long clearedAt = await connection.ExecuteScalarAsync<long?>(
+                "SELECT ClearedAt FROM ChatGroups WHERE GroupId = @groupId;", new { groupId }) ?? long.MinValue;
+            string name = recall.AuthorName is { Length: > 0 } n ? n.Length > PresenceCodec.MaxNameLength ? n[..PresenceCodec.MaxNameLength] : n : author.ShortForm;
+            // Here already with its words: taken back like a recall from the author.
+            changed = await connection.ExecuteAsync(
+                    $"""
+                    INSERT OR IGNORE INTO ChatGroupMessages
+                      (GroupId, Id, AuthorId, AuthorName, AuthorKey, Outgoing, Kind, SentAt, ReceivedAt, State, Sig, RecallSig, Seq, Deleted)
+                    VALUES (@groupId, @id, @author, @name, @key, 0, 'recalled', @sentAt, @now, 'read', @noSig, @sig, {NextSeq}, @cleared);
+                    """,
+                    new
+                    {
+                        groupId, id, author = author.Value, name, key = recall.AuthorKey, sentAt = recall.SentAt.ToUnixTimeMilliseconds(),
+                        now = timeProvider.GetUtcNow().ToUnixTimeMilliseconds(), noSig = Array.Empty<byte>(), sig = recall.Sig,
+                        cleared = recall.SentAt.ToUnixTimeMilliseconds() <= clearedAt,
+                    }) > 0
+                || await ApplyRecallAsync(connection, groupId, id, author, recall.Sig, files);
+        }
+
+        DeleteFiles(files);
+        if (changed)
+        {
+            Changed?.Invoke(this, groupId);
+        }
+    }
+
+    /// <returns>The answer; null when the member cannot be reached now or refused.</returns>
+    private async Task<T?> RequestAsync<T>(DeviceId peer, HttpMethod method, string path, object? body, CancellationToken cancellationToken)
+        where T : class
+    {
+        try
+        {
+            using HttpResponseMessage response = await client.SendAsync(
+                peer,
+                b => new HttpRequestMessage(method, new Uri(b, path)) { Content = body is null ? null : JsonContent.Create(body) },
+                RequestTimeout,
+                cancellationToken);
+            return await PeerClient.ReadAsync<T>(response, cancellationToken);
+        }
+        catch (PeerUnreachableException)
+        {
+            return null;
+        }
+        catch (PeerApiException ex)
+        {
+            logger.LogDebug("{Path} refused by {Peer}: {Code}", path, peer, ex.Code);
+            return null;
+        }
+    }
+
+    private bool TakePull(DeviceId caller)
+    {
+        long second = timeProvider.GetUtcNow().ToUnixTimeSeconds();
+        lock (gate)
+        {
+            (long Second, int Count) rate = pullRates.TryGetValue(caller, out var r) && r.Second == second ? r : (second, 0);
+            if (rate.Count >= MaxPullsPerSecond)
+            {
+                return false;
+            }
+
+            pullRates[caller] = (second, rate.Count + 1);
+            return true;
+        }
+    }
+
     // ───────────── Sending ─────────────
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         directory.Changed += OnPeerChanged;
+        groups.Changed += OnGroupsChanged;
         try
         {
+            DateTimeOffset pulled = DateTimeOffset.MinValue;
             while (!stoppingToken.IsCancellationRequested)
             {
                 await SendAllPendingAsync(stoppingToken);
+                if (timeProvider.GetUtcNow() - pulled >= PullEvery)
+                {
+                    pulled = timeProvider.GetUtcNow();
+                    await PullAllAsync(stoppingToken);
+                }
+
                 await Task.Delay(RetryEvery, timeProvider, stoppingToken);
             }
         }
@@ -582,6 +1025,7 @@ public sealed class GroupChatService(
         finally
         {
             directory.Changed -= OnPeerChanged;
+            groups.Changed -= OnGroupsChanged;
         }
     }
 
@@ -590,8 +1034,12 @@ public sealed class GroupChatService(
         if (change.Kind != PeerChangeKind.Removed && change.Peer.State == PeerState.Online)
         {
             Kick(change.Peer.DeviceId);
+            KickPull(change.Peer.DeviceId);
         }
     }
+
+    /// <summary>A group joined (or its members changed): what those online hold that we lack.</summary>
+    private void OnGroupsChanged(object? sender, EventArgs e) => _ = PullAllAsync(CancellationToken.None);
 
     private async Task SendAllPendingAsync(CancellationToken cancellationToken)
     {
@@ -942,5 +1390,23 @@ public sealed class GroupChatService(
     private sealed class DeliveryRow : MessageRow
     {
         public long? RefusedAt { get; init; }
+    }
+
+    private sealed class FetchRow : MessageRow
+    {
+        public byte[]? RecallSig { get; init; }
+    }
+
+    private sealed class IndexRow
+    {
+        public long Seq { get; init; }
+
+        public string Id { get; init; } = "";
+
+        public string AuthorId { get; init; } = "";
+
+        public long SentAt { get; init; }
+
+        public string Kind { get; init; } = "";
     }
 }
