@@ -300,6 +300,15 @@ public partial class MainView : UserControl
 
         IReadOnlyList<IStorageFile> picked = await top.StorageProvider.OpenFilePickerAsync(
             new FilePickerOpenOptions { Title = title, AllowMultiple = allowMultiple });
-        return [.. picked.Select(f => f.Path.IsFile ? f.Path.LocalPath : f.Path.OriginalString)];
+        string[] locations = [.. picked.Select(f => f.Path.IsFile ? f.Path.LocalPath : f.Path.OriginalString)];
+        if (MainActivity.Current?.ContentResolver is { } resolver)
+        {
+            foreach (string location in locations.Where(l => l.StartsWith("content://", StringComparison.Ordinal)))
+            {
+                ContentUriFiles.Keep(resolver, location);
+            }
+        }
+
+        return locations;
     }
 }

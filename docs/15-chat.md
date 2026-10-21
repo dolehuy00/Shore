@@ -127,7 +127,7 @@ Chuột phải (điện thoại: nhấn giữ) một thẻ: **Thu hồi** offer 
 
 **Ảnh hiện thẳng**: offer chỉ gồm ảnh (theo đuôi file, như nhóm "Ảnh" ở Thống kê) hiện tối đa 4 ảnh thay cho tên file, thêm "+N" nếu nhiều hơn; bấm một ảnh thì mở bằng trình xem của hệ thống (điện thoại: tab File). Ảnh được thu nhỏ còn rộng 480 px khi đọc, ngoài luồng giao diện.
 
-- Ảnh mình gửi đọc từ file gốc (hoặc snapshot). Trên điện thoại, file chọn bằng trình chọn của hệ thống là `content://` với quyền đọc tạm: mở lại app thì không đọc được nữa và thẻ quay về dạng tên file.
+- Ảnh mình gửi đọc từ file gốc (hoặc snapshot). Trên điện thoại, file chọn bằng trình chọn của hệ thống (📎, "Gửi file…", widget) là `content://`; app giữ quyền đọc lâu dài (`TakePersistableUriPermission`) nên mở lại app ảnh vẫn hiện. Android chỉ giữ một số quyền như thế cho mỗi app (512 từ Android 11) và tự bỏ cái cũ nhất. File chia sẻ từ app khác thì không giữ được: mở lại app, hay file đã bị xóa, thì thẻ quay về dạng tên file.
 - Ảnh người kia gửi hiện khi đã tải xong và file còn đó. Để khỏi phải bấm Tải, **Cài đặt → "Tự tải ảnh máy đã kết nối gửi"** (mặc định bật; `chatAutoDownloadPictures`): offer từ liên hệ đã Kết nối, không qua nhóm, chỉ gồm ảnh và tổng tối đa **20 MB** thì tự tải về thư mục nhận như "Tự nhận file". Tắt thì ảnh chờ bấm Tải như file khác; bật "Tự nhận file" cho máy đó thì giới hạn của nó vẫn áp dụng như cũ.
 
 ## 7. Giai đoạn

@@ -136,6 +136,11 @@ public sealed class MainActivity : AvaloniaMainActivity
             if (resultCode == Result.Ok && data is not null)
             {
                 List<string> picked = [.. Picked(data).Select(uri => uri.ToString()!)];
+                foreach (string location in picked)
+                {
+                    ContentUriFiles.Keep(ContentResolver!, location);
+                }
+
                 if (picked.Count > 0)
                 {
                     App.Share(picked, null);

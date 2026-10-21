@@ -14,6 +14,22 @@ public sealed class ContentUriFiles(ContentResolver resolver) : IExternalFileSou
 {
     public bool Owns(string location) => location.StartsWith("content://", StringComparison.Ordinal);
 
+    /// <summary>
+    /// Keeps reading a picked document after the app restarts (its picture still shows in Tin nhắn); the picker's grant
+    /// otherwise ends with the app. Android drops the oldest kept grants once there are too many.
+    /// </summary>
+    public static void Keep(ContentResolver resolver, string location)
+    {
+        try
+        {
+            resolver.TakePersistableUriPermission(AndroidUri.Parse(location)!, ActivityFlags.GrantReadUriPermission);
+        }
+        catch (Java.Lang.SecurityException)
+        {
+            // Not offered as lasting (shared from another app, or a provider without it): readable while the grant lasts.
+        }
+    }
+
     public ExternalFileInfo? Describe(string location)
     {
         try
