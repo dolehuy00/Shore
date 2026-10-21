@@ -427,7 +427,7 @@ public sealed partial class ChatViewModel : ObservableObject
     {
         IReadOnlyList<ChatConversation> conversations = await chat.GetConversationsAsync(CancellationToken.None);
         // A file card is said in the conversation too: the newest of a message or an offer leads, by its time.
-        Dictionary<DeviceId, ChatLastFile> files = LastFiles();
+        Dictionary<DeviceId, ChatLastFile> files = LastFiles(await chat.GetClearedAsync(CancellationToken.None));
         List<ChatPersonViewModel> ordered =
         [
             .. conversations.Select(c => c.Peer).Union(files.Keys)
@@ -443,7 +443,8 @@ public sealed partial class ChatViewModel : ObservableObject
             .Select(c => Person(c.DeviceId).Update(null, null)));
         if (Current is { } current && !ordered.Contains(current))
         {
-            ordered.Add(current);
+            // Open with nothing left in it (just deleted): nothing to say under its name either.
+            ordered.Add(current.Update(null, null));
         }
 
         Sync(Conversations, ordered);
@@ -461,6 +462,7 @@ public sealed partial class ChatViewModel : ObservableObject
     private async Task RefreshMessagesAsync(ChatPersonViewModel person)
     {
         IReadOnlyList<ChatMessage> messages = await chat.GetMessagesAsync(person.Peer, CancellationToken.None);
+        IReadOnlyDictionary<DeviceId, DateTimeOffset> cleared = await chat.GetClearedAsync(CancellationToken.None);
         if (Current != person)
         {
             return;
@@ -471,9 +473,11 @@ public sealed partial class ChatViewModel : ObservableObject
         [
             .. messages.Select(m => (m.SentAt, m.Id, (object)m)),
             .. offers.GetOffers()
-                .Where(o => o.GroupId is null && o.Recipients.Any(r => r.DeviceId == person.Peer))
+                .Where(o => o.GroupId is null && o.Recipients.Any(r => r.DeviceId == person.Peer) && After(cleared, person.Peer, o.CreatedAt))
                 .Select(o => (o.CreatedAt, "sent:" + o.OfferId, (object)o)),
-            .. inbox.GetOffers().Where(o => o.SenderId == person.Peer).Select(o => (o.SentAt, "received:" + o.OfferId, (object)o)),
+            .. inbox.GetOffers()
+                .Where(o => o.SenderId == person.Peer && After(cleared, person.Peer, o.ReceivedAt))
+                .Select(o => (o.SentAt, "received:" + o.OfferId, (object)o)),
         ];
         entries.Sort((x, y) => x.At != y.At ? x.At.CompareTo(y.At) : string.CompareOrdinal(x.Id, y.Id));
 
@@ -553,20 +557,24 @@ public sealed partial class ChatViewModel : ObservableObject
         });
     });
 
+    /// <summary>Sent or received after the conversation was last deleted ("Xóa hội thoại"), so its card shows.</summary>
+    private static bool After(IReadOnlyDictionary<DeviceId, DateTimeOffset> cleared, DeviceId peer, DateTimeOffset at) =>
+        !cleared.TryGetValue(peer, out DateTimeOffset clearedAt) || at > clearedAt;
+
     /// <summary>The newest offer with each contact, as its card shows in the conversation (not through a group).</summary>
-    private Dictionary<DeviceId, ChatLastFile> LastFiles()
+    private Dictionary<DeviceId, ChatLastFile> LastFiles(IReadOnlyDictionary<DeviceId, DateTimeOffset> cleared)
     {
         Dictionary<DeviceId, ChatLastFile> last = [];
         foreach (SentOffer sent in offers.GetOffers().Where(o => o.GroupId is null))
         {
-            foreach (SentRecipient recipient in sent.Recipients)
+            foreach (SentRecipient recipient in sent.Recipients.Where(r => After(cleared, r.DeviceId, sent.CreatedAt)))
             {
                 bool pictures = sent.Paths.Count > 0 && sent.Paths.All(StorageReport.IsPicture);
                 Keep(recipient.DeviceId, new ChatLastFile(sent.CreatedAt, true, sent.Recalled ? RecalledText(pictures) : FileText(sent.Note, sent.Paths, pictures)));
             }
         }
 
-        foreach (ReceivedOffer received in inbox.GetOffers())
+        foreach (ReceivedOffer received in inbox.GetOffers().Where(o => After(cleared, o.SenderId, o.ReceivedAt)))
         {
             string[] paths = [.. received.Files.Select(f => f.RelativePath)];
             bool pictures = received.Files.Count > 0 && received.Files.All(f => !f.IsDirectory && StorageReport.IsPicture(f.RelativePath));
@@ -685,7 +693,7 @@ public sealed partial class ChatViewModel : ObservableObject
         await chat.DeleteAsync(person.Peer, [.. chosen.Select(b => b.Id)], CancellationToken.None);
     }
 
-    /// <summary>"Xóa hội thoại…": every message with this person, here only, after asking.</summary>
+    /// <summary>"Xóa hội thoại…": every message and file card with this person, here only, after asking.</summary>
     [RelayCommand]
     private async Task DeleteConversationAsync()
     {
@@ -700,6 +708,11 @@ public sealed partial class ChatViewModel : ObservableObject
 
         StopPlaying();
         await chat.DeleteConversationAsync(person.Peer, CancellationToken.None);
+        // Someone no longer a contact has no conversation left to show: back to the list, where it is gone too.
+        if (trust.GetLevel(person.Peer) != TrustLevel.Trusted && Current == person)
+        {
+            Current = null;
+        }
     }
 
     internal void Download(OfferKey key) => inbox.Download(key);

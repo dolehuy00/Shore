@@ -179,6 +179,10 @@ CREATE TABLE ChatRecalls (                  -- 0007: thu hồi chưa báo đư�
   PRIMARY KEY (PeerId, Id)
 );
 
+CREATE TABLE ChatCleared (                  -- 0010: "Xóa hội thoại"; thẻ file tới lúc này không hiện trong hội thoại
+  PeerId TEXT PRIMARY KEY, ClearedAt INTEGER NOT NULL
+);
+
 -- ───────────── Nhật ký ─────────────
 CREATE TABLE ActivityLog (
   Id INTEGER PRIMARY KEY, At INTEGER NOT NULL, Kind TEXT NOT NULL,

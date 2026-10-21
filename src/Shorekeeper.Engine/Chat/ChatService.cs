@@ -255,7 +255,10 @@ public sealed class ChatService(
         return true;
     }
 
-    /// <summary>The whole conversation, on this device only: messages, voice files and a "Đã xem" not told yet.</summary>
+    /// <summary>
+    /// The whole conversation, on this device only: messages, voice files, a "Đã xem" not told yet, and the file cards so
+    /// far (<see cref="GetClearedAsync"/>; the offers stay in Hộp nhận and Đã gửi).
+    /// </summary>
     public async Task DeleteConversationAsync(DeviceId peer, CancellationToken cancellationToken)
     {
         List<string?> files;
@@ -265,11 +268,26 @@ public sealed class ChatService(
                 "SELECT VoicePath FROM ChatMessages WHERE PeerId = @peer AND VoicePath IS NOT NULL;", new { peer = peer.Value })];
             // A recall not told yet stays: deleting here does not take back what the peer has.
             await connection.ExecuteAsync(
-                "DELETE FROM ChatMessages WHERE PeerId = @peer; DELETE FROM ChatReceipts WHERE PeerId = @peer;", new { peer = peer.Value });
+                """
+                DELETE FROM ChatMessages WHERE PeerId = @peer; DELETE FROM ChatReceipts WHERE PeerId = @peer;
+                INSERT INTO ChatCleared (PeerId, ClearedAt) VALUES (@peer, @at)
+                ON CONFLICT (PeerId) DO UPDATE SET ClearedAt = excluded.ClearedAt;
+                """,
+                new { peer = peer.Value, at = timeProvider.GetUtcNow().ToUnixTimeMilliseconds() });
         }
 
         DeleteFiles(files);
         Changed?.Invoke(this, peer);
+    }
+
+    /// <summary>
+    /// When each conversation was last deleted: file cards sent before then, or received before then, no longer show in it.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<DeviceId, DateTimeOffset>> GetClearedAsync(CancellationToken cancellationToken)
+    {
+        await using SqliteConnection connection = await database.OpenAsync(cancellationToken);
+        var rows = await connection.QueryAsync<(string PeerId, long ClearedAt)>("SELECT PeerId, ClearedAt FROM ChatCleared;");
+        return rows.ToDictionary(r => DeviceId.Parse(r.PeerId), r => FromMs(r.ClearedAt));
     }
 
     /// <summary>Newest first.</summary>

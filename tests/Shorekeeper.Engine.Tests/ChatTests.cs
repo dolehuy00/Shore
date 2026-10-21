@@ -224,10 +224,14 @@ public sealed class ChatTests : IAsyncLifetime
         await b.Chat.MarkReadAsync(a.Id, Ct);
         string received = (await b.Chat.GetMessagesAsync(a.Id, Ct)).Single(m => m.Id == voice.Id).VoicePath!;
 
+        DateTimeOffset before = DateTimeOffset.UtcNow;
         await b.Chat.DeleteConversationAsync(a.Id, Ct);
         b.Sees(a);
 
         Assert.Empty(await b.Chat.GetConversationsAsync(Ct));
+        // File cards up to now leave the conversation too; A's side keeps all of it.
+        Assert.InRange((await b.Chat.GetClearedAsync(Ct))[a.Id], before, DateTimeOffset.UtcNow);
+        Assert.Empty(await a.Chat.GetClearedAsync(Ct));
         Assert.False(File.Exists(received));
         // The receipt waiting for A went with it: A's messages stay delivered, not read.
         await Task.Delay(500, Ct);
