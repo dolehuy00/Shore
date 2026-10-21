@@ -633,5 +633,19 @@
   "Bạn: {0}": "You: {0}",
   "Chờ gửi": "Waiting to send",
   "Đã xem": "Seen",
-  "Tin nhắn này cần bản Shorekeeper mới hơn.": "This message needs a newer Shorekeeper."
+  "Tin nhắn này cần bản Shorekeeper mới hơn.": "This message needs a newer Shorekeeper.",
+  "Đã có quyền micrô: giữ nút micrô để ghi.": "Microphone allowed: hold the microphone button to record.",
+  "Tin nhắn thoại cần quyền micrô. Nếu đã từ chối, bật lại trong Cài đặt → Ứng dụng → Shorekeeper → Quyền.": "Voice messages need the microphone permission. If you refused it, turn it back on in Settings → Apps → Shorekeeper → Permissions.",
+  "‹ Vuốt sang trái để hủy": "‹ Slide left to cancel",
+  "Thả tay để hủy": "Let go to cancel",
+  "Giữ để ghi tin nhắn thoại": "Hold to record a voice message",
+  "Phát": "Play",
+  "Giữ nút micrô để ghi, thả tay để gửi.": "Hold the microphone button to record, let go to send.",
+  "Không mở được micrô: {0}": "Couldn't open the microphone: {0}",
+  "Tin nhắn thoại ngắn quá, chưa gửi.": "Voice message too short, not sent.",
+  "Không mở được tin nhắn thoại này.": "Couldn't open this voice message.",
+  "Tin nhắn thoại {0}": "Voice message {0}",
+  "Ghi tin nhắn thoại": "Record a voice message",
+  "Hủy ghi âm": "Cancel recording",
+  "Gửi tin nhắn thoại": "Send voice message"
 }

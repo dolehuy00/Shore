@@ -86,6 +86,56 @@ internal sealed class AndroidAudioOutput(Context context) : IAudioOutput
 }
 
 /// <summary>
+/// A voice message (docs/15-chat.md §3): an <see cref="AudioTrack"/> for speech on the media volume, played while the
+/// app is open, so no service and no notification (and "Nghe" going on meanwhile is left alone).
+/// </summary>
+internal sealed class AndroidVoicePlayer : IVoicePlayer
+{
+    public IDisposable Start(AudioFrameReader read) => new Playing(read);
+
+    private sealed class Playing : IDisposable
+    {
+        private readonly AudioFrameReader read;
+        private readonly Thread thread;
+        private volatile bool stopping;
+
+        public Playing(AudioFrameReader read)
+        {
+            this.read = read;
+            thread = new Thread(Play) { IsBackground = true, Name = "Voice message" };
+            thread.Start();
+        }
+
+        public void Dispose()
+        {
+            stopping = true;
+            thread.Join();
+        }
+
+        private void Play()
+        {
+            int minimum = AudioTrack.GetMinBufferSize(AudioStreamFormat.SampleRate, ChannelOut.Stereo, Encoding.Pcm16bit);
+            using AudioTrack track = new AudioTrack.Builder()
+                .SetAudioAttributes(new AudioAttributes.Builder().SetUsage(AudioUsageKind.Media)!.SetContentType(AudioContentType.Speech)!.Build()!)!
+                .SetAudioFormat(new AudioFormat.Builder().SetEncoding(Encoding.Pcm16bit)!.SetSampleRate(AudioStreamFormat.SampleRate)!.SetChannelMask(ChannelOut.Stereo)!.Build()!)!
+                .SetTransferMode(AudioTrackMode.Stream)!
+                .SetBufferSizeInBytes(Math.Max(minimum, 8 * AudioStreamFormat.FrameValues * sizeof(short)))!
+                .Build()!;
+            short[] pcm = new short[AudioStreamFormat.FrameValues];
+            track.Play();
+            while (!stopping)
+            {
+                read(pcm);
+                // Blocks until the device has room: this loop runs at the device's pace.
+                track.Write(pcm, 0, pcm.Length);
+            }
+
+            track.Stop();
+        }
+    }
+}
+
+/// <summary>
 /// Keeps the process playing with the screen off; its notification says what plays and has "Dừng nghe", and
 /// "Phát/Dừng" and "Bài sau" for a source that can be controlled.
 /// </summary>

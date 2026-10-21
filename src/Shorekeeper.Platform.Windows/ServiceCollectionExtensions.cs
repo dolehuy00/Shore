@@ -16,7 +16,10 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IGlobalHotkey, WindowsGlobalHotkey>();
         services.AddSingleton<IDirectoryInfo, ActiveDirectoryInfo>();
         services.AddSingleton<IAudioCapture, WindowsAudioCapture>();
-        services.AddSingleton<IAudioOutput, WindowsAudioOutput>();
+        services.AddSingleton<WindowsAudioOutput>();
+        services.AddSingleton<IAudioOutput>(sp => sp.GetRequiredService<WindowsAudioOutput>());
+        services.AddSingleton<IVoicePlayer>(sp => sp.GetRequiredService<WindowsAudioOutput>());
+        services.AddSingleton<IMicrophone, WindowsMicrophone>();
         services.AddSingleton<IMediaKeys, WindowsMediaKeys>();
         services.AddSingleton<IAudioOutputDevices, WindowsAudioOutputDevices>();
         services.AddSingleton<IBluetoothAudioReceiver, WindowsBluetoothAudioReceiver>();

@@ -9,9 +9,9 @@ namespace Shorekeeper.Platform.Windows.Audio;
 /// "Nghe" on a computer: the sound through the chosen device ("Phát ra") or the default speakers, WASAPI shared mode
 /// driven by the device's events. Only two frames wait in the device's buffer; the thread runs at "Pro Audio" priority
 /// so it is never late for them. When the default speakers change (headphones plugged in, Bluetooth), it moves to the
-/// new default; when the chosen device goes away, to the default.
+/// new default; when the chosen device goes away, to the default. Voice messages play the same way, on the default.
 /// </summary>
-public sealed partial class WindowsAudioOutput : IAudioOutput
+public sealed partial class WindowsAudioOutput : IAudioOutput, IVoicePlayer
 {
     private const uint StreamFlagsEventCallback = 0x0004_0000;
     private const long BufferDuration = 30 * 10_000;
@@ -21,6 +21,8 @@ public sealed partial class WindowsAudioOutput : IAudioOutput
 
     public IDisposable Start(AudioFrameReader read, string title, Action stopRequested, Action<MediaKey>? keyRequested = null, string? device = null) =>
         new Playing(read, device);
+
+    public IDisposable Start(AudioFrameReader read) => new Playing(read, null);
 
     private sealed class Playing : IDisposable
     {

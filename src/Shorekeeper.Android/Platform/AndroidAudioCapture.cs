@@ -19,8 +19,9 @@ namespace Shorekeeper.Android.Platform;
 /// by <see cref="AudioCaptureService"/> until it is turned off. Only media, game and unknown sound can be captured,
 /// and apps may forbid it; our own playback ("Nghe") is left out so two phones never echo each other.
 /// With "Nguồn tiếng: Micro" it is the microphone instead (the phone as a microphone), which needs the permission only.
+/// Voice messages record the microphone too, while the app is in front.
 /// </summary>
-internal sealed class AndroidAudioCapture(Context context) : IAudioCapture
+internal sealed class AndroidAudioCapture(Context context) : IAudioCapture, IMicrophone
 {
     public IDisposable Start(AudioFrameHandler onFrame)
     {
@@ -57,6 +58,8 @@ internal sealed class AndroidAudioCapture(Context context) : IAudioCapture
 
         return new Capturing(context, record, onFrame, mono: false);
     }
+
+    IDisposable IMicrophone.Start(AudioFrameHandler onFrame) => StartMicrophone(onFrame);
 
     /// <summary>The microphone, mono, its noise suppressed where the phone can: both channels get it.</summary>
     private Capturing StartMicrophone(AudioFrameHandler onFrame)
@@ -176,15 +179,10 @@ internal static class PlaybackCapture
     /// <exception cref="InvalidOperationException">The microphone permission was refused.</exception>
     public static async Task<bool> RequestAsync(Activity activity, bool microphoneSource)
     {
-        if (activity.CheckSelfPermission(global::Android.Manifest.Permission.RecordAudio) != Permission.Granted)
+        if (!await RequestMicrophoneAsync(activity))
         {
-            microphone = new TaskCompletionSource<bool>();
-            activity.RequestPermissions([global::Android.Manifest.Permission.RecordAudio], MicrophoneRequest);
-            if (!await microphone.Task)
-            {
-                // Refused twice, Android stops asking: only the app's settings can grant it then.
-                throw new InvalidOperationException(L.T("Phát âm thanh cần quyền micrô. Nếu đã từ chối, bật lại trong Cài đặt → Ứng dụng → Shorekeeper → Quyền."));
-            }
+            // Refused twice, Android stops asking: only the app's settings can grant it then.
+            throw new InvalidOperationException(L.T("Phát âm thanh cần quyền micrô. Nếu đã từ chối, bật lại trong Cài đặt → Ứng dụng → Shorekeeper → Quyền."));
         }
 
         if (microphoneSource)
@@ -202,6 +200,20 @@ internal static class PlaybackCapture
         consent = new TaskCompletionSource<bool>();
         activity.StartActivityForResult(intent, ProjectionRequest);
         return await consent.Task;
+    }
+
+    /// <summary>The microphone permission alone, asked once: what voice messages need.</summary>
+    /// <returns>Whether the app may record.</returns>
+    public static async Task<bool> RequestMicrophoneAsync(Activity activity)
+    {
+        if (activity.CheckSelfPermission(global::Android.Manifest.Permission.RecordAudio) == Permission.Granted)
+        {
+            return true;
+        }
+
+        microphone = new TaskCompletionSource<bool>();
+        activity.RequestPermissions([global::Android.Manifest.Permission.RecordAudio], MicrophoneRequest);
+        return await microphone.Task;
     }
 
     /// <returns>Whether the request was ours.</returns>

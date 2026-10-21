@@ -190,6 +190,32 @@
     <Style Selector="Border.bubble.mine TextBlock, Border.bubble.mine SelectableTextBlock">
       <Setter Property="Foreground" Value="{DynamicResource AccentButtonForeground}" />
     </Style>
+    <!-- A voice message: ▶ on a disc, the waveform (played part in full color), the length. -->
+    <Style Selector="Button.play">
+      <Setter Property="Width" Value="34" />
+      <Setter Property="Height" Value="34" />
+      <Setter Property="CornerRadius" Value="17" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Background" Value="{DynamicResource AccentButtonBackground}" />
+      <Setter Property="Foreground" Value="{DynamicResource AccentButtonForeground}" />
+    </Style>
+    <Style Selector="Border.bubble.mine Button.play">
+      <Setter Property="Background" Value="{DynamicResource AccentButtonForeground}" />
+      <Setter Property="Foreground" Value="{DynamicResource AccentButtonBackground}" />
+    </Style>
+    <Style Selector="Rectangle.bar">
+      <Setter Property="Width" Value="2" />
+      <Setter Property="RadiusX" Value="1" />
+      <Setter Property="RadiusY" Value="1" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Fill" Value="{DynamicResource AccentButtonBackground}" />
+    </Style>
+    <Style Selector="Border.bubble.mine Rectangle.bar">
+      <Setter Property="Fill" Value="{DynamicResource AccentButtonForeground}" />
+    </Style>
     <Style Selector="Border.bubble.unknown TextBlock.body">
       <Setter Property="FontStyle" Value="Italic" />
     </Style>
@@ -452,11 +478,28 @@
           <Border DockPanel.Dock="Bottom" Padding="16,10" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource Sk.Divider}">
             <StackPanel Spacing="6">
               <TextBlock Classes="muted" Text="{Binding Notice}" IsVisible="{Binding HasNotice}" FontSize="12" TextWrapping="Wrap" />
-              <Grid ColumnDefinitions="*,Auto">
-                <TextBox x:Name="ChatBox" Text="{Binding Draft}" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="140" IsEnabled="{Binding CanWrite}"
+              <!-- Writing: 🎤 [box] ➤. Recording: ✕ ● 0:07 level ➤. -->
+              <Grid ColumnDefinitions="Auto,*,Auto" IsVisible="{Binding IsComposing}">
+                <Button Command="{Binding RecordCommand}" IsVisible="{Binding HasMicrophone}" IsEnabled="{Binding CanWrite}" Margin="0,0,8,0" VerticalAlignment="Bottom" Padding="10,8"
+                        ToolTip.Tip="{l:T 'Ghi tin nhắn thoại'}" AutomationProperties.Name="{l:T 'Ghi tin nhắn thoại'}">
+                  <PathIcon Data="{StaticResource Icon.Mic}" Width="16" Height="16" />
+                </Button>
+                <TextBox Grid.Column="1" x:Name="ChatBox" Text="{Binding Draft}" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="140" IsEnabled="{Binding CanWrite}"
                          PlaceholderText="{l:T 'Nhập tin nhắn… (Enter để gửi, Shift+Enter xuống dòng)'}" AutomationProperties.Name="{l:T 'Tin nhắn'}" />
-                <Button Grid.Column="1" Classes="accent" Command="{Binding SendCommand}" Margin="8,0,0,0" VerticalAlignment="Bottom" Padding="12,8"
+                <Button Grid.Column="2" Classes="accent" Command="{Binding SendCommand}" Margin="8,0,0,0" VerticalAlignment="Bottom" Padding="12,8"
                         ToolTip.Tip="{l:T 'Gửi'}" AutomationProperties.Name="{l:T 'Gửi'}">
+                  <PathIcon Data="{StaticResource Icon.Send}" Width="16" Height="16" />
+                </Button>
+              </Grid>
+              <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto" IsVisible="{Binding IsRecording}" Height="34">
+                <Button Command="{Binding CancelRecordingCommand}" Padding="10,8" ToolTip.Tip="{l:T 'Hủy'}" AutomationProperties.Name="{l:T 'Hủy ghi âm'}">
+                  <PathIcon Data="{StaticResource Icon.Dismiss}" Width="14" Height="14" />
+                </Button>
+                <Ellipse Grid.Column="1" Classes="dot error" Classes.recording="{Binding IsRecording}" Margin="14,0,8,0" />
+                <TextBlock Grid.Column="2" Text="{Binding RecordingText}" VerticalAlignment="Center" FontFamily="Consolas,monospace" />
+                <ProgressBar Grid.Column="3" Value="{Binding RecordingLevel}" Maximum="100" MinWidth="0" Margin="14,0" VerticalAlignment="Center" />
+                <Button Grid.Column="4" Classes="accent" Command="{Binding SendRecordingCommand}" Padding="12,8"
+                        ToolTip.Tip="{l:T 'Gửi'}" AutomationProperties.Name="{l:T 'Gửi tin nhắn thoại'}">
                   <PathIcon Data="{StaticResource Icon.Send}" Width="16" Height="16" />
                 </Button>
               </Grid>
@@ -474,7 +517,44 @@
                       <TextBlock Classes="muted" Text="{Binding DayText}" IsVisible="{Binding HasDay}" FontSize="12" HorizontalAlignment="Center" Margin="0,10,0,6" />
                       <Border Classes="bubble" Classes.mine="{Binding IsMine}" Classes.unknown="{Binding IsUnknown}">
                         <StackPanel Spacing="2">
-                          <SelectableTextBlock Classes="body" Text="{Binding Text}" TextWrapping="Wrap" />
+                          <SelectableTextBlock Classes="body" Text="{Binding Text}" TextWrapping="Wrap" IsVisible="{Binding IsText}" />
+                          <Grid ColumnDefinitions="Auto,Auto,Auto" IsVisible="{Binding IsVoice}" Margin="-4,2,0,0">
+                            <Button Classes="play" Command="{Binding PlayCommand}" AutomationProperties.Name="{l:T 'Phát'}">
+                              <Panel>
+                                <PathIcon Data="{StaticResource Icon.Play}" Width="14" Height="14" IsVisible="{Binding !IsPlaying}" Margin="2,0,0,0" />
+                                <PathIcon Data="{StaticResource Icon.Pause}" Width="14" Height="14" IsVisible="{Binding IsPlaying}" />
+                              </Panel>
+                            </Button>
+                            <Panel Grid.Column="1" Margin="10,0" Height="26" VerticalAlignment="Center">
+                              <ItemsControl ItemsSource="{Binding Bars}" Opacity="0.4">
+                                <ItemsControl.ItemsPanel>
+                                  <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" Spacing="2" />
+                                  </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                  <DataTemplate x:DataType="x:Double">
+                                    <Rectangle Classes="bar" Height="{Binding}" />
+                                  </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                              </ItemsControl>
+                              <Panel Width="{Binding PlayedWidth}" HorizontalAlignment="Left" ClipToBounds="True">
+                                <ItemsControl ItemsSource="{Binding Bars}" Width="{x:Static vm:ChatBubbleViewModel.WaveWidth}" HorizontalAlignment="Left">
+                                  <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                      <StackPanel Orientation="Horizontal" Spacing="2" />
+                                    </ItemsPanelTemplate>
+                                  </ItemsControl.ItemsPanel>
+                                  <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="x:Double">
+                                      <Rectangle Classes="bar" Height="{Binding}" />
+                                    </DataTemplate>
+                                  </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                              </Panel>
+                            </Panel>
+                            <TextBlock Grid.Column="2" Text="{Binding DurationText}" VerticalAlignment="Center" FontSize="13" />
+                          </Grid>
                           <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
                             <TextBlock Text="{Binding StatusText}" FontSize="11" Opacity="0.75" VerticalAlignment="Center" />
                             <Button Content="{l:T 'Gửi lại'}" Command="{Binding RetryCommand}" IsVisible="{Binding IsFailed}" Padding="8,2" FontSize="11" />

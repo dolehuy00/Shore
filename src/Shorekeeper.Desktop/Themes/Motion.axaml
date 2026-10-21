@@ -167,4 +167,18 @@
       </Animation>
     </Style.Animations>
   </Style>
+  <!-- Recording a voice message: the red dot breathes. The class is set only while recording: an endless animation
+       keeps the window drawing every frame, which starved background work on the phone. -->
+  <Style Selector="Ellipse.recording">
+    <Style.Animations>
+      <Animation Duration="0:0:1.2" IterationCount="Infinite" PlaybackDirection="Alternate" Easing="SineEaseInOut">
+        <KeyFrame Cue="0%">
+          <Setter Property="Opacity" Value="1" />
+        </KeyFrame>
+        <KeyFrame Cue="100%">
+          <Setter Property="Opacity" Value="0.25" />
+        </KeyFrame>
+      </Animation>
+    </Style.Animations>
+  </Style>
 </Styles>

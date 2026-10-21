@@ -69,7 +69,11 @@ public sealed partial class MainViewModel : ObservableObject
         Audio.Notice += (_, message) => Notice = message;
         Audio.AskPassword = AskPasswordAsync;
         Settings = new SettingsTabViewModel(services, this);
-        Chat = new ChatViewModel(services.GetRequiredService<ChatService>(), trust, directory);
+        Chat = new ChatViewModel(
+            services.GetRequiredService<ChatService>(), trust, directory, services.GetService<IMicrophone>(), services.GetService<IVoicePlayer>())
+        {
+            AllowRecording = AllowRecordingAsync,
+        };
         OfferSelection = new ListSelection(() => Offers, () => RemoveCheckedOffers(deleteFiles: false), () => RemoveCheckedOffers(deleteFiles: true));
         SentSelection = new ListSelection(() => Sent, RemoveCheckedSent);
         settings.Changed += (_, _) => Dispatcher.UIThread.Post(() => OnPropertyChanged(nameof(Title)));
@@ -507,6 +511,28 @@ public sealed partial class MainViewModel : ObservableObject
     {
         FilesShowSent = true;
         SelectedTab = 1;
+    }
+
+    /// <summary>
+    /// The microphone permission, asked the first time 🎤 is held. Its dialog takes the finger away, so that time records
+    /// nothing: once granted, holding again does.
+    /// </summary>
+    private async Task<bool> AllowRecordingAsync()
+    {
+        if (MainActivity.Current is not { } activity)
+        {
+            return false;
+        }
+
+        if (activity.CheckSelfPermission(global::Android.Manifest.Permission.RecordAudio) == global::Android.Content.PM.Permission.Granted)
+        {
+            return true;
+        }
+
+        Chat.Notice = await PlaybackCapture.RequestMicrophoneAsync(activity)
+            ? L.T("Đã có quyền micrô: giữ nút micrô để ghi.")
+            : L.T("Tin nhắn thoại cần quyền micrô. Nếu đã từ chối, bật lại trong Cài đặt → Ứng dụng → Shorekeeper → Quyền.");
+        return false;
     }
 
     /// <summary>"Nhắn tin" on a card, or a message notification.</summary>

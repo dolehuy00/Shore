@@ -188,7 +188,7 @@ Chỉ giữa hai liên hệ. Người gửi lưu tin trước rồi mới gửi;
 
 | Method | Path | Quyền | Mô tả |
 |---|---|---|---|
-| POST | `/chat/messages` | Trusted | `{ id, sentAt, kind, text? }` → `204`. `id` 32 chữ số hex do người gửi tạo, xếp theo thời gian (UUIDv7); đã có thì vẫn `204` và bỏ qua (gửi lại an toàn). `kind` `text` cần `text` 1–4.000 ký tự; `kind` khác (bản sau) được giữ, không có chữ. `sentAt` muộn hơn giờ máy nhận thì lấy giờ máy nhận. Sai định dạng `400`; quá 20 tin/giây `429` |
+| POST | `/chat/messages` | Trusted | `{ id, sentAt, kind, text?, durationMs?, wave?, audio? }` → `204`. `id` 32 chữ số hex do người gửi tạo, xếp theo thời gian (UUIDv7); đã có thì vẫn `204` và bỏ qua (gửi lại an toàn). `kind` `text` cần `text` 1–4.000 ký tự; `voice` cần `audio` (file Ogg Opus, base64, tối đa 2 MB), `durationMs` 1 ms–5 phút và `wave` tối đa 48 byte; `kind` khác (bản sau) được giữ, không có chữ. `sentAt` muộn hơn giờ máy nhận thì lấy giờ máy nhận. Sai định dạng `400`; quá 20 tin/giây `429` |
 | POST | `/chat/receipts` | Trusted | `{ readUpTo }`: máy gọi đã đọc các tin của mình tới `id` này → `204` |
 
 ## 5. Timeout & giới hạn
@@ -203,4 +203,4 @@ Chỉ giữa hai liên hệ. Người gửi lưu tin trước rồi mới gửi;
 | JSON request tối đa | 1 MB (≤ 10.000 file/offer) |
 | File song song / người nhận | 4 |
 | Stream đồng thời phía người gửi | 16 |
-| Tin nhắn | 4.000 ký tự; 20 tin/giây mỗi máy gửi |
+| Tin nhắn | 4.000 ký tự; thoại 5 phút, 2 MB; 20 tin/giây mỗi máy gửi |

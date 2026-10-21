@@ -2,8 +2,10 @@ using System.Collections.ObjectModel;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Shorekeeper.Core.Audio;
 using Shorekeeper.Core.Identity;
 using Shorekeeper.Core.Localization;
+using Shorekeeper.Core.Platform;
 using Shorekeeper.Core.Trust;
 using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Chat;
@@ -15,20 +17,29 @@ namespace Shorekeeper.Desktop.ViewModels;
 /// <summary>
 /// "Tin nhắn" (docs/15-chat.md §6), on the desktop and the phone: conversations, newest first, then contacts not
 /// written to yet; the open one's messages and the box to write in. What the peer sent is read while the
-/// conversation is shown (<see cref="IsShown"/>, set by the window).
+/// conversation is shown (<see cref="IsShown"/>, set by the window). Voice messages are recorded with the microphone
+/// and played one at a time (docs/15-chat.md §3).
 /// </summary>
 public sealed partial class ChatViewModel : ObservableObject
 {
     private readonly ChatService chat;
     private readonly TrustStore trust;
     private readonly PeerDirectory directory;
+    private readonly IMicrophone? microphone;
+    private readonly IVoicePlayer? player;
     private readonly Dictionary<DeviceId, ChatPersonViewModel> people = [];
+    private VoiceRecorder? recorder;
+    private IDisposable? recording;
+    private IDisposable? recordingTimer;
+    private (ChatBubbleViewModel Bubble, VoiceNotePlayer Note, IDisposable Output, DispatcherTimer Timer)? playing;
 
-    public ChatViewModel(ChatService chat, TrustStore trust, PeerDirectory directory)
+    public ChatViewModel(ChatService chat, TrustStore trust, PeerDirectory directory, IMicrophone? microphone = null, IVoicePlayer? player = null)
     {
         this.chat = chat;
         this.trust = trust;
         this.directory = directory;
+        this.microphone = microphone;
+        this.player = player;
         chat.Changed += (_, peer) => Dispatcher.UIThread.Post(() => _ = RefreshAsync(peer));
         trust.Changed += (_, _) => Dispatcher.UIThread.Post(() => _ = RefreshAsync(null));
         directory.Changed += (_, _) => Dispatcher.UIThread.Post(RefreshPresence);
@@ -59,7 +70,13 @@ public sealed partial class ChatViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SendCommand))]
+    [NotifyPropertyChangedFor(nameof(ShowsMicrophone), nameof(ShowsSend))]
     public partial string Draft { get; set; } = "";
+
+    /// <summary>Phone: an empty box has 🎤 (hold to record) where ➤ would be.</summary>
+    public bool ShowsMicrophone => HasMicrophone && string.IsNullOrWhiteSpace(Draft);
+
+    public bool ShowsSend => !ShowsMicrophone;
 
     /// <summary>Writing is possible: a contact whose version takes messages (or might).</summary>
     [ObservableProperty]
@@ -103,8 +120,160 @@ public sealed partial class ChatViewModel : ObservableObject
         _ = RefreshAsync(peer);
     }
 
+    /// <summary>Voice messages can be recorded here.</summary>
+    public bool HasMicrophone => microphone is not null;
+
+    /// <summary>Asked before recording, e.g. for Android's microphone permission; false: do not record (this time).</summary>
+    public Func<Task<bool>>? AllowRecording { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsComposing))]
+    public partial bool IsRecording { get; set; }
+
+    /// <summary>The box, not a recording, is at the bottom.</summary>
+    public bool IsComposing => !IsRecording;
+
+    /// <summary>"0:07" while recording.</summary>
+    [ObservableProperty]
+    public partial string RecordingText { get; set; } = "";
+
+    /// <summary>How loud the microphone is, 0 to 100.</summary>
+    [ObservableProperty]
+    public partial double RecordingLevel { get; set; }
+
+    /// <summary>The finger slid far enough to cancel (phone): letting go throws the recording away.</summary>
+    [ObservableProperty]
+    public partial bool WillCancel { get; set; }
+
     [RelayCommand]
     private void Close() => Current = null;
+
+    [RelayCommand]
+    private async Task RecordAsync() => await StartRecordingAsync();
+
+    [RelayCommand]
+    private Task SendRecordingAsync() => FinishRecordingAsync(send: true);
+
+    [RelayCommand]
+    private Task CancelRecordingAsync() => FinishRecordingAsync(send: false);
+
+    /// <returns>Whether the microphone is recording now.</returns>
+    public async Task<bool> StartRecordingAsync()
+    {
+        if (microphone is null || !CanWrite || IsRecording)
+        {
+            return false;
+        }
+
+        StopPlaying();
+        if (AllowRecording is { } allow && !await allow())
+        {
+            return false;
+        }
+
+        var next = new VoiceRecorder();
+        try
+        {
+            recording = microphone.Start(next.Add);
+        }
+        catch (InvalidOperationException ex)
+        {
+            Notice = L.F("Không mở được micrô: {0}", ex.Message);
+            return false;
+        }
+
+        recorder = next;
+        WillCancel = false;
+        RecordingText = Duration(0);
+        RecordingLevel = 0;
+        IsRecording = true;
+        recordingTimer = DispatcherTimer.Run(() =>
+        {
+            RecordingText = Duration(next.DurationMs);
+            RecordingLevel = 100 * Math.Sqrt(next.Level);
+            if (next.IsFull)
+            {
+                _ = FinishRecordingAsync(send: true);
+            }
+
+            return IsRecording;
+        }, TimeSpan.FromMilliseconds(100));
+        return true;
+    }
+
+    /// <summary>Stops recording; with <paramref name="send"/>, sends what was recorded, unless it is too short to mean anything.</summary>
+    public async Task FinishRecordingAsync(bool send)
+    {
+        if (!IsRecording || recorder is not { } done)
+        {
+            return;
+        }
+
+        recording?.Dispose();
+        recording = null;
+        recordingTimer?.Dispose();
+        recorder = null;
+        IsRecording = false;
+        WillCancel = false;
+        if (!send || Current is not { } person)
+        {
+            return;
+        }
+
+        VoiceNote note = done.Finish();
+        if (note.DurationMs < 500)
+        {
+            Notice = L.T("Tin nhắn thoại ngắn quá, chưa gửi.");
+            return;
+        }
+
+        await chat.SendVoiceAsync(person.Peer, note, CancellationToken.None);
+    }
+
+    /// <summary>▶ on a voice message: plays it, or stops it when it is the one playing.</summary>
+    internal void TogglePlay(ChatBubbleViewModel bubble)
+    {
+        bool same = playing?.Bubble == bubble;
+        StopPlaying();
+        if (same || player is null || IsRecording)
+        {
+            return;
+        }
+
+        VoiceNotePlayer? note = bubble.VoicePath is { } path && File.Exists(path) ? VoiceNotePlayer.Open(File.ReadAllBytes(path)) : null;
+        if (note is null)
+        {
+            Notice = L.T("Không mở được tin nhắn thoại này.");
+            return;
+        }
+
+        IDisposable output = player.Start(note.Read);
+        bubble.IsPlaying = true;
+        var timer = new DispatcherTimer(TimeSpan.FromMilliseconds(50), DispatcherPriority.Normal, (_, _) =>
+        {
+            bubble.Progress = Math.Min(1, (double)note.PositionMs / Math.Max(1, bubble.DurationMs));
+            if (note.HasEnded)
+            {
+                StopPlaying();
+            }
+        });
+        playing = (bubble, note, output, timer);
+        timer.Start();
+    }
+
+    private void StopPlaying()
+    {
+        if (playing is not { } now)
+        {
+            return;
+        }
+
+        playing = null;
+        now.Timer.Stop();
+        now.Output.Dispose();
+        now.Bubble.IsPlaying = false;
+        now.Bubble.Progress = 0;
+    }
 
     private bool CanSend() => CanWrite && !string.IsNullOrWhiteSpace(Draft);
 
@@ -132,6 +301,8 @@ public sealed partial class ChatViewModel : ObservableObject
 
     partial void OnCurrentChanged(ChatPersonViewModel? oldValue, ChatPersonViewModel? newValue)
     {
+        StopPlaying();
+        _ = FinishRecordingAsync(send: false);
         if (oldValue is not null)
         {
             oldValue.IsCurrent = false;
@@ -308,6 +479,9 @@ public sealed partial class ChatViewModel : ObservableObject
         : day == DateTime.Today.AddDays(-1) ? L.T("Hôm qua")
         : day.ToString("dd/MM/yyyy", L.Culture);
 
+    /// <summary>"0:07", "4:59".</summary>
+    internal static string Duration(int milliseconds) => $"{milliseconds / 60_000}:{milliseconds / 1000 % 60:00}";
+
     /// <summary>In the list: the time today, "Hôm qua", else the date.</summary>
     internal static string ShortTime(DateTimeOffset at)
     {
@@ -404,15 +578,50 @@ public sealed partial class ChatBubbleViewModel(string id, ChatViewModel owner) 
     /// <summary>A kind from a newer version: shown as a note, not as the sender's words.</summary>
     public bool IsUnknown { get; private set; }
 
+    /// <summary>A voice message: ▶, the waveform and how long it plays instead of text.</summary>
+    public bool IsVoice { get; private set; }
+
+    public bool IsText => !IsVoice;
+
+    public string? VoicePath { get; private set; }
+
+    public int DurationMs { get; private set; }
+
+    public string DurationText => ChatViewModel.Duration(DurationMs);
+
+    /// <summary>Heights of the waveform's bars, in pixels.</summary>
+    public IReadOnlyList<double> Bars { get; private set; } = [];
+
+    [ObservableProperty]
+    public partial bool IsPlaying { get; set; }
+
+    /// <summary>How far it has played, 0 to 1.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PlayedWidth))]
+    public partial double Progress { get; set; }
+
+    /// <summary>Width of the bars already played (<see cref="WaveWidth"/> in all).</summary>
+    public double PlayedWidth => Progress * WaveWidth;
+
+    /// <summary>48 bars, 2 pixels wide with 2 between.</summary>
+    public const double WaveWidth = (VoiceRecorder.WaveBars * 4) - 2;
+
     [RelayCommand]
     private Task RetryAsync() => owner.RetryAsync(this);
+
+    [RelayCommand]
+    private void Play() => owner.TogglePlay(this);
 
     /// <param name="lastMine">Our newest message: it says how far the peer got even when delivered or read.</param>
     internal ChatBubbleViewModel Update(ChatMessage message, string? dayText, bool lastMine)
     {
         IsMine = message.Outgoing;
-        IsUnknown = message.Kind != ChatKinds.Text;
+        IsVoice = message.Kind == ChatKinds.Voice;
+        IsUnknown = message.Kind is not (ChatKinds.Text or ChatKinds.Voice);
         Text = TextOf(message);
+        VoicePath = message.VoicePath;
+        DurationMs = message.DurationMs;
+        Bars = IsVoice ? [.. Enumerable.Range(0, VoiceRecorder.WaveBars).Select(i => 3 + (21.0 * (message.Wave is { } wave && i < wave.Length ? wave[i] : 0) / 255))] : [];
         DayText = dayText;
         IsFailed = message.State == ChatMessageState.Failed;
         string time = message.SentAt.ToLocalTime().ToString("HH:mm", L.Culture);
@@ -428,6 +637,11 @@ public sealed partial class ChatBubbleViewModel(string id, ChatViewModel owner) 
         return this;
     }
 
-    internal static string TextOf(ChatMessage message) =>
-        message.Kind == ChatKinds.Text ? message.Text ?? "" : L.T("Tin nhắn này cần bản Shorekeeper mới hơn.");
+    /// <summary>The words, or what stands for them in a list or a notification.</summary>
+    internal static string TextOf(ChatMessage message) => message.Kind switch
+    {
+        ChatKinds.Text => message.Text ?? "",
+        ChatKinds.Voice => L.F("Tin nhắn thoại {0}", ChatViewModel.Duration(message.DurationMs)),
+        _ => L.T("Tin nhắn này cần bản Shorekeeper mới hơn."),
+    };
 }

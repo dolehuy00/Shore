@@ -21,6 +21,10 @@ public partial class MainView : UserControl
 {
     private long lastRemeasure;
 
+    /// <summary>Where the finger went down on 🎤, and whether it is still there.</summary>
+    private Point micStart;
+    private bool micHeld;
+
     static MainView()
     {
         // An open ComboBox focuses its selected item, and on Android its drop-down lives in the same visual tree as the
@@ -103,6 +107,62 @@ public partial class MainView : UserControl
             (visual as Layoutable)?.InvalidateMeasure();
         }
     });
+
+    /// <summary>Slid this far left, letting go of 🎤 throws the recording away.</summary>
+    private const double CancelDistance = 90;
+
+    /// <summary>🎤 held down: recording starts, with the buzz a long press gives.</summary>
+    private async void OnMicPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (sender is not Control mic || DataContext is not MainViewModel main)
+        {
+            return;
+        }
+
+        e.Pointer.Capture(mic);
+        mic.Classes.Remove("released");
+        micStart = e.GetPosition(this);
+        micHeld = true;
+        if (await main.Chat.StartRecordingAsync())
+        {
+            MainActivity.Current?.Window?.DecorView.PerformHapticFeedback(FeedbackConstants.LongPress);
+            // Let go while the microphone was opening: a tap, not a recording.
+            if (!micHeld)
+            {
+                await main.Chat.FinishRecordingAsync(send: false);
+                main.Chat.Notice = L.T("Giữ nút micrô để ghi, thả tay để gửi.");
+            }
+        }
+    }
+
+    private void OnMicMoved(object? sender, PointerEventArgs e)
+    {
+        if (micHeld && DataContext is MainViewModel { Chat.IsRecording: true } main)
+        {
+            main.Chat.WillCancel = e.GetPosition(this).X - micStart.X < -CancelDistance;
+        }
+    }
+
+    private void OnMicReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        micHeld = false;
+        (sender as Control)?.Classes.Add("released");
+        if (DataContext is MainViewModel main)
+        {
+            _ = main.Chat.FinishRecordingAsync(send: !main.Chat.WillCancel);
+        }
+    }
+
+    /// <summary>The system took the finger away (a dialog, a gesture): nothing is sent.</summary>
+    private void OnMicLost(object? sender, PointerCaptureLostEventArgs e)
+    {
+        if (micHeld && DataContext is MainViewModel main)
+        {
+            micHeld = false;
+            (sender as Control)?.Classes.Add("released");
+            _ = main.Chat.FinishRecordingAsync(send: false);
+        }
+    }
 
     /// <summary>A finger on a card of Hộp nhận or Đã gửi: it starts sinking, as the long press it may become.</summary>
     private void OnCardPressed(object? sender, PointerPressedEventArgs e)

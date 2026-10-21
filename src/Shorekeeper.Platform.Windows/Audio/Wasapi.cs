@@ -14,6 +14,7 @@ internal static partial class Wasapi
 
     private const int ClsctxAll = 0x17;
     private const int Render = 0;
+    private const int Capture = 1;
     private const int Console = 0;
     private const uint DeviceStateActive = 1;
     private const int StgmRead = 0;
@@ -45,6 +46,15 @@ internal static partial class Wasapi
             ThrowIfFailed(enumerator.GetDefaultAudioEndpoint(Render, Console, out device));
         }
 
+        ThrowIfFailed(device.Activate(IidAudioClient, ClsctxAll, 0, out nint clientPointer));
+        return Wrap<IAudioClient>(wrappers, clientPointer);
+    }
+
+    /// <summary>The audio client of the default microphone; COM is initialised for the calling thread first.</summary>
+    /// <exception cref="COMException">There is no microphone.</exception>
+    public static IAudioClient OpenMicrophone(StrategyBasedComWrappers wrappers)
+    {
+        ThrowIfFailed(Enumerator(wrappers).GetDefaultAudioEndpoint(Capture, Console, out IMMDevice device));
         ThrowIfFailed(device.Activate(IidAudioClient, ClsctxAll, 0, out nint clientPointer));
         return Wrap<IAudioClient>(wrappers, clientPointer);
     }

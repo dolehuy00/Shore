@@ -1,6 +1,6 @@
 # 15 — Tin nhắn
 
-> Trạng thái: **C1, C2 xong** (2026-10-21: engine và giao diện văn bản trên máy tính, điện thoại), C3–C5 kế hoạch. Đã chốt (2026-10-21): hội thoại **1-1 trước**, nhóm sau; trên điện thoại **gộp Hộp nhận + Đã gửi** thành tab "File" để có chỗ cho tab "Tin nhắn"; file gửi qua lại giữa hai người **hiện thành thẻ** trong hội thoại.
+> Trạng thái: **C1, C2, C3 xong** (2026-10-21: văn bản và tin nhắn thoại trên máy tính, điện thoại), C4–C5 kế hoạch. Đã chốt (2026-10-21): hội thoại **1-1 trước**, nhóm sau; trên điện thoại **gộp Hộp nhận + Đã gửi** thành tab "File" để có chỗ cho tab "Tin nhắn"; file gửi qua lại giữa hai người **hiện thành thẻ** trong hội thoại.
 
 ## 1. Mục tiêu
 
@@ -43,12 +43,12 @@ Hiện dưới bong bóng, sau giờ gửi ("09:29 · Đã xem"): "Chờ gửi" 
 
 ## 3. Tin nhắn thoại
 
-- Ghi micro mono 48 kHz, Opus 24 kbps (Concentus, đã có), chứa trong **Ogg** để "Lưu file" ra mở được bằng app khác. 5 phút ≈ 0,9 MB.
-- Lúc ghi tính luôn **48 vạch sóng âm** (đỉnh mỗi đoạn, 0–255), gửi kèm tin để bên nhận vẽ bong bóng ngay.
+- Ghi micro (khung 10 ms 48 kHz stereo như `IAudioCapture`, trộn về mono), Opus "VoIP" 24 kbps, gói 20 ms (Concentus, đã có), chứa trong **Ogg** (RFC 7845, `OggOpus` tự viết trong Core: một luồng, trang tối đa 1 giây) để mở được bằng app khác. Khoảng 3 KB mỗi giây; 5 phút ≈ 0,9 MB. Tới 5 phút thì tự dừng và gửi.
+- Lúc ghi tính luôn **48 vạch sóng âm** (đỉnh mỗi đoạn, chia theo đỉnh lớn nhất, 0–255), gửi kèm tin để bên nhận vẽ bong bóng ngay. Dưới 0,5 giây thì không gửi ("ngắn quá").
 - Âm thanh đi **trong chính request gửi tin** (base64 trong JSON, dưới giới hạn 4 MB của `MiniHttpServer`), không tải riêng như file: người gửi tắt máy ngay sau khi gửi thì bên nhận vẫn đủ.
-- Lưu ở `data/chat/voice/{id}.ogg`; xóa tin thì xóa file.
-- Phát bằng `IAudioOutput` có sẵn trên cả hai nền tảng; một lúc chỉ phát một tin.
-- Thu micro: Android dùng lại phần thu micro của "Nguồn tiếng: Micro" (`AndroidAudioCapture`); Windows thêm thu WASAPI từ micro mặc định (hiện chỉ có loopback). Interface mới `IMicrophone` trong Core, tách khỏi `IAudioCapture` (âm thanh của máy).
+- Lưu ở `data/chat/voice/{id}.ogg` (cả tin gửi lẫn nhận; bên nhận ghi file trước rồi mới lưu tin); xóa tin thì xóa file (C4). File của tin chờ gửi mất thì tin đó thành lỗi.
+- Phát: `IVoicePlayer` trong Core. Windows dùng chính `WindowsAudioOutput` (loa mặc định); Android dùng một `AudioTrack` riêng (âm lượng media, nội dung "speech"), **không** dùng `IAudioOutput` vì cái đó bật service + thông báo "Đang nghe" và khi dừng sẽ tắt luôn "Nghe máy tính" đang chạy. Một lúc chỉ phát một tin; ghi âm hay đổi hội thoại thì dừng phát.
+- Thu micro: `IMicrophone` trong Core, tách khỏi `IAudioCapture` (âm thanh của máy). Android dùng lại phần thu micro của "Nguồn tiếng: Micro" (`AndroidAudioCapture`, có khử ồn nếu máy hỗ trợ); Windows dùng WASAPI từ micro mặc định (`LoopbackCapture` ở chế độ micro, Windows tự đổi sang 48 kHz stereo). Không có micro hay Windows chặn quyền micro thì báo lỗi trên ô soạn.
 
 ## 4. API
 
@@ -95,7 +95,8 @@ Migration `0006_chat.sql` ([09](09-data-storage.md)):
 - Trái: danh sách hội thoại (máy tính / điện thoại, chấm online, tên, dòng tin cuối, giờ, số chưa đọc; tin chưa đọc in đậm), mới nhất lên trên; sau đó các liên hệ chưa nhắn lần nào ("Chưa có tin nhắn"), theo tên, để bắt đầu nhắn ngay từ đây. Không có ô tìm riêng: liên hệ trong LAN thường ít, và đã có `Ctrl+K`.
 - Phải: luồng tin. Bong bóng của mình bên phải màu nhấn, của người kia bên trái; ngăn ngày ("Hôm nay", "Hôm qua", "20/10"); giờ + trạng thái dưới tin cuối mỗi cụm.
 - Phải: tên + trạng thái, bong bóng (của mình bên phải màu nhấn), ngăn ngày, ô soạn dưới cùng. Không viết được thì ô soạn khóa và nói vì sao (chưa kết nối, bản cũ); máy kia offline thì vẫn viết được, kèm dòng "tin nhắn sẽ được gửi khi máy online".
-- Ô soạn: Enter gửi, Shift+Enter xuống dòng. (C3: 🎤 bấm để ghi, bấm ➤ để gửi, ✕ để hủy. C4: 📎 chọn file, Ctrl+V file → offer cho người này.)
+- Ô soạn: Enter gửi, Shift+Enter xuống dòng. 🎤 bên trái ô soạn bấm để ghi; khi ghi, ô soạn thành [✕] ● 0:07 [mức âm] [➤]: ✕ hủy, ➤ gửi. (C4: 📎 chọn file, Ctrl+V file → offer cho người này.)
+- Bong bóng thoại: ▶/⏸ trên nền tròn, 48 vạch sóng (phần đã phát tô đậm), thời lượng.
 - Thẻ người ở Xóm thêm nút 💬 và mục **Nhắn tin** (liên hệ). Toast tin mới (trừ khi "Bận", hoặc đang mở đúng hội thoại đó và cửa sổ ở trước), bấm thì mở đúng hội thoại; tắt toast thì chỉ còn số chưa đọc trên "Tin nhắn".
 - Tin đọc khi trang Tin nhắn đang mở đúng hội thoại **và** cửa sổ đang ở trước (thu nhỏ, ở khay hay sau cửa sổ khác thì chưa).
 
@@ -104,7 +105,8 @@ Migration `0006_chat.sql` ([09](09-data-storage.md)):
 - Tab: **Xóm · File · Tin nhắn · Nhóm · Âm thanh · Cài đặt**. Tab **File** = Hộp nhận và Đã gửi gộp lại, công tắc **Nhận / Đã gửi** ở trên; chọn nhiều, xóa giữ như hiện tại.
 - Tab Tin nhắn (chấm đỏ khi có tin chưa đọc): danh sách như máy tính; chạm một người thì hội thoại thay chỗ danh sách, ← hoặc nút Back của Android quay lại danh sách.
 - Bàn phím hiện thì nội dung được đẩy lên trên nó (ô soạn ngay trên bàn phím) và thanh tab ẩn đi; app không tự co lại khi bàn phím mở (Avalonia `InputPane`).
-- (C3) 🎤 **giữ để ghi**, vuốt trái để hủy, thả tay để gửi (như Zalo/Messenger); rung nhẹ khi bắt đầu ghi.
+- Ô soạn trống thì nút tròn bên phải là 🎤 thay cho ➤: **giữ để ghi** (nút phồng lên, rung nhẹ), ô soạn thành "● 0:07 ‹ Vuốt sang trái để hủy"; vuốt trái quá ~90 dp thì nút đỏ "Thả tay để hủy"; thả tay để gửi. Chạm nhanh (thả trước khi micro mở) thì không ghi, nhắc "Giữ nút micrô để ghi". Lần đầu giữ thì Android hỏi quyền micrô; hộp thoại lấy mất ngón tay nên lần đó không ghi, cấp quyền xong giữ lại là được.
+- Chấm đỏ nhấp nháy chỉ gắn khi đang ghi: animation lặp mãi làm app vẽ lại liên tục, và trên điện thoại khiến bộ đếm tiến độ phát (`DispatcherTimer` ưu tiên Background) không bao giờ chạy.
 - Thông báo kiểu tin nhắn (`MessagingStyle`, kênh "Tin nhắn"), một thông báo mỗi người với tối đa 8 tin chưa đọc, có **Trả lời** ngay trên thông báo (`RemoteInput`) và **Đánh dấu đã đọc**; chạm thì mở đúng hội thoại. Trả lời là đã đọc: app gỡ thông báo. ColorOS vẫn giữ thẻ đã trả lời (kèm "Bạn: …" do Android thêm) trong khung thông báo tới khi vuốt bỏ, dù hệ thống đã gỡ nó.
 - Không có thông báo khi đang mở đúng hội thoại đó và app ở trước.
 - Widget: dòng trạng thái thêm "2 tin chưa đọc" (C4).
@@ -130,5 +132,6 @@ Offer chỉ gửi cho đúng người đó (hoặc người đó gửi cho mình
 | Hai máy không cùng online thì tin không tới | Hiện "Chờ gửi" rõ ràng; tin chờ gửi giữ mãi, không hết hạn |
 | Tin tới lúc app Android ở nền bị đo bố cục sai (cùng lỗi header cao 0, [14](14-android.md)) | Thấy lỗi đó thì đo lại cả màn hình, không chỉ header và tab |
 | Giờ hai máy lệch | Chỉ dùng để xếp; giờ nhận lưu riêng; thứ tự tin của một người không đổi |
-| Micro bị app khác giữ / chưa cấp quyền | Báo lỗi trong ô soạn, không gửi tin rỗng; Android xin quyền lần đầu bấm 🎤 |
+| Micro bị app khác giữ / chưa cấp quyền | Báo lỗi trong ô soạn, không gửi tin rỗng; Android xin quyền lần đầu giữ 🎤 |
+| Điện thoại thử nghiệm (OPPO, Android 13) tự khởi động lại (`kernel_panic`) hai lần trong lúc làm app, một lần ngay sau lần ghi âm đầu tiên | Không thấy lỗi nào của app trong log; chưa rõ nguyên nhân. Ghi lại thời điểm nếu gặp lại |
 | Gộp tab File làm đổi thói quen người dùng | Giữ nguyên nội dung và thao tác của hai danh sách, chỉ đổi chỗ vào |

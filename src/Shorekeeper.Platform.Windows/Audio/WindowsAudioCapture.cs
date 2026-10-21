@@ -33,3 +33,23 @@ public sealed class WindowsAudioCapture : IAudioCapture
         }
     }
 }
+
+/// <summary>The default microphone through WASAPI, for voice messages.</summary>
+public sealed class WindowsMicrophone : IMicrophone
+{
+    public IDisposable Start(AudioFrameHandler onFrame)
+    {
+        var capture = new LoopbackCapture(onFrame, microphone: true);
+        try
+        {
+            capture.Start();
+        }
+        catch
+        {
+            capture.Dispose();
+            throw;
+        }
+
+        return capture;
+    }
+}

@@ -10,6 +10,21 @@ public interface IAudioCapture
     IDisposable Start(AudioFrameHandler onFrame);
 }
 
+/// <summary>The microphone, for voice messages (docs/15-chat.md §3): 48 kHz stereo frames like <see cref="IAudioCapture"/>.</summary>
+public interface IMicrophone
+{
+    /// <summary>Starts recording; <paramref name="onFrame"/> runs on a capture thread until the result is disposed.</summary>
+    /// <exception cref="InvalidOperationException">There is no microphone, or it cannot be opened.</exception>
+    IDisposable Start(AudioFrameHandler onFrame);
+}
+
+/// <summary>Plays a voice message on the default output, with nothing else around it (no notification, unlike "Nghe").</summary>
+public interface IVoicePlayer
+{
+    /// <summary>Plays until the result is disposed, calling <paramref name="read"/> for each frame at the device's pace.</summary>
+    IDisposable Start(AudioFrameReader read);
+}
+
 /// <summary>Plays a computer's sound on this device, for "Nghe" (Android).</summary>
 public interface IAudioOutput
 {

@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using Shorekeeper.Core.Audio;
 using Shorekeeper.Core.Discovery;
 using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Chat;
@@ -161,6 +162,43 @@ public sealed class ChatTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_voice_message_arrives_whole_with_its_length_and_waveform()
+    {
+        VoiceNote note = Voice(seconds: 1);
+
+        ChatMessage sent = await a.Chat.SendVoiceAsync(b.Id, note, Ct);
+
+        await WaitUntil(() => b.Chat.GetMessagesAsync(a.Id, Ct).Result.Count == 1);
+        ChatMessage got = Assert.Single(await b.Chat.GetMessagesAsync(a.Id, Ct));
+        Assert.Equal((sent.Id, ChatKinds.Voice, 1000), (got.Id, got.Kind, got.DurationMs));
+        Assert.Equal(note.Wave, got.Wave);
+        Assert.Equal(note.Ogg, await File.ReadAllBytesAsync(got.VoicePath!, Ct));
+        Assert.Equal(note.Ogg, await File.ReadAllBytesAsync(sent.VoicePath!, Ct));
+        await WaitUntil(() => State(a, b, sent.Id) == ChatMessageState.Delivered);
+    }
+
+    [Theory]
+    [InlineData("no audio")]
+    [InlineData("not ogg")]
+    [InlineData("too long")]
+    [InlineData("too big")]
+    public async Task Malformed_voice_messages_are_refused(string fault)
+    {
+        VoiceNote note = Voice(seconds: 1);
+        var body = new ChatMessageBody(Guid.CreateVersion7().ToString("N"), DateTimeOffset.UtcNow, ChatKinds.Voice, null, note.DurationMs, note.Wave, note.Ogg);
+        body = fault switch
+        {
+            "no audio" => body with { Audio = null },
+            "not ogg" => body with { Audio = "RIFF....WAVE"u8.ToArray() },
+            "too long" => body with { DurationMs = VoiceRecorder.MaxDurationMs + 60_000 },
+            _ => body with { Audio = [.. "OggS"u8, .. new byte[ChatService.MaxVoiceBytes]] },
+        };
+
+        Assert.Equal(HttpStatusCode.BadRequest, await PostAsync(a, b, "chat/messages", body));
+        Assert.Empty(await b.Chat.GetMessagesAsync(a.Id, Ct));
+    }
+
+    [Fact]
     public void Presence_says_messages_are_taken()
     {
         PresencePacket packet = a.Get<LocalPresence>().CreatePacket(PresencePacketTypes.Announce);
@@ -169,6 +207,24 @@ public sealed class ChatTests : IAsyncLifetime
     }
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
+
+    /// <summary>A tone recorded as the microphone would deliver it.</summary>
+    private static VoiceNote Voice(int seconds)
+    {
+        var recorder = new VoiceRecorder();
+        float[] frame = new float[AudioStreamFormat.FrameValues];
+        for (int f = 0; f < seconds * 100; f++)
+        {
+            for (int i = 0; i < frame.Length; i++)
+            {
+                frame[i] = 0.3f * MathF.Sin((f * frame.Length + i) * 0.05f);
+            }
+
+            recorder.Add(frame);
+        }
+
+        return recorder.Finish();
+    }
 
     private static ChatMessageState? State(TestNode sender, TestNode peer, string id) =>
         sender.Chat.GetMessagesAsync(peer.Id, Ct).Result.SingleOrDefault(m => m.Id == id)?.State;

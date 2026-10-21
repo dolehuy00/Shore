@@ -4,6 +4,7 @@ using Dapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Shorekeeper.Core.Audio;
 using Shorekeeper.Core.Identity;
 using Shorekeeper.Core.Localization;
 using Shorekeeper.Engine.Api;
@@ -24,7 +25,10 @@ public enum ChatMessageState
 
 /// <param name="Kind">A <see cref="ChatKinds"/> value, or one from a newer version, which has no text.</param>
 /// <param name="SentAt">On the sender's clock (received ones never later than when they came): it orders the conversation.</param>
-public sealed record ChatMessage(DeviceId Peer, string Id, bool Outgoing, string Kind, string? Text, DateTimeOffset SentAt, ChatMessageState State);
+/// <param name="VoicePath">A voice message's Ogg Opus file; <paramref name="DurationMs"/> and <paramref name="Wave"/> come with it.</param>
+public sealed record ChatMessage(
+    DeviceId Peer, string Id, bool Outgoing, string Kind, string? Text, DateTimeOffset SentAt, ChatMessageState State,
+    int DurationMs = 0, byte[]? Wave = null, string? VoicePath = null);
 
 /// <summary>A conversation in the list: its newest message and how many from the peer are unread.</summary>
 public sealed record ChatConversation(DeviceId Peer, ChatMessage Last, int Unread);
@@ -36,12 +40,16 @@ public sealed record ChatConversation(DeviceId Peer, ChatMessage Last, int Unrea
 /// </summary>
 public sealed class ChatService(
     SqliteDatabase database,
+    AppPaths paths,
     PeerClient client,
     PeerDirectory directory,
     TimeProvider timeProvider,
     ILogger<ChatService> logger) : BackgroundService
 {
     public const int MaxTextLength = 4_000;
+
+    /// <summary>A voice message's file: five minutes at 24 kbps is under 1 MB.</summary>
+    public const int MaxVoiceBytes = 2 * 1024 * 1024;
 
     /// <summary>Messages a peer may send us each second.</summary>
     public const int MaxPerSecond = 20;
@@ -50,7 +58,7 @@ public sealed class ChatService(
     private static readonly TimeSpan RetryEvery = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(15);
 
-    private const string Columns = "PeerId, Id, Outgoing, Kind, Text, SentAt, State";
+    private const string Columns = "PeerId, Id, Outgoing, Kind, Text, SentAt, State, DurationMs, Wave, VoicePath";
 
     private readonly Lock gate = new();
     private readonly HashSet<DeviceId> sending = [];
@@ -84,6 +92,35 @@ public sealed class ChatService(
         await WriteAsync(
             "INSERT INTO ChatMessages (PeerId, Id, Outgoing, Kind, Text, SentAt, State) VALUES (@peer, @Id, 1, @Kind, @Text, @sentAt, 'pending');",
             new { peer = peer.Value, message.Id, message.Kind, message.Text, sentAt = now.ToUnixTimeMilliseconds() },
+            cancellationToken);
+
+        Changed?.Invoke(this, peer);
+        Kick(peer);
+        return message;
+    }
+
+    /// <summary>Stores a recorded voice message, then sends it like a text.</summary>
+    /// <exception cref="ArgumentException">Empty, too long, or not a voice message.</exception>
+    public async Task<ChatMessage> SendVoiceAsync(DeviceId peer, VoiceNote note, CancellationToken cancellationToken)
+    {
+        if (!IsVoice(note.Ogg, note.DurationMs, note.Wave))
+        {
+            throw new ArgumentException("Not a voice message that can be sent.", nameof(note));
+        }
+
+        DateTimeOffset now = timeProvider.GetUtcNow();
+        string id = Guid.CreateVersion7(now).ToString("N");
+        string path = VoicePath(id);
+        Directory.CreateDirectory(paths.ChatVoiceDirectory);
+        await File.WriteAllBytesAsync(path, note.Ogg, cancellationToken);
+        var message = new ChatMessage(
+            peer, id, true, ChatKinds.Voice, null, FromMs(now.ToUnixTimeMilliseconds()), ChatMessageState.Pending, note.DurationMs, note.Wave, path);
+        await WriteAsync(
+            """
+            INSERT INTO ChatMessages (PeerId, Id, Outgoing, Kind, SentAt, State, DurationMs, Wave, VoicePath)
+            VALUES (@peer, @Id, 1, @Kind, @sentAt, 'pending', @DurationMs, @Wave, @VoicePath);
+            """,
+            new { peer = peer.Value, message.Id, message.Kind, sentAt = now.ToUnixTimeMilliseconds(), message.DurationMs, message.Wave, message.VoicePath },
             cancellationToken);
 
         Changed?.Invoke(this, peer);
@@ -164,22 +201,35 @@ public sealed class ChatService(
         }
 
         string? text = body.Kind == ChatKinds.Text ? body.Text?.Trim() : null;
+        bool voice = body.Kind == ChatKinds.Voice;
         if (!Guid.TryParseExact(body.Id, "N", out Guid id)
             || body.Kind is not { Length: > 0 and <= 32 }
-            || (body.Kind == ChatKinds.Text && text is not { Length: > 0 and <= MaxTextLength }))
+            || (body.Kind == ChatKinds.Text && text is not { Length: > 0 and <= MaxTextLength })
+            || (voice && !IsVoice(body.Audio, body.DurationMs ?? 0, body.Wave)))
         {
             return PeerResponse.Problem(HttpStatusCode.BadRequest, ApiErrorCodes.InvalidRequest);
         }
 
         DateTimeOffset now = timeProvider.GetUtcNow();
         long sentAt = Math.Min(body.SentAt.ToUnixTimeMilliseconds(), now.ToUnixTimeMilliseconds());
-        var message = new ChatMessage(caller, id.ToString("N"), false, body.Kind, text, FromMs(sentAt), ChatMessageState.Unread);
+        string? path = null;
+        if (voice)
+        {
+            // Written before the row, so a stored voice message always has its file; a resent one writes the same bytes.
+            path = VoicePath(id.ToString("N"));
+            Directory.CreateDirectory(paths.ChatVoiceDirectory);
+            await File.WriteAllBytesAsync(path, body.Audio!);
+        }
+
+        var message = new ChatMessage(
+            caller, id.ToString("N"), false, body.Kind, text, FromMs(sentAt), ChatMessageState.Unread,
+            voice ? body.DurationMs!.Value : 0, voice ? body.Wave : null, path);
         int added = await WriteAsync(
             """
-            INSERT OR IGNORE INTO ChatMessages (PeerId, Id, Outgoing, Kind, Text, SentAt, ReceivedAt, State)
-            VALUES (@peer, @Id, 0, @Kind, @Text, @sentAt, @now, 'unread');
+            INSERT OR IGNORE INTO ChatMessages (PeerId, Id, Outgoing, Kind, Text, SentAt, ReceivedAt, State, DurationMs, Wave, VoicePath)
+            VALUES (@peer, @Id, 0, @Kind, @Text, @sentAt, @now, 'unread', @DurationMs, @Wave, @VoicePath);
             """,
-            new { peer = caller.Value, message.Id, message.Kind, message.Text, sentAt, now = now.ToUnixTimeMilliseconds() },
+            new { peer = caller.Value, message.Id, message.Kind, message.Text, sentAt, now = now.ToUnixTimeMilliseconds(), message.DurationMs, message.Wave, message.VoicePath },
             CancellationToken.None);
 
         // Already here: the sender did not hear our answer and sent it again.
@@ -316,7 +366,10 @@ public sealed class ChatService(
 
         foreach (MessageRow row in pending)
         {
-            bool? delivered = await PostAsync(peer, "chat/messages", new ChatMessageBody(row.Id, FromMs(row.SentAt), row.Kind, row.Text), cancellationToken);
+            byte[]? audio = row.VoicePath is { } path && File.Exists(path) ? await File.ReadAllBytesAsync(path, cancellationToken) : null;
+            var body = new ChatMessageBody(row.Id, FromMs(row.SentAt), row.Kind, row.Text, (int?)row.DurationMs, row.Wave, audio);
+            // The recording is gone (data folder cleaned): nothing to send.
+            bool? delivered = row.Kind == ChatKinds.Voice && audio is null ? false : await PostAsync(peer, "chat/messages", body, cancellationToken);
             if (delivered is null)
             {
                 return;
@@ -380,6 +433,14 @@ public sealed class ChatService(
         }
     }
 
+    /// <summary>An Ogg file of the right size, a length within the limit, a waveform of the right size.</summary>
+    private static bool IsVoice(byte[]? audio, int durationMs, byte[]? wave) =>
+        audio is { Length: > 4 and <= MaxVoiceBytes } && audio.AsSpan().StartsWith("OggS"u8)
+        && durationMs is > 0 and <= VoiceRecorder.MaxDurationMs + 1000
+        && wave is { Length: <= VoiceRecorder.WaveBars };
+
+    private string VoicePath(string id) => Path.Combine(paths.ChatVoiceDirectory, id + ".ogg");
+
     private async Task<int> WriteAsync(string sql, object parameters, CancellationToken cancellationToken)
     {
         await using SqliteConnection connection = await database.OpenAsync(cancellationToken);
@@ -404,8 +465,15 @@ public sealed class ChatService(
 
         public string State { get; init; } = "";
 
+        public long? DurationMs { get; init; }
+
+        public byte[]? Wave { get; init; }
+
+        public string? VoicePath { get; init; }
+
         public ChatMessage ToMessage() => new(
-            DeviceId.Parse(PeerId), Id, Outgoing != 0, Kind, Text, FromMs(SentAt), Enum.Parse<ChatMessageState>(State, ignoreCase: true));
+            DeviceId.Parse(PeerId), Id, Outgoing != 0, Kind, Text, FromMs(SentAt), Enum.Parse<ChatMessageState>(State, ignoreCase: true),
+            (int)(DurationMs ?? 0), Wave, VoicePath);
     }
 
     private sealed class ConversationRow : MessageRow

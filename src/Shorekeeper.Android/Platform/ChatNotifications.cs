@@ -18,7 +18,8 @@ namespace Shorekeeper.Android.Platform;
 internal static class ChatNotifications
 {
     private const string Channel = "messages";
-    private const int NotificationId = 3;
+    // Tagged with the peer, so it never meets the "Nghe" notification's 3; a number of its own all the same.
+    private const int NotificationId = 5;
 
     /// <summary>How many of the latest unread messages the notification lists.</summary>
     private const int MaxShown = 8;

@@ -39,6 +39,9 @@ public sealed class AppPaths
     /// <summary>Pictures copied as pictures (not files) and sent, saved as PNG to be offered (desktop).</summary>
     public string ClipboardDirectory => Path.Combine(DataDirectory, "clipboard");
 
+    /// <summary>Voice messages sent and received, one Ogg Opus file each (docs/15-chat.md §3).</summary>
+    public string ChatVoiceDirectory => Path.Combine(DataDirectory, "chat", "voice");
+
     public static AppPaths ForCurrentUser()
     {
         string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);

@@ -12,6 +12,7 @@
 ├── restore.pending                 ← bản sao lưu chờ áp dụng ở lần khởi động sau (mã hóa như khóa), M6b
 ├── identity.pfx.dpapi.replaced-*   ← khóa cũ, giữ lại sau khi khôi phục
 ├── snapshots\{offerId}\...         ← bản sao tạm; xóa khi offer đóng
+├── chat\voice\{id}.ogg              ← tin nhắn thoại gửi và nhận (docs/15-chat.md §3)
 └── logs\shorekeeper-YYYYMMDD.log
 
 %USERPROFILE%\Downloads\Shorekeeper\   ← file nhận được (vĩnh viễn, app không tự xóa)

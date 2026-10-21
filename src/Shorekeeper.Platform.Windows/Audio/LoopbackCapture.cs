@@ -8,9 +8,10 @@ namespace Shorekeeper.Platform.Windows.Audio;
 /// <summary>
 /// What the default speakers play, through WASAPI loopback, as 48 kHz stereo float in 10 ms frames. Windows converts
 /// from the device's own format. While nothing plays Windows delivers nothing, so silence is filled in on the clock:
-/// the receiver sees an unbroken stream.
+/// the receiver sees an unbroken stream. With <paramref name="microphone"/>, the default microphone instead (voice
+/// messages), which delivers all the time.
 /// </summary>
-public sealed partial class LoopbackCapture(AudioFrameHandler onFrame) : IDisposable
+public sealed partial class LoopbackCapture(AudioFrameHandler onFrame, bool microphone = false) : IDisposable
 {
     private const uint StreamFlagsLoopback = 0x0002_0000;
     private const uint BufferFlagsSilent = 0x2;
@@ -40,7 +41,7 @@ public sealed partial class LoopbackCapture(AudioFrameHandler onFrame) : IDispos
         ready.Wait();
         if (failure is not null)
         {
-            throw new InvalidOperationException($"Cannot capture the speakers: {failure.Message}", failure);
+            throw new InvalidOperationException($"Cannot capture the {(microphone ? "microphone" : "speakers")}: {failure.Message}", failure);
         }
     }
 
@@ -59,10 +60,11 @@ public sealed partial class LoopbackCapture(AudioFrameHandler onFrame) : IDispos
         try
         {
             var wrappers = new StrategyBasedComWrappers();
-            client = Wasapi.OpenSpeakers(wrappers);
+            client = microphone ? Wasapi.OpenMicrophone(wrappers) : Wasapi.OpenSpeakers(wrappers);
             format = Wasapi.FloatStereoFormat();
             Wasapi.ThrowIfFailed(client.Initialize(
-                Wasapi.SharedMode, StreamFlagsLoopback | Wasapi.StreamFlagsAutoConvertPcm | Wasapi.StreamFlagsSrcDefaultQuality, BufferDuration, 0, format, 0));
+                Wasapi.SharedMode, (microphone ? 0 : StreamFlagsLoopback) | Wasapi.StreamFlagsAutoConvertPcm | Wasapi.StreamFlagsSrcDefaultQuality,
+                BufferDuration, 0, format, 0));
             var capture = Wasapi.Service<IAudioCaptureClient>(wrappers, client, IidCaptureClient);
             timer = CreateWaitableTimerExW(0, 0, TimerHighResolution, TimerAllAccess);
             Wasapi.ThrowIfFailed(client.Start());
@@ -110,7 +112,7 @@ public sealed partial class LoopbackCapture(AudioFrameHandler onFrame) : IDispos
             {
                 lastData = silentUntil = now;
             }
-            else if (now - lastData > gap)
+            else if (!microphone && now - lastData > gap)
             {
                 // Nothing plays: keep the stream going with silence, at the clock's pace.
                 int samples = (int)((now - silentUntil) * AudioStreamFormat.SampleRate / Stopwatch.Frequency);
