@@ -142,7 +142,7 @@ Chuột phải (điện thoại: nhấn giữ; thả tay ra không tính là ch�
 | **C2** Giao diện văn bản | Trang Tin nhắn (PC), tab File + tab Tin nhắn (điện thoại), chưa đọc, nút ở Xóm, toast, thông báo có Trả lời | Nhắn qua lại thật PC ↔ điện thoại, offline rồi online |
 | **C3** Tin nhắn thoại | `IMicrophone` (WASAPI micro, Android micro), ghi Ogg Opus + sóng âm, gửi kèm tin, bong bóng phát | Test mã hóa ↔ giải mã Ogg; ghi và nghe thật trên cả hai máy |
 | **C4** Hoàn thiện ✅ | Thẻ file trong hội thoại, xóa tin (menu chuột phải / nhấn giữ, chọn nhiều) và hội thoại (⋮), chép chữ, link bấm được, Thống kê, widget; sau đó gửi file ngay trong hội thoại, ảnh hiện thẳng, thu hồi tin và file | Test engine (xóa, đếm, thu hồi, tự tải ảnh) + thử trên máy thật |
-| **C5** Chat nhóm | Hội thoại theo Nhóm: gửi tỏa ra từng thành viên, ai offline nhận sau, đã xem theo từng người | Kế hoạch riêng khi tới |
+| **C5** Chat nhóm | Hội thoại theo Nhóm: gửi tỏa ra từng thành viên, ai offline nhận sau, đã xem theo từng người | Kế hoạch ở [16](16-group-chat.md) |
 
 ## 8. Rủi ro
 

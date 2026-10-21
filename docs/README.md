@@ -33,6 +33,7 @@
 | 13 | [Tích hợp Active Directory](13-active-directory.md) | Tùy chọn, nếu công ty có AD |
 | 14 | [Bản Android](14-android.md) | Kế hoạch: ràng buộc nền tảng, kiến trúc, giai đoạn A0 → A6 |
 | 15 | [Tin nhắn](15-chat.md) | Hội thoại 1-1, văn bản và tin nhắn thoại, giai đoạn C1 → C5 |
+| 16 | [Chat nhóm](16-group-chat.md) | Kế hoạch C5: hội thoại theo Nhóm, gửi tới từng thành viên, đã xem theo người |
 | — | [Quyết định kiến trúc (ADR)](decisions.md) | Nhật ký quyết định & lý do |
 | — | [Câu hỏi mở](open-questions.md) | Những điểm cần chốt thêm |
 
