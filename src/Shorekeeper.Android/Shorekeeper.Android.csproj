@@ -48,6 +48,7 @@
     <Compile Include="..\Shorekeeper.Desktop\ViewModels\AudioViewModel.cs" Link="ViewModels\AudioViewModel.cs" />
     <Compile Include="..\Shorekeeper.Desktop\ViewModels\StatsViewModel.cs" Link="ViewModels\StatsViewModel.cs" />
     <Compile Include="..\Shorekeeper.Desktop\ViewModels\ChatViewModel.cs" Link="ViewModels\ChatViewModel.cs" />
+    <Compile Include="..\Shorekeeper.Desktop\Views\ChatScroll.cs" Link="Views\ChatScroll.cs" />
     <Compile Include="..\Shorekeeper.Desktop\Localization\TExtension.cs" Link="Localization\TExtension.cs" />
     <Compile Include="..\Shorekeeper.Desktop\Localization\LanguageChoice.cs" Link="Localization\LanguageChoice.cs" />
   </ItemGroup>

@@ -13,6 +13,7 @@ using Shorekeeper.Android.Platform;
 using Shorekeeper.Android.ViewModels;
 using Shorekeeper.Core.Localization;
 using Shorekeeper.Desktop.ViewModels;
+using Shorekeeper.Desktop.Views;
 using Button = Avalonia.Controls.Button;
 using FeedbackConstants = Android.Views.FeedbackConstants;
 
@@ -51,8 +52,8 @@ public partial class MainView : UserControl
         {
             if (DataContext is MainViewModel main)
             {
-                // After the new bubbles are laid out, so the end is where they are.
-                main.Chat.ScrollToEndRequested += (_, _) => Dispatcher.UIThread.Post(() => ChatScroller.ScrollToEnd(), DispatcherPriority.Loaded);
+                var chatScroll = new ChatScroll(ChatScroller);
+                main.Chat.ScrollToEndRequested += (_, _) => chatScroll.ToEnd();
                 // 📎 in a conversation: the same picker as "Gửi file…" on a card.
                 main.Chat.PickFiles = () => PickAsync(L.F("Gửi cho {0}", main.Chat.Current?.Name), allowMultiple: true);
             }

@@ -59,8 +59,8 @@ public partial class MainWindow : Window
             if (DataContext is MainWindowViewModel main)
             {
                 main.RevealRequested += (_, item) => Dispatcher.UIThread.Post(() => Reveal(item), DispatcherPriority.Loaded);
-                // After the new bubbles are laid out, so the end is where they are.
-                main.Chat.ScrollToEndRequested += (_, _) => Dispatcher.UIThread.Post(() => ChatScroller.ScrollToEnd(), DispatcherPriority.Loaded);
+                var chatScroll = new ChatScroll(ChatScroller);
+                main.Chat.ScrollToEndRequested += (_, _) => chatScroll.ToEnd();
                 // Pages share the scroller: a new page starts at its top, not where the last one was left.
                 main.PropertyChanged += (_, e) =>
                 {
