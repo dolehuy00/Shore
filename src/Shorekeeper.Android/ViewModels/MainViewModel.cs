@@ -100,7 +100,7 @@ public sealed partial class MainViewModel : ObservableObject
                 FilesShowSent = !received;
                 SelectedTab = 1;
             },
-            SendFiles = (peer, locations) => SendAsync(locations, [(peer, null)], showSent: false),
+            SendFiles = (recipients, groupId, locations) => SendAsync(locations, [.. recipients.Select(r => (r, groupId))], showSent: false),
         };
         OfferSelection = new ListSelection(() => Offers, () => RemoveCheckedOffers(deleteFiles: false), () => RemoveCheckedOffers(deleteFiles: true));
         SentSelection = new ListSelection(() => Sent, RemoveCheckedSent);

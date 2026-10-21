@@ -801,6 +801,8 @@
                             <MenuItem Header="Xem" Command="{Binding ShowCommand}" />
                           </ContextMenu>
                         </Border.ContextMenu>
+                        <StackPanel Spacing="4">
+                        <TextBlock Text="{Binding AuthorName}" Foreground="{Binding AuthorBrush}" IsVisible="{Binding ShowsAuthor}" FontSize="12" FontWeight="SemiBold" />
                         <Panel>
                         <!-- Taken back by its sender: a note, as for a message. -->
                         <StackPanel IsVisible="{Binding IsRecalled}" Spacing="2">
@@ -866,6 +868,7 @@
                           </StackPanel>
                         </Grid>
                         </Panel>
+                        </StackPanel>
                       </Border>
                     </StackPanel>
                   </DataTemplate>

@@ -123,14 +123,22 @@ public sealed partial class ChatViewModel : ObservableObject
     /// <summary>The system's file picker for 📎 (set by the window); empty when nothing was picked.</summary>
     public Func<Task<IReadOnlyList<string>>>? PickFiles { get; set; }
 
-    /// <summary>Sends files or folders to a contact as one offer (set by the window); a problem to show, or null.</summary>
-    public Func<DeviceId, IReadOnlyList<string>, Task<string?>>? SendFiles { get; set; }
+    /// <summary>
+    /// Sends files or folders as one offer to these people, through the group when one is given (set by the window); a
+    /// problem to show, or null.
+    /// </summary>
+    public Func<IReadOnlyList<DeviceId>, string?, IReadOnlyList<string>, Task<string?>>? SendFiles { get; set; }
 
     /// <summary>
-    /// Files can go to the open conversation's person: a contact. Unlike messages this does not need a version with
-    /// chat, as files always went.
+    /// Files can go to the open conversation: a contact, or the group's other members (docs/16-group-chat.md §6.3).
+    /// Unlike messages this does not need a version with chat, as files always went.
     /// </summary>
-    public bool CanAttach => Current is { IsGroup: false } person && SendFiles is not null && trust.GetLevel(person.Peer) == TrustLevel.Trusted;
+    public bool CanAttach => SendFiles is not null && Current switch
+    {
+        { GroupId: { } groupId } => groupChat.OthersIn(groupId) is { Count: > 0 },
+        { } person => trust.GetLevel(person.Peer) == TrustLevel.Trusted,
+        _ => false,
+    };
 
     /// <summary>Files are being dragged over the conversation (desktop).</summary>
     [ObservableProperty]
@@ -146,10 +154,16 @@ public sealed partial class ChatViewModel : ObservableObject
         }
     }
 
-    /// <summary>Files dropped or pasted into the conversation, or picked with 📎.</summary>
+    /// <summary>Files dropped or pasted into the conversation, or picked with 📎: to the person, or to every other member.</summary>
     public async Task AttachAsync(IReadOnlyList<string> paths)
     {
-        if (CanAttach && Current is { } person && paths.Count > 0 && await SendFiles!(person.Peer, paths) is { } problem)
+        if (!CanAttach || Current is not { } row || paths.Count == 0)
+        {
+            return;
+        }
+
+        IReadOnlyList<DeviceId> to = row.GroupId is { } groupId ? [.. groupChat.OthersIn(groupId)!.Select(m => m.DeviceId)] : [row.Peer];
+        if (await SendFiles!(to, row.GroupId, paths) is { } problem)
         {
             Notice = problem;
         }
@@ -473,6 +487,7 @@ public sealed partial class ChatViewModel : ObservableObject
         Dictionary<DeviceId, ChatLastFile> files = LastFiles(await chat.GetClearedAsync(CancellationToken.None));
         bool withGroups = ShowsGroups && settings.Current.GroupsEnabled;
         IReadOnlyList<GroupChatConversation> groupConversations = withGroups ? await groupChat.GetConversationsAsync(CancellationToken.None) : [];
+        Dictionary<string, ChatLastFile> groupFiles = withGroups ? LastGroupFiles(await groupChat.GetClearedAsync(CancellationToken.None)) : [];
         muted = withGroups ? await groupChat.GetMutedAsync(CancellationToken.None) : new HashSet<string>();
         List<ChatPersonViewModel> ordered =
         [
@@ -481,7 +496,13 @@ public sealed partial class ChatViewModel : ObservableObject
                 .Select(x => (
                     At: x.File is { } file && (x.Conversation is null || file.At > x.Conversation.Last.SentAt) ? file.At : x.Conversation!.Last.SentAt,
                     Row: Person(x.Peer).Update(x.Conversation, x.File)))
-                .Concat(groupConversations.Select(c => (At: c.Last.SentAt, Row: GroupRow(c.GroupId).Update(c, AuthorOf(c.GroupId, c.Last), muted.Contains(c.GroupId)))))
+                .Concat(groupConversations.Select(c => c.GroupId).Union(groupFiles.Keys.Where(g => groups.Get(g) is not null))
+                    .Select(g => (Group: g, Conversation: groupConversations.FirstOrDefault(c => c.GroupId == g), File: groupFiles.GetValueOrDefault(g)))
+                    .Select(x => (
+                        At: x.File is { } file && (x.Conversation is null || file.At > x.Conversation.Last.SentAt) ? file.At : x.Conversation!.Last.SentAt,
+                        Row: GroupRow(x.Group).Update(
+                            x.Conversation, x.Conversation is { } c ? AuthorOf(x.Group, c.Last) : null, muted.Contains(x.Group),
+                            x.File, x.File is { Outgoing: false, Author: { } sender } ? NameOf(x.Group, sender, sender.ShortForm) : L.T("Bạn")))))
                 .OrderByDescending(x => x.At)
                 .Select(x => x.Row),
         ];
@@ -540,7 +561,7 @@ public sealed partial class ChatViewModel : ObservableObject
                 .Where(o => o.GroupId is null && o.Recipients.Any(r => r.DeviceId == person.Peer) && After(cleared, person.Peer, o.CreatedAt))
                 .Select(o => (o.CreatedAt, "sent:" + o.OfferId, (object)o)),
             .. inbox.GetOffers()
-                .Where(o => o.SenderId == person.Peer && After(cleared, person.Peer, o.ReceivedAt))
+                .Where(o => o.SenderId == person.Peer && o.GroupId is null && After(cleared, person.Peer, o.ReceivedAt))
                 .Select(o => (o.SentAt, "received:" + o.OfferId, (object)o)),
         ];
         entries.Sort((x, y) => x.At != y.At ? x.At.CompareTo(y.At) : string.CompareOrdinal(x.Id, y.Id));
@@ -567,18 +588,8 @@ public sealed partial class ChatViewModel : ObservableObject
                 case (ChatBubbleViewModel bubble, ChatMessage message):
                     bubble.Update(message, message.Id == lastMine);
                     break;
-                case (ChatFileViewModel card, SentOffer sent):
-                    card.Update(sent, person.Peer);
-                    // Only offers of pictures and nothing else show as pictures; by their names, as an Android source
-                    // (content://…/document/msf:1234) need not have one.
-                    card.ShowPictures(!sent.Recalled && sent.Sources is { Count: > 0 } sources && sent.Paths.Count > 0 && sent.Paths.All(StorageReport.IsPicture) ? sources : []);
-                    break;
-                case (ChatFileViewModel card, ReceivedOffer received):
-                    card.Update(received, person.IsOnline);
-                    card.ShowPictures(
-                        !received.Recalled && received.Files.Count > 0 && received.Files.All(f => !f.IsDirectory && StorageReport.IsPicture(f.RelativePath))
-                            ? [.. received.Files.Where(f => f.State == InboxFileState.Completed && f.FinalPath is not null && File.Exists(f.FinalPath)).Select(f => f.FinalPath!)]
-                            : []);
+                case (ChatFileViewModel card, _):
+                    ShowCard(card, entries[i].Source, person.Peer, person.IsOnline);
                     break;
             }
 
@@ -606,39 +617,69 @@ public sealed partial class ChatViewModel : ObservableObject
     }
 
     /// <summary>
-    /// A group conversation (docs/16-group-chat.md §6.1): each member's messages under their name, and how far our newest
-    /// one got among the members ("Đã nhận 4/7", "Đã xem 3/7").
+    /// A group conversation (docs/16-group-chat.md §6.1): each member's messages under their name, how far our newest one
+    /// got among the members ("Đã nhận 4/7", "Đã xem 3/7"), and the files sent through the group as cards (§6.3).
     /// </summary>
     private async Task RefreshGroupMessagesAsync(ChatPersonViewModel row, string groupId)
     {
         IReadOnlyList<GroupChatMessage> messages = await groupChat.GetMessagesAsync(groupId, CancellationToken.None);
         GroupChatMessage? lastMine = messages.LastOrDefault(m => m.Outgoing);
         IReadOnlyList<GroupDelivery> reached = lastMine is null ? [] : await groupChat.GetDeliveriesAsync(groupId, lastMine.Id, CancellationToken.None);
+        DateTimeOffset? clearedAt = (await groupChat.GetClearedAsync(CancellationToken.None)).TryGetValue(groupId, out DateTimeOffset at) ? at : null;
         if (Current != row)
         {
             return;
         }
 
-        // Unless the order changed, only states change and messages are added.
-        bool prefix = Messages.Count <= messages.Count && Messages.Select(b => b.Id).SequenceEqual(messages.Take(Messages.Count).Select(m => m.Id));
+        // Messages and file cards by time, each with who wrote it ("" for us); offer ids never look like message ids.
+        List<(DateTimeOffset At, string Id, string Author, object Source)> entries =
+        [
+            .. messages.Select(m => (m.SentAt, m.Id, m.Outgoing ? "" : m.Author.Value, (object)m)),
+            .. offers.GetOffers()
+                .Where(o => o.GroupId == groupId && (clearedAt is null || o.CreatedAt > clearedAt))
+                .Select(o => (o.CreatedAt, "sent:" + o.OfferId, "", (object)o)),
+            .. inbox.GetOffers()
+                .Where(o => o.GroupId == groupId && (clearedAt is null || o.ReceivedAt > clearedAt))
+                .Select(o => (o.SentAt, "received:" + o.OfferId, o.SenderId.Value, (object)o)),
+        ];
+        entries.Sort((x, y) => x.At != y.At ? x.At.CompareTo(y.At) : string.CompareOrdinal(x.Id, y.Id));
+
+        // Unless the order changed, only states change and entries are added.
+        bool prefix = Messages.Count <= entries.Count && Messages.Select(b => b.Id).SequenceEqual(entries.Take(Messages.Count).Select(e => e.Id));
         if (!prefix)
         {
             Messages.Clear();
         }
 
-        int added = messages.Count - Messages.Count;
-        for (int i = 0; i < messages.Count; i++)
+        int added = entries.Count - Messages.Count;
+        Dictionary<DeviceId, PeerInfo> live = directory.Snapshot().ToDictionary(p => p.DeviceId);
+        for (int i = 0; i < entries.Count; i++)
         {
-            GroupChatMessage message = messages[i];
-            DateTime day = message.SentAt.ToLocalTime().Date;
-            bool newDay = i == 0 || messages[i - 1].SentAt.ToLocalTime().Date != day;
-            ChatBubbleViewModel bubble = i < Messages.Count ? (ChatBubbleViewModel)Messages[i] : new ChatBubbleViewModel(message.Id, this);
-            bubble.DayText = newDay ? DayText(day) : null;
-            // The name over the first of each run of one member's messages.
-            bubble.Update(message, AuthorOf(groupId, message), newDay || messages[i - 1].Author != message.Author, message == lastMine ? reached : null);
+            DateTime day = entries[i].At.ToLocalTime().Date;
+            bool newDay = i == 0 || entries[i - 1].At.ToLocalTime().Date != day;
+            ChatEntryViewModel entry = i < Messages.Count ? Messages[i] : entries[i].Source is GroupChatMessage
+                ? new ChatBubbleViewModel(entries[i].Id, this)
+                : new ChatFileViewModel(entries[i].Id, this);
+            entry.DayText = newDay ? DayText(day) : null;
+            switch (entry, entries[i].Source)
+            {
+                case (ChatBubbleViewModel bubble, GroupChatMessage message):
+                    // The name over the first of each run of one member's messages.
+                    bool first = newDay || entries[i - 1].Author != entries[i].Author || entries[i - 1].Source is not GroupChatMessage;
+                    bubble.Update(message, AuthorOf(groupId, message), first, message == lastMine ? reached : null);
+                    break;
+                case (ChatFileViewModel card, ReceivedOffer received):
+                    ShowCard(card, received, null, live.GetValueOrDefault(received.SenderId) is { State: PeerState.Online });
+                    card.ShowAuthor(NameOf(groupId, received.SenderId, received.SenderId.ShortForm), received.SenderId);
+                    break;
+                case (ChatFileViewModel card, SentOffer sent):
+                    ShowCard(card, sent, null, false);
+                    break;
+            }
+
             if (i >= Messages.Count)
             {
-                Messages.Add(bubble);
+                Messages.Add(entry);
             }
         }
 
@@ -656,6 +697,29 @@ public sealed partial class ChatViewModel : ObservableObject
         if (IsShown && messages.Any(m => m.State == ChatMessageState.Unread))
         {
             await groupChat.MarkReadAsync(groupId, CancellationToken.None);
+        }
+    }
+
+    /// <summary>
+    /// A file card from its offer: ours to <paramref name="peer"/> (to each member of the group when null), or received.
+    /// Only offers of pictures and nothing else show as pictures; by their names, as an Android source
+    /// (content://…/document/msf:1234) need not have one.
+    /// </summary>
+    private static void ShowCard(ChatFileViewModel card, object offer, DeviceId? peer, bool senderOnline)
+    {
+        switch (offer)
+        {
+            case SentOffer sent:
+                card.Update(sent, peer);
+                card.ShowPictures(!sent.Recalled && sent.Sources is { Count: > 0 } sources && sent.Paths.Count > 0 && sent.Paths.All(StorageReport.IsPicture) ? sources : []);
+                break;
+            case ReceivedOffer received:
+                card.Update(received, senderOnline);
+                card.ShowPictures(
+                    !received.Recalled && received.Files.Count > 0 && received.Files.All(f => !f.IsDirectory && StorageReport.IsPicture(f.RelativePath))
+                        ? [.. received.Files.Where(f => f.State == InboxFileState.Completed && f.FinalPath is not null && File.Exists(f.FinalPath)).Select(f => f.FinalPath!)]
+                        : []);
+                break;
         }
     }
 
@@ -788,7 +852,7 @@ public sealed partial class ChatViewModel : ObservableObject
             }
         }
 
-        foreach (ReceivedOffer received in inbox.GetOffers().Where(o => After(cleared, o.SenderId, o.ReceivedAt)))
+        foreach (ReceivedOffer received in inbox.GetOffers().Where(o => o.GroupId is null && After(cleared, o.SenderId, o.ReceivedAt)))
         {
             string[] paths = [.. received.Files.Select(f => f.RelativePath)];
             bool pictures = received.Files.Count > 0 && received.Files.All(f => !f.IsDirectory && StorageReport.IsPicture(f.RelativePath));
@@ -803,6 +867,37 @@ public sealed partial class ChatViewModel : ObservableObject
             if (trust.Get(peer) is { TrustLevel: TrustLevel.Trusted } && (!last.TryGetValue(peer, out ChatLastFile? newest) || file.At > newest.At))
             {
                 last[peer] = file;
+            }
+        }
+    }
+
+    /// <summary>The newest offer in each group's conversation, and who sent it, as its card shows there.</summary>
+    private Dictionary<string, ChatLastFile> LastGroupFiles(IReadOnlyDictionary<string, DateTimeOffset> cleared)
+    {
+        Dictionary<string, ChatLastFile> last = [];
+        foreach (SentOffer sent in offers.GetOffers().Where(o => o.GroupId is { } g && Shown(g, o.CreatedAt)))
+        {
+            bool pictures = sent.Paths.Count > 0 && sent.Paths.All(StorageReport.IsPicture);
+            Keep(sent.GroupId!, new ChatLastFile(sent.CreatedAt, true, sent.Recalled ? RecalledText(pictures) : FileText(sent.Note, sent.Paths, pictures)));
+        }
+
+        foreach (ReceivedOffer received in inbox.GetOffers().Where(o => o.GroupId is { } g && Shown(g, o.ReceivedAt)))
+        {
+            string[] paths = [.. received.Files.Select(f => f.RelativePath)];
+            bool pictures = received.Files.Count > 0 && received.Files.All(f => !f.IsDirectory && StorageReport.IsPicture(f.RelativePath));
+            Keep(received.GroupId!, new ChatLastFile(
+                received.SentAt, false, received.Recalled ? RecalledText(pictures) : FileText(received.Note, paths, pictures), received.SenderId));
+        }
+
+        return last;
+
+        bool Shown(string groupId, DateTimeOffset at) => !cleared.TryGetValue(groupId, out DateTimeOffset clearedAt) || at > clearedAt;
+
+        void Keep(string groupId, ChatLastFile file)
+        {
+            if (!last.TryGetValue(groupId, out ChatLastFile? newest) || file.At > newest.At)
+            {
+                last[groupId] = file;
             }
         }
     }
@@ -1010,7 +1105,11 @@ public sealed partial class ChatViewModel : ObservableObject
     /// <summary>"Thu hồi" on a file card we sent: a note on both sides, and pictures that downloaded by themselves go.</summary>
     internal async Task RecallFileAsync(string offerId)
     {
-        if (Current is { } person)
+        if (Current is { GroupId: { } groupId })
+        {
+            await groupChat.RecallOfferAsync(groupId, offerId, CancellationToken.None);
+        }
+        else if (Current is { } person)
         {
             await chat.RecallOfferAsync(person.Peer, offerId, CancellationToken.None);
         }
@@ -1246,13 +1345,22 @@ public sealed partial class ChatPersonViewModel : ObservableObject
     }
 
     /// <param name="author">"Bạn", or the member who wrote the last message.</param>
-    internal ChatPersonViewModel Update(GroupChatConversation? conversation, string? author, bool muted)
+    /// <param name="file">The group's newest offer; it shows when newer than the last message, under <paramref name="fileAuthor"/>.</param>
+    internal ChatPersonViewModel Update(
+        GroupChatConversation? conversation, string? author, bool muted, ChatLastFile? file = null, string? fileAuthor = null)
     {
         IsMuted = muted;
         Unread = conversation?.Unread ?? 0;
         if (conversation is not null)
         {
             Name = conversation.Name;
+        }
+
+        if (file is not null && (conversation is null || file.At > conversation.Last.SentAt))
+        {
+            TimeText = ChatViewModel.ShortTime(file.At);
+            Preview = L.F("{0}: {1}", fileAuthor, TransferText.Preview(file.Text));
+            return this;
         }
 
         TimeText = conversation is null ? "" : ChatViewModel.ShortTime(conversation.Last.SentAt);
@@ -1351,6 +1459,10 @@ public sealed partial class ChatBubbleViewModel(string id, ChatViewModel owner) 
 
     [RelayCommand]
     private Task ShowDetailsAsync() => owner.ShowDetailsAsync(this);
+
+    /// <summary>A member's color, the same on every device: from their DeviceId.</summary>
+    internal static IBrush BrushOf(DeviceId member) =>
+        AuthorBrushes[(int)((uint)member.Value.Aggregate(17, (h, c) => (h * 31) + c) % AuthorBrushes.Length)];
 
     private static readonly IBrush[] AuthorBrushes =
     [
@@ -1464,7 +1576,7 @@ public sealed partial class ChatBubbleViewModel(string id, ChatViewModel owner) 
         IsInGroup = true;
         AuthorName = author;
         AuthorInitial = author.Length > 0 ? author[..1].ToUpper(L.Culture) : "?";
-        AuthorBrush = AuthorBrushes[(int)((uint)message.Author.Value.Aggregate(17, (h, c) => (h * 31) + c) % AuthorBrushes.Length)];
+        AuthorBrush = BrushOf(message.Author);
         ShowsAuthor = !message.Outgoing && first;
         string? state = !message.Outgoing || message.Kind == ChatKinds.Recalled ? null
             : message.State == ChatMessageState.Pending ? L.T("Chờ gửi")
@@ -1687,6 +1799,23 @@ public sealed partial class ChatFileViewModel(string id, ChatViewModel owner) : 
     [ObservableProperty]
     public partial bool IsMine { get; set; }
 
+    /// <summary>In a group's conversation: who sent it, above it, in their color.</summary>
+    [ObservableProperty]
+    public partial bool ShowsAuthor { get; set; }
+
+    [ObservableProperty]
+    public partial string AuthorName { get; set; } = "";
+
+    [ObservableProperty]
+    public partial IBrush? AuthorBrush { get; set; }
+
+    internal void ShowAuthor(string name, DeviceId sender)
+    {
+        AuthorName = name;
+        AuthorBrush = ChatBubbleViewModel.BrushOf(sender);
+        ShowsAuthor = true;
+    }
+
     /// <summary>"app.zip + 2 mục", or the words of "Gửi văn bản".</summary>
     [ObservableProperty]
     public partial string Title { get; set; } = "";
@@ -1719,7 +1848,8 @@ public sealed partial class ChatFileViewModel(string id, ChatViewModel owner) : 
     [RelayCommand]
     private void Show() => owner.ShowFiles?.Invoke(!IsMine);
 
-    internal void Update(SentOffer offer, DeviceId peer)
+    /// <param name="peer">The person it is shown with; null in a group's conversation, where it went to several.</param>
+    internal void Update(SentOffer offer, DeviceId? peer)
     {
         IsMine = true;
         key = null;
@@ -1727,17 +1857,19 @@ public sealed partial class ChatFileViewModel(string id, ChatViewModel owner) : 
         CanWithdraw = offer.State == OfferState.Open && !offer.Recalled;
         IsText = offer.Paths.Count == 0;
         Title = IsText ? TransferText.Preview(offer.Note ?? "", 200) : TransferText.Summary(offer.Paths);
-        SentRecipient? recipient = offer.Recipients.FirstOrDefault(r => r.DeviceId == peer);
+        IReadOnlyList<SentRecipient> to = peer is { } one ? [.. offer.Recipients.Where(r => r.DeviceId == one)] : offer.Recipients;
+        SentRecipient? recipient = to.Count > 0 ? to[0] : null;
         IsRecalled = offer.Recalled;
         RecalledText = ChatViewModel.RecalledText(offer.Paths.Count > 0 && offer.Paths.All(StorageReport.IsPicture));
-        recallUntil = offer.Recalled || recipient is null ? DateTimeOffset.MinValue
-            : recipient.State == RecipientState.Pending ? DateTimeOffset.MaxValue
+        recallUntil = offer.Recalled || to.Count == 0 ? DateTimeOffset.MinValue
+            : to.All(r => r.State == RecipientState.Pending) ? DateTimeOffset.MaxValue
             : offer.CreatedAt + ChatService.RecallWindow;
         RefreshRecall();
         string state = offer.State switch
         {
             OfferState.Withdrawn => L.T("Đã thu hồi"),
             OfferState.Expired => L.T("Đã hết hạn"),
+            _ when peer is null => GroupState(to),
             _ => recipient?.State switch
             {
                 RecipientState.Pending => L.T("chờ gửi (đang offline)"),
@@ -1784,6 +1916,16 @@ public sealed partial class ChatFileViewModel(string id, ChatViewModel owner) : 
         Progress = offer.State == InboxState.Downloading && offer.TotalBytes > 0 ? 100.0 * offer.BytesReceived / offer.TotalBytes : -1;
     }
 
+    /// <summary>Ours to a group: how many have it ("2/3 đã nhận"), else how far it got.</summary>
+    private static string GroupState(IReadOnlyList<SentRecipient> to)
+    {
+        int done = to.Count(r => r.State == RecipientState.Completed);
+        return done > 0 ? L.F("{0}/{1} đã nhận", done, to.Count)
+            : to.Any(r => r.State == RecipientState.Downloading) ? L.T("đang tải")
+            : to.All(r => r.State == RecipientState.Pending) ? L.T("chờ gửi (đang offline)")
+            : L.T("chưa mở");
+    }
+
     /// <summary>"16:10 · 75 KB · đã nhận", the time as under a message.</summary>
     private string Status(DateTimeOffset at, long totalBytes, string state) =>
         IsText ? $"{Time(at)} · {state}" : $"{Time(at)} · {TransferText.Size(totalBytes)} · {state}";
@@ -1795,7 +1937,8 @@ public sealed partial class ChatFileViewModel(string id, ChatViewModel owner) : 
 public sealed record ChatPicture(Bitmap Image, string Location);
 
 /// <summary>The newest offer with someone, for the conversation list: when, whose, and what it was.</summary>
-public sealed record ChatLastFile(DateTimeOffset At, bool Outgoing, string Text);
+/// <param name="Author">In a group, who sent it when not us.</param>
+public sealed record ChatLastFile(DateTimeOffset At, bool Outgoing, string Text, DeviceId? Author = null);
 
 /// <summary>A member in "Chi tiết" or "Thành viên": who, and where the message is with them or whether they are there.</summary>
 public sealed partial class ChatMemberViewModel(string name, string stateText, bool isOnline, Func<Task>? retry) : ObservableObject

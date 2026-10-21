@@ -146,10 +146,10 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 // No viewer for it, or blocked by policy: the card stays as it is.
             }
         };
-        chat.SendFiles = async (peer, paths) =>
+        chat.SendFiles = async (recipients, groupId, paths) =>
         {
             // Problems are asked or told by the dialogs themselves.
-            await dialogs.SendAsync(paths, [new OfferBatch([peer], null)], showSent: false);
+            await dialogs.SendAsync(paths, [new OfferBatch(recipients, groupId)], showSent: false);
             return null;
         };
         // Downloads fill the disk without telling the window; once a minute is enough for the card.

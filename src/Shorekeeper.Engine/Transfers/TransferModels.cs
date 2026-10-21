@@ -105,4 +105,5 @@ public sealed record ReceivedOffer(
     string? Error,
     IReadOnlyList<InboxFile> Files,
     DateTimeOffset SentAt,
-    bool Recalled);
+    bool Recalled,
+    string? GroupId = null);

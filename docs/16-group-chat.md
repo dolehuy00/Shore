@@ -1,6 +1,6 @@
 # 16 — Chat nhóm (C5)
 
-> Trạng thái: **C5a–C5d xong** (2026-10-21: engine gửi thẳng, ký, đã nhận / đã xem theo người, thu hồi; chuyển hộ và tin cũ; giao diện máy tính và điện thoại, thông báo), C5e kế hoạch. Nối tiếp [15](15-chat.md) (C1–C4, hội thoại 1-1) trên nền Nhóm ở [07](07-groups.md).
+> Trạng thái: **C5 xong** (2026-10-21: engine gửi thẳng, ký, đã nhận / đã xem theo người, thu hồi; chuyển hộ và tin cũ; giao diện máy tính và điện thoại, thông báo; file trong hội thoại nhóm). Nối tiếp [15](15-chat.md) (C1–C4, hội thoại 1-1) trên nền Nhóm ở [07](07-groups.md).
 >
 > Đã chốt (2026-10-21), chi tiết ở §9:
 > - thành viên **chuyển tin hộ** khi người gửi offline;
@@ -190,10 +190,14 @@ Migration `0011_group_chat.sql` cho C5a–C5c (chưa phát hành nên C5b, C5c s
 
 ### 6.3 File trong hội thoại nhóm
 
-- Offer có `groupId` (gửi từ trang Nhóm, từ Chia sẻ, hay từ hội thoại nhóm) hiện thành thẻ trong hội thoại nhóm, cả bên gửi lẫn bên nhận, như [15 §6.3](15-chat.md).
+- Offer có `groupId` (gửi từ trang Nhóm, từ Chia sẻ, hay từ hội thoại nhóm) hiện thành thẻ trong hội thoại nhóm, cả bên gửi lẫn bên nhận, như [15 §6.3](15-chat.md). Hộp nhận nay ghi `InboxOffers.GroupId` (cột có từ đầu nhưng trước đây để trống), nên offer nhận qua nhóm vào hội thoại nhóm và không còn vào hội thoại 1-1 với người gửi; offer nhận trước đó vẫn ở 1-1.
+- 📎 / Ctrl+V / kéo thả trong hội thoại nhóm gửi một offer cho mọi thành viên khác (có `groupId`), không hỏi chọn người như ở trang Nhóm.
+- Thẻ nhận được có tên người gửi ở trên, màu của người đó. Thẻ mình gửi cho nhóm ghi "2/3 đã nhận" (đang tải, chưa mở, chờ gửi khi chưa ai nhận).
+- Danh sách hội thoại: offer mới hơn tin cuối thì thay nó ("Minh: [Ảnh]", "Bạn: app.zip + 2 mục"); nhóm chỉ mới có file cũng lên danh sách.
 - Thẻ file **không** được chuyển hộ hay kéo về như tin cũ: file chỉ tải được từ người gửi, nên thẻ chỉ có ở người nhận được offer.
-- Thu hồi thẻ báo cho mọi thành viên.
-- **Ảnh tự tải** chỉ với người gửi là liên hệ đã Kết nối. Thành viên chưa Kết nối thì bấm Tải, giống "Tự nhận file" ([07 §7](07-groups.md)).
+- **Thu hồi** thẻ (`GroupChatService.RecallOfferAsync`, 5 phút như tin, hay lúc nào cũng được khi chưa ai nhận): offer bị ngừng chia sẻ, mọi người nhận được báo qua `/chat/groups/{id}/recalls` (`offers`), chờ gửi khi offline (`ChatGroupRecalls.IsOffer`, migration `0012`). Ở máy nhận như 1-1: ảnh tự tải bị xóa, file người đó tự tải thì giữ, thẻ thành "Ảnh / File đã được thu hồi". Sau 5 phút chỉ còn **Ngừng chia sẻ**.
+- **Ảnh tự tải** chỉ với người gửi là liên hệ đã Kết nối (cài đặt "Tự tải ảnh máy đã kết nối gửi", tối đa 20 MB). Thành viên chưa Kết nối thì bấm Tải, giống "Tự nhận file" ([07 §7](07-groups.md)).
+- "Xóa hội thoại" ẩn các thẻ tới lúc đó (`ChatGroups.ClearedAt`, so theo giờ gửi với thẻ mình gửi, giờ tới với thẻ nhận).
 
 ## 7. Giai đoạn
 
@@ -203,7 +207,7 @@ Migration `0011_group_chat.sql` cho C5a–C5c (chưa phát hành nên C5b, C5c s
 | **C5b** Chuyển hộ & tin cũ ✅ | `Seq`, `index` / `fetch`, con trỏ, kéo khi online / khi vào nhóm, cửa sổ 30 ngày / 1.000 tin, dấu xóa, thu hồi qua chuyển hộ | Test engine (bảng dưới, `GroupChatTests`), cả MiniHttpServer lẫn Kestrel |
 | **C5c** Máy tính ✅ | Danh sách + hội thoại nhóm, tên người gửi, Chi tiết, Tắt thông báo, nút ở trang Nhóm, toast | PC (Host) gửi tới điện thoại (thành viên), Thành viên, Chi tiết, tắt / bật thông báo, thu hồi; tin nhóm đến PC (tên, màu, toast) thử ở C5d, khi điện thoại gửi được |
 | **C5d** Điện thoại ✅ | Như C5c + thông báo nhóm có Trả lời | Nhắn thật PC ↔ điện thoại: tên, màu, chữ cái đầu, "Đã xem 1/1", Chi tiết, Thành viên, tắt / bật thông báo (không còn thông báo), thông báo nhóm và Trả lời trên đó, toast nhóm trên PC, nút 💬 ở tab Nhóm |
-| **C5e** File | `InboxOffers.GroupId`, gửi file từ hội thoại nhóm, thẻ, thu hồi offer nhóm | Test engine + thử ảnh / file thật |
+| **C5e** File ✅ | `InboxOffers.GroupId`, gửi file từ hội thoại nhóm, thẻ, thu hồi offer nhóm | Test engine; thử thật: OPPO gửi ảnh vào nhóm bằng 📎, PC (liên hệ) tự tải và hiện ảnh, A07 (không là liên hệ) bấm Tải; thẻ "2/2 đã nhận"; thu hồi: ảnh tự tải trên PC bị xóa, ảnh A07 tự tải còn, cả ba máy hiện "Ảnh đã được thu hồi" |
 
 Test engine của C5a:
 

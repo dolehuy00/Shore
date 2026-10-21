@@ -617,6 +617,7 @@
   "Chi tiết": "Details",
   "Chi tiết tin nhắn": "Message details",
   "Đã nhận {0}/{1}": "Delivered {0}/{1}",
+  "{0}/{1} đã nhận": "{0}/{1} received",
   "Đã xem {0}/{1}": "Seen {0}/{1}",
   "Bản cũ, chưa nhận được tin nhóm": "Older version, can't get group messages",
   "Tắt thông báo": "Mute notifications",

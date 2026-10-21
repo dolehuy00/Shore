@@ -134,7 +134,8 @@ public sealed record GroupChatMessageBody(
     string? Text = null, int? DurationMs = null, byte[]? Wave = null, byte[]? Audio = null);
 
 /// <summary>Body of <c>POST /api/v1/chat/groups/{groupId}/recalls</c>: messages taken back, each with its signed recall.</summary>
-public sealed record GroupChatRecallBody(IReadOnlyList<GroupChatRecall> Recalls);
+/// <param name="Offers">The caller's offers to the group taken back from the conversation (docs/16-group-chat.md §6.3).</param>
+public sealed record GroupChatRecallBody(IReadOnlyList<GroupChatRecall> Recalls, IReadOnlyList<string>? Offers = null);
 
 public sealed record GroupChatRecall(string Id, byte[] Sig);
 

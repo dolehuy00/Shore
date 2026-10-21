@@ -224,6 +224,7 @@ CREATE TABLE ChatGroupReceipts (            -- "Đã xem" chưa báo được ch
 
 CREATE TABLE ChatGroupRecalls (             -- thu hồi chưa báo được cho thành viên
   GroupId TEXT NOT NULL, PeerId TEXT NOT NULL, Id TEXT NOT NULL, Sig BLOB NOT NULL,
+  IsOffer INTEGER NOT NULL DEFAULT 0,       -- 0012: Id là offer gửi cho nhóm (không chữ ký)
   PRIMARY KEY (GroupId, PeerId, Id)
 );
 

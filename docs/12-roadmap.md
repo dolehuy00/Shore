@@ -111,9 +111,9 @@ Kế hoạch ban đầu:
 
 Xem [14](14-android.md): A0 spike trên điện thoại thật (mTLS, multicast) → A1 tách Engine khỏi ASP.NET Core → A2 nhận file → A3 gửi từ menu Chia sẻ → A4 chạy nền & thông báo → A5 nhóm → A6 phát hành APK.
 
-## M8 — Tin nhắn (C1–C4 ✅ 2026-10-21; C5 chat nhóm còn lại)
+## M8 — Tin nhắn ✅ (C1–C5, 2026-10-21)
 
-Xem [15](15-chat.md): C1 Engine văn bản → C2 giao diện (PC: trang Tin nhắn; điện thoại: gộp Hộp nhận + Đã gửi thành tab File, thêm tab Tin nhắn) → C3 tin nhắn thoại → C4 thẻ file trong hội thoại, xóa, hoàn thiện → C5 chat nhóm.
+Xem [15](15-chat.md): C1 Engine văn bản → C2 giao diện (PC: trang Tin nhắn; điện thoại: gộp Hộp nhận + Đã gửi thành tab File, thêm tab Tin nhắn) → C3 tin nhắn thoại → C4 thẻ file trong hội thoại, xóa, hoàn thiện → C5 chat nhóm ([16](16-group-chat.md)).
 
 ## Kiểm thử (xuyên suốt)
 

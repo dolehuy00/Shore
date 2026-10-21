@@ -16,6 +16,7 @@ using Shorekeeper.Engine.Groups;
 using Shorekeeper.Engine.Monitoring;
 using Shorekeeper.Engine.Settings;
 using Shorekeeper.Engine.Storage;
+using Shorekeeper.Engine.Transfers;
 
 namespace Shorekeeper.Engine.Chat;
 
@@ -61,6 +62,8 @@ public sealed class GroupChatService(
     ShorekeeperEngine engine,
     LocalDevice device,
     ChatService chat,
+    OfferService offers,
+    InboxService inbox,
     UsageStatsService usage,
     TimeProvider timeProvider,
     ILogger<GroupChatService> logger) : BackgroundService
@@ -255,6 +258,42 @@ public sealed class GroupChatService(
             new { groupId, name = groups.Get(groupId)?.Name ?? groupId, muted },
             cancellationToken);
         Changed?.Invoke(this, groupId);
+    }
+
+    /// <summary>When each group's conversation was last deleted: its file cards up to then no longer show.</summary>
+    public async Task<IReadOnlyDictionary<string, DateTimeOffset>> GetClearedAsync(CancellationToken cancellationToken)
+    {
+        await using SqliteConnection connection = await database.OpenAsync(cancellationToken);
+        var rows = await connection.QueryAsync<(string GroupId, long ClearedAt)>("SELECT GroupId, ClearedAt FROM ChatGroups WHERE ClearedAt IS NOT NULL;");
+        return rows.ToDictionary(r => r.GroupId, r => FromMs(r.ClearedAt));
+    }
+
+    /// <summary>
+    /// "Thu hồi" on a file card in the group's conversation (docs/16-group-chat.md §6.3), within
+    /// <see cref="ChatService.RecallWindow"/> of sending or while it reached nobody: the offer is withdrawn, its card
+    /// becomes a note, and each member it was for is told, now or when next online.
+    /// </summary>
+    /// <returns>False when it can no longer be taken back (too late, already, or not ours to this group).</returns>
+    public async Task<bool> RecallOfferAsync(string groupId, string offerId, CancellationToken cancellationToken)
+    {
+        if (offers.GetOffers().FirstOrDefault(o => o.OfferId == offerId) is not { Recalled: false } offer || offer.GroupId != groupId
+            || (timeProvider.GetUtcNow() - offer.CreatedAt > ChatService.RecallWindow && offer.Recipients.Any(r => r.State != RecipientState.Pending)))
+        {
+            return false;
+        }
+
+        await offers.RecallAsync(offerId);
+        await WriteAsync(
+            "INSERT OR IGNORE INTO ChatGroupRecalls (GroupId, PeerId, Id, Sig, IsOffer) VALUES (@groupId, @peer, @offerId, @noSig, 1);",
+            offer.Recipients.Select(r => new { groupId, peer = r.DeviceId.Value, offerId, noSig = Array.Empty<byte>() }),
+            cancellationToken);
+        Changed?.Invoke(this, groupId);
+        foreach (SentRecipient recipient in offer.Recipients)
+        {
+            Kick(recipient.DeviceId);
+        }
+
+        return true;
     }
 
     /// <summary>The groups whose notifications are off.</summary>
@@ -634,10 +673,18 @@ public sealed class GroupChatService(
             return refusal;
         }
 
-        if (body.Recalls is not { Count: > 0 and <= ChatService.MaxRecall }
-            || !body.Recalls.All(r => r is { Sig: not null } && Guid.TryParseExact(r.Id, "N", out _)))
+        IReadOnlyList<string> offerIds = body.Offers ?? [];
+        if (body.Recalls is null || body.Recalls.Count + offerIds.Count is not (> 0 and <= ChatService.MaxRecall)
+            || !body.Recalls.All(r => r is { Sig: not null } && Guid.TryParseExact(r.Id, "N", out _))
+            || !offerIds.All(id => Guid.TryParseExact(id, "N", out _)))
         {
             return PeerResponse.Problem(HttpStatusCode.BadRequest, ApiErrorCodes.InvalidRequest);
+        }
+
+        // Offers are the caller's own: the inbox only knows them under its id.
+        if (offerIds.Count > 0)
+        {
+            await inbox.HandleRecalledAsync(caller, [.. offerIds.Select(id => Guid.ParseExact(id, "N").ToString("N"))]);
         }
 
         List<string?> files = [];
@@ -1150,7 +1197,7 @@ public sealed class GroupChatService(
     {
         List<DeliveryRow> pending;
         List<(string GroupId, string ReadUpTo)> receipts;
-        List<(string GroupId, string Id, byte[] Sig)> recalls;
+        List<(string GroupId, string Id, byte[] Sig, long IsOffer)> recalls;
         await using (SqliteConnection connection = await database.OpenAsync(cancellationToken))
         {
             pending = [.. await connection.QueryAsync<DeliveryRow>(
@@ -1163,8 +1210,8 @@ public sealed class GroupChatService(
                 new { peer = peer.Value })];
             receipts = [.. await connection.QueryAsync<(string, string)>(
                 "SELECT GroupId, ReadUpTo FROM ChatGroupReceipts WHERE AuthorId = @peer;", new { peer = peer.Value })];
-            recalls = [.. await connection.QueryAsync<(string, string, byte[])>(
-                "SELECT GroupId, Id, Sig FROM ChatGroupRecalls WHERE PeerId = @peer;", new { peer = peer.Value })];
+            recalls = [.. await connection.QueryAsync<(string, string, byte[], long)>(
+                "SELECT GroupId, Id, Sig, IsOffer FROM ChatGroupRecalls WHERE PeerId = @peer;", new { peer = peer.Value })];
         }
 
         // Heard directly without the capability: a version without group messages, which would only refuse them.
@@ -1262,10 +1309,13 @@ public sealed class GroupChatService(
 
         foreach (var group in recalls.GroupBy(r => r.GroupId))
         {
-            var recall = new GroupChatRecallBody([.. group.Take(ChatService.MaxRecall).Select(r => new GroupChatRecall(r.Id, r.Sig))]);
+            var batch = group.Take(ChatService.MaxRecall).ToList();
+            string[] offerIds = [.. batch.Where(r => r.IsOffer != 0).Select(r => r.Id)];
+            var recall = new GroupChatRecallBody(
+                [.. batch.Where(r => r.IsOffer == 0).Select(r => new GroupChatRecall(r.Id, r.Sig))], offerIds.Length > 0 ? offerIds : null);
             if ((await PostAsync(peer, $"chat/groups/{group.Key}/recalls", recall, cancellationToken)).Taken is not null)
             {
-                string[] done = [.. recall.Recalls.Select(r => r.Id)];
+                string[] done = [.. batch.Select(r => r.Id)];
                 await WriteAsync(
                     "DELETE FROM ChatGroupRecalls WHERE GroupId = @groupId AND PeerId = @peer AND Id IN @done;",
                     new { groupId = group.Key, peer = peer.Value, done },

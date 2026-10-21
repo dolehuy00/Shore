@@ -12,6 +12,7 @@ using Shorekeeper.Engine.Chat;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Groups;
 using Shorekeeper.Engine.Storage;
+using Shorekeeper.Engine.Transfers;
 
 namespace Shorekeeper.Engine.Tests;
 
@@ -367,6 +368,25 @@ public sealed class GroupChatTests : IAsyncLifetime
         Assert.Empty(await mai.GroupChat.GetMutedAsync(Ct));
         Assert.Equal(new[] { host.Id, tuan.Id }.OrderBy(d => d.Value), mai.GroupChat.OthersIn(groupId)!.Select(m => m.DeviceId).OrderBy(d => d.Value));
         Assert.Null(mai.GroupChat.OthersIn("0123456789abcdef0123456789abcdef"));
+    }
+
+    [Fact]
+    public async Task A_file_sent_to_the_group_is_kept_as_the_groups_and_can_be_taken_back()
+    {
+        string source = Path.Combine(host.WorkDirectory, "báo cáo.txt");
+        await File.WriteAllTextAsync(source, "số liệu", Ct);
+        Offline(tuan);
+        string offerId = await host.Offers.CreateAsync(OfferService.Prepare([source]), [mai.Id, tuan.Id], null, snapshotLocked: false, groupId, Ct);
+        await WaitUntil(() => mai.Inbox.GetOffers().Any(o => o.OfferId == offerId));
+        Assert.Equal(groupId, mai.Inbox.GetOffers().Single(o => o.OfferId == offerId).GroupId);
+
+        Assert.True(await host.GroupChat.RecallOfferAsync(groupId, offerId, Ct));
+
+        await WaitUntil(() => mai.Inbox.GetOffers().Single(o => o.OfferId == offerId).Recalled);
+        Assert.True(host.Offers.GetOffers().Single(o => o.OfferId == offerId).Recalled);
+        Assert.False(await host.GroupChat.RecallOfferAsync(groupId, offerId, Ct));
+        // Not an offer of another group, nor one sent to contacts.
+        Assert.False(await host.GroupChat.RecallOfferAsync("0123456789abcdef0123456789abcdef", offerId, Ct));
     }
 
     [Fact]

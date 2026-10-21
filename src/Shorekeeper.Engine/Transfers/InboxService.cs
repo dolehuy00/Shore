@@ -67,7 +67,7 @@ public sealed class InboxService(
         await connection.ExecuteAsync("UPDATE InboxOffers SET State = 'failed' WHERE State = 'downloading';");
 
         var offerRows = await connection.QueryAsync<InboxOfferRow>(
-            "SELECT SenderId, OfferId, Note, TotalBytes, ReceivedAt, SentAt, ExpiresAt, State, Recalled, ChatPicture FROM InboxOffers WHERE ReceivedAt >= @since;", new { since });
+            "SELECT SenderId, OfferId, Note, TotalBytes, ReceivedAt, SentAt, ExpiresAt, State, Recalled, ChatPicture, GroupId FROM InboxOffers WHERE ReceivedAt >= @since;", new { since });
         var fileRows = (await connection.QueryAsync<InboxFileRow>(
             "SELECT SenderId, OfferId, FileId, RelativePath, Size, ModifiedAt, State, FinalPath, Error FROM InboxFiles;"))
             .ToLookup(f => (f.SenderId, f.OfferId));
@@ -84,6 +84,7 @@ public sealed class InboxService(
                     State = Enum.Parse<InboxState>(row.State, true),
                     Recalled = row.Recalled != 0,
                     ChatPicture = row.ChatPicture != 0,
+                    GroupId = row.GroupId,
                 };
                 foreach (InboxFileRow file in fileRows[(row.SenderId, row.OfferId)])
                 {
@@ -313,6 +314,7 @@ public sealed class InboxService(
         var item = new Item(key, manifest.Note, now, manifest.CreatedAt < now ? manifest.CreatedAt : now, manifest.ExpiresAt)
         {
             State = files.Count == 0 ? InboxState.Completed : InboxState.New,
+            GroupId = manifest.GroupId,
         };
         item.Files.AddRange(files);
         lock (gate)
@@ -324,13 +326,14 @@ public sealed class InboxService(
             }
         }
 
-        // "Tự nhận file" for this contact (docs/06-file-transfer.md §10), or pictures to show in the conversation. Only
-        // the latter go again if the sender takes them back: the person did not choose to keep them.
+        // "Tự nhận file" for this contact (docs/06-file-transfer.md §10), or pictures to show in the conversation, the
+        // group's one too (docs/16-group-chat.md §6.3), but only from a contact. Only the latter go again if the sender
+        // takes them back: the person did not choose to keep them.
         bool autoAccept = false;
         if (files.Count > 0 && trust.Get(sender) is { TrustLevel: TrustLevel.Trusted } contact)
         {
             autoAccept = contact.AutoAcceptMaxBytes is { } limit && item.TotalBytes <= (limit == TrustStore.FollowSettingsLimit ? settings.Current.AutoAcceptMaxBytes : limit);
-            item.ChatPicture = !autoAccept && settings.Current.ChatAutoDownloadPictures && manifest.GroupId is null && item.TotalBytes <= ChatPictureMaxBytes
+            item.ChatPicture = !autoAccept && settings.Current.ChatAutoDownloadPictures && item.TotalBytes <= ChatPictureMaxBytes
                 && files.All(f => !f.IsDirectory && StorageReport.IsPicture(f.RelativePath));
         }
 
@@ -788,14 +791,14 @@ public sealed class InboxService(
         await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync();
         await connection.ExecuteAsync(
             """
-            INSERT INTO InboxOffers (SenderId, OfferId, Note, TotalBytes, ReceivedAt, SentAt, ExpiresAt, State, ChatPicture)
-            VALUES (@sender, @offerId, @note, @total, @receivedAt, @sentAt, @expiresAt, @state, @chatPicture);
+            INSERT INTO InboxOffers (SenderId, OfferId, Note, TotalBytes, ReceivedAt, SentAt, ExpiresAt, State, ChatPicture, GroupId)
+            VALUES (@sender, @offerId, @note, @total, @receivedAt, @sentAt, @expiresAt, @state, @chatPicture, @groupId);
             """,
             new
             {
                 sender = item.Key.SenderId.Value, offerId = item.Key.OfferId, note = item.Note, total = item.TotalBytes,
                 receivedAt = item.ReceivedAt.ToUnixTimeMilliseconds(), sentAt = item.SentAt.ToUnixTimeMilliseconds(), expiresAt = item.ExpiresAt.ToUnixTimeMilliseconds(),
-                state = Name(item.State), chatPicture = item.ChatPicture,
+                state = Name(item.State), chatPicture = item.ChatPicture, groupId = item.GroupId,
             },
             transaction);
         await connection.ExecuteAsync(
@@ -831,6 +834,9 @@ public sealed class InboxService(
         /// <summary>Downloaded by itself to show in the conversation, not by the person's choice.</summary>
         public bool ChatPicture { get; set; }
 
+        /// <summary>Sent through this group: its card shows in the group's conversation.</summary>
+        public string? GroupId { get; init; }
+
         public DateTimeOffset ExpiresAt { get; } = expiresAt;
 
         public List<FileItem> Files { get; } = [];
@@ -850,7 +856,7 @@ public sealed class InboxService(
         public ReceivedOffer ToSnapshot() => new(
             Key.SenderId, Key.OfferId, Note, TotalBytes, ReceivedAt, ExpiresAt, State,
             Files.Sum(f => f.BytesReceived), ReconnectingUntil, Error,
-            [.. Files.Select(f => new InboxFile(f.FileId, f.RelativePath, f.Size, f.IsDirectory, f.State, f.FinalPath, f.Error))], SentAt, Recalled);
+            [.. Files.Select(f => new InboxFile(f.FileId, f.RelativePath, f.Size, f.IsDirectory, f.State, f.FinalPath, f.Error))], SentAt, Recalled, GroupId);
     }
 
     private sealed class FileItem(string fileId, string relativePath, string[] segments, long size, bool isDirectory, DateTimeOffset? modifiedAt)
@@ -902,6 +908,8 @@ public sealed class InboxService(
         public long Recalled { get; init; }
 
         public long ChatPicture { get; init; }
+
+        public string? GroupId { get; init; }
     }
 
     private sealed class InboxFileRow
