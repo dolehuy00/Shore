@@ -37,6 +37,9 @@ public sealed class InboxService(
     TimeProvider timeProvider,
     ILogger<InboxService> logger)
 {
+    /// <summary>Pictures from a contact up to this size in all download by themselves (docs/15-chat.md §6.3).</summary>
+    public const long ChatPictureMaxBytes = 20L << 20;
+
     public const int ParallelFiles = 4;
 
     private const long FreeSpaceMargin = 1024L * 1024 * 1024;
@@ -318,9 +321,11 @@ public sealed class InboxService(
         await InsertAsync(item);
         logger.LogInformation("Offer {Offer} received from {Sender}: {Files} entries, {Bytes} bytes", key.OfferId, sender, files.Count, item.TotalBytes);
 
-        // "Tự nhận file" for this contact (docs/06-file-transfer.md §10).
-        if (files.Count > 0 && trust.Get(sender) is { TrustLevel: TrustLevel.Trusted, AutoAcceptMaxBytes: { } limit }
-            && item.TotalBytes <= (limit == TrustStore.FollowSettingsLimit ? settings.Current.AutoAcceptMaxBytes : limit))
+        // "Tự nhận file" for this contact (docs/06-file-transfer.md §10), or pictures to show in the conversation.
+        if (files.Count > 0 && trust.Get(sender) is { TrustLevel: TrustLevel.Trusted } contact
+            && ((contact.AutoAcceptMaxBytes is { } limit && item.TotalBytes <= (limit == TrustStore.FollowSettingsLimit ? settings.Current.AutoAcceptMaxBytes : limit))
+                || (settings.Current.ChatAutoDownloadPictures && manifest.GroupId is null && item.TotalBytes <= ChatPictureMaxBytes
+                    && files.All(f => !f.IsDirectory && StorageReport.IsPicture(f.RelativePath)))))
         {
             Download(key);
         }

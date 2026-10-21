@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using System.Diagnostics;
 using System.Reflection;
 using Avalonia;
 using Avalonia.Controls;
@@ -131,6 +133,17 @@ public sealed partial class MainWindowViewModel : ObservableObject
         chat.Confirm = async (title, question, action) => await DialogService.ChooseAsync(title, question, [action, L.T("Hủy")]) == 0;
         chat.ShowFiles = received => ShowPage(received ? NavPage.Inbox : NavPage.Sent);
         chat.PickFiles = () => DialogService.PickFilesAsync();
+        chat.OpenFile = path =>
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo(path) { UseShellExecute = true })?.Dispose();
+            }
+            catch (Win32Exception)
+            {
+                // No viewer for it, or blocked by policy: the card stays as it is.
+            }
+        };
         chat.SendFiles = async (peer, paths) =>
         {
             // Problems are asked or told by the dialogs themselves.

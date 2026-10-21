@@ -789,7 +789,8 @@ public sealed class OfferService(
             State,
             Files.Any(f => f.Changed),
             [.. Recipients.Select(r => new SentRecipient(r.Key, r.Value.State, Interlocked.Read(ref r.Value.BytesServed)))],
-            GroupId);
+            GroupId,
+            [.. Files.Where(f => !f.IsDirectory).Select(f => f.SnapshotPath ?? f.SourcePath)]);
     }
 
     /// <param name="SnapshotPath">Temporary copy served instead of the original, if any.</param>

@@ -136,6 +136,17 @@ public partial class MainView : UserControl
         e.Handled = true;
     }
 
+    /// <summary>A long press on a file card: its menu (withdraw what we sent, see it in File).</summary>
+    private void OnFileCardHolding(object? sender, HoldingRoutedEventArgs e)
+    {
+        if (e.HoldingState == HoldingState.Started && sender is Control card)
+        {
+            MainActivity.Current?.Window?.DecorView.PerformHapticFeedback(FeedbackConstants.LongPress);
+            FlyoutBase.ShowAttachedFlyout(card);
+            e.Handled = true;
+        }
+    }
+
     /// <summary>While choosing messages, a tap on a row checks or unchecks it; its buttons and check box do their own job.</summary>
     private void OnChatRowTapped(object? sender, TappedEventArgs e)
     {

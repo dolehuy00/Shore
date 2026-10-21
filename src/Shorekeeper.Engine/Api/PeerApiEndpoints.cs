@@ -219,6 +219,9 @@ public static class PeerApiEndpoints
         api.Map("POST", "/chat/receipts", RequiredAccess.Trusted, async request =>
             await request.ReadJsonAsync<ChatReceiptBody>() is { } body ? await chat.HandleReceiptAsync(request.Caller, body) : Invalid());
 
+        api.Map("POST", "/chat/recalls", RequiredAccess.Trusted, async request =>
+            await request.ReadJsonAsync<ChatRecallBody>() is { } body ? await chat.HandleRecallAsync(request.Caller, body) : Invalid());
+
         return api;
     }
 

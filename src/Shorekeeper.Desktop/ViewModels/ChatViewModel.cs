@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -10,6 +11,8 @@ using Shorekeeper.Core.Trust;
 using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Chat;
 using Shorekeeper.Engine.Discovery;
+using Shorekeeper.Engine.Monitoring;
+using Shorekeeper.Engine.Settings;
 using Shorekeeper.Engine.Transfers;
 using Shorekeeper.Engine.Trust;
 
@@ -28,6 +31,8 @@ public sealed partial class ChatViewModel : ObservableObject
     private readonly PeerDirectory directory;
     private readonly OfferService offers;
     private readonly InboxService inbox;
+    private readonly SettingsService settings;
+    private readonly IExternalFileSource? external;
     private readonly IMicrophone? microphone;
     private readonly IVoicePlayer? player;
     private readonly Dictionary<DeviceId, ChatPersonViewModel> people = [];
@@ -38,14 +43,16 @@ public sealed partial class ChatViewModel : ObservableObject
     private bool filesQueued;
 
     public ChatViewModel(
-        ChatService chat, TrustStore trust, PeerDirectory directory, OfferService offers, InboxService inbox,
-        IMicrophone? microphone = null, IVoicePlayer? player = null)
+        ChatService chat, TrustStore trust, PeerDirectory directory, OfferService offers, InboxService inbox, SettingsService settings,
+        IExternalFileSource? external = null, IMicrophone? microphone = null, IVoicePlayer? player = null)
     {
         this.chat = chat;
         this.trust = trust;
         this.directory = directory;
         this.offers = offers;
         this.inbox = inbox;
+        this.settings = settings;
+        this.external = external;
         this.microphone = microphone;
         this.player = player;
         chat.Changed += (_, peer) => Dispatcher.UIThread.Post(() => _ = RefreshAsync(peer));
@@ -69,6 +76,20 @@ public sealed partial class ChatViewModel : ObservableObject
 
     /// <summary>"Xem" on a file card: the window shows Hộp nhận (true, received) or Đã gửi.</summary>
     public Action<bool>? ShowFiles { get; set; }
+
+    /// <summary>Opens a received or sent picture in the system's viewer (set by the window); without it, "Xem" happens.</summary>
+    public Action<string>? OpenFile { get; set; }
+
+    /// <summary>Cài đặt: pictures from contacts download by themselves and show in the conversation (on by default).</summary>
+    public bool AutoDownloadPictures
+    {
+        get => settings.Current.ChatAutoDownloadPictures;
+        set
+        {
+            settings.Update(s => s with { ChatAutoDownloadPictures = value });
+            OnPropertyChanged();
+        }
+    }
 
     /// <summary>The system's file picker for 📎 (set by the window); empty when nothing was picked.</summary>
     public Func<Task<IReadOnlyList<string>>>? PickFiles { get; set; }
@@ -465,9 +486,16 @@ public sealed partial class ChatViewModel : ObservableObject
                     break;
                 case (ChatFileViewModel card, SentOffer sent):
                     card.Update(sent, person.Peer);
+                    // Only offers of pictures and nothing else show as pictures; by their names, as an Android source
+                    // (content://…/document/msf:1234) need not have one.
+                    card.ShowPictures(sent.Sources is { Count: > 0 } sources && sent.Paths.Count > 0 && sent.Paths.All(StorageReport.IsPicture) ? sources : []);
                     break;
                 case (ChatFileViewModel card, ReceivedOffer received):
                     card.Update(received, person.IsOnline);
+                    card.ShowPictures(
+                        received.Files.Count > 0 && received.Files.All(f => !f.IsDirectory && StorageReport.IsPicture(f.RelativePath))
+                            ? [.. received.Files.Where(f => f.State == InboxFileState.Completed && f.FinalPath is not null && File.Exists(f.FinalPath)).Select(f => f.FinalPath!)]
+                            : []);
                     break;
             }
 
@@ -621,6 +649,48 @@ public sealed partial class ChatViewModel : ObservableObject
     }
 
     internal void Download(OfferKey key) => inbox.Download(key);
+
+    /// <summary>"Thu hồi" on our message: a note on both sides from now on.</summary>
+    internal async Task RecallAsync(ChatBubbleViewModel bubble)
+    {
+        if (Current is not { } person)
+        {
+            return;
+        }
+
+        if (playing?.Bubble == bubble)
+        {
+            StopPlaying();
+        }
+
+        await chat.RecallAsync(person.Peer, [bubble.Id], CancellationToken.None);
+    }
+
+    /// <summary>"Thu hồi" on a file card we sent, as in Đã gửi: the person can no longer download it.</summary>
+    internal async Task WithdrawAsync(string offerId)
+    {
+        if (Confirm is null || await Confirm(L.T("Thu hồi"), L.T("Thu hồi file này? Người nhận sẽ không tải được nữa; ai đã tải xong thì vẫn giữ file."), L.T("Thu hồi")))
+        {
+            await offers.WithdrawAsync(offerId);
+        }
+    }
+
+    /// <summary>A picture of a card: the system's viewer, or Hộp nhận / Đã gửi where the viewer is not available.</summary>
+    internal void OpenPicture(ChatPicture picture, bool received)
+    {
+        if (OpenFile is { } open && !(external?.Owns(picture.Location) ?? false))
+        {
+            open(picture.Location);
+        }
+        else
+        {
+            ShowFiles?.Invoke(received);
+        }
+    }
+
+    /// <summary>Reads a picture where it is: a path, or a location of the OS such as content://.</summary>
+    internal Stream OpenRead(string location) =>
+        external?.Owns(location) == true ? external.OpenRead(location) : File.OpenRead(location);
 
     /// <summary>Names, online dots and whether the open conversation can be written to.</summary>
     private void RefreshPresence()
@@ -786,6 +856,9 @@ public abstract partial class ChatEntryViewModel(string id) : ObservableObject
 /// <summary>A message in the open conversation.</summary>
 public sealed partial class ChatBubbleViewModel(string id, ChatViewModel owner) : ChatEntryViewModel(id)
 {
+    /// <summary>The kind last shown, so links and waveform are built again only when it changes.</summary>
+    private string? kind;
+
     /// <summary>For the check box while choosing.</summary>
     public ChatViewModel Owner => owner;
 
@@ -798,12 +871,16 @@ public sealed partial class ChatBubbleViewModel(string id, ChatViewModel owner) 
     [RelayCommand]
     private void SelectMany() => owner.StartSelecting(this);
 
-    public bool IsMine { get; private set; }
+    [ObservableProperty]
+    public partial bool IsMine { get; set; }
 
-    public string Text { get; private set; } = "";
+    [ObservableProperty]
+    public partial string Text { get; set; } = "";
 
     /// <summary>Web addresses in the text, each with its own button.</summary>
-    public IReadOnlyList<string> Links { get; private set; } = [];
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasLinks))]
+    public partial IReadOnlyList<string> Links { get; set; } = [];
 
     public bool HasLinks => Links.Count > 0;
 
@@ -815,21 +892,28 @@ public sealed partial class ChatBubbleViewModel(string id, ChatViewModel owner) 
     public partial bool IsFailed { get; set; }
 
     /// <summary>A kind from a newer version: shown as a note, not as the sender's words.</summary>
-    public bool IsUnknown { get; private set; }
+    [ObservableProperty]
+    public partial bool IsUnknown { get; set; }
 
     /// <summary>A voice message: ▶, the waveform and how long it plays instead of text.</summary>
-    public bool IsVoice { get; private set; }
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsText))]
+    public partial bool IsVoice { get; set; }
 
     public bool IsText => !IsVoice;
 
-    public string? VoicePath { get; private set; }
+    [ObservableProperty]
+    public partial string? VoicePath { get; set; }
 
-    public int DurationMs { get; private set; }
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DurationText))]
+    public partial int DurationMs { get; set; }
 
     public string DurationText => ChatViewModel.Duration(DurationMs);
 
     /// <summary>Heights of the waveform's bars, in pixels.</summary>
-    public IReadOnlyList<double> Bars { get; private set; } = [];
+    [ObservableProperty]
+    public partial IReadOnlyList<double> Bars { get; set; } = [];
 
     [ObservableProperty]
     public partial bool IsPlaying { get; set; }
@@ -851,8 +935,19 @@ public sealed partial class ChatBubbleViewModel(string id, ChatViewModel owner) 
     [RelayCommand]
     private void Play() => owner.TogglePlay(this);
 
+    /// <summary>Words to copy (not a voice message, nor the note left by a recall).</summary>
+    [ObservableProperty]
+    public partial bool CanCopy { get; set; }
+
+    /// <summary>Ours and not taken back yet.</summary>
+    [ObservableProperty]
+    public partial bool CanRecall { get; set; }
+
     [RelayCommand]
     private void Copy() => owner.CopyText?.Invoke(Text);
+
+    [RelayCommand]
+    private Task RecallAsync() => owner.RecallAsync(this);
 
     [RelayCommand]
     private void OpenLink(string link) => owner.OpenLink?.Invoke(link);
@@ -866,14 +961,25 @@ public sealed partial class ChatBubbleViewModel(string id, ChatViewModel owner) 
         IsMine = message.Outgoing;
         IsVoice = message.Kind == ChatKinds.Voice;
         IsUnknown = message.Kind is not (ChatKinds.Text or ChatKinds.Voice);
+        CanCopy = message.Kind == ChatKinds.Text;
+        CanRecall = message.Outgoing && message.Kind is ChatKinds.Text or ChatKinds.Voice;
         Text = TextOf(message);
-        Links = message.Kind == ChatKinds.Text ? TransferText.LinksIn(Text) : [];
+        // New lists only when the message changed (sent, recalled): every refresh would build the rows again.
+        bool changed = message.Kind != kind;
+        kind = message.Kind;
+        if (changed)
+        {
+            Links = message.Kind == ChatKinds.Text ? TransferText.LinksIn(Text) : [];
+        }
         VoicePath = message.VoicePath;
         DurationMs = message.DurationMs;
-        Bars = IsVoice ? [.. Enumerable.Range(0, VoiceRecorder.WaveBars).Select(i => 3 + (21.0 * (message.Wave is { } wave && i < wave.Length ? wave[i] : 0) / 255))] : [];
+        if (changed)
+        {
+            Bars = IsVoice ? [.. Enumerable.Range(0, VoiceRecorder.WaveBars).Select(i => 3 + (21.0 * (message.Wave is { } wave && i < wave.Length ? wave[i] : 0) / 255))] : [];
+        }
         IsFailed = message.State == ChatMessageState.Failed;
         string time = message.SentAt.ToLocalTime().ToString("HH:mm", L.Culture);
-        string? state = !message.Outgoing ? null : message.State switch
+        string? state = !message.Outgoing || message.Kind == ChatKinds.Recalled ? null : message.State switch
         {
             ChatMessageState.Pending => L.T("Chờ gửi"),
             ChatMessageState.Failed => L.T("Không gửi được"),
@@ -890,6 +996,7 @@ public sealed partial class ChatBubbleViewModel(string id, ChatViewModel owner) 
     {
         ChatKinds.Text => message.Text ?? "",
         ChatKinds.Voice => L.F("Tin nhắn thoại {0}", ChatViewModel.Duration(message.DurationMs)),
+        ChatKinds.Recalled => L.T("Tin nhắn đã được thu hồi"),
         _ => L.T("Tin nhắn này cần bản Shorekeeper mới hơn."),
     };
 }
@@ -900,7 +1007,85 @@ public sealed partial class ChatBubbleViewModel(string id, ChatViewModel owner) 
 /// </summary>
 public sealed partial class ChatFileViewModel(string id, ChatViewModel owner) : ChatEntryViewModel(id)
 {
+    /// <summary>At most this many pictures of an offer show; the rest are "+N".</summary>
+    private const int ShownPictures = 4;
+
     private OfferKey? key;
+    private string? offerId;
+    private string? picturesShown;
+
+    /// <summary>Pictures of an offer of pictures, once they can be read here (sent: the originals; received: once downloaded).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPictures), nameof(IsPlain))]
+    public partial IReadOnlyList<ChatPicture> Pictures { get; set; } = [];
+
+    public bool HasPictures => Pictures.Count > 0;
+
+    /// <summary>A card with its icon and name (no pictures to show).</summary>
+    public bool IsPlain => !HasPictures;
+
+    /// <summary>"+3" when more pictures came than show.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasMore))]
+    public partial string? MoreText { get; set; }
+
+    public bool HasMore => MoreText is not null;
+
+    /// <summary>Ours and still open: it can be withdrawn.</summary>
+    [ObservableProperty]
+    public partial bool CanWithdraw { get; set; }
+
+    [RelayCommand]
+    private Task WithdrawAsync() => offerId is { } id ? owner.WithdrawAsync(id) : Task.CompletedTask;
+
+    [RelayCommand]
+    private void OpenPicture(ChatPicture picture) => owner.OpenPicture(picture, received: !IsMine);
+
+    /// <summary>Loads the pictures in the background when where they are has changed; none for a card of other files.</summary>
+    internal void ShowPictures(IReadOnlyList<string> locations)
+    {
+        string shown = string.Join('\n', locations);
+        if (shown == picturesShown)
+        {
+            return;
+        }
+
+        picturesShown = shown;
+        MoreText = locations.Count > ShownPictures ? $"+{locations.Count - ShownPictures}" : null;
+        if (locations.Count == 0)
+        {
+            Pictures = [];
+            return;
+        }
+
+        _ = LoadAsync([.. locations.Take(ShownPictures)], shown);
+    }
+
+    private async Task LoadAsync(IReadOnlyList<string> locations, string shown)
+    {
+        List<ChatPicture> loaded = await Task.Run(() =>
+        {
+            List<ChatPicture> pictures = [];
+            foreach (string location in locations)
+            {
+                try
+                {
+                    using Stream stream = owner.OpenRead(location);
+                    pictures.Add(new ChatPicture(Bitmap.DecodeToWidth(stream, 480), location));
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or InvalidOperationException or NotSupportedException)
+                {
+                    // Gone, or a kind the decoder does not know (HEIC): the card says what it is instead.
+                }
+            }
+
+            return pictures;
+        });
+        if (picturesShown == shown)
+        {
+            Pictures = loaded;
+        }
+    }
 
     /// <summary>Sent by us: on the right, like our messages.</summary>
     [ObservableProperty]
@@ -942,6 +1127,8 @@ public sealed partial class ChatFileViewModel(string id, ChatViewModel owner) : 
     {
         IsMine = true;
         key = null;
+        offerId = offer.OfferId;
+        CanWithdraw = offer.State == OfferState.Open;
         IsText = offer.Paths.Count == 0;
         Title = IsText ? TransferText.Preview(offer.Note ?? "", 200) : TransferText.Summary(offer.Paths);
         SentRecipient? recipient = offer.Recipients.FirstOrDefault(r => r.DeviceId == peer);
@@ -969,6 +1156,8 @@ public sealed partial class ChatFileViewModel(string id, ChatViewModel owner) : 
     {
         IsMine = false;
         key = new OfferKey(offer.SenderId, offer.OfferId);
+        offerId = null;
+        CanWithdraw = false;
         IsText = offer.Files.Count == 0;
         Title = IsText ? TransferText.Preview(offer.Note ?? "", 200) : TransferText.Summary(offer.Files.Select(f => f.RelativePath));
         string state = offer.State switch
@@ -989,3 +1178,6 @@ public sealed partial class ChatFileViewModel(string id, ChatViewModel owner) : 
         Progress = offer.State == InboxState.Downloading && offer.TotalBytes > 0 ? 100.0 * offer.BytesReceived / offer.TotalBytes : -1;
     }
 }
+
+/// <summary>A picture shown in a file card, and where it is, to open it.</summary>
+public sealed record ChatPicture(Bitmap Image, string Location);

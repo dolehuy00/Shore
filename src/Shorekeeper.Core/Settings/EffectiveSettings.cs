@@ -35,6 +35,12 @@ public sealed record EffectiveSettings
 
     public long AutoAcceptMaxBytes => (long)(AutoAcceptLimitGb * (1L << 30));
 
+    /// <summary>
+    /// Pictures a contact sends (not through a group, all pictures, up to 20 MB in all) download by themselves, so
+    /// they show in the conversation (docs/15-chat.md §6.3).
+    /// </summary>
+    public bool ChatAutoDownloadPictures { get; init; } = true;
+
     public bool QuickSendHotkey { get; init; } = true;
 
     public Hotkey QuickSendShortcut { get; init; } = Hotkey.Default;

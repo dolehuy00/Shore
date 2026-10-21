@@ -95,6 +95,7 @@ public static class SettingsResolver
             ReconnectWindow = reconnectWindow,
             AlwaysSnapshotBeforeSend = user.AlwaysSnapshotBeforeSend,
             AutoAcceptLimitGb = user.AutoAcceptLimitGb is > 0 and var gb ? Math.Min(gb, EffectiveSettings.MaxAutoAcceptLimitGb) : EffectiveSettings.DefaultAutoAcceptLimitGb,
+            ChatAutoDownloadPictures = user.ChatAutoDownloadPictures ?? true,
             QuickSendHotkey = user.QuickSendHotkey ?? true,
             QuickSendShortcut = Hotkey.Parse(user.QuickSendShortcut) ?? Hotkey.Default,
             AudioLatency = user.AudioLatency?.ToLowerInvariant() switch

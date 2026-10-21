@@ -11,9 +11,9 @@ Hai người đã Kết nối nhắn cho nhau **văn bản** và **tin nhắn th
 | Hội thoại 1-1 với liên hệ đã Kết nối | Chat nhóm (giai đoạn C5, sau C4) |
 | Văn bản, tin nhắn thoại tối đa 5 phút | Gọi thoại/video trực tiếp |
 | Chờ gửi khi máy kia offline, tự gửi khi máy kia online | Gửi qua máy trung gian (Bridge, Host) |
-| Đã tới / đã xem | "Đang soạn…", sửa tin, thu hồi ở máy bên kia |
+| Đã tới / đã xem, thu hồi tin của mình | "Đang soạn…", sửa tin |
 | Xóa tin / hội thoại trên máy mình | Đồng bộ lịch sử giữa các máy của cùng một người |
-| File gửi với người đó hiện thành thẻ trong hội thoại | |
+| File gửi với người đó hiện thành thẻ trong hội thoại; ảnh hiện thẳng trong thẻ | |
 
 **Gửi văn bản** (offer có note, không file — [06](06-file-transfer.md)) giữ nguyên trong bản này; gộp nó vào tin nhắn hay không thì chốt sau C2.
 
@@ -30,6 +30,7 @@ Tin nhắn **không đi qua offer**: offer là để người nhận chọn tả
 - Giới hạn: văn bản 4.000 ký tự; thoại 5 phút; 20 tin/giây mỗi máy gửi (quá thì `429`).
 - Thống kê ([10](10-ux.md) §15) đếm tin gửi (khi máy kia nhận) và tin nhận (lần đầu tới), theo ngày và theo máy.
 - **Xóa** chỉ trên máy mình: từng tin (`DeleteAsync`, cả file thoại; tin đang chờ gửi thì không gửi nữa) hoặc cả hội thoại (`DeleteConversationAsync`, kèm "Đã xem" chưa báo). Máy kia vẫn giữ bản của nó.
+- **Thu hồi** (`RecallAsync`) tin chữ hoặc thoại của mình, bất kỳ lúc nào: ở cả hai máy tin đó thành dòng ghi chú in nghiêng "Tin nhắn đã được thu hồi" (`kind` `recalled`, giữ chỗ và giờ gửi), chữ, sóng âm và file thoại bị xóa. Báo cho máy kia bằng `POST /chat/recalls`, chờ gửi như receipt khi máy kia offline (bảng `ChatRecalls`). Tin chưa đi thì không bao giờ đi nữa. Máy kia chỉ đổi tin **của người gọi** gửi cho nó; bản chưa có thu hồi từ chối thì thôi, tin ở đó còn nguyên. Thu hồi là nhờ máy kia xóa chứ không ép được: ai đã chép, chụp hay sửa app thì vẫn giữ.
 
 ### 2.1 Trạng thái một tin (phía người gửi)
 
@@ -57,6 +58,7 @@ Hiện dưới bong bóng, sau giờ gửi ("09:29 · Đã xem"): "Chờ gửi" 
 |---|---|---|---|
 | `POST` | `/chat/messages` | `Trusted` | Một tin → `204`; trùng ID thì vẫn `204`, không làm gì |
 | `POST` | `/chat/receipts` | `Trusted` | `{ readUpTo }` |
+| `POST` | `/chat/recalls` | `Trusted` | `{ ids }`: tin của người gọi cần thu hồi, tối đa 500 |
 
 ```json
 {
@@ -86,6 +88,7 @@ Migration `0006_chat.sql` ([09](09-data-storage.md)):
 
 - `ChatMessages` (khóa `PeerId` + `Id`): `Outgoing`, `Kind`, `Text`, `VoicePath`, `DurationMs`, `Wave`, `SentAt`, `ReceivedAt`, `State`. Tin nhận: `unread` → `read`; tin gửi theo §2.1. Danh sách hội thoại, tin cuối và số chưa đọc tính từ bảng này.
 - `ChatReceipts`: `PeerId`, `ReadUpTo`: "Đã xem" chưa báo được cho máy kia, xóa khi máy kia đã trả lời.
+- `ChatRecalls` (migration `0007_chat_recalls.sql`): `PeerId`, `Id`: thu hồi chưa báo được cho máy kia, xóa khi máy kia đã trả lời.
 - Không tự xóa tin. Chữ rất nhẹ; tin thoại hiện dung lượng trong Thống kê.
 
 ## 6. Giao diện
@@ -98,7 +101,7 @@ Migration `0006_chat.sql` ([09](09-data-storage.md)):
 - Phải: tên + trạng thái, bong bóng (của mình bên phải màu nhấn), ngăn ngày, ô soạn dưới cùng. Không viết được thì ô soạn khóa và nói vì sao (chưa kết nối, bản cũ); máy kia offline thì vẫn viết được, kèm dòng "tin nhắn sẽ được gửi khi máy online".
 - Ô soạn: Enter gửi, Shift+Enter xuống dòng. 🎤 bên trái ô soạn bấm để ghi; khi ghi, ô soạn thành [✕] ● 0:07 [mức âm] [➤]: ✕ hủy, ➤ gửi.
 - Gửi file cho người này ngay trong hội thoại: 📎 (chọn file), **Ctrl+V** trong ô soạn (file đã copy, hoặc ảnh copy dạng ảnh như ở Xóm; chữ thì dán như thường) hoặc **kéo thả** vào vùng tin nhắn (viền xanh khi đang kéo qua). Một offer như gửi từ Xóm, nhưng không chuyển sang "Đã gửi": file hiện thành thẻ trong hội thoại (§6.3). Được cả với máy bản cũ, vì file thì luôn gửi được; chỉ cần đã Kết nối.
-- Chuột phải một tin: **Sao chép** (tin chữ), **Chọn nhiều**, **Xóa tin nhắn**. Chọn nhiều: mỗi tin có ô chọn, click cả hàng để chọn/bỏ (hàng được chọn nền xanh nhạt), thanh trên cùng [☐ Chọn tất cả] "Đã chọn N" [Xóa] [Xong]; xóa từ 2 tin trở lên thì hỏi trước. Địa chỉ web trong tin (tối đa 3) hiện thành dòng gạch chân ngay dưới, bấm thì mở trình duyệt. ⋮ trên đầu hội thoại: **Xóa hội thoại…** (hỏi trước).
+- Chuột phải một tin: **Sao chép** (tin chữ), **Thu hồi** (tin của mình), **Chọn nhiều**, **Xóa tin nhắn**. Chọn nhiều: mỗi tin có ô chọn, click cả hàng để chọn/bỏ (hàng được chọn nền xanh nhạt), thanh trên cùng [☐ Chọn tất cả] "Đã chọn N" [Xóa] [Xong]; xóa từ 2 tin trở lên thì hỏi trước. Địa chỉ web trong tin (tối đa 3) hiện thành dòng gạch chân ngay dưới, bấm thì mở trình duyệt. ⋮ trên đầu hội thoại: **Xóa hội thoại…** (hỏi trước).
 - Bong bóng thoại: ▶/⏸ trên nền tròn, 48 vạch sóng (phần đã phát tô đậm), thời lượng.
 - Thẻ người ở Xóm thêm nút 💬 và mục **Nhắn tin** (liên hệ). Toast tin mới (trừ khi "Bận", hoặc đang mở đúng hội thoại đó và cửa sổ ở trước), bấm thì mở đúng hội thoại; tắt toast thì chỉ còn số chưa đọc trên "Tin nhắn".
 - Tin đọc khi trang Tin nhắn đang mở đúng hội thoại **và** cửa sổ đang ở trước (thu nhỏ, ở khay hay sau cửa sổ khác thì chưa).
@@ -113,12 +116,19 @@ Migration `0006_chat.sql` ([09](09-data-storage.md)):
 - Chấm đỏ nhấp nháy chỉ gắn khi đang ghi: animation lặp mãi làm app vẽ lại liên tục, và trên điện thoại khiến bộ đếm tiến độ phát (`DispatcherTimer` ưu tiên Background) không bao giờ chạy.
 - Thông báo kiểu tin nhắn (`MessagingStyle`, kênh "Tin nhắn"), một thông báo mỗi người với tối đa 8 tin chưa đọc, có **Trả lời** ngay trên thông báo (`RemoteInput`) và **Đánh dấu đã đọc**; chạm thì mở đúng hội thoại. Trả lời là đã đọc: app gỡ thông báo. ColorOS vẫn giữ thẻ đã trả lời (kèm "Bạn: …" do Android thêm) trong khung thông báo tới khi vuốt bỏ, dù hệ thống đã gỡ nó.
 - Không có thông báo khi đang mở đúng hội thoại đó và app ở trước.
-- Nhấn giữ một tin: menu **Sao chép** / **Chọn nhiều** / **Xóa tin nhắn** (rung nhẹ). Đang chọn thì chạm hoặc nhấn giữ một tin để chọn/bỏ; thanh trên cùng [☐ Chọn tất cả] "Đã chọn N" [✕] [Xóa], như ở tab File; link dưới tin chạm để mở; ⋮ trên đầu hội thoại: **Xóa hội thoại…** (hỏi trước).
+- Nhấn giữ một tin: menu **Sao chép** / **Thu hồi** (tin của mình) / **Chọn nhiều** / **Xóa tin nhắn** (rung nhẹ). Đang chọn thì chạm hoặc nhấn giữ một tin để chọn/bỏ; thanh trên cùng [☐ Chọn tất cả] "Đã chọn N" [✕] [Xóa], như ở tab File; link dưới tin chạm để mở; ⋮ trên đầu hội thoại: **Xóa hội thoại…** (hỏi trước).
 - Widget: dòng trạng thái bắt đầu bằng "2 tin chưa đọc · " khi có.
 
 ### 6.3 File trong hội thoại
 
 Offer mình gửi cho người đó (không qua nhóm) và mọi offer người đó gửi cho mình (Hộp nhận không giữ nhóm của offer) hiện thành **thẻ** trong luồng tin theo giờ gửi/nhận, bên của người gửi: tên file ("app.zip + 2 mục") hoặc chữ của "Gửi văn bản", dung lượng, trạng thái (lời như ở Hộp nhận / Đã gửi), thanh tiến độ khi đang tải, [Tải] với offer mới và [Xem] mở tab Hộp nhận / Đã gửi (điện thoại: File → Nhận / Đã gửi), nơi làm được mọi việc khác. Hộp nhận và Đã gửi vẫn đủ mọi offer như cũ; thẻ chỉ là một cách xem khác, không lưu thêm gì. Danh sách hội thoại vẫn chỉ xếp theo tin nhắn.
+
+Chuột phải (điện thoại: nhấn giữ) một thẻ: **Thu hồi** offer mình gửi còn mở (hỏi trước, như ở Đã gửi: người nhận không tải được nữa) và **Xem**.
+
+**Ảnh hiện thẳng**: offer chỉ gồm ảnh (theo đuôi file, như nhóm "Ảnh" ở Thống kê) hiện tối đa 4 ảnh thay cho tên file, thêm "+N" nếu nhiều hơn; bấm một ảnh thì mở bằng trình xem của hệ thống (điện thoại: tab File). Ảnh được thu nhỏ còn rộng 480 px khi đọc, ngoài luồng giao diện.
+
+- Ảnh mình gửi đọc từ file gốc (hoặc snapshot). Trên điện thoại, file chọn bằng trình chọn của hệ thống là `content://` với quyền đọc tạm: mở lại app thì không đọc được nữa và thẻ quay về dạng tên file.
+- Ảnh người kia gửi hiện khi đã tải xong và file còn đó. Để khỏi phải bấm Tải, **Cài đặt → "Tự tải ảnh máy đã kết nối gửi"** (mặc định bật; `chatAutoDownloadPictures`): offer từ liên hệ đã Kết nối, không qua nhóm, chỉ gồm ảnh và tổng tối đa **20 MB** thì tự tải về thư mục nhận như "Tự nhận file". Tắt thì ảnh chờ bấm Tải như file khác; bật "Tự nhận file" cho máy đó thì giới hạn của nó vẫn áp dụng như cũ.
 
 ## 7. Giai đoạn
 
@@ -127,7 +137,7 @@ Offer mình gửi cho người đó (không qua nhóm) và mọi offer người 
 | **C1** Engine văn bản | Migration, `ChatService`, 2 endpoint, chờ gửi / gửi tiếp khi online, chống trùng, đã tới / đã xem, `caps: "chat"` | Test Engine 2 máy loopback: gửi/nhận, offline → online gửi đúng thứ tự, gửi lại trùng ID, Unknown/chặn → `403`, receipt |
 | **C2** Giao diện văn bản | Trang Tin nhắn (PC), tab File + tab Tin nhắn (điện thoại), chưa đọc, nút ở Xóm, toast, thông báo có Trả lời | Nhắn qua lại thật PC ↔ điện thoại, offline rồi online |
 | **C3** Tin nhắn thoại | `IMicrophone` (WASAPI micro, Android micro), ghi Ogg Opus + sóng âm, gửi kèm tin, bong bóng phát | Test mã hóa ↔ giải mã Ogg; ghi và nghe thật trên cả hai máy |
-| **C4** Hoàn thiện ✅ | Thẻ file trong hội thoại, xóa tin (menu chuột phải / nhấn giữ, chọn nhiều) và hội thoại (⋮), chép chữ, link bấm được, Thống kê, widget | Test engine (xóa, đếm) + thử trên máy thật |
+| **C4** Hoàn thiện ✅ | Thẻ file trong hội thoại, xóa tin (menu chuột phải / nhấn giữ, chọn nhiều) và hội thoại (⋮), chép chữ, link bấm được, Thống kê, widget; sau đó gửi file ngay trong hội thoại, ảnh hiện thẳng, thu hồi tin và file | Test engine (xóa, đếm, thu hồi, tự tải ảnh) + thử trên máy thật |
 | **C5** Chat nhóm | Hội thoại theo Nhóm: gửi tỏa ra từng thành viên, ai offline nhận sau, đã xem theo từng người | Kế hoạch riêng khi tới |
 
 ## 8. Rủi ro

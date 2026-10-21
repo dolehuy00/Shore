@@ -119,10 +119,16 @@ public sealed record ChatMessageBody(
 /// <summary>Body of <c>POST /api/v1/chat/receipts</c>: the caller has read our messages up to this id.</summary>
 public sealed record ChatReceiptBody(string ReadUpTo);
 
+/// <summary>Body of <c>POST /api/v1/chat/recalls</c>: the caller takes back these messages it sent ("Thu hồi").</summary>
+public sealed record ChatRecallBody(IReadOnlyList<string> Ids);
+
 public static class ChatKinds
 {
     public const string Text = "text";
     public const string Voice = "voice";
+
+    /// <summary>Taken back by its sender: shown as "Tin nhắn đã được thu hồi" on both sides. Never sent as a message.</summary>
+    public const string Recalled = "recalled";
 }
 
 /// <summary>Stable error codes in problem+json responses (docs/05-protocol.md §3).</summary>

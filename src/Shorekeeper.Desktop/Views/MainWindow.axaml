@@ -264,6 +264,13 @@
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderThickness" Value="0" />
     </Style>
+    <!-- A picture in a file card: no button chrome, only the picture. -->
+    <Style Selector="Button.picture">
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+    </Style>
     <!-- Files dragged over a conversation: dropped, they go to that person. -->
     <Style Selector="Border.dropzone">
       <Setter Property="BorderThickness" Value="2" />
@@ -336,7 +343,7 @@
     <Style Selector="Border.bubble.mine Rectangle.bar">
       <Setter Property="Fill" Value="{DynamicResource AccentButtonForeground}" />
     </Style>
-    <Style Selector="Border.bubble.unknown TextBlock.body">
+    <Style Selector="Border.bubble.unknown TextBlock.body, Border.bubble.unknown SelectableTextBlock.body">
       <Setter Property="FontStyle" Value="Italic" />
     </Style>
     <Style Selector="Border.tag">
@@ -676,7 +683,8 @@
                         <!-- Right click: copy the words, choose several, or take the message away here. -->
                         <Border.ContextMenu>
                           <ContextMenu>
-                            <MenuItem Header="{l:T 'Sao chép'}" Command="{Binding CopyCommand}" IsVisible="{Binding IsText}" />
+                            <MenuItem Header="{l:T 'Sao chép'}" Command="{Binding CopyCommand}" IsVisible="{Binding CanCopy}" />
+                            <MenuItem Header="{l:T 'Thu hồi'}" Command="{Binding RecallCommand}" IsVisible="{Binding CanRecall}" />
                             <MenuItem Header="{l:T 'Chọn nhiều'}" Command="{Binding SelectManyCommand}" />
                             <MenuItem Header="{l:T 'Xóa tin nhắn'}" Command="{Binding DeleteCommand}" />
                           </ContextMenu>
@@ -744,7 +752,38 @@
                     <StackPanel>
                       <TextBlock Classes="muted" Text="{Binding DayText}" IsVisible="{Binding HasDay}" FontSize="12" HorizontalAlignment="Center" Margin="0,10,0,6" />
                       <Border Classes="filecard" Classes.mine="{Binding IsMine}">
-                        <Grid ColumnDefinitions="Auto,*">
+                        <!-- Right click: withdraw what we sent, or see it in Hộp nhận / Đã gửi. -->
+                        <Border.ContextMenu>
+                          <ContextMenu>
+                            <MenuItem Header="{l:T 'Thu hồi'}" Command="{Binding WithdrawCommand}" IsVisible="{Binding CanWithdraw}" />
+                            <MenuItem Header="Xem" Command="{Binding ShowCommand}" />
+                          </ContextMenu>
+                        </Border.ContextMenu>
+                        <Panel>
+                        <!-- An offer of pictures shows them; click one to open it. -->
+                        <StackPanel IsVisible="{Binding HasPictures}" Spacing="4">
+                          <ItemsControl ItemsSource="{Binding Pictures}">
+                            <ItemsControl.ItemsPanel>
+                              <ItemsPanelTemplate>
+                                <StackPanel Spacing="4" />
+                              </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                              <DataTemplate x:DataType="vm:ChatPicture">
+                                <Button Classes="picture" Command="{Binding $parent[ItemsControl].((vm:ChatFileViewModel)DataContext).OpenPictureCommand}" CommandParameter="{Binding}">
+                                  <Border CornerRadius="10" ClipToBounds="True">
+                                    <Image Source="{Binding Image}" MaxWidth="300" MaxHeight="340" Stretch="Uniform" />
+                                  </Border>
+                                </Button>
+                              </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                          </ItemsControl>
+                          <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Classes="muted" Text="{Binding MoreText}" IsVisible="{Binding HasMore}" FontSize="12" />
+                            <TextBlock Grid.Column="1" Classes="muted" Text="{Binding StatusText}" FontSize="11" />
+                          </Grid>
+                        </StackPanel>
+                        <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding IsPlain}">
                           <Border Classes="tile" Width="36" Height="36" CornerRadius="8" VerticalAlignment="Top">
                             <Panel>
                               <PathIcon Data="{StaticResource Icon.Document}" IsVisible="{Binding !IsText}" Width="18" Height="18" />
@@ -761,6 +800,7 @@
                             </StackPanel>
                           </StackPanel>
                         </Grid>
+                        </Panel>
                       </Border>
                     </StackPanel>
                   </DataTemplate>
@@ -1467,6 +1507,8 @@
               </StackPanel>
 
               <CheckBox IsChecked="{Binding Settings.CreateSenderSubfolders}" Content="{l:T 'Tạo thư mục con theo tên người gửi'}" />
+              <!-- Applies at once, unlike the fields above. -->
+              <CheckBox IsChecked="{Binding Chat.AutoDownloadPictures}" Content="{l:T 'Tự tải ảnh máy đã kết nối gửi (đến 20 MB) để hiện ngay trong Tin nhắn'}" />
 
               <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto">
                 <TextBlock Classes="muted" Text="{l:T 'File tôi gửi mở trong'}" VerticalAlignment="Center" Margin="0,0,12,8" />

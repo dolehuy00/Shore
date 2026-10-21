@@ -420,6 +420,31 @@ public sealed class TransferTests : IAsyncLifetime
         Assert.Equal(content.Length, Assert.Single(received.Peers).ReceivedBytes);
     }
 
+    [Fact]
+    public async Task Pictures_from_a_contact_download_by_themselves_to_show_in_the_conversation()
+    {
+        string offerId = await SendAsync(a, [WriteFile(a, "photo.jpg", RandomNumberGenerator.GetBytes(40_000)), WriteFile(a, "shot.png", [1, 2, 3])], b.Id);
+
+        ReceivedOffer offer = await WaitForOfferAsync(b, offerId);
+        await WaitUntil(() => b.Inbox.Get(new OfferKey(offer.SenderId, offer.OfferId)) is { State: InboxState.Completed });
+    }
+
+    [Theory]
+    [InlineData("report.pdf", 1000, true)]
+    [InlineData("big.jpg", InboxService.ChatPictureMaxBytes + 1, true)]
+    [InlineData("photo.jpg", 1000, false)]
+    public async Task Other_offers_wait_for_the_recipient(string name, long size, bool settingOn)
+    {
+        await using TestNode c = await TestNode.StartAsync("C", settingOn ? null : "\"chatAutoDownloadPictures\": false");
+        await a.ConnectAsync(c);
+
+        string offerId = await SendAsync(a, [WriteFile(a, name, new byte[size])], c.Id);
+
+        await WaitForOfferAsync(c, offerId);
+        await Task.Delay(500, Ct);
+        Assert.Equal(InboxState.New, c.Inbox.GetOffers().Single(o => o.OfferId == offerId).State);
+    }
+
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     private static string WriteFile(TestNode node, string name, byte[] content)

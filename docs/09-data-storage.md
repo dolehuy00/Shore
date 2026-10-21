@@ -157,7 +157,7 @@ CREATE TABLE GroupJoinRequests (       -- chỉ ở Host
 CREATE TABLE ChatMessages (
   PeerId TEXT NOT NULL, Id TEXT NOT NULL,   -- Id do người gửi tạo, chỉ duy nhất theo từng máy
   Outgoing INTEGER NOT NULL,
-  Kind TEXT NOT NULL,                       -- text | voice | loại của bản sau
+  Kind TEXT NOT NULL,                       -- text | voice | recalled (0007) | loại của bản sau
   Text TEXT, VoicePath TEXT, DurationMs INTEGER, Wave BLOB,
   SentAt INTEGER NOT NULL,                  -- giờ máy gửi, dùng để xếp
   ReceivedAt INTEGER,
@@ -167,6 +167,11 @@ CREATE TABLE ChatMessages (
 
 CREATE TABLE ChatReceipts (                 -- "Đã xem" chưa báo được cho máy kia
   PeerId TEXT PRIMARY KEY, ReadUpTo TEXT NOT NULL
+);
+
+CREATE TABLE ChatRecalls (                  -- 0007: thu hồi chưa báo được cho máy kia
+  PeerId TEXT NOT NULL, Id TEXT NOT NULL,
+  PRIMARY KEY (PeerId, Id)
 );
 
 -- ───────────── Nhật ký ─────────────

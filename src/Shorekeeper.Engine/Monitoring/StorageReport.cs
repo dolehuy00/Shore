@@ -35,6 +35,9 @@ public sealed record StorageReport(long DriveTotal, long DriveFree, long FolderB
         [".gz"] = StorageKind.Archives, [".apk"] = StorageKind.Archives, [".exe"] = StorageKind.Archives, [".msi"] = StorageKind.Archives,
     };
 
+    /// <summary>A picture by its extension (JPEG, PNG, GIF, BMP, WebP, HEIC).</summary>
+    public static bool IsPicture(string path) => KindByExtension.TryGetValue(Path.GetExtension(path), out StorageKind kind) && kind == StorageKind.Pictures;
+
     /// <summary>
     /// Reads the drive and walks <paramref name="folder"/> (links not followed, unreadable folders skipped). Can take a
     /// while on a large folder: call it off the UI thread.

@@ -22,6 +22,9 @@ public sealed record ShorekeeperSettings
     /// <summary>"Tự nhận file" limit in GB for contacts that follow Settings (2 when null).</summary>
     public double? AutoAcceptLimitGb { get; init; }
 
+    /// <summary>Pictures from contacts download by themselves to show in the conversation (on when null).</summary>
+    public bool? ChatAutoDownloadPictures { get; init; }
+
     /// <summary>"vi" or "en"; null follows the system language (docs/10-ux.md §1). Takes effect at the next start.</summary>
     public string? Language { get; init; }
 

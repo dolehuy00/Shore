@@ -248,6 +248,51 @@ public sealed class ChatTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_recalled_message_becomes_a_note_on_both_sides()
+    {
+        ChatMessage text = await a.Chat.SendTextAsync(b.Id, "gửi nhầm", Ct);
+        ChatMessage voice = await a.Chat.SendVoiceAsync(b.Id, Voice(seconds: 1), Ct);
+        await WaitUntil(() => b.Chat.GetMessagesAsync(a.Id, Ct).Result.Count == 2);
+        string received = (await b.Chat.GetMessagesAsync(a.Id, Ct)).Single(m => m.Id == voice.Id).VoicePath!;
+
+        await a.Chat.RecallAsync(b.Id, [text.Id, voice.Id], Ct);
+
+        Assert.All(await a.Chat.GetMessagesAsync(b.Id, Ct), m => Assert.Equal((ChatKinds.Recalled, null, null), (m.Kind, m.Text, m.VoicePath)));
+        await WaitUntil(() => b.Chat.GetMessagesAsync(a.Id, Ct).Result.All(m => m.Kind == ChatKinds.Recalled));
+        Assert.All(await b.Chat.GetMessagesAsync(a.Id, Ct), m => Assert.Equal((null, ChatMessageState.Read), (m.Text, m.State)));
+        Assert.False(File.Exists(voice.VoicePath));
+        Assert.False(File.Exists(received));
+    }
+
+    [Fact]
+    public async Task A_message_recalled_before_it_left_is_never_sent()
+    {
+        a.Directory.Remove(b.Id);
+        ChatMessage sent = await a.Chat.SendTextAsync(b.Id, "thôi khỏi", Ct);
+        await a.Chat.RecallAsync(b.Id, [sent.Id], Ct);
+
+        a.Sees(b);
+        await Task.Delay(800, Ct);
+
+        Assert.Empty(await b.Chat.GetMessagesAsync(a.Id, Ct));
+    }
+
+    [Fact]
+    public async Task Only_the_sender_can_recall_a_message()
+    {
+        ChatMessage mine = await a.Chat.SendTextAsync(b.Id, "của A", Ct);
+        await WaitUntil(() => b.Chat.GetMessagesAsync(a.Id, Ct).Result.Count == 1);
+
+        // B cannot take back what A sent, neither in its own app nor by asking A's.
+        await b.Chat.RecallAsync(a.Id, [mine.Id], Ct);
+        Assert.Equal(HttpStatusCode.NoContent, await PostAsync(b, a, "chat/recalls", new ChatRecallBody([mine.Id])));
+
+        Assert.Equal("của A", Assert.Single(await a.Chat.GetMessagesAsync(b.Id, Ct)).Text);
+        Assert.Equal("của A", Assert.Single(await b.Chat.GetMessagesAsync(a.Id, Ct)).Text);
+        Assert.Equal(HttpStatusCode.BadRequest, await PostAsync(b, a, "chat/recalls", new ChatRecallBody(["không phải id"])));
+    }
+
+    [Fact]
     public void Presence_says_messages_are_taken()
     {
         PresencePacket packet = a.Get<LocalPresence>().CreatePacket(PresencePacketTypes.Announce);

@@ -43,6 +43,7 @@ public sealed record SentRecipient(DeviceId DeviceId, RecipientState State, long
 
 /// <summary>What the "Đã gửi" page shows about one offer.</summary>
 /// <param name="GroupId">Sent to fellow members of this group rather than to contacts.</param>
+/// <param name="Sources">Where each file (not folder) is read from: a path, or a location of the OS such as content://.</param>
 public sealed record SentOffer(
     string OfferId,
     DateTimeOffset CreatedAt,
@@ -53,7 +54,8 @@ public sealed record SentOffer(
     OfferState State,
     bool HasChangedFiles,
     IReadOnlyList<SentRecipient> Recipients,
-    string? GroupId = null);
+    string? GroupId = null,
+    IReadOnlyList<string>? Sources = null);
 
 // ───────────── Receiving ─────────────
 

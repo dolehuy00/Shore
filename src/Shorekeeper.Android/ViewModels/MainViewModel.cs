@@ -70,7 +70,8 @@ public sealed partial class MainViewModel : ObservableObject
         Audio.AskPassword = AskPasswordAsync;
         Settings = new SettingsTabViewModel(services, this);
         Chat = new ChatViewModel(
-            services.GetRequiredService<ChatService>(), trust, directory, offers, inbox, services.GetService<IMicrophone>(), services.GetService<IVoicePlayer>())
+            services.GetRequiredService<ChatService>(), trust, directory, offers, inbox, settings, external,
+            services.GetService<IMicrophone>(), services.GetService<IVoicePlayer>())
         {
             AllowRecording = AllowRecordingAsync,
             CopyText = text =>

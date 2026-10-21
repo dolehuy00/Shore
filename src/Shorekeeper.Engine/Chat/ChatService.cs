@@ -56,6 +56,9 @@ public sealed class ChatService(
     /// <summary>Messages a peer may send us each second.</summary>
     public const int MaxPerSecond = 20;
 
+    /// <summary>Messages one recall may take back.</summary>
+    public const int MaxRecall = 500;
+
     /// <summary>Waiting messages are tried again this often while their peer is online (it may have been busy).</summary>
     private static readonly TimeSpan RetryEvery = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(15);
@@ -161,6 +164,36 @@ public sealed class ChatService(
         Changed?.Invoke(this, peer);
     }
 
+    /// <summary>
+    /// "Thu hồi": our messages become "Tin nhắn đã được thu hồi" here at once, their words and voice gone, and on the
+    /// peer's device as soon as it is told (now, or when it is next online). One still waiting is never sent.
+    /// </summary>
+    public async Task RecallAsync(DeviceId peer, IReadOnlyCollection<string> ids, CancellationToken cancellationToken)
+    {
+        List<string?> files;
+        await using (SqliteConnection connection = await database.OpenAsync(cancellationToken))
+        {
+            List<string> mine = [.. await connection.QueryAsync<string>(
+                "SELECT Id FROM ChatMessages WHERE PeerId = @peer AND Id IN @ids AND Outgoing = 1 AND Kind <> 'recalled';", new { peer = peer.Value, ids })];
+            if (mine.Count == 0)
+            {
+                return;
+            }
+
+            files = [.. await connection.QueryAsync<string?>(
+                "SELECT VoicePath FROM ChatMessages WHERE PeerId = @peer AND Id IN @mine AND VoicePath IS NOT NULL;", new { peer = peer.Value, mine })];
+            await connection.ExecuteAsync(
+                "UPDATE ChatMessages SET Kind = 'recalled', Text = NULL, VoicePath = NULL, DurationMs = NULL, Wave = NULL WHERE PeerId = @peer AND Id IN @mine;",
+                new { peer = peer.Value, mine });
+            await connection.ExecuteAsync(
+                "INSERT OR IGNORE INTO ChatRecalls (PeerId, Id) VALUES (@peer, @id);", mine.Select(id => new { peer = peer.Value, id }));
+        }
+
+        DeleteFiles(files);
+        Changed?.Invoke(this, peer);
+        Kick(peer);
+    }
+
     /// <summary>The whole conversation, on this device only: messages, voice files and a "Đã xem" not told yet.</summary>
     public async Task DeleteConversationAsync(DeviceId peer, CancellationToken cancellationToken)
     {
@@ -169,6 +202,7 @@ public sealed class ChatService(
         {
             files = [.. await connection.QueryAsync<string?>(
                 "SELECT VoicePath FROM ChatMessages WHERE PeerId = @peer AND VoicePath IS NOT NULL;", new { peer = peer.Value })];
+            // A recall not told yet stays: deleting here does not take back what the peer has.
             await connection.ExecuteAsync(
                 "DELETE FROM ChatMessages WHERE PeerId = @peer; DELETE FROM ChatReceipts WHERE PeerId = @peer;", new { peer = peer.Value });
         }
@@ -279,6 +313,38 @@ public sealed class ChatService(
         return PeerResponse.Empty(HttpStatusCode.NoContent);
     }
 
+    internal async Task<PeerResponse> HandleRecallAsync(DeviceId caller, ChatRecallBody body)
+    {
+        if (body.Ids is not { Count: > 0 and <= MaxRecall } || !body.Ids.All(id => Guid.TryParseExact(id, "N", out _)))
+        {
+            return PeerResponse.Problem(HttpStatusCode.BadRequest, ApiErrorCodes.InvalidRequest);
+        }
+
+        string[] ids = [.. body.Ids.Select(id => Guid.ParseExact(id, "N").ToString("N"))];
+        List<string?> files;
+        int changed;
+        await using (SqliteConnection connection = await database.OpenAsync())
+        {
+            files = [.. await connection.QueryAsync<string?>(
+                "SELECT VoicePath FROM ChatMessages WHERE PeerId = @peer AND Id IN @ids AND Outgoing = 0 AND VoicePath IS NOT NULL;", new { peer = caller.Value, ids })];
+            // Read: nothing left to read, and its notification goes.
+            changed = await connection.ExecuteAsync(
+                """
+                UPDATE ChatMessages SET Kind = 'recalled', Text = NULL, VoicePath = NULL, DurationMs = NULL, Wave = NULL, State = 'read'
+                WHERE PeerId = @peer AND Id IN @ids AND Outgoing = 0 AND Kind <> 'recalled';
+                """,
+                new { peer = caller.Value, ids });
+        }
+
+        DeleteFiles(files);
+        if (changed > 0)
+        {
+            Changed?.Invoke(this, caller);
+        }
+
+        return PeerResponse.Empty(HttpStatusCode.NoContent);
+    }
+
     internal async Task<PeerResponse> HandleReceiptAsync(DeviceId caller, ChatReceiptBody body)
     {
         if (!Guid.TryParseExact(body.ReadUpTo, "N", out Guid upTo))
@@ -334,7 +400,10 @@ public sealed class ChatService(
         await using (SqliteConnection connection = await database.OpenAsync(cancellationToken))
         {
             waiting = await connection.QueryAsync<string>(
-                "SELECT PeerId FROM ChatMessages WHERE Outgoing = 1 AND State = 'pending' UNION SELECT PeerId FROM ChatReceipts;");
+                """
+                SELECT PeerId FROM ChatMessages WHERE Outgoing = 1 AND State = 'pending' AND Kind <> 'recalled'
+                UNION SELECT PeerId FROM ChatReceipts UNION SELECT PeerId FROM ChatRecalls;
+                """);
         }
 
         HashSet<string> online = [.. directory.Snapshot().Where(p => p.State == PeerState.Online).Select(p => p.DeviceId.Value)];
@@ -392,13 +461,17 @@ public sealed class ChatService(
     {
         List<MessageRow> pending;
         string? receipt;
+        List<string> recalls;
         await using (SqliteConnection connection = await database.OpenAsync(cancellationToken))
         {
+            // A recalled message that never left stays here.
             pending = [.. await connection.QueryAsync<MessageRow>(
-                $"SELECT {Columns} FROM ChatMessages WHERE PeerId = @peer AND Outgoing = 1 AND State = 'pending' ORDER BY SentAt, Id;",
+                $"SELECT {Columns} FROM ChatMessages WHERE PeerId = @peer AND Outgoing = 1 AND State = 'pending' AND Kind <> 'recalled' ORDER BY SentAt, Id;",
                 new { peer = peer.Value })];
             receipt = await connection.QuerySingleOrDefaultAsync<string>(
                 "SELECT ReadUpTo FROM ChatReceipts WHERE PeerId = @peer;", new { peer = peer.Value });
+            recalls = [.. await connection.QueryAsync<string>(
+                "SELECT Id FROM ChatRecalls WHERE PeerId = @peer LIMIT @max;", new { peer = peer.Value, max = MaxRecall })];
         }
 
         foreach (MessageRow row in pending)
@@ -429,6 +502,12 @@ public sealed class ChatService(
         {
             await WriteAsync(
                 "DELETE FROM ChatReceipts WHERE PeerId = @peer AND ReadUpTo = @receipt;", new { peer = peer.Value, receipt }, cancellationToken);
+        }
+
+        // The same for recalls: a version without them cannot take anything back anyway.
+        if (recalls.Count > 0 && await PostAsync(peer, "chat/recalls", new ChatRecallBody(recalls), cancellationToken) is not null)
+        {
+            await WriteAsync("DELETE FROM ChatRecalls WHERE PeerId = @peer AND Id IN @recalls;", new { peer = peer.Value, recalls }, cancellationToken);
         }
     }
 

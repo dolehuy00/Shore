@@ -182,6 +182,13 @@
     <Style Selector="Border.bubble.mine TextBlock, Border.bubble.mine SelectableTextBlock">
       <Setter Property="Foreground" Value="{DynamicResource AccentButtonForeground}" />
     </Style>
+    <!-- A picture in a file card: no button chrome, only the picture. -->
+    <Style Selector="Button.picture">
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+    </Style>
     <!-- A message checked in "Chọn nhiều": its row washed in the accent blue, as the cards are. -->
     <!-- Transparent, not empty, so a tap between the bubble and the edge still reaches the row. Set here rather than on
          the row itself, where it would win over "picked". -->
@@ -852,7 +859,8 @@
                         <Border Grid.Column="1" Classes="bubble" Classes.mine="{Binding IsMine}" Classes.unknown="{Binding IsUnknown}" Holding="OnBubbleHolding">
                           <FlyoutBase.AttachedFlyout>
                             <MenuFlyout>
-                              <MenuItem Header="{l:T 'Sao chép'}" Command="{Binding CopyCommand}" IsVisible="{Binding IsText}" />
+                              <MenuItem Header="{l:T 'Sao chép'}" Command="{Binding CopyCommand}" IsVisible="{Binding CanCopy}" />
+                              <MenuItem Header="{l:T 'Thu hồi'}" Command="{Binding RecallCommand}" IsVisible="{Binding CanRecall}" />
                               <MenuItem Header="{l:T 'Chọn nhiều'}" Command="{Binding SelectManyCommand}" />
                               <MenuItem Header="{l:T 'Xóa tin nhắn'}" Command="{Binding DeleteCommand}" />
                             </MenuFlyout>
@@ -917,8 +925,39 @@
                     <DataTemplate DataType="{x:Type dvm:ChatFileViewModel}" x:DataType="dvm:ChatFileViewModel">
                       <StackPanel>
                         <TextBlock Classes="muted" Text="{Binding DayText}" IsVisible="{Binding HasDay}" FontSize="12" HorizontalAlignment="Center" Margin="0,10,0,6" />
-                        <Border Classes="filecard" Classes.mine="{Binding IsMine}">
-                          <Grid ColumnDefinitions="Auto,*">
+                        <!-- Long press: withdraw what we sent, or see it in File. -->
+                        <Border Classes="filecard" Classes.mine="{Binding IsMine}" Holding="OnFileCardHolding">
+                          <FlyoutBase.AttachedFlyout>
+                            <MenuFlyout>
+                              <MenuItem Header="{l:T 'Thu hồi'}" Command="{Binding WithdrawCommand}" IsVisible="{Binding CanWithdraw}" />
+                              <MenuItem Header="Xem" Command="{Binding ShowCommand}" />
+                            </MenuFlyout>
+                          </FlyoutBase.AttachedFlyout>
+                          <Panel>
+                          <!-- An offer of pictures shows them; click one to open it. -->
+                          <StackPanel IsVisible="{Binding HasPictures}" Spacing="4">
+                            <ItemsControl ItemsSource="{Binding Pictures}">
+                              <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                  <StackPanel Spacing="4" />
+                                </ItemsPanelTemplate>
+                              </ItemsControl.ItemsPanel>
+                              <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="dvm:ChatPicture">
+                                  <Button Classes="picture" Command="{Binding $parent[ItemsControl].((dvm:ChatFileViewModel)DataContext).OpenPictureCommand}" CommandParameter="{Binding}">
+                                    <Border CornerRadius="10" ClipToBounds="True">
+                                      <Image Source="{Binding Image}" MaxWidth="260" MaxHeight="300" Stretch="Uniform" />
+                                    </Border>
+                                  </Button>
+                                </DataTemplate>
+                              </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <Grid ColumnDefinitions="*,Auto">
+                              <TextBlock Classes="muted" Text="{Binding MoreText}" IsVisible="{Binding HasMore}" FontSize="12" />
+                              <TextBlock Grid.Column="1" Classes="muted" Text="{Binding StatusText}" FontSize="11" />
+                            </Grid>
+                          </StackPanel>
+                          <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding IsPlain}">
                             <Border Classes="tile" Width="38" Height="38" CornerRadius="9">
                               <Panel>
                                 <PathIcon Data="{StaticResource Icon.Document}" IsVisible="{Binding !IsText}" Width="18" Height="18" />
@@ -935,6 +974,7 @@
                               </StackPanel>
                             </StackPanel>
                           </Grid>
+                          </Panel>
                         </Border>
                       </StackPanel>
                     </DataTemplate>
@@ -1256,6 +1296,12 @@
               <Button Grid.Column="2" Content="{l:T 'Lưu'}" Command="{Binding SaveAutoAcceptLimitCommand}" />
             </Grid>
             <TextBlock Classes="muted" Text="{l:T 'Cho máy đã kết nối có Tự nhận file theo cài đặt chung; từng máy có thể đặt riêng ở menu ⋮.'}" FontSize="12" TextWrapping="Wrap" />
+
+            <TextBlock Classes="h3" Text="{l:T 'Tin nhắn'}" />
+            <ToggleSwitch IsChecked="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).Chat.AutoDownloadPictures}"
+                          OnContent="{l:T 'Tự tải ảnh máy đã kết nối gửi'}" OffContent="{l:T 'Tự tải ảnh máy đã kết nối gửi'}" />
+            <TextBlock Classes="muted" Text="{l:T 'Ảnh đến 20 MB tự tải về thư mục nhận để hiện ngay trong Tin nhắn. Tắt thì ảnh chờ bạn bấm Tải như file khác.'}"
+                       FontSize="12" TextWrapping="Wrap" />
 
             <TextBlock Classes="h3" Text="{l:T 'Chạy nền'}" />
             <ToggleSwitch IsChecked="{Binding AlwaysReceive}" OnContent="{l:T 'Luôn nhận file (kể cả khi tắt màn hình)'}" OffContent="{l:T 'Luôn nhận file (kể cả khi tắt màn hình)'}" />
