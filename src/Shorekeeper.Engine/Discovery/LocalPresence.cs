@@ -92,6 +92,7 @@ public sealed class LocalPresence : ILocalPresence
 
     private IEnumerable<string> Capabilities()
     {
+        yield return PresenceCapabilities.Chat;
         if (settings.Current.BridgeEnabled)
         {
             yield return PresenceCapabilities.Bridge;

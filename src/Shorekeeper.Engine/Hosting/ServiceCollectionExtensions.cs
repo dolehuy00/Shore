@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Shorekeeper.Core.Platform;
 using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Audio;
+using Shorekeeper.Engine.Chat;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Groups;
 using Shorekeeper.Engine.Monitoring;
@@ -51,7 +52,7 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    /// <summary>Registers sending and receiving files.</summary>
+    /// <summary>Registers sending and receiving files, and messages.</summary>
     public static IServiceCollection AddTransfers(this IServiceCollection services)
     {
         services.TryAddSingleton<IFileTagger>(NullFileTagger.Instance);
@@ -66,6 +67,8 @@ public static class ServiceCollectionExtensions
         // Sends only with an IMediaLibrary (Android).
         services.AddSingleton<PhotoBackupService>();
         services.AddHostedService(sp => sp.GetRequiredService<PhotoBackupService>());
+        services.AddSingleton<ChatService>();
+        services.AddHostedService(sp => sp.GetRequiredService<ChatService>());
 
         return services;
     }

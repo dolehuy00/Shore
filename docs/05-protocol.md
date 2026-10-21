@@ -45,7 +45,7 @@
 | `port` | Cổng HTTPS API | M1 (API có từ M2) |
 | `addrs` | Các IPv4 của máy | M1 |
 | `status` | `available` \| `busy` | M1 |
-| `caps` | Khả năng: `bridge` khi máy đang làm cầu nối | M4 |
+| `caps` | Khả năng: `bridge` khi máy đang làm cầu nối; `audio`, `audio-locked` (§4.7); `chat` khi nhận tin nhắn (§4.8) | M4 |
 | `proto` | Phiên bản API hỗ trợ | (dự kiến) |
 | `groups` | Nhóm mà máy này Host (tối đa 5): `[{ id, name, n }]`, `n` = số thành viên | M5 |
 | `dept` | Phòng ban trong AD, tối đa 40 ký tự | M6b |
@@ -182,6 +182,15 @@ Máy phát có thể đặt **mật khẩu nghe** (tùy chọn, nhớ lâu dài)
 - **Xin gửi lại** (mọi mức trễ): khi gói mới hơn đã tới mà một khung vẫn thiếu (và không có bản sao trong gói sau), máy nghe gửi `0xA2 · counter (4) · sequence (4) × 1..64 · tag` (niêm phong với nonce loại 2, counter riêng) tới cổng nguồn; hỏi lại một khung sau 30 ms nếu chưa tới. Máy phát giữ 300 gói đã niêm phong gần nhất (3 s) cho từng máy nghe và gửi lại nguyên văn những gói còn giữ.
 - Máy tính giữ Wi-Fi ở media streaming mode và tắt background scan khi đang thu hay đang nghe (`WlanSetInterface`).
 
+### 4.8 Tin nhắn ([15](15-chat.md))
+
+Chỉ giữa hai liên hệ. Người gửi lưu tin trước rồi mới gửi; máy kia không tới được thì tin chờ và đi lần lượt khi máy kia online (và thử lại 30 giây một lần khi đang online). Presence có `chat`; bản cũ trả `403` cho route lạ, nên tin gửi tới đó thành **lỗi**.
+
+| Method | Path | Quyền | Mô tả |
+|---|---|---|---|
+| POST | `/chat/messages` | Trusted | `{ id, sentAt, kind, text? }` → `204`. `id` 32 chữ số hex do người gửi tạo, xếp theo thời gian (UUIDv7); đã có thì vẫn `204` và bỏ qua (gửi lại an toàn). `kind` `text` cần `text` 1–4.000 ký tự; `kind` khác (bản sau) được giữ, không có chữ. `sentAt` muộn hơn giờ máy nhận thì lấy giờ máy nhận. Sai định dạng `400`; quá 20 tin/giây `429` |
+| POST | `/chat/receipts` | Trusted | `{ readUpTo }`: máy gọi đã đọc các tin của mình tới `id` này → `204` |
+
 ## 5. Timeout & giới hạn
 
 | Tham số | Giá trị |
@@ -194,3 +203,4 @@ Máy phát có thể đặt **mật khẩu nghe** (tùy chọn, nhớ lâu dài)
 | JSON request tối đa | 1 MB (≤ 10.000 file/offer) |
 | File song song / người nhận | 4 |
 | Stream đồng thời phía người gửi | 16 |
+| Tin nhắn | 4.000 ký tự; 20 tin/giây mỗi máy gửi |

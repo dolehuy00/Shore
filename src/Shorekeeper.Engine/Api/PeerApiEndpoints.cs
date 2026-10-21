@@ -2,6 +2,7 @@ using System.Net;
 using Microsoft.Extensions.DependencyInjection;
 using Shorekeeper.Core.Platform;
 using Shorekeeper.Engine.Audio;
+using Shorekeeper.Engine.Chat;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Groups;
 using Shorekeeper.Engine.Identity;
@@ -27,6 +28,7 @@ public static class PeerApiEndpoints
         var groups = services.GetRequiredService<GroupService>();
         var profile = services.GetRequiredService<DirectoryProfileService>();
         var audio = services.GetRequiredService<AudioService>();
+        var chat = services.GetRequiredService<ChatService>();
         var api = new PeerApi(trust, groupStore);
 
         api.Map("GET", "/hello", RequiredAccess.AnyPeer, _ => PeerResponse.Json(new HelloResponse(
@@ -208,6 +210,14 @@ public static class PeerApiEndpoints
             audio.HandleEnded(request.Caller, request.Route("sessionId"));
             return NoContent();
         });
+
+        // ───────────── Messages (docs/15-chat.md §4): contacts only ─────────────
+
+        api.Map("POST", "/chat/messages", RequiredAccess.Trusted, async request =>
+            await request.ReadJsonAsync<ChatMessageBody>() is { } body ? await chat.HandleMessageAsync(request.Caller, body) : Invalid());
+
+        api.Map("POST", "/chat/receipts", RequiredAccess.Trusted, async request =>
+            await request.ReadJsonAsync<ChatReceiptBody>() is { } body ? await chat.HandleReceiptAsync(request.Caller, body) : Invalid());
 
         return api;
     }

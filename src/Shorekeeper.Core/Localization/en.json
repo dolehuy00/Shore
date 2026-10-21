@@ -610,5 +610,6 @@
   "File nén, cài đặt": "Archives, installers",
   "Khác": "Other",
   "Ổ chứa file nhận": "Drive for received files",
-  "Đang đọc ổ đĩa…": "Reading the drive…"
+  "Đang đọc ổ đĩa…": "Reading the drive…",
+  "Tin nhắn dài tối đa {0:N0} ký tự.": "A message can be at most {0:N0} characters."
 }

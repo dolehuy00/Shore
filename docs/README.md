@@ -32,7 +32,7 @@
 | 12 | [Lộ trình](12-roadmap.md) | Milestone M0 → M6 |
 | 13 | [Tích hợp Active Directory](13-active-directory.md) | Tùy chọn, nếu công ty có AD |
 | 14 | [Bản Android](14-android.md) | Kế hoạch: ràng buộc nền tảng, kiến trúc, giai đoạn A0 → A6 |
-| 15 | [Tin nhắn](15-chat.md) | Kế hoạch: hội thoại 1-1, văn bản và tin nhắn thoại, giai đoạn C1 → C5 |
+| 15 | [Tin nhắn](15-chat.md) | Hội thoại 1-1, văn bản và tin nhắn thoại, giai đoạn C1 → C5 |
 | — | [Quyết định kiến trúc (ADR)](decisions.md) | Nhật ký quyết định & lý do |
 | — | [Câu hỏi mở](open-questions.md) | Những điểm cần chốt thêm |
 

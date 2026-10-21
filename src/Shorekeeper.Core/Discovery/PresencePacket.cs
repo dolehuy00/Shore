@@ -88,6 +88,9 @@ public static class PresenceCapabilities
 
     /// <summary>With <see cref="Audio"/>: listening needs the source's password.</summary>
     public const string AudioLocked = "audio-locked";
+
+    /// <summary>Takes messages (docs/15-chat.md §2); versions before it answer them like an unknown route.</summary>
+    public const string Chat = "chat";
 }
 
 public static class PresenceStatus

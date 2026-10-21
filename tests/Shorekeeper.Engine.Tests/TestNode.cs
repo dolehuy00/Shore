@@ -6,6 +6,7 @@ using Shorekeeper.Core.Identity;
 using Shorekeeper.Core.Platform;
 using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Audio;
+using Shorekeeper.Engine.Chat;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Groups;
 using Shorekeeper.Engine.Hosting;
@@ -48,6 +49,8 @@ internal sealed class TestNode : IAsyncDisposable
     public GroupStore GroupStore => Get<GroupStore>();
 
     public AudioService Audio => Get<AudioService>();
+
+    public ChatService Chat => Get<ChatService>();
 
     public string DownloadDirectory => folder.Paths.DefaultDownloadDirectory;
 

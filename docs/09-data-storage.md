@@ -152,6 +152,22 @@ CREATE TABLE GroupJoinRequests (       -- chỉ ở Host
   PRIMARY KEY (GroupId, DeviceId)
 );
 
+-- ───────────── Tin nhắn (0006, docs/15-chat.md) ─────────────
+CREATE TABLE ChatMessages (
+  PeerId TEXT NOT NULL, Id TEXT NOT NULL,   -- Id do người gửi tạo, chỉ duy nhất theo từng máy
+  Outgoing INTEGER NOT NULL,
+  Kind TEXT NOT NULL,                       -- text | voice | loại của bản sau
+  Text TEXT, VoicePath TEXT, DurationMs INTEGER, Wave BLOB,
+  SentAt INTEGER NOT NULL,                  -- giờ máy gửi, dùng để xếp
+  ReceivedAt INTEGER,
+  State TEXT NOT NULL,                      -- gửi: pending | delivered | read | failed; nhận: unread | read
+  PRIMARY KEY (PeerId, Id)
+);
+
+CREATE TABLE ChatReceipts (                 -- "Đã xem" chưa báo được cho máy kia
+  PeerId TEXT PRIMARY KEY, ReadUpTo TEXT NOT NULL
+);
+
 -- ───────────── Nhật ký ─────────────
 CREATE TABLE ActivityLog (
   Id INTEGER PRIMARY KEY, At INTEGER NOT NULL, Kind TEXT NOT NULL,
@@ -168,6 +184,7 @@ CREATE TABLE ActivityLog (
 | `Offers` đã đóng | 90 ngày (lịch sử) |
 | `InboxOffers` đã xong/hết hạn | 90 ngày (người dùng xóa tay được) |
 | `snapshots\` | Xóa khi offer đóng; dọn phần sót lúc khởi động |
+| `ChatMessages` | Không tự xóa (người dùng xóa tay, C4) |
 | `.skpart` | Xóa khi lỗi/hủy; dọn phần sót lúc khởi động |
 | `Peers` Unknown không thấy lại | 30 ngày |
 | `PeerEndpoints` không thành công | 14 ngày |

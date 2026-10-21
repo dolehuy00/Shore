@@ -108,6 +108,20 @@ public sealed record AudioJoinResponse(bool Control);
 /// <summary>Body of <c>POST /api/v1/audio/listeners/{sessionId}/keys</c>: a name from <see cref="Core.Platform.MediaKeyNames"/>.</summary>
 public sealed record AudioKeyBody(string Key);
 
+/// <summary>
+/// Body of <c>POST /api/v1/chat/messages</c> (docs/15-chat.md §4): one message, its id made by the sender (32 hex digits,
+/// time ordered). <paramref name="Kind"/> is <see cref="ChatKinds.Text"/> for now; other kinds are kept for a newer version.
+/// </summary>
+public sealed record ChatMessageBody(string Id, DateTimeOffset SentAt, string Kind, string? Text = null);
+
+/// <summary>Body of <c>POST /api/v1/chat/receipts</c>: the caller has read our messages up to this id.</summary>
+public sealed record ChatReceiptBody(string ReadUpTo);
+
+public static class ChatKinds
+{
+    public const string Text = "text";
+}
+
 /// <summary>Stable error codes in problem+json responses (docs/05-protocol.md §3).</summary>
 public static class ApiErrorCodes
 {

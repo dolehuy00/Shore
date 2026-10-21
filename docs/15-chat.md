@@ -1,6 +1,6 @@
-# 15 — Tin nhắn (kế hoạch)
+# 15 — Tin nhắn
 
-> Trạng thái: **kế hoạch**, chưa làm. Đã chốt (2026-10-21): hội thoại **1-1 trước**, nhóm sau; trên điện thoại **gộp Hộp nhận + Đã gửi** thành tab "File" để có chỗ cho tab "Tin nhắn"; file gửi qua lại giữa hai người **hiện thành thẻ** trong hội thoại.
+> Trạng thái: **C1 xong** (2026-10-21: engine, văn bản), C2–C5 kế hoạch. Đã chốt (2026-10-21): hội thoại **1-1 trước**, nhóm sau; trên điện thoại **gộp Hộp nhận + Đã gửi** thành tab "File" để có chỗ cho tab "Tin nhắn"; file gửi qua lại giữa hai người **hiện thành thẻ** trong hội thoại.
 
 ## 1. Mục tiêu
 
@@ -21,12 +21,12 @@ Hai người đã Kết nối nhắn cho nhau **văn bản** và **tin nhắn th
 
 Tin nhắn **không đi qua offer**: offer là để người nhận chọn tải, có hạn, có thu hồi; tin nhắn cần thứ tự, đã xem và nhẹ.
 
-- Mỗi tin có ID **ULID do người gửi tạo**. Người nhận đã có ID đó thì trả `200` và bỏ qua, nên gửi lại bao nhiêu lần cũng an toàn.
-- Gửi: lưu tin với trạng thái `pending` rồi `POST /chat/messages`. Máy kia offline (`PeerUnreachableException`) thì để nguyên; khi `PeerDirectory` báo máy đó online thì gửi tiếp các tin `pending` theo thứ tự, giống `OfferService.DeliverPendingAsync`.
-- Bị từ chối (`403`, máy kia đã Ngắt kết nối / chặn) thì `failed`, bấm vào để gửi lại.
+- Mỗi tin có ID **do người gửi tạo**: UUIDv7, 32 chữ số hex, xếp theo thời gian. Người nhận đã có ID đó thì vẫn trả `204` và bỏ qua, nên gửi lại bao nhiêu lần cũng an toàn.
+- Gửi: lưu tin với trạng thái `pending` rồi `POST /chat/messages`. Máy kia offline (`PeerUnreachableException`), bận (`429`) hay lỗi máy chủ (`5xx`) thì để nguyên; khi `PeerDirectory` báo máy đó online thì gửi tiếp các tin `pending` theo thứ tự, giống `OfferService.DeliverPendingAsync`, và cứ 30 giây thử lại với máy đang online. Mỗi máy chỉ một luồng gửi, nên thứ tự giữ nguyên.
+- Bị từ chối (`403`: máy kia đã Ngắt kết nối / chặn, hoặc là bản chưa có chat; `400`) thì `failed`, bấm vào để gửi lại.
 - Thứ tự hiển thị theo giờ gửi của người gửi (`sentAt`), cùng giờ thì theo ID. Giờ hai máy lệch nhau không làm đảo tin của cùng một người.
 - **Đã xem**: mở hội thoại (cửa sổ đang hiện, đúng hội thoại đó) thì gửi `POST /chat/receipts` với ID tin cuối đã đọc; máy kia đánh dấu ✓✓ mọi tin tới ID đó. Receipt cũng chờ gửi khi offline, nhưng chỉ giữ cái mới nhất.
-- Presence thêm `caps: "chat"`. Máy không có `chat` (bản cũ) thì ô soạn khóa lại với dòng "Máy này chưa cập nhật để nhận tin nhắn", không gửi rồi nhận `404`.
+- Presence thêm `caps: "chat"` (`PeerInfo.CanChat`). Máy nghe trực tiếp mà không có `chat` (bản cũ) thì ô soạn khóa lại với dòng "Máy này chưa cập nhật để nhận tin nhắn", vì bản cũ trả `403` cho route lạ. Máy chỉ thấy qua Bridge hay thêm bằng địa chỉ thì không biết `caps` (Bridge không chuyển), nên vẫn cho gửi.
 - Giới hạn: văn bản 4.000 ký tự; thoại 5 phút; 20 tin/giây mỗi máy gửi (quá thì `429`).
 - Bộ đếm Thống kê ([10](10-ux.md) §15) thêm số tin gửi/nhận (C4).
 
@@ -35,7 +35,7 @@ Tin nhắn **không đi qua offer**: offer là để người nhận chọn tả
 | Trạng thái | Hiện | Khi nào |
 |---|---|---|
 | `pending` | 🕓 | Chưa tới được máy kia |
-| `delivered` | ✓ | Máy kia trả `200` |
+| `delivered` | ✓ | Máy kia trả `204` |
 | `read` | ✓✓ (màu nhấn) | Có receipt tới ID này hoặc sau |
 | `failed` | ⚠ + "Bấm để gửi lại" | `403` / lỗi không thử lại được |
 
@@ -52,12 +52,12 @@ Tin nhắn **không đi qua offer**: offer là để người nhận chọn tả
 
 | Method | Path | Quyền | Ghi chú |
 |---|---|---|---|
-| `POST` | `/chat/messages` | `Trusted` | Một tin; trùng ID thì `200` không làm gì |
+| `POST` | `/chat/messages` | `Trusted` | Một tin → `204`; trùng ID thì vẫn `204`, không làm gì |
 | `POST` | `/chat/receipts` | `Trusted` | `{ readUpTo }` |
 
 ```json
 {
-  "id": "01JB8Q4Z6V2N3K5M7P9R1T3W5Y",
+  "id": "019a05f1c2d87b3e9a41f6c0d2e5b7a9",
   "sentAt": "2026-10-21T08:15:30Z",
   "kind": "text",
   "text": "Anh gửi lại file báo cáo nhé"
@@ -66,7 +66,7 @@ Tin nhắn **không đi qua offer**: offer là để người nhận chọn tả
 
 ```json
 {
-  "id": "01JB8Q5A1C3E5G7J9L1N3Q5S7U",
+  "id": "019a05f2401c7d5f8e23a9b4c6d8e0f1",
   "sentAt": "2026-10-21T08:16:02Z",
   "kind": "voice",
   "durationMs": 12400,
@@ -81,8 +81,8 @@ Trường lạ thì bỏ qua, `kind` lạ thì hiện "Tin nhắn này cần b�
 
 Migration `0006_chat.sql` ([09](09-data-storage.md)):
 
-- `ChatMessages`: `Id`, `PeerId`, `Outgoing`, `Kind`, `Text`, `VoicePath`, `DurationMs`, `Wave`, `SentAt`, `ReceivedAt`, `State`.
-- `ChatConversations`: `PeerId`, `LastMessageId`, `LastAt`, `Unread`, `ReadUpTo` (mình đã đọc tới đâu), `TheirReadUpTo` (máy kia đã đọc tới đâu), `ReceiptPending`.
+- `ChatMessages` (khóa `PeerId` + `Id`): `Outgoing`, `Kind`, `Text`, `VoicePath`, `DurationMs`, `Wave`, `SentAt`, `ReceivedAt`, `State`. Tin nhận: `unread` → `read`; tin gửi theo §2.1. Danh sách hội thoại, tin cuối và số chưa đọc tính từ bảng này.
+- `ChatReceipts`: `PeerId`, `ReadUpTo`: "Đã xem" chưa báo được cho máy kia, xóa khi máy kia đã trả lời.
 - Không tự xóa tin. Chữ rất nhẹ; tin thoại hiện dung lượng trong Thống kê.
 
 ## 6. Giao diện

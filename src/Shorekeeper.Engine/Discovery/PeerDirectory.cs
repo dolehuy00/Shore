@@ -24,6 +24,7 @@ public enum PeerSource
 /// <param name="Address">Address the last packet came from; the most reliable way to reach the peer.</param>
 /// <param name="DiscoveryPort">UDP port the peer's packets come from; 0 when not heard directly.</param>
 /// <param name="HostedGroups">Groups the peer hosts and announces; null when none.</param>
+/// <param name="CanChat">Announces messages; peers heard only through a Bridge or found by address never say so.</param>
 public sealed record PeerInfo(
     DeviceId DeviceId,
     string DisplayName,
@@ -42,7 +43,8 @@ public sealed record PeerInfo(
     string? Department = null,
     string? AvatarTag = null,
     bool IsPlayingAudio = false,
-    bool IsAudioLocked = false);
+    bool IsAudioLocked = false,
+    bool CanChat = false);
 
 public enum PeerChangeKind
 {
@@ -188,7 +190,8 @@ public sealed class PeerDirectory(TimeProvider timeProvider)
         packet.Department,
         packet.AvatarTag,
         packet.Capabilities.Contains(PresenceCapabilities.Audio),
-        packet.Capabilities.Contains(PresenceCapabilities.AudioLocked));
+        packet.Capabilities.Contains(PresenceCapabilities.AudioLocked),
+        packet.Capabilities.Contains(PresenceCapabilities.Chat));
 
     /// <summary>Stores the observation; returns the change to raise outside the lock, or null if nothing visible changed.</summary>
     private PeerChange? Store(PeerInfo observed)
