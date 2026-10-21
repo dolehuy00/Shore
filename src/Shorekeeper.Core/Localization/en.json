@@ -656,5 +656,6 @@
   "Đang tải {0:0}%": "Downloading {0:0}%",
   "7 ngày: gửi {0} · nhận {1} tin": "7 days: {0} messages sent · {1} received",
   "Tổng: gửi {0} · nhận {1} tin": "Total: {0} messages sent · {1} received",
-  "Xóa {0} tin nhắn trên máy này? Máy kia vẫn giữ tin của nó.": "Delete {0} messages on this device? The other device keeps its own."
+  "Xóa {0} tin nhắn trên máy này? Máy kia vẫn giữ tin của nó.": "Delete {0} messages on this device? The other device keeps its own.",
+  "Gửi file… (hoặc kéo thả, Ctrl+V)": "Send files… (or drag and drop, Ctrl+V)"
 }

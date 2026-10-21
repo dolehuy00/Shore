@@ -190,6 +190,15 @@
     <Style Selector="Border.bubble.mine TextBlock, Border.bubble.mine SelectableTextBlock">
       <Setter Property="Foreground" Value="{DynamicResource AccentButtonForeground}" />
     </Style>
+    <!-- Files dragged over a conversation: dropped, they go to that person. -->
+    <Style Selector="Border.dropzone">
+      <Setter Property="BorderThickness" Value="2" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="Border.dropzone.droptarget">
+      <Setter Property="BorderBrush" Value="#22C55E" />
+      <Setter Property="Background" Value="#1A22C55E" />
+    </Style>
     <!-- A message checked in "Chọn nhiều": its row washed in the accent blue, as the offers are. -->
     <!-- Transparent, not empty, so a tap between the bubble and the edge still reaches the row. Set here rather than on
          the row itself, where it would win over "picked". -->
@@ -537,12 +546,18 @@
           <Border DockPanel.Dock="Bottom" Padding="16,10" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource Sk.Divider}">
             <StackPanel Spacing="6">
               <TextBlock Classes="muted" Text="{Binding Notice}" IsVisible="{Binding HasNotice}" FontSize="12" TextWrapping="Wrap" />
-              <!-- Writing: 🎤 [box] ➤. Recording: ✕ ● 0:07 level ➤. -->
+              <!-- Writing: 📎 🎤 [box] ➤ (Ctrl+V files or a picture sends them too). Recording: ✕ ● 0:07 level ➤. -->
               <Grid ColumnDefinitions="Auto,*,Auto" IsVisible="{Binding IsComposing}">
-                <Button Command="{Binding RecordCommand}" IsVisible="{Binding HasMicrophone}" IsEnabled="{Binding CanWrite}" Margin="0,0,8,0" VerticalAlignment="Bottom" Padding="10,8"
-                        ToolTip.Tip="{l:T 'Ghi tin nhắn thoại'}" AutomationProperties.Name="{l:T 'Ghi tin nhắn thoại'}">
-                  <PathIcon Data="{StaticResource Icon.Mic}" Width="16" Height="16" />
-                </Button>
+                <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,8,0" VerticalAlignment="Bottom">
+                  <Button Command="{Binding AttachCommand}" IsEnabled="{Binding CanAttach}" Padding="10,8"
+                          ToolTip.Tip="{l:T 'Gửi file… (hoặc kéo thả, Ctrl+V)'}" AutomationProperties.Name="{l:T 'Gửi file…'}">
+                    <PathIcon Data="{StaticResource Icon.Attach}" Width="16" Height="16" />
+                  </Button>
+                  <Button Command="{Binding RecordCommand}" IsVisible="{Binding HasMicrophone}" IsEnabled="{Binding CanWrite}" Padding="10,8"
+                          ToolTip.Tip="{l:T 'Ghi tin nhắn thoại'}" AutomationProperties.Name="{l:T 'Ghi tin nhắn thoại'}">
+                    <PathIcon Data="{StaticResource Icon.Mic}" Width="16" Height="16" />
+                  </Button>
+                </StackPanel>
                 <TextBox Grid.Column="1" x:Name="ChatBox" Text="{Binding Draft}" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="140" IsEnabled="{Binding CanWrite}"
                          PlaceholderText="{l:T 'Nhập tin nhắn… (Enter để gửi, Shift+Enter xuống dòng)'}" AutomationProperties.Name="{l:T 'Tin nhắn'}" />
                 <Button Grid.Column="2" Classes="accent" Command="{Binding SendCommand}" Margin="8,0,0,0" VerticalAlignment="Bottom" Padding="12,8"
@@ -565,6 +580,7 @@
             </StackPanel>
           </Border>
 
+          <Border Classes="dropzone" Classes.droptarget="{Binding IsDropTarget}">
           <Panel>
             <TextBlock Classes="muted" IsVisible="{Binding HasNoMessages}" Text="{l:T 'Chưa có tin nhắn. Gửi lời chào đi!'}"
                        HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -674,6 +690,7 @@
               </ItemsControl>
             </ScrollViewer>
           </Panel>
+          </Border>
         </DockPanel>
       </Panel>
     </Grid>

@@ -46,7 +46,8 @@ public sealed class DialogService(
     /// Files another program is writing can only go as a temporary copy, so the user is asked first.
     /// </summary>
     /// <param name="text">"Gửi văn bản": sent alone when there are no files, as the offer's note with them.</param>
-    public async Task SendAsync(IReadOnlyList<string> paths, IReadOnlyList<OfferBatch> batches, string? text = null)
+    /// <param name="showSent">Show "Đã gửi" afterwards; not from a conversation, where the file shows as a card.</param>
+    public async Task SendAsync(IReadOnlyList<string> paths, IReadOnlyList<OfferBatch> batches, string? text = null, bool showSent = true)
     {
         batches = [.. batches.Where(b => b.Recipients.Count > 0)];
         text = string.IsNullOrWhiteSpace(text) ? null : text.Trim();
@@ -68,7 +69,11 @@ public sealed class DialogService(
                 await offers.CreateAsync(new PreparedOffer([], []), batch.Recipients, text, snapshotLocked: false, batch.GroupId, CancellationToken.None);
             }
 
-            OfferSent?.Invoke(this, EventArgs.Empty);
+            if (showSent)
+            {
+                OfferSent?.Invoke(this, EventArgs.Empty);
+            }
+
             return;
         }
 
@@ -123,7 +128,10 @@ public sealed class DialogService(
             await ChooseAsync(L.T("Một số mục không đọc được"), L.F("{0} mục đã bị bỏ qua vì không đọc được (không có quyền hoặc đã bị xóa).", prepared.Unreadable.Count), [L.T("Đóng")]);
         }
 
-        OfferSent?.Invoke(this, EventArgs.Empty);
+        if (showSent)
+        {
+            OfferSent?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     /// <param name="owner">The window asking; the main window when null.</param>

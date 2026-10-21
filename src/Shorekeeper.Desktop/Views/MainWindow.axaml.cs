@@ -16,6 +16,8 @@ public partial class MainWindow : Window
     /// <summary>The card currently lit up under the dragged files.</summary>
     private IFileDropTarget? highlighted;
 
+    private ChatDropTarget? chatDrop;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -78,8 +80,29 @@ public partial class MainWindow : Window
     private static PeerCardViewModel? CardAt(object? source) =>
         (source as Visual)?.GetSelfAndVisualAncestors().OfType<Control>().Select(c => c.DataContext).OfType<PeerCardViewModel>().FirstOrDefault();
 
-    private static IFileDropTarget? DropTargetAt(object? source) =>
-        (source as Visual)?.GetSelfAndVisualAncestors().OfType<Control>().Select(c => c.DataContext).OfType<IFileDropTarget>().FirstOrDefault();
+    /// <summary>A card under the files, or the open conversation (not its list or header, which name other people).</summary>
+    private IFileDropTarget? DropTargetAt(object? source)
+    {
+        object?[] contexts = [.. (source as Visual)?.GetSelfAndVisualAncestors().OfType<Control>().Select(c => c.DataContext) ?? []];
+        return contexts.OfType<IFileDropTarget>().FirstOrDefault()
+            ?? (!contexts.OfType<ChatPersonViewModel>().Any() && contexts.OfType<ChatViewModel>().FirstOrDefault() is { } chat
+                ? chatDrop ??= new ChatDropTarget(chat)
+                : null);
+    }
+
+    /// <summary>The open conversation as a place to drop files: they go to its person.</summary>
+    private sealed class ChatDropTarget(ChatViewModel chat) : IFileDropTarget
+    {
+        public bool CanDrop => chat.CanAttach;
+
+        public bool IsDropTarget
+        {
+            get => chat.IsDropTarget;
+            set => chat.IsDropTarget = value;
+        }
+
+        public Task DropAsync(IReadOnlyList<string> paths) => chat.AttachAsync(paths);
+    }
 
     private void OnDragOver(object? sender, DragEventArgs e)
     {
@@ -238,6 +261,15 @@ public partial class MainWindow : Window
 
     private void OnChatKeyDown(object? sender, KeyEventArgs e)
     {
+        // Ctrl+V: copied files, or a picture copied as a picture, go to this person; text is pasted as usual.
+        if (e.Key == Key.V && e.KeyModifiers.HasFlag(KeyModifiers.Control) && DataContext is MainWindowViewModel { Chat.CanAttach: true } chat
+            && Clipboard is { } clipboard)
+        {
+            e.Handled = true;
+            _ = PasteIntoChatAsync(chat, clipboard);
+            return;
+        }
+
         if (e.Key == Key.Enter && !e.KeyModifiers.HasFlag(KeyModifiers.Shift) && DataContext is MainWindowViewModel main)
         {
             e.Handled = true;
@@ -246,6 +278,23 @@ public partial class MainWindow : Window
                 main.Chat.SendCommand.Execute(null);
             }
         }
+    }
+
+    private async Task PasteIntoChatAsync(MainWindowViewModel main, IClipboard clipboard)
+    {
+        string[] paths = [.. (await clipboard.TryGetFilesAsync() ?? []).Select(f => f.TryGetLocalPath()).OfType<string>()];
+        if (paths.Length == 0 && !string.IsNullOrEmpty(await clipboard.TryGetTextAsync()))
+        {
+            ChatBox.Paste();
+            return;
+        }
+
+        if (paths.Length == 0 && await ClipboardImage.SaveAsync(clipboard, main.ClipboardDirectory) is { } picture)
+        {
+            paths = [picture];
+        }
+
+        await main.Chat.AttachAsync(paths);
     }
 
     private void Highlight(IFileDropTarget? target)

@@ -53,6 +53,8 @@ public partial class MainView : UserControl
             {
                 // After the new bubbles are laid out, so the end is where they are.
                 main.Chat.ScrollToEndRequested += (_, _) => Dispatcher.UIThread.Post(() => ChatScroller.ScrollToEnd(), DispatcherPriority.Loaded);
+                // 📎 in a conversation: the same picker as "Gửi file…" on a card.
+                main.Chat.PickFiles = () => PickAsync(L.F("Gửi cho {0}", main.Chat.Current?.Name), allowMultiple: true);
             }
         };
     }

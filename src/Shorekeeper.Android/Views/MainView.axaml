@@ -800,14 +800,18 @@
               </Grid>
             </Border>
 
-            <!-- The box, and ➤; empty, 🎤 instead: hold to record, slide left to cancel, let go to send. -->
+            <!-- 📎 (files to this person), the box, and ➤; empty, 🎤 instead: hold to record, slide left to cancel, let go to send. -->
             <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0,6,0,10">
               <TextBlock Classes="muted" Text="{Binding Notice}" IsVisible="{Binding HasNotice}" FontSize="12" TextWrapping="Wrap" />
-              <Grid ColumnDefinitions="*,Auto">
-                <TextBox Text="{Binding Draft}" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="120" IsEnabled="{Binding CanWrite}" CornerRadius="20" Padding="14,9"
+              <Grid ColumnDefinitions="Auto,*,Auto">
+                <Button Classes="round" Command="{Binding AttachCommand}" IsEnabled="{Binding CanAttach}" Width="40" Height="40" CornerRadius="20" Margin="-6,0,2,1"
+                        VerticalAlignment="Bottom" AutomationProperties.Name="{l:T 'Gửi file…'}">
+                  <PathIcon Data="{StaticResource Icon.Attach}" Width="20" Height="20" />
+                </Button>
+                <TextBox Grid.Column="1" Text="{Binding Draft}" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="120" IsEnabled="{Binding CanWrite}" CornerRadius="20" Padding="14,9"
                          VerticalContentAlignment="Center" TextInputOptions.Multiline="True" TextInputOptions.ReturnKeyType="Return"
                          PlaceholderText="{l:T 'Nhập tin nhắn…'}" AutomationProperties.Name="{l:T 'Tin nhắn'}" IsVisible="{Binding IsComposing}" />
-                <Border IsVisible="{Binding IsRecording}" Background="{DynamicResource Sk.TileBackground}" CornerRadius="20" Height="42" Padding="16,0">
+                <Border Grid.Column="1" IsVisible="{Binding IsRecording}" Background="{DynamicResource Sk.TileBackground}" CornerRadius="20" Height="42" Padding="16,0">
                   <Grid ColumnDefinitions="Auto,Auto,*">
                     <Ellipse Classes="dot error" Classes.recording="{Binding IsRecording}" Width="10" Height="10" />
                     <TextBlock Grid.Column="1" Text="{Binding RecordingText}" Margin="10,0,0,0" VerticalAlignment="Center" FontSize="15" />
@@ -817,7 +821,7 @@
                                HorizontalAlignment="Right" VerticalAlignment="Center" />
                   </Grid>
                 </Border>
-                <Panel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Bottom">
+                <Panel Grid.Column="2" Margin="8,0,0,0" VerticalAlignment="Bottom">
                   <Button Classes="accent" Command="{Binding SendCommand}" Width="42" Height="42" CornerRadius="21" Padding="0" IsVisible="{Binding ShowsSend}"
                           HorizontalContentAlignment="Center" VerticalContentAlignment="Center" AutomationProperties.Name="{l:T 'Gửi'}">
                     <PathIcon Data="{StaticResource Icon.Send}" Width="18" Height="18" />

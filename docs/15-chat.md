@@ -96,7 +96,8 @@ Migration `0006_chat.sql` ([09](09-data-storage.md)):
 - Trái: danh sách hội thoại (máy tính / điện thoại, chấm online, tên, dòng tin cuối, giờ, số chưa đọc; tin chưa đọc in đậm), mới nhất lên trên; sau đó các liên hệ chưa nhắn lần nào ("Chưa có tin nhắn"), theo tên, để bắt đầu nhắn ngay từ đây. Không có ô tìm riêng: liên hệ trong LAN thường ít, và đã có `Ctrl+K`.
 - Phải: luồng tin. Bong bóng của mình bên phải màu nhấn, của người kia bên trái; ngăn ngày ("Hôm nay", "Hôm qua", "20/10"); giờ + trạng thái dưới tin cuối mỗi cụm.
 - Phải: tên + trạng thái, bong bóng (của mình bên phải màu nhấn), ngăn ngày, ô soạn dưới cùng. Không viết được thì ô soạn khóa và nói vì sao (chưa kết nối, bản cũ); máy kia offline thì vẫn viết được, kèm dòng "tin nhắn sẽ được gửi khi máy online".
-- Ô soạn: Enter gửi, Shift+Enter xuống dòng. 🎤 bên trái ô soạn bấm để ghi; khi ghi, ô soạn thành [✕] ● 0:07 [mức âm] [➤]: ✕ hủy, ➤ gửi. (Chưa làm: 📎 và Ctrl+V file trong ô soạn để gửi file cho người này; vẫn gửi ở Xóm.)
+- Ô soạn: Enter gửi, Shift+Enter xuống dòng. 🎤 bên trái ô soạn bấm để ghi; khi ghi, ô soạn thành [✕] ● 0:07 [mức âm] [➤]: ✕ hủy, ➤ gửi.
+- Gửi file cho người này ngay trong hội thoại: 📎 (chọn file), **Ctrl+V** trong ô soạn (file đã copy, hoặc ảnh copy dạng ảnh như ở Xóm; chữ thì dán như thường) hoặc **kéo thả** vào vùng tin nhắn (viền xanh khi đang kéo qua). Một offer như gửi từ Xóm, nhưng không chuyển sang "Đã gửi": file hiện thành thẻ trong hội thoại (§6.3). Được cả với máy bản cũ, vì file thì luôn gửi được; chỉ cần đã Kết nối.
 - Chuột phải một tin: **Sao chép** (tin chữ), **Chọn nhiều**, **Xóa tin nhắn**. Chọn nhiều: mỗi tin có ô chọn, click cả hàng để chọn/bỏ (hàng được chọn nền xanh nhạt), thanh trên cùng [☐ Chọn tất cả] "Đã chọn N" [Xóa] [Xong]; xóa từ 2 tin trở lên thì hỏi trước. Địa chỉ web trong tin (tối đa 3) hiện thành dòng gạch chân ngay dưới, bấm thì mở trình duyệt. ⋮ trên đầu hội thoại: **Xóa hội thoại…** (hỏi trước).
 - Bong bóng thoại: ▶/⏸ trên nền tròn, 48 vạch sóng (phần đã phát tô đậm), thời lượng.
 - Thẻ người ở Xóm thêm nút 💬 và mục **Nhắn tin** (liên hệ). Toast tin mới (trừ khi "Bận", hoặc đang mở đúng hội thoại đó và cửa sổ ở trước), bấm thì mở đúng hội thoại; tắt toast thì chỉ còn số chưa đọc trên "Tin nhắn".
@@ -106,6 +107,7 @@ Migration `0006_chat.sql` ([09](09-data-storage.md)):
 
 - Tab: **Xóm · File · Tin nhắn · Nhóm · Âm thanh · Cài đặt**. Tab **File** = Hộp nhận và Đã gửi gộp lại, công tắc **Nhận / Đã gửi** ở trên; chọn nhiều, xóa giữ như hiện tại.
 - Tab Tin nhắn (chấm đỏ khi có tin chưa đọc): danh sách như máy tính; chạm một người thì hội thoại thay chỗ danh sách, ← hoặc nút Back của Android quay lại danh sách.
+- 📎 bên trái ô soạn: trình chọn file của hệ thống (như "Gửi file…" ở Xóm), gửi cho người này và ở lại hội thoại; file hiện thành thẻ.
 - Bàn phím hiện thì nội dung được đẩy lên trên nó (ô soạn ngay trên bàn phím) và thanh tab ẩn đi; app không tự co lại khi bàn phím mở (Avalonia `InputPane`).
 - Ô soạn trống thì nút tròn bên phải là 🎤 thay cho ➤: **giữ để ghi** (nút phồng lên, rung nhẹ), ô soạn thành "● 0:07 ‹ Vuốt sang trái để hủy"; vuốt trái quá ~90 dp thì nút đỏ "Thả tay để hủy"; thả tay để gửi. Chạm nhanh (thả trước khi micro mở) thì không ghi, nhắc "Giữ nút micrô để ghi". Lần đầu giữ thì Android hỏi quyền micrô; hộp thoại lấy mất ngón tay nên lần đó không ghi, cấp quyền xong giữ lại là được.
 - Chấm đỏ nhấp nháy chỉ gắn khi đang ghi: animation lặp mãi làm app vẽ lại liên tục, và trên điện thoại khiến bộ đếm tiến độ phát (`DispatcherTimer` ưu tiên Background) không bao giờ chạy.

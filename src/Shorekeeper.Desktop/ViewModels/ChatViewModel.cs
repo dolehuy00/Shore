@@ -70,6 +70,41 @@ public sealed partial class ChatViewModel : ObservableObject
     /// <summary>"Xem" on a file card: the window shows Hộp nhận (true, received) or Đã gửi.</summary>
     public Action<bool>? ShowFiles { get; set; }
 
+    /// <summary>The system's file picker for 📎 (set by the window); empty when nothing was picked.</summary>
+    public Func<Task<IReadOnlyList<string>>>? PickFiles { get; set; }
+
+    /// <summary>Sends files or folders to a contact as one offer (set by the window); a problem to show, or null.</summary>
+    public Func<DeviceId, IReadOnlyList<string>, Task<string?>>? SendFiles { get; set; }
+
+    /// <summary>
+    /// Files can go to the open conversation's person: a contact. Unlike messages this does not need a version with
+    /// chat, as files always went.
+    /// </summary>
+    public bool CanAttach => Current is { } person && SendFiles is not null && trust.GetLevel(person.Peer) == TrustLevel.Trusted;
+
+    /// <summary>Files are being dragged over the conversation (desktop).</summary>
+    [ObservableProperty]
+    public partial bool IsDropTarget { get; set; }
+
+    /// <summary>📎: pick files and send them to this person; they show up as a card.</summary>
+    [RelayCommand]
+    private async Task AttachAsync()
+    {
+        if (CanAttach && PickFiles is { } pick && await pick() is { Count: > 0 } picked)
+        {
+            await AttachAsync(picked);
+        }
+    }
+
+    /// <summary>Files dropped or pasted into the conversation, or picked with 📎.</summary>
+    public async Task AttachAsync(IReadOnlyList<string> paths)
+    {
+        if (CanAttach && Current is { } person && paths.Count > 0 && await SendFiles!(person.Peer, paths) is { } problem)
+        {
+            Notice = problem;
+        }
+    }
+
     public ObservableCollection<ChatPersonViewModel> Conversations { get; } = [];
 
     /// <summary>The open conversation, oldest first: messages, and the files sent between the two.</summary>
@@ -343,6 +378,7 @@ public sealed partial class ChatViewModel : ObservableObject
         }
 
         OnPropertyChanged(nameof(HasNoMessages));
+        OnPropertyChanged(nameof(CanAttach));
         RefreshPresence();
     }
 
@@ -375,6 +411,7 @@ public sealed partial class ChatViewModel : ObservableObject
         }
 
         Sync(Conversations, ordered);
+        OnPropertyChanged(nameof(CanAttach));
         UnreadTotal = conversations.Sum(c => c.Unread);
         OnPropertyChanged(nameof(HasConversations));
         RefreshPresence();

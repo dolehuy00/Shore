@@ -97,6 +97,7 @@ public sealed partial class MainViewModel : ObservableObject
                 FilesShowSent = !received;
                 SelectedTab = 1;
             },
+            SendFiles = (peer, locations) => SendAsync(locations, [(peer, null)], showSent: false),
         };
         OfferSelection = new ListSelection(() => Offers, () => RemoveCheckedOffers(deleteFiles: false), () => RemoveCheckedOffers(deleteFiles: true));
         SentSelection = new ListSelection(() => Sent, RemoveCheckedSent);
@@ -378,7 +379,9 @@ public sealed partial class MainViewModel : ObservableObject
     /// One offer for contacts, one per group for fellow members who are not contacts (docs/07-groups.md §4).
     /// </summary>
     /// <param name="text">"Gửi văn bản": sent alone when there are no files, as the offer's note with them.</param>
-    internal async Task<string?> SendAsync(IReadOnlyList<string> locations, IReadOnlyList<(DeviceId Id, string? GroupId)> recipients, string? text = null)
+    /// <param name="showSent">Show File → Đã gửi afterwards; not from a conversation, where the file shows as a card.</param>
+    internal async Task<string?> SendAsync(
+        IReadOnlyList<string> locations, IReadOnlyList<(DeviceId Id, string? GroupId)> recipients, string? text = null, bool showSent = true)
     {
         text = string.IsNullOrWhiteSpace(text) ? null : text.Trim();
         if (text?.Length > OfferService.MaxNoteLength)
@@ -395,7 +398,10 @@ public sealed partial class MainViewModel : ObservableObject
                     await offers.CreateAsync(new PreparedOffer([], []), [.. batch.Select(r => r.Id)], text, snapshotLocked: false, groupId: batch.Key, CancellationToken.None);
                 }
 
-                ShowSentFiles();
+                if (showSent)
+                {
+                    ShowSentFiles();
+                }
             }
 
             return null;
@@ -421,7 +427,11 @@ public sealed partial class MainViewModel : ObservableObject
             await offers.CreateAsync(prepared, [.. batch.Select(r => r.Id)], text, snapshotLocked: false, groupId: batch.Key, CancellationToken.None);
         }
 
-        ShowSentFiles();
+        if (showSent)
+        {
+            ShowSentFiles();
+        }
+
         return prepared.Unreadable.Count > 0 ? L.F("{0} mục không đọc được đã bị bỏ qua.", prepared.Unreadable.Count) : null;
     }
 

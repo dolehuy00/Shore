@@ -130,6 +130,13 @@ public sealed partial class MainWindowViewModel : ObservableObject
         chat.OpenLink = DialogService.OpenLink;
         chat.Confirm = async (title, question, action) => await DialogService.ChooseAsync(title, question, [action, L.T("Hủy")]) == 0;
         chat.ShowFiles = received => ShowPage(received ? NavPage.Inbox : NavPage.Sent);
+        chat.PickFiles = () => DialogService.PickFilesAsync();
+        chat.SendFiles = async (peer, paths) =>
+        {
+            // Problems are asked or told by the dialogs themselves.
+            await dialogs.SendAsync(paths, [new OfferBatch([peer], null)], showSent: false);
+            return null;
+        };
         // Downloads fill the disk without telling the window; once a minute is enough for the card.
         RefreshStorage();
         DispatcherTimer.Run(() =>
