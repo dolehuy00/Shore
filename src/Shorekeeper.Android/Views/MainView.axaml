@@ -851,6 +851,12 @@
                          HorizontalAlignment="Center" VerticalAlignment="Center" />
               <ScrollViewer x:Name="ChatScroller">
                 <ItemsControl ItemsSource="{Binding Messages}">
+                  <!-- Only the messages on screen are built and measured: all of them took a second to lay out. -->
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <VirtualizingStackPanel />
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
                   <ItemsControl.DataTemplates>
                     <DataTemplate DataType="{x:Type dvm:ChatBubbleViewModel}" x:DataType="dvm:ChatBubbleViewModel">
                       <StackPanel>
