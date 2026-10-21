@@ -9,6 +9,7 @@ using Shorekeeper.Core.Identity;
 using Shorekeeper.Core.Localization;
 using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Discovery;
+using Shorekeeper.Engine.Monitoring;
 using Shorekeeper.Engine.Storage;
 
 namespace Shorekeeper.Engine.Chat;
@@ -43,6 +44,7 @@ public sealed class ChatService(
     AppPaths paths,
     PeerClient client,
     PeerDirectory directory,
+    UsageStatsService usage,
     TimeProvider timeProvider,
     ILogger<ChatService> logger) : BackgroundService
 {
@@ -141,6 +143,40 @@ public sealed class ChatService(
         }
     }
 
+    /// <summary>
+    /// Takes messages out of the conversation on this device only (docs/15-chat.md §2), with their voice files; the peer
+    /// keeps its copy. A sent message still waiting goes too, so it is never sent.
+    /// </summary>
+    public async Task DeleteAsync(DeviceId peer, IReadOnlyCollection<string> ids, CancellationToken cancellationToken)
+    {
+        List<string?> files;
+        await using (SqliteConnection connection = await database.OpenAsync(cancellationToken))
+        {
+            files = [.. await connection.QueryAsync<string?>(
+                "SELECT VoicePath FROM ChatMessages WHERE PeerId = @peer AND Id IN @ids AND VoicePath IS NOT NULL;", new { peer = peer.Value, ids })];
+            await connection.ExecuteAsync("DELETE FROM ChatMessages WHERE PeerId = @peer AND Id IN @ids;", new { peer = peer.Value, ids });
+        }
+
+        DeleteFiles(files);
+        Changed?.Invoke(this, peer);
+    }
+
+    /// <summary>The whole conversation, on this device only: messages, voice files and a "Đã xem" not told yet.</summary>
+    public async Task DeleteConversationAsync(DeviceId peer, CancellationToken cancellationToken)
+    {
+        List<string?> files;
+        await using (SqliteConnection connection = await database.OpenAsync(cancellationToken))
+        {
+            files = [.. await connection.QueryAsync<string?>(
+                "SELECT VoicePath FROM ChatMessages WHERE PeerId = @peer AND VoicePath IS NOT NULL;", new { peer = peer.Value })];
+            await connection.ExecuteAsync(
+                "DELETE FROM ChatMessages WHERE PeerId = @peer; DELETE FROM ChatReceipts WHERE PeerId = @peer;", new { peer = peer.Value });
+        }
+
+        DeleteFiles(files);
+        Changed?.Invoke(this, peer);
+    }
+
     /// <summary>Newest first.</summary>
     public async Task<IReadOnlyList<ChatConversation>> GetConversationsAsync(CancellationToken cancellationToken)
     {
@@ -235,6 +271,7 @@ public sealed class ChatService(
         // Already here: the sender did not hear our answer and sent it again.
         if (added > 0)
         {
+            usage.AddMessage(caller, sent: false);
             Changed?.Invoke(this, caller);
             Received?.Invoke(this, message);
         }
@@ -380,6 +417,10 @@ public sealed class ChatService(
                 "UPDATE ChatMessages SET State = @state WHERE PeerId = @peer AND Id = @Id AND State = 'pending';",
                 new { peer = peer.Value, row.Id, state = delivered.Value ? "delivered" : "failed" },
                 cancellationToken);
+            if (delivered.Value)
+            {
+                usage.AddMessage(peer, sent: true);
+            }
             Changed?.Invoke(this, peer);
         }
 
@@ -440,6 +481,25 @@ public sealed class ChatService(
         && wave is { Length: <= VoiceRecorder.WaveBars };
 
     private string VoicePath(string id) => Path.Combine(paths.ChatVoiceDirectory, id + ".ogg");
+
+    private void DeleteFiles(IEnumerable<string?> files)
+    {
+        foreach (string? file in files)
+        {
+            try
+            {
+                if (file is not null)
+                {
+                    File.Delete(file);
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // Playing right now: it stays as a stray file, which nothing points to any more.
+                logger.LogDebug(ex, "Voice file {File} not deleted", file);
+            }
+        }
+    }
 
     private async Task<int> WriteAsync(string sql, object parameters, CancellationToken cancellationToken)
     {

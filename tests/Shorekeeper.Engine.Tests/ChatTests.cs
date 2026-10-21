@@ -5,6 +5,7 @@ using Shorekeeper.Core.Discovery;
 using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Chat;
 using Shorekeeper.Engine.Discovery;
+using Shorekeeper.Engine.Monitoring;
 
 namespace Shorekeeper.Engine.Tests;
 
@@ -196,6 +197,54 @@ public sealed class ChatTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.BadRequest, await PostAsync(a, b, "chat/messages", body));
         Assert.Empty(await b.Chat.GetMessagesAsync(a.Id, Ct));
+    }
+
+    [Fact]
+    public async Task Deleting_takes_messages_and_their_voice_files_away_here_only()
+    {
+        ChatMessage text = await a.Chat.SendTextAsync(b.Id, "giữ lại", Ct);
+        ChatMessage voice = await a.Chat.SendVoiceAsync(b.Id, Voice(seconds: 1), Ct);
+        await WaitUntil(() => b.Chat.GetMessagesAsync(a.Id, Ct).Result.Count == 2);
+
+        await a.Chat.DeleteAsync(b.Id, [voice.Id], Ct);
+
+        Assert.Equal([text.Id], (await a.Chat.GetMessagesAsync(b.Id, Ct)).Select(m => m.Id));
+        Assert.False(File.Exists(voice.VoicePath));
+        Assert.Equal(2, (await b.Chat.GetMessagesAsync(a.Id, Ct)).Count);
+    }
+
+    [Fact]
+    public async Task Deleting_a_conversation_clears_it_and_its_pending_receipt()
+    {
+        await a.Chat.SendTextAsync(b.Id, "một", Ct);
+        ChatMessage voice = await a.Chat.SendVoiceAsync(b.Id, Voice(seconds: 1), Ct);
+        await WaitUntil(() => b.Chat.GetMessagesAsync(a.Id, Ct).Result.Count == 2);
+        b.Directory.Remove(a.Id);
+        await b.Chat.MarkReadAsync(a.Id, Ct);
+        string received = (await b.Chat.GetMessagesAsync(a.Id, Ct)).Single(m => m.Id == voice.Id).VoicePath!;
+
+        await b.Chat.DeleteConversationAsync(a.Id, Ct);
+        b.Sees(a);
+
+        Assert.Empty(await b.Chat.GetConversationsAsync(Ct));
+        Assert.False(File.Exists(received));
+        // The receipt waiting for A went with it: A's messages stay delivered, not read.
+        await Task.Delay(500, Ct);
+        Assert.All(await a.Chat.GetMessagesAsync(b.Id, Ct), m => Assert.Equal(ChatMessageState.Delivered, m.State));
+    }
+
+    [Fact]
+    public async Task Messages_are_counted_once_on_each_side()
+    {
+        ChatMessage sent = await a.Chat.SendTextAsync(b.Id, "đếm", Ct);
+        await WaitUntil(() => State(a, b, sent.Id) == ChatMessageState.Delivered);
+        var body = new ChatMessageBody(sent.Id, sent.SentAt, ChatKinds.Text, "đếm");
+        await PostAsync(a, b, "chat/messages", body);
+
+        UsageSummary mine = a.Get<UsageStatsService>().Summary();
+        UsageSummary theirs = b.Get<UsageStatsService>().Summary();
+        Assert.Equal((1, 0), (mine.Total.SentMessages, mine.Total.ReceivedMessages));
+        Assert.Equal((0, 1), (theirs.Today.SentMessages, theirs.Today.ReceivedMessages));
     }
 
     [Fact]

@@ -185,7 +185,7 @@ CREATE TABLE ActivityLog (
 | `Offers` đã đóng | 90 ngày (lịch sử) |
 | `InboxOffers` đã xong/hết hạn | 90 ngày (người dùng xóa tay được) |
 | `snapshots\` | Xóa khi offer đóng; dọn phần sót lúc khởi động |
-| `ChatMessages` | Không tự xóa (người dùng xóa tay, C4) |
+| `ChatMessages` | Không tự xóa; người dùng xóa từng tin hoặc cả hội thoại (kèm file thoại) |
 | `.skpart` | Xóa khi lỗi/hủy; dọn phần sót lúc khởi động |
 | `Peers` Unknown không thấy lại | 30 ngày |
 | `PeerEndpoints` không thành công | 14 ngày |

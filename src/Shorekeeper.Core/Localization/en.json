@@ -647,5 +647,13 @@
   "Tin nhắn thoại {0}": "Voice message {0}",
   "Ghi tin nhắn thoại": "Record a voice message",
   "Hủy ghi âm": "Cancel recording",
-  "Gửi tin nhắn thoại": "Send voice message"
+  "Gửi tin nhắn thoại": "Send voice message",
+  "{0} tin chưa đọc · {1}": "{0} unread · {1}",
+  "Xóa hội thoại…": "Delete conversation…",
+  "Xóa tin nhắn": "Delete message",
+  "Xóa hội thoại": "Delete conversation",
+  "Xóa mọi tin nhắn với {0} trên máy này? Máy kia vẫn giữ tin của nó. File đã gửi, đã nhận vẫn ở Hộp nhận và Đã gửi.": "Delete every message with {0} on this device? The other device keeps its own. Files sent and received stay in Inbox and Sent.",
+  "Đang tải {0:0}%": "Downloading {0:0}%",
+  "7 ngày: gửi {0} · nhận {1} tin": "7 days: {0} messages sent · {1} received",
+  "Tổng: gửi {0} · nhận {1} tin": "Total: {0} messages sent · {1} received"
 }

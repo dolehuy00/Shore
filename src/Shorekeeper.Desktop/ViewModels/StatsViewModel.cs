@@ -52,6 +52,13 @@ public sealed partial class StatsViewModel : ObservableObject
     [ObservableProperty]
     public partial string SoundTotal { get; set; } = "";
 
+    /// <summary>"7 ngày: gửi 12 · nhận 30 tin".</summary>
+    [ObservableProperty]
+    public partial string MessagesWeek { get; set; } = "";
+
+    [ObservableProperty]
+    public partial string MessagesTotal { get; set; } = "";
+
     /// <summary>"Đếm từ 20/10/2026 · chỉ lưu trên máy này".</summary>
     [ObservableProperty]
     public partial string Since { get; set; } = "";
@@ -116,6 +123,8 @@ public sealed partial class StatsViewModel : ObservableObject
             L.F("Gửi {0} · nhận {1}", Amount(p.SentFiles, p.SentBytes), Amount(p.ReceivedFiles, p.ReceivedBytes))))];
         SoundWeek = L.F("7 ngày: nghe {0} · phát {1}", Duration(summary.Week.ListenSeconds), Duration(summary.Week.PlaySeconds));
         SoundTotal = L.F("Tổng: nghe {0} · phát {1}", Duration(summary.Total.ListenSeconds), Duration(summary.Total.PlaySeconds));
+        MessagesWeek = L.F("7 ngày: gửi {0} · nhận {1} tin", summary.Week.SentMessages, summary.Week.ReceivedMessages);
+        MessagesTotal = L.F("Tổng: gửi {0} · nhận {1} tin", summary.Total.SentMessages, summary.Total.ReceivedMessages);
         Since = L.F("Đếm từ {0:d} · chỉ lưu trên máy này", summary.Since.ToLocalTime());
     }
 

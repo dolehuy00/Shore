@@ -8,8 +8,9 @@ using Shorekeeper.Engine.Audio;
 
 namespace Shorekeeper.Engine.Monitoring;
 
-/// <summary>What was sent, received, listened to and played over a period.</summary>
-public sealed record UsageCounts(long SentFiles, long SentBytes, long ReceivedFiles, long ReceivedBytes, long ListenSeconds, long PlaySeconds)
+/// <summary>What was sent, received, listened to and played over a period, and the messages sent and received.</summary>
+public sealed record UsageCounts(
+    long SentFiles, long SentBytes, long ReceivedFiles, long ReceivedBytes, long ListenSeconds, long PlaySeconds, long SentMessages = 0, long ReceivedMessages = 0)
 {
     public static readonly UsageCounts Zero = new(0, 0, 0, 0, 0, 0);
 }
@@ -65,6 +66,19 @@ public sealed class UsageStatsService : IHostedService, IDisposable
     {
         c.ReceivedBytes += bytes;
         c.ReceivedFiles += files;
+    });
+
+    /// <summary>A message delivered to <paramref name="peer"/> (<paramref name="sent"/>) or newly received from it.</summary>
+    public void AddMessage(DeviceId peer, bool sent) => Add(peer, c =>
+    {
+        if (sent)
+        {
+            c.SentMessages++;
+        }
+        else
+        {
+            c.ReceivedMessages++;
+        }
     });
 
     public UsageSummary Summary()
@@ -243,6 +257,10 @@ internal sealed class Counter
 
     public long PlaySeconds { get; set; }
 
+    public long SentMessages { get; set; }
+
+    public long ReceivedMessages { get; set; }
+
     public void Add(Counter other)
     {
         SentFiles += other.SentFiles;
@@ -251,9 +269,11 @@ internal sealed class Counter
         ReceivedBytes += other.ReceivedBytes;
         ListenSeconds += other.ListenSeconds;
         PlaySeconds += other.PlaySeconds;
+        SentMessages += other.SentMessages;
+        ReceivedMessages += other.ReceivedMessages;
     }
 
-    public UsageCounts ToCounts() => new(SentFiles, SentBytes, ReceivedFiles, ReceivedBytes, ListenSeconds, PlaySeconds);
+    public UsageCounts ToCounts() => new(SentFiles, SentBytes, ReceivedFiles, ReceivedBytes, ListenSeconds, PlaySeconds, SentMessages, ReceivedMessages);
 }
 
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault)]

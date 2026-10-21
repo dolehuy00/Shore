@@ -174,7 +174,7 @@
     </Style>
     <Style Selector="Border.bubble">
       <Setter Property="Padding" Value="12,7" />
-      <Setter Property="Margin" Value="0,2" />
+      <Setter Property="Margin" Value="0,5" />
       <Setter Property="CornerRadius" Value="14" />
       <Setter Property="MaxWidth" Value="520" />
       <Setter Property="HorizontalAlignment" Value="Left" />
@@ -189,6 +189,34 @@
     </Style>
     <Style Selector="Border.bubble.mine TextBlock, Border.bubble.mine SelectableTextBlock">
       <Setter Property="Foreground" Value="{DynamicResource AccentButtonForeground}" />
+    </Style>
+    <!-- A web address in a message: underlined, in the accent color (white on our own bubbles). -->
+    <Style Selector="Button.link">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="0,1" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+    </Style>
+    <Style Selector="Button.link TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource AccentButtonBackground}" />
+      <Setter Property="TextDecorations" Value="Underline" />
+    </Style>
+    <Style Selector="Border.bubble.mine Button.link TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource AccentButtonForeground}" />
+    </Style>
+    <!-- Files sent between the two: a card among the messages, on the sender's side. -->
+    <Style Selector="Border.filecard">
+      <Setter Property="Padding" Value="12,10" />
+      <Setter Property="Margin" Value="0,5" />
+      <Setter Property="CornerRadius" Value="14" />
+      <Setter Property="MaxWidth" Value="420" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Sk.CardBorder}" />
+      <Setter Property="Background" Value="{DynamicResource Sk.CardBackground}" />
+    </Style>
+    <Style Selector="Border.filecard.mine">
+      <Setter Property="HorizontalAlignment" Value="Right" />
     </Style>
     <!-- A voice message: ▶ on a disc, the waveform (played part in full color), the length. -->
     <Style Selector="Button.play">
@@ -463,8 +491,17 @@
         </StackPanel>
 
         <DockPanel IsVisible="{Binding IsOpen}">
-          <!-- Who, and whether they are there. -->
+          <!-- Who, and whether they are there; ⋮ for the conversation. -->
           <Border DockPanel.Dock="Top" Padding="20,12" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource Sk.Divider}">
+            <Grid ColumnDefinitions="*,Auto">
+            <Button Grid.Column="1" Padding="9,7" VerticalAlignment="Center" ToolTip.Tip="{l:T 'Thêm'}" AutomationProperties.Name="{l:T 'Thêm'}">
+              <PathIcon Data="{StaticResource Icon.More}" Width="16" Height="16" />
+              <Button.Flyout>
+                <MenuFlyout Placement="BottomEdgeAlignedRight">
+                  <MenuItem Header="{l:T 'Xóa hội thoại…'}" Command="{Binding DeleteConversationCommand}" />
+                </MenuFlyout>
+              </Button.Flyout>
+            </Button>
             <StackPanel DataContext="{Binding Current}" x:DataType="vm:ChatPersonViewModel">
               <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
               <StackPanel Orientation="Horizontal" Spacing="6">
@@ -472,6 +509,7 @@
                 <TextBlock Classes="muted" Text="{Binding StatusText}" FontSize="12" />
               </StackPanel>
             </StackPanel>
+            </Grid>
           </Border>
 
           <!-- The box: Enter sends, Shift+Enter starts a new line. -->
@@ -511,13 +549,30 @@
                        HorizontalAlignment="Center" VerticalAlignment="Center" />
             <ScrollViewer x:Name="ChatScroller">
               <ItemsControl ItemsSource="{Binding Messages}" Margin="20,10">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="vm:ChatBubbleViewModel">
+                <ItemsControl.DataTemplates>
+                  <DataTemplate DataType="{x:Type vm:ChatBubbleViewModel}" x:DataType="vm:ChatBubbleViewModel">
                     <StackPanel>
                       <TextBlock Classes="muted" Text="{Binding DayText}" IsVisible="{Binding HasDay}" FontSize="12" HorizontalAlignment="Center" Margin="0,10,0,6" />
                       <Border Classes="bubble" Classes.mine="{Binding IsMine}" Classes.unknown="{Binding IsUnknown}">
+                        <!-- Right click: copy the words, or take the message away here. -->
+                        <Border.ContextMenu>
+                          <ContextMenu>
+                            <MenuItem Header="{l:T 'Sao chép'}" Command="{Binding CopyCommand}" IsVisible="{Binding IsText}" />
+                            <MenuItem Header="{l:T 'Xóa tin nhắn'}" Command="{Binding DeleteCommand}" />
+                          </ContextMenu>
+                        </Border.ContextMenu>
                         <StackPanel Spacing="2">
-                          <SelectableTextBlock Classes="body" Text="{Binding Text}" TextWrapping="Wrap" IsVisible="{Binding IsText}" />
+                          <SelectableTextBlock Classes="body" Text="{Binding Text}" TextWrapping="Wrap" IsVisible="{Binding IsText}" ContextFlyout="{x:Null}" />
+                          <ItemsControl ItemsSource="{Binding Links}" IsVisible="{Binding HasLinks}">
+                            <ItemsControl.ItemTemplate>
+                              <DataTemplate x:DataType="x:String">
+                                <Button Classes="link" Command="{Binding $parent[ItemsControl].((vm:ChatBubbleViewModel)DataContext).OpenLinkCommand}" CommandParameter="{Binding}"
+                                        ToolTip.Tip="{l:T 'Mở'}">
+                                  <TextBlock Text="{Binding}" FontSize="12" TextTrimming="CharacterEllipsis" />
+                                </Button>
+                              </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                          </ItemsControl>
                           <Grid ColumnDefinitions="Auto,Auto,Auto" IsVisible="{Binding IsVoice}" Margin="-4,2,0,0">
                             <Button Classes="play" Command="{Binding PlayCommand}" AutomationProperties.Name="{l:T 'Phát'}">
                               <Panel>
@@ -563,7 +618,31 @@
                       </Border>
                     </StackPanel>
                   </DataTemplate>
-                </ItemsControl.ItemTemplate>
+                  <DataTemplate DataType="{x:Type vm:ChatFileViewModel}" x:DataType="vm:ChatFileViewModel">
+                    <StackPanel>
+                      <TextBlock Classes="muted" Text="{Binding DayText}" IsVisible="{Binding HasDay}" FontSize="12" HorizontalAlignment="Center" Margin="0,10,0,6" />
+                      <Border Classes="filecard" Classes.mine="{Binding IsMine}">
+                        <Grid ColumnDefinitions="Auto,*">
+                          <Border Classes="tile" Width="36" Height="36" CornerRadius="8" VerticalAlignment="Top">
+                            <Panel>
+                              <PathIcon Data="{StaticResource Icon.Document}" IsVisible="{Binding !IsText}" Width="18" Height="18" />
+                              <PathIcon Data="{StaticResource Icon.Text}" IsVisible="{Binding IsText}" Width="18" Height="18" />
+                            </Panel>
+                          </Border>
+                          <StackPanel Grid.Column="1" Margin="10,0,0,0" Spacing="2">
+                            <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" MaxLines="3" />
+                            <TextBlock Classes="muted" Text="{Binding StatusText}" FontSize="12" TextWrapping="Wrap" />
+                            <ProgressBar Value="{Binding Progress}" Maximum="100" IsVisible="{Binding IsDownloading}" MinWidth="0" Margin="0,4" />
+                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+                              <Button Classes="accent" Content="{l:T 'Tải'}" Command="{Binding DownloadCommand}" IsVisible="{Binding CanDownload}" Padding="12,4" />
+                              <Button Content="Xem" Command="{Binding ShowCommand}" Padding="12,4" />
+                            </StackPanel>
+                          </StackPanel>
+                        </Grid>
+                      </Border>
+                    </StackPanel>
+                  </DataTemplate>
+                </ItemsControl.DataTemplates>
               </ItemsControl>
             </ScrollViewer>
           </Panel>
@@ -1410,6 +1489,12 @@
                 <TextBlock Text="{l:T 'Âm thanh'}" FontWeight="SemiBold" />
                 <TextBlock Text="{Binding SoundWeek}" />
                 <TextBlock Classes="muted" Text="{Binding SoundTotal}" FontSize="12" />
+              </StackPanel>
+
+              <StackPanel Spacing="3">
+                <TextBlock Text="{l:T 'Tin nhắn'}" FontWeight="SemiBold" />
+                <TextBlock Text="{Binding MessagesWeek}" />
+                <TextBlock Classes="muted" Text="{Binding MessagesTotal}" FontSize="12" />
               </StackPanel>
 
               <StackPanel Spacing="3" IsVisible="{Binding HasPeers}">

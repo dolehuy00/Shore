@@ -10,6 +10,7 @@ using Shorekeeper.Core.Trust;
 using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Chat;
 using Shorekeeper.Engine.Discovery;
+using Shorekeeper.Engine.Transfers;
 using Shorekeeper.Engine.Trust;
 
 namespace Shorekeeper.Desktop.ViewModels;
@@ -18,13 +19,15 @@ namespace Shorekeeper.Desktop.ViewModels;
 /// "Tin nhắn" (docs/15-chat.md §6), on the desktop and the phone: conversations, newest first, then contacts not
 /// written to yet; the open one's messages and the box to write in. What the peer sent is read while the
 /// conversation is shown (<see cref="IsShown"/>, set by the window). Voice messages are recorded with the microphone
-/// and played one at a time (docs/15-chat.md §3).
+/// and played one at a time (docs/15-chat.md §3). Files sent between the two show among the messages as cards (§6.3).
 /// </summary>
 public sealed partial class ChatViewModel : ObservableObject
 {
     private readonly ChatService chat;
     private readonly TrustStore trust;
     private readonly PeerDirectory directory;
+    private readonly OfferService offers;
+    private readonly InboxService inbox;
     private readonly IMicrophone? microphone;
     private readonly IVoicePlayer? player;
     private readonly Dictionary<DeviceId, ChatPersonViewModel> people = [];
@@ -32,24 +35,45 @@ public sealed partial class ChatViewModel : ObservableObject
     private IDisposable? recording;
     private IDisposable? recordingTimer;
     private (ChatBubbleViewModel Bubble, VoiceNotePlayer Note, IDisposable Output, DispatcherTimer Timer)? playing;
+    private bool filesQueued;
 
-    public ChatViewModel(ChatService chat, TrustStore trust, PeerDirectory directory, IMicrophone? microphone = null, IVoicePlayer? player = null)
+    public ChatViewModel(
+        ChatService chat, TrustStore trust, PeerDirectory directory, OfferService offers, InboxService inbox,
+        IMicrophone? microphone = null, IVoicePlayer? player = null)
     {
         this.chat = chat;
         this.trust = trust;
         this.directory = directory;
+        this.offers = offers;
+        this.inbox = inbox;
         this.microphone = microphone;
         this.player = player;
         chat.Changed += (_, peer) => Dispatcher.UIThread.Post(() => _ = RefreshAsync(peer));
         trust.Changed += (_, _) => Dispatcher.UIThread.Post(() => _ = RefreshAsync(null));
         directory.Changed += (_, _) => Dispatcher.UIThread.Post(RefreshPresence);
+        // Progress comes several times a second while files move: one refresh at a time is enough.
+        offers.Changed += (_, _) => QueueFilesRefresh();
+        inbox.Changed += (_, _) => QueueFilesRefresh();
+        inbox.OfferArrived += (_, _) => QueueFilesRefresh();
         _ = RefreshAsync(null);
     }
 
+    /// <summary>Puts text on the clipboard (set by the window).</summary>
+    public Action<string>? CopyText { get; set; }
+
+    /// <summary>Opens a web address in the browser (set by the window).</summary>
+    public Action<string>? OpenLink { get; set; }
+
+    /// <summary>Asks before something that cannot be undone: title, question, action; true to go ahead (set by the window).</summary>
+    public Func<string, string, string, Task<bool>>? Confirm { get; set; }
+
+    /// <summary>"Xem" on a file card: the window shows Hộp nhận (true, received) or Đã gửi.</summary>
+    public Action<bool>? ShowFiles { get; set; }
+
     public ObservableCollection<ChatPersonViewModel> Conversations { get; } = [];
 
-    /// <summary>The open conversation, oldest first.</summary>
-    public ObservableCollection<ChatBubbleViewModel> Messages { get; } = [];
+    /// <summary>The open conversation, oldest first: messages, and the files sent between the two.</summary>
+    public ObservableCollection<ChatEntryViewModel> Messages { get; } = [];
 
     public bool HasConversations => Conversations.Count > 0;
 
@@ -368,27 +392,50 @@ public sealed partial class ChatViewModel : ObservableObject
             return;
         }
 
-        // Unless the order changed (a late message from a clock behind), only states change and messages are added.
-        bool prefix = Messages.Count <= messages.Count && Messages.Select(b => b.Id).SequenceEqual(messages.Take(Messages.Count).Select(m => m.Id));
+        // Messages and file cards by time; a card's id is the offer's, which never looks like a message id.
+        List<(DateTimeOffset At, string Id, object Source)> entries =
+        [
+            .. messages.Select(m => (m.SentAt, m.Id, (object)m)),
+            .. offers.GetOffers()
+                .Where(o => o.GroupId is null && o.Recipients.Any(r => r.DeviceId == person.Peer))
+                .Select(o => (o.CreatedAt, "sent:" + o.OfferId, (object)o)),
+            .. inbox.GetOffers().Where(o => o.SenderId == person.Peer).Select(o => (o.ReceivedAt, "received:" + o.OfferId, (object)o)),
+        ];
+        entries.Sort((x, y) => x.At != y.At ? x.At.CompareTo(y.At) : string.CompareOrdinal(x.Id, y.Id));
+
+        // Unless the order changed (a late message from a clock behind), only states change and entries are added.
+        bool prefix = Messages.Count <= entries.Count && Messages.Select(b => b.Id).SequenceEqual(entries.Take(Messages.Count).Select(e => e.Id));
         if (!prefix)
         {
             Messages.Clear();
         }
 
-        int added = messages.Count - Messages.Count;
+        int added = entries.Count - Messages.Count;
         string? lastMine = messages.LastOrDefault(m => m.Outgoing)?.Id;
-        for (int i = 0; i < messages.Count; i++)
+        for (int i = 0; i < entries.Count; i++)
         {
-            ChatMessage message = messages[i];
-            DateTime day = message.SentAt.ToLocalTime().Date;
-            string? dayText = i == 0 || messages[i - 1].SentAt.ToLocalTime().Date != day ? DayText(day) : null;
-            if (i < Messages.Count)
+            DateTime day = entries[i].At.ToLocalTime().Date;
+            string? dayText = i == 0 || entries[i - 1].At.ToLocalTime().Date != day ? DayText(day) : null;
+            ChatEntryViewModel entry = i < Messages.Count ? Messages[i] : entries[i].Source is ChatMessage
+                ? new ChatBubbleViewModel(entries[i].Id, this)
+                : new ChatFileViewModel(entries[i].Id, this);
+            entry.DayText = dayText;
+            switch (entry, entries[i].Source)
             {
-                Messages[i].Update(message, dayText, message.Id == lastMine);
+                case (ChatBubbleViewModel bubble, ChatMessage message):
+                    bubble.Update(message, message.Id == lastMine);
+                    break;
+                case (ChatFileViewModel card, SentOffer sent):
+                    card.Update(sent, person.Peer);
+                    break;
+                case (ChatFileViewModel card, ReceivedOffer received):
+                    card.Update(received, person.IsOnline);
+                    break;
             }
-            else
+
+            if (i >= Messages.Count)
             {
-                Messages.Add(new ChatBubbleViewModel(message.Id, this).Update(message, dayText, message.Id == lastMine));
+                Messages.Add(entry);
             }
         }
 
@@ -403,6 +450,59 @@ public sealed partial class ChatViewModel : ObservableObject
             await chat.MarkReadAsync(person.Peer, CancellationToken.None);
         }
     }
+
+    private void QueueFilesRefresh() => Dispatcher.UIThread.Post(() =>
+    {
+        if (filesQueued || Current is not { } person)
+        {
+            return;
+        }
+
+        filesQueued = true;
+        Dispatcher.UIThread.Post(async () =>
+        {
+            filesQueued = false;
+            if (Current == person)
+            {
+                await RefreshMessagesAsync(person);
+            }
+        });
+    });
+
+    /// <summary>Takes a message out of this conversation, here only.</summary>
+    internal async Task DeleteAsync(ChatBubbleViewModel bubble)
+    {
+        if (Current is not { } person)
+        {
+            return;
+        }
+
+        if (playing?.Bubble == bubble)
+        {
+            StopPlaying();
+        }
+
+        await chat.DeleteAsync(person.Peer, [bubble.Id], CancellationToken.None);
+    }
+
+    /// <summary>"Xóa hội thoại…": every message with this person, here only, after asking.</summary>
+    [RelayCommand]
+    private async Task DeleteConversationAsync()
+    {
+        if (Current is not { } person
+            || (Confirm is { } confirm && !await confirm(
+                L.T("Xóa hội thoại"),
+                L.F("Xóa mọi tin nhắn với {0} trên máy này? Máy kia vẫn giữ tin của nó. File đã gửi, đã nhận vẫn ở Hộp nhận và Đã gửi.", person.Name),
+                L.T("Xóa"))))
+        {
+            return;
+        }
+
+        StopPlaying();
+        await chat.DeleteConversationAsync(person.Peer, CancellationToken.None);
+    }
+
+    internal void Download(OfferKey key) => inbox.Download(key);
 
     /// <summary>Names, online dots and whether the open conversation can be written to.</summary>
     private void RefreshPresence()
@@ -552,21 +652,30 @@ public sealed partial class ChatPersonViewModel(DeviceId peer, ChatViewModel own
     }
 }
 
-/// <summary>A message in the open conversation.</summary>
-public sealed partial class ChatBubbleViewModel(string id, ChatViewModel owner) : ObservableObject
+/// <summary>Something in the open conversation, in time order: a message or a file card.</summary>
+public abstract partial class ChatEntryViewModel(string id) : ObservableObject
 {
     public string Id { get; } = id;
 
-    public bool IsMine { get; private set; }
-
-    public string Text { get; private set; } = "";
-
-    /// <summary>Set on the first message of a day: "Hôm nay", "20/10/2026".</summary>
+    /// <summary>Set on the first entry of a day: "Hôm nay", "20/10/2026".</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasDay))]
     public partial string? DayText { get; set; }
 
     public bool HasDay => DayText is not null;
+}
+
+/// <summary>A message in the open conversation.</summary>
+public sealed partial class ChatBubbleViewModel(string id, ChatViewModel owner) : ChatEntryViewModel(id)
+{
+    public bool IsMine { get; private set; }
+
+    public string Text { get; private set; } = "";
+
+    /// <summary>Web addresses in the text, each with its own button.</summary>
+    public IReadOnlyList<string> Links { get; private set; } = [];
+
+    public bool HasLinks => Links.Count > 0;
 
     /// <summary>"14:05", with the state on ours: "14:05 · Đã xem".</summary>
     [ObservableProperty]
@@ -612,17 +721,26 @@ public sealed partial class ChatBubbleViewModel(string id, ChatViewModel owner) 
     [RelayCommand]
     private void Play() => owner.TogglePlay(this);
 
+    [RelayCommand]
+    private void Copy() => owner.CopyText?.Invoke(Text);
+
+    [RelayCommand]
+    private void OpenLink(string link) => owner.OpenLink?.Invoke(link);
+
+    [RelayCommand]
+    private Task DeleteAsync() => owner.DeleteAsync(this);
+
     /// <param name="lastMine">Our newest message: it says how far the peer got even when delivered or read.</param>
-    internal ChatBubbleViewModel Update(ChatMessage message, string? dayText, bool lastMine)
+    internal ChatBubbleViewModel Update(ChatMessage message, bool lastMine)
     {
         IsMine = message.Outgoing;
         IsVoice = message.Kind == ChatKinds.Voice;
         IsUnknown = message.Kind is not (ChatKinds.Text or ChatKinds.Voice);
         Text = TextOf(message);
+        Links = message.Kind == ChatKinds.Text ? TransferText.LinksIn(Text) : [];
         VoicePath = message.VoicePath;
         DurationMs = message.DurationMs;
         Bars = IsVoice ? [.. Enumerable.Range(0, VoiceRecorder.WaveBars).Select(i => 3 + (21.0 * (message.Wave is { } wave && i < wave.Length ? wave[i] : 0) / 255))] : [];
-        DayText = dayText;
         IsFailed = message.State == ChatMessageState.Failed;
         string time = message.SentAt.ToLocalTime().ToString("HH:mm", L.Culture);
         string? state = !message.Outgoing ? null : message.State switch
@@ -644,4 +762,100 @@ public sealed partial class ChatBubbleViewModel(string id, ChatViewModel owner) 
         ChatKinds.Voice => L.F("Tin nhắn thoại {0}", ChatViewModel.Duration(message.DurationMs)),
         _ => L.T("Tin nhắn này cần bản Shorekeeper mới hơn."),
     };
+}
+
+/// <summary>
+/// Files sent between the two, shown among the messages (docs/15-chat.md §6.3): what, how big, how far along, [Tải] for
+/// a new offer and [Xem] to see it in Hộp nhận or Đã gửi, where all it can do is.
+/// </summary>
+public sealed partial class ChatFileViewModel(string id, ChatViewModel owner) : ChatEntryViewModel(id)
+{
+    private OfferKey? key;
+
+    /// <summary>Sent by us: on the right, like our messages.</summary>
+    [ObservableProperty]
+    public partial bool IsMine { get; set; }
+
+    /// <summary>"app.zip + 2 mục", or the words of "Gửi văn bản".</summary>
+    [ObservableProperty]
+    public partial string Title { get; set; } = "";
+
+    [ObservableProperty]
+    public partial bool IsText { get; set; }
+
+    /// <summary>"12,4 MB · Đã nhận", "Bạn gửi · chưa mở".</summary>
+    [ObservableProperty]
+    public partial string StatusText { get; set; } = "";
+
+    [ObservableProperty]
+    public partial bool CanDownload { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsDownloading))]
+    public partial double Progress { get; set; } = -1;
+
+    public bool IsDownloading => Progress >= 0;
+
+    [RelayCommand]
+    private void Download()
+    {
+        if (key is { } offer)
+        {
+            owner.Download(offer);
+        }
+    }
+
+    [RelayCommand]
+    private void Show() => owner.ShowFiles?.Invoke(!IsMine);
+
+    internal void Update(SentOffer offer, DeviceId peer)
+    {
+        IsMine = true;
+        key = null;
+        IsText = offer.Paths.Count == 0;
+        Title = IsText ? TransferText.Preview(offer.Note ?? "", 200) : TransferText.Summary(offer.Paths);
+        SentRecipient? recipient = offer.Recipients.FirstOrDefault(r => r.DeviceId == peer);
+        string state = offer.State switch
+        {
+            OfferState.Withdrawn => L.T("Đã thu hồi"),
+            OfferState.Expired => L.T("Đã hết hạn"),
+            _ => recipient?.State switch
+            {
+                RecipientState.Pending => L.T("chờ gửi (đang offline)"),
+                RecipientState.Delivered => L.T("chưa mở"),
+                RecipientState.Downloading => L.T("đang tải"),
+                RecipientState.Completed => L.T("đã nhận"),
+                RecipientState.Partial => L.T("đã nhận một phần"),
+                RecipientState.Declined => L.T("đã bỏ qua"),
+                _ => L.T("lỗi"),
+            },
+        };
+        StatusText = IsText ? state : $"{TransferText.Size(offer.TotalBytes)} · {state}";
+        CanDownload = false;
+        Progress = -1;
+    }
+
+    internal void Update(ReceivedOffer offer, bool senderOnline)
+    {
+        IsMine = false;
+        key = new OfferKey(offer.SenderId, offer.OfferId);
+        IsText = offer.Files.Count == 0;
+        Title = IsText ? TransferText.Preview(offer.Note ?? "", 200) : TransferText.Summary(offer.Files.Select(f => f.RelativePath));
+        string state = offer.State switch
+        {
+            InboxState.New when offer.ExpiresAt <= DateTimeOffset.UtcNow => L.T("Đã hết hạn"),
+            InboxState.New => senderOnline ? L.T("Mới") : L.F("Người gửi offline · {0}", TransferText.Remaining(offer.ExpiresAt - DateTimeOffset.UtcNow)),
+            InboxState.Downloading => L.F("Đang tải {0:0}%", offer.TotalBytes == 0 ? 0 : 100.0 * offer.BytesReceived / offer.TotalBytes),
+            InboxState.Completed => L.T("Đã nhận"),
+            InboxState.Partial => L.T("Đã tải một phần"),
+            InboxState.Failed => L.F("Lỗi: {0}", offer.Error),
+            InboxState.Cancelled => L.T("Đã hủy"),
+            InboxState.Declined => L.T("Đã bỏ qua"),
+            InboxState.Withdrawn => L.T("Người gửi đã thu hồi"),
+            _ => L.T("Đã hết hạn"),
+        };
+        StatusText = IsText ? state : $"{TransferText.Size(offer.TotalBytes)} · {state}";
+        CanDownload = offer.State == InboxState.New && senderOnline && offer.ExpiresAt > DateTimeOffset.UtcNow;
+        Progress = offer.State == InboxState.Downloading && offer.TotalBytes > 0 ? 100.0 * offer.BytesReceived / offer.TotalBytes : -1;
+    }
 }

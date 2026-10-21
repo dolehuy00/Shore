@@ -126,6 +126,10 @@ public sealed partial class MainWindowViewModel : ObservableObject
             }
         };
         neighborhood.ChatRequested += (_, peer) => OpenChat(peer);
+        chat.CopyText = text => _ = DialogService.CopyTextAsync(text);
+        chat.OpenLink = DialogService.OpenLink;
+        chat.Confirm = async (title, question, action) => await DialogService.ChooseAsync(title, question, [action, L.T("Hủy")]) == 0;
+        chat.ShowFiles = received => ShowPage(received ? NavPage.Inbox : NavPage.Sent);
         // Downloads fill the disk without telling the window; once a minute is enough for the card.
         RefreshStorage();
         DispatcherTimer.Run(() =>

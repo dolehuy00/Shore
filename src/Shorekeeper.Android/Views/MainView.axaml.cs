@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Platform;
+using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Presenters;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -107,6 +108,17 @@ public partial class MainView : UserControl
             (visual as Layoutable)?.InvalidateMeasure();
         }
     });
+
+    /// <summary>A long press on a message: its menu (copy, delete), with the buzz a long press gives.</summary>
+    private void OnBubbleHolding(object? sender, HoldingRoutedEventArgs e)
+    {
+        if (e.HoldingState == HoldingState.Started && sender is Control bubble)
+        {
+            MainActivity.Current?.Window?.DecorView.PerformHapticFeedback(FeedbackConstants.LongPress);
+            FlyoutBase.ShowAttachedFlyout(bubble);
+            e.Handled = true;
+        }
+    }
 
     /// <summary>Slid this far left, letting go of 🎤 throws the recording away.</summary>
     private const double CancelDistance = 90;

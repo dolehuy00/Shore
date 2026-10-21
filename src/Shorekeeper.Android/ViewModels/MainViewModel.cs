@@ -70,9 +70,33 @@ public sealed partial class MainViewModel : ObservableObject
         Audio.AskPassword = AskPasswordAsync;
         Settings = new SettingsTabViewModel(services, this);
         Chat = new ChatViewModel(
-            services.GetRequiredService<ChatService>(), trust, directory, services.GetService<IMicrophone>(), services.GetService<IVoicePlayer>())
+            services.GetRequiredService<ChatService>(), trust, directory, offers, inbox, services.GetService<IMicrophone>(), services.GetService<IVoicePlayer>())
         {
             AllowRecording = AllowRecordingAsync,
+            CopyText = text =>
+            {
+                TextActions.Copy(global::Android.App.Application.Context, text);
+                Notice = L.T("Đã chép");
+            },
+            OpenLink = link => TextActions.Open(global::Android.App.Application.Context, link),
+            Confirm = (title, question, action) =>
+            {
+                var answer = new TaskCompletionSource<bool>();
+                Question = new QuestionViewModel(title, question, action, null, _ =>
+                {
+                    answer.TrySetResult(true);
+                    return Task.CompletedTask;
+                }, this)
+                {
+                    Cancelled = () => answer.TrySetResult(false),
+                };
+                return answer.Task;
+            },
+            ShowFiles = received =>
+            {
+                FilesShowSent = !received;
+                SelectedTab = 1;
+            },
         };
         OfferSelection = new ListSelection(() => Offers, () => RemoveCheckedOffers(deleteFiles: false), () => RemoveCheckedOffers(deleteFiles: true));
         SentSelection = new ListSelection(() => Sent, RemoveCheckedSent);

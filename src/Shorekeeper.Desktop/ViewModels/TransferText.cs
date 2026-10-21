@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Shorekeeper.Core.Localization;
 using Shorekeeper.Engine.Transfers;
 
@@ -15,7 +16,7 @@ public enum TransferKind
 }
 
 /// <summary>Wording shared by the inbox, the sent list and the incoming-offer popup.</summary>
-public static class TransferText
+public static partial class TransferText
 {
     private static readonly string[] ImageExtensions = [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"];
 
@@ -70,6 +71,14 @@ public static class TransferText
             ? uri
             : null;
 
+    /// <summary>The web addresses in a message, at most three, each once.</summary>
+    public static IReadOnlyList<string> LinksIn(string text) =>
+        [.. WebAddress().Matches(text)
+            .Select(m => m.Value.TrimEnd('.', ',', ';', ':', '!', '?', ')', ']'))
+            .Where(link => LinkOf(link) is not null)
+            .Distinct()
+            .Take(3)];
+
     /// <summary>The first line of a text, shortened for a title or a notification.</summary>
     public static string Preview(string text, int maxLength = 80)
     {
@@ -118,6 +127,9 @@ public static class TransferText
 
     /// <summary>A picture the app can show as a thumbnail.</summary>
     public static bool IsImage(string path) => ImageExtensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase);
+
+    [GeneratedRegex(@"https?://[^\s<>""]+", RegexOptions.IgnoreCase)]
+    private static partial Regex WebAddress();
 
     private static bool IsTopLevel(string path)
     {

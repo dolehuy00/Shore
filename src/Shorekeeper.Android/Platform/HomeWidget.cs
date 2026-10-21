@@ -9,6 +9,7 @@ using Shorekeeper.Core.Localization;
 using Shorekeeper.Core.Trust;
 using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Audio;
+using Shorekeeper.Engine.Chat;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Trust;
 
@@ -31,6 +32,7 @@ public sealed class HomeWidget : AppWidgetProvider
     private const int Online = unchecked((int)0xFF22C55E);
     private const int Offline = unchecked((int)0xFF9CA3AF);
     private static (string Status, bool AnyOnline, bool Listening)? shown;
+    private static int unread;
 
     public override void OnUpdate(Context? context, AppWidgetManager? appWidgetManager, int[]? appWidgetIds)
     {
@@ -67,6 +69,15 @@ public sealed class HomeWidget : AppWidgetProvider
         services.GetRequiredService<PeerDirectory>().Changed += (_, _) => Update(context);
         services.GetRequiredService<TrustStore>().Changed += (_, _) => Update(context);
         services.GetRequiredService<AudioService>().Changed += (_, _) => Update(context);
+        var chat = services.GetRequiredService<ChatService>();
+        chat.Changed += (_, _) => _ = CountUnreadAsync(context, chat);
+        _ = CountUnreadAsync(context, chat);
+    }
+
+    /// <summary>Messages not read yet, for the status line; counted again whenever a conversation changes.</summary>
+    private static async Task CountUnreadAsync(Context context, ChatService chat)
+    {
+        unread = (await chat.GetConversationsAsync(CancellationToken.None)).Sum(c => c.Unread);
         Update(context);
     }
 
@@ -139,7 +150,10 @@ public sealed class HomeWidget : AppWidgetProvider
         return views;
     }
 
-    /// <returns>"Đang nghe PC · MSI", "PC · MSI đang phát âm thanh" or "2 máy online"; whether any contact is online.</returns>
+    /// <returns>
+    /// "Đang nghe PC · MSI", "PC · MSI đang phát âm thanh" or "2 máy online", after "3 tin chưa đọc · " when there are;
+    /// whether any contact is online.
+    /// </returns>
     private static (string Text, bool AnyOnline) StatusOf(IServiceProvider services)
     {
         var trust = services.GetRequiredService<TrustStore>();
@@ -149,7 +163,7 @@ public sealed class HomeWidget : AppWidgetProvider
             : Source(services) is { } source ? L.F("{0} đang phát âm thanh", NameOf(services, source.DeviceId, source))
             : online == 0 ? L.T("Không có máy nào online")
             : L.F("{0} máy online", online);
-        return (text, online > 0);
+        return (unread > 0 ? L.F("{0} tin chưa đọc · {1}", unread, text) : text, online > 0);
     }
 
     private static PendingIntent Open(Context context, string? action, int requestCode)

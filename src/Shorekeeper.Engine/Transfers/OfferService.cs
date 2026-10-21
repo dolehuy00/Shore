@@ -788,7 +788,8 @@ public sealed class OfferService(
             [.. Files.Where(f => !f.RelativePath.Contains('/') || f.RelativePath.IndexOf('/') == f.RelativePath.Length - 1).Select(f => f.RelativePath)],
             State,
             Files.Any(f => f.Changed),
-            [.. Recipients.Select(r => new SentRecipient(r.Key, r.Value.State, Interlocked.Read(ref r.Value.BytesServed)))]);
+            [.. Recipients.Select(r => new SentRecipient(r.Key, r.Value.State, Interlocked.Read(ref r.Value.BytesServed)))],
+            GroupId);
     }
 
     /// <param name="SnapshotPath">Temporary copy served instead of the original, if any.</param>
