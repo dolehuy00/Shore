@@ -12,6 +12,7 @@ using Avalonia.VisualTree;
 using Shorekeeper.Android.Platform;
 using Shorekeeper.Android.ViewModels;
 using Shorekeeper.Core.Localization;
+using Shorekeeper.Desktop.ViewModels;
 using Button = Avalonia.Controls.Button;
 using FeedbackConstants = Android.Views.FeedbackConstants;
 
@@ -109,13 +110,37 @@ public partial class MainView : UserControl
         }
     });
 
-    /// <summary>A long press on a message: its menu (copy, delete), with the buzz a long press gives.</summary>
+    /// <summary>
+    /// A long press on a message: its menu (copy, choose several, delete), with the buzz a long press gives; while
+    /// choosing, it checks or unchecks the message like a tap.
+    /// </summary>
     private void OnBubbleHolding(object? sender, HoldingRoutedEventArgs e)
     {
-        if (e.HoldingState == HoldingState.Started && sender is Control bubble)
+        if (e.HoldingState != HoldingState.Started || sender is not Control { DataContext: ChatBubbleViewModel message } bubble)
         {
-            MainActivity.Current?.Window?.DecorView.PerformHapticFeedback(FeedbackConstants.LongPress);
+            return;
+        }
+
+        MainActivity.Current?.Window?.DecorView.PerformHapticFeedback(FeedbackConstants.LongPress);
+        if (message.Owner.IsSelecting)
+        {
+            message.IsSelected = !message.IsSelected;
+        }
+        else
+        {
             FlyoutBase.ShowAttachedFlyout(bubble);
+        }
+
+        e.Handled = true;
+    }
+
+    /// <summary>While choosing messages, a tap on a row checks or unchecks it; its buttons and check box do their own job.</summary>
+    private void OnChatRowTapped(object? sender, TappedEventArgs e)
+    {
+        if (sender is Control { DataContext: ChatBubbleViewModel { Owner.IsSelecting: true } message }
+            && !((e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<Button>().Any() ?? false))
+        {
+            message.IsSelected = !message.IsSelected;
             e.Handled = true;
         }
     }

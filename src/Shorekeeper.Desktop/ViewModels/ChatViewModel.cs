@@ -326,6 +326,7 @@ public sealed partial class ChatViewModel : ObservableObject
     partial void OnCurrentChanged(ChatPersonViewModel? oldValue, ChatPersonViewModel? newValue)
     {
         StopPlaying();
+        IsSelecting = false;
         _ = FinishRecordingAsync(send: false);
         if (oldValue is not null)
         {
@@ -440,6 +441,11 @@ public sealed partial class ChatViewModel : ObservableObject
         }
 
         OnPropertyChanged(nameof(HasNoMessages));
+        if (IsSelecting)
+        {
+            SelectionChanged();
+        }
+
         if (added > 0)
         {
             ScrollToEndRequested?.Invoke(this, EventArgs.Empty);
@@ -483,6 +489,81 @@ public sealed partial class ChatViewModel : ObservableObject
         }
 
         await chat.DeleteAsync(person.Peer, [bubble.Id], CancellationToken.None);
+    }
+
+    // ───────────── "Chọn nhiều": check messages, then delete them at once ─────────────
+
+    /// <summary>A check box on each message, and the actions for the checked ones (docs/15-chat.md §6).</summary>
+    [ObservableProperty]
+    public partial bool IsSelecting { get; set; }
+
+    private IEnumerable<ChatBubbleViewModel> Bubbles => Messages.OfType<ChatBubbleViewModel>();
+
+    public int SelectedCount => Bubbles.Count(b => b.IsSelected);
+
+    public bool HasSelection => SelectedCount > 0;
+
+    public string SelectedText => L.F("Đã chọn {0}", SelectedCount);
+
+    /// <summary>"Chọn tất cả": checked when all are, empty when none, in between otherwise.</summary>
+    public bool? AllSelected
+    {
+        get => SelectedCount == 0 ? false : SelectedCount == Bubbles.Count() ? true : null;
+        set
+        {
+            bool select = SelectedCount < Bubbles.Count();
+            foreach (ChatBubbleViewModel bubble in Bubbles)
+            {
+                bubble.IsSelected = select;
+            }
+        }
+    }
+
+    /// <summary>Called by a message whose check box changed, and when messages come or go while choosing.</summary>
+    internal void SelectionChanged()
+    {
+        OnPropertyChanged(nameof(SelectedCount));
+        OnPropertyChanged(nameof(HasSelection));
+        OnPropertyChanged(nameof(SelectedText));
+        OnPropertyChanged(nameof(AllSelected));
+    }
+
+    /// <summary>"Chọn nhiều" in a message's menu: choosing starts with that message checked.</summary>
+    internal void StartSelecting(ChatBubbleViewModel first)
+    {
+        IsSelecting = true;
+        first.IsSelected = true;
+    }
+
+    [RelayCommand]
+    private void StopSelecting()
+    {
+        IsSelecting = false;
+        foreach (ChatBubbleViewModel bubble in Bubbles)
+        {
+            bubble.IsSelected = false;
+        }
+    }
+
+    /// <summary>The checked messages, here only; several are asked about first.</summary>
+    [RelayCommand]
+    private async Task DeleteSelectedAsync()
+    {
+        List<ChatBubbleViewModel> chosen = [.. Bubbles.Where(b => b.IsSelected)];
+        if (Current is not { } person || chosen.Count == 0
+            || (chosen.Count > 1 && Confirm is { } confirm && !await confirm(
+                L.T("Xóa tin nhắn"), L.F("Xóa {0} tin nhắn trên máy này? Máy kia vẫn giữ tin của nó.", chosen.Count), L.T("Xóa"))))
+        {
+            return;
+        }
+
+        if (playing is { } now && chosen.Contains(now.Bubble))
+        {
+            StopPlaying();
+        }
+
+        StopSelecting();
+        await chat.DeleteAsync(person.Peer, [.. chosen.Select(b => b.Id)], CancellationToken.None);
     }
 
     /// <summary>"Xóa hội thoại…": every message with this person, here only, after asking.</summary>
@@ -668,6 +749,18 @@ public abstract partial class ChatEntryViewModel(string id) : ObservableObject
 /// <summary>A message in the open conversation.</summary>
 public sealed partial class ChatBubbleViewModel(string id, ChatViewModel owner) : ChatEntryViewModel(id)
 {
+    /// <summary>For the check box while choosing.</summary>
+    public ChatViewModel Owner => owner;
+
+    /// <summary>Checked in "Chọn nhiều".</summary>
+    [ObservableProperty]
+    public partial bool IsSelected { get; set; }
+
+    partial void OnIsSelectedChanged(bool value) => owner.SelectionChanged();
+
+    [RelayCommand]
+    private void SelectMany() => owner.StartSelecting(this);
+
     public bool IsMine { get; private set; }
 
     public string Text { get; private set; } = "";

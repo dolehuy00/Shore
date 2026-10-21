@@ -97,7 +97,7 @@ Migration `0006_chat.sql` ([09](09-data-storage.md)):
 - Phải: luồng tin. Bong bóng của mình bên phải màu nhấn, của người kia bên trái; ngăn ngày ("Hôm nay", "Hôm qua", "20/10"); giờ + trạng thái dưới tin cuối mỗi cụm.
 - Phải: tên + trạng thái, bong bóng (của mình bên phải màu nhấn), ngăn ngày, ô soạn dưới cùng. Không viết được thì ô soạn khóa và nói vì sao (chưa kết nối, bản cũ); máy kia offline thì vẫn viết được, kèm dòng "tin nhắn sẽ được gửi khi máy online".
 - Ô soạn: Enter gửi, Shift+Enter xuống dòng. 🎤 bên trái ô soạn bấm để ghi; khi ghi, ô soạn thành [✕] ● 0:07 [mức âm] [➤]: ✕ hủy, ➤ gửi. (Chưa làm: 📎 và Ctrl+V file trong ô soạn để gửi file cho người này; vẫn gửi ở Xóm.)
-- Chuột phải một tin: **Sao chép** (tin chữ), **Xóa tin nhắn**. Địa chỉ web trong tin (tối đa 3) hiện thành dòng gạch chân ngay dưới, bấm thì mở trình duyệt. ⋮ trên đầu hội thoại: **Xóa hội thoại…** (hỏi trước).
+- Chuột phải một tin: **Sao chép** (tin chữ), **Chọn nhiều**, **Xóa tin nhắn**. Chọn nhiều: mỗi tin có ô chọn, click cả hàng để chọn/bỏ (hàng được chọn nền xanh nhạt), thanh trên cùng [☐ Chọn tất cả] "Đã chọn N" [Xóa] [Xong]; xóa từ 2 tin trở lên thì hỏi trước. Địa chỉ web trong tin (tối đa 3) hiện thành dòng gạch chân ngay dưới, bấm thì mở trình duyệt. ⋮ trên đầu hội thoại: **Xóa hội thoại…** (hỏi trước).
 - Bong bóng thoại: ▶/⏸ trên nền tròn, 48 vạch sóng (phần đã phát tô đậm), thời lượng.
 - Thẻ người ở Xóm thêm nút 💬 và mục **Nhắn tin** (liên hệ). Toast tin mới (trừ khi "Bận", hoặc đang mở đúng hội thoại đó và cửa sổ ở trước), bấm thì mở đúng hội thoại; tắt toast thì chỉ còn số chưa đọc trên "Tin nhắn".
 - Tin đọc khi trang Tin nhắn đang mở đúng hội thoại **và** cửa sổ đang ở trước (thu nhỏ, ở khay hay sau cửa sổ khác thì chưa).
@@ -111,7 +111,7 @@ Migration `0006_chat.sql` ([09](09-data-storage.md)):
 - Chấm đỏ nhấp nháy chỉ gắn khi đang ghi: animation lặp mãi làm app vẽ lại liên tục, và trên điện thoại khiến bộ đếm tiến độ phát (`DispatcherTimer` ưu tiên Background) không bao giờ chạy.
 - Thông báo kiểu tin nhắn (`MessagingStyle`, kênh "Tin nhắn"), một thông báo mỗi người với tối đa 8 tin chưa đọc, có **Trả lời** ngay trên thông báo (`RemoteInput`) và **Đánh dấu đã đọc**; chạm thì mở đúng hội thoại. Trả lời là đã đọc: app gỡ thông báo. ColorOS vẫn giữ thẻ đã trả lời (kèm "Bạn: …" do Android thêm) trong khung thông báo tới khi vuốt bỏ, dù hệ thống đã gỡ nó.
 - Không có thông báo khi đang mở đúng hội thoại đó và app ở trước.
-- Nhấn giữ một tin: menu **Sao chép** / **Xóa tin nhắn** (rung nhẹ); link dưới tin chạm để mở; ⋮ trên đầu hội thoại: **Xóa hội thoại…** (hỏi trước).
+- Nhấn giữ một tin: menu **Sao chép** / **Chọn nhiều** / **Xóa tin nhắn** (rung nhẹ). Đang chọn thì chạm hoặc nhấn giữ một tin để chọn/bỏ; thanh trên cùng [☐ Chọn tất cả] "Đã chọn N" [✕] [Xóa], như ở tab File; link dưới tin chạm để mở; ⋮ trên đầu hội thoại: **Xóa hội thoại…** (hỏi trước).
 - Widget: dòng trạng thái bắt đầu bằng "2 tin chưa đọc · " khi có.
 
 ### 6.3 File trong hội thoại
@@ -125,7 +125,7 @@ Offer mình gửi cho người đó (không qua nhóm) và mọi offer người 
 | **C1** Engine văn bản | Migration, `ChatService`, 2 endpoint, chờ gửi / gửi tiếp khi online, chống trùng, đã tới / đã xem, `caps: "chat"` | Test Engine 2 máy loopback: gửi/nhận, offline → online gửi đúng thứ tự, gửi lại trùng ID, Unknown/chặn → `403`, receipt |
 | **C2** Giao diện văn bản | Trang Tin nhắn (PC), tab File + tab Tin nhắn (điện thoại), chưa đọc, nút ở Xóm, toast, thông báo có Trả lời | Nhắn qua lại thật PC ↔ điện thoại, offline rồi online |
 | **C3** Tin nhắn thoại | `IMicrophone` (WASAPI micro, Android micro), ghi Ogg Opus + sóng âm, gửi kèm tin, bong bóng phát | Test mã hóa ↔ giải mã Ogg; ghi và nghe thật trên cả hai máy |
-| **C4** Hoàn thiện ✅ | Thẻ file trong hội thoại, xóa tin (menu chuột phải / nhấn giữ) và hội thoại (⋮), chép chữ, link bấm được, Thống kê, widget | Test engine (xóa, đếm) + thử trên máy thật |
+| **C4** Hoàn thiện ✅ | Thẻ file trong hội thoại, xóa tin (menu chuột phải / nhấn giữ, chọn nhiều) và hội thoại (⋮), chép chữ, link bấm được, Thống kê, widget | Test engine (xóa, đếm) + thử trên máy thật |
 | **C5** Chat nhóm | Hội thoại theo Nhóm: gửi tỏa ra từng thành viên, ai offline nhận sau, đã xem theo từng người | Kế hoạch riêng khi tới |
 
 ## 8. Rủi ro

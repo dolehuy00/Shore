@@ -190,6 +190,15 @@
     <Style Selector="Border.bubble.mine TextBlock, Border.bubble.mine SelectableTextBlock">
       <Setter Property="Foreground" Value="{DynamicResource AccentButtonForeground}" />
     </Style>
+    <!-- A message checked in "Chọn nhiều": its row washed in the accent blue, as the offers are. -->
+    <!-- Transparent, not empty, so a tap between the bubble and the edge still reaches the row. Set here rather than on
+         the row itself, where it would win over "picked". -->
+    <Style Selector="Grid.chatrow">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Grid.chatrow.picked">
+      <Setter Property="Background" Value="#263B82F6" />
+    </Style>
     <!-- A web address in a message: underlined, in the accent color (white on our own bubbles). -->
     <Style Selector="Button.link">
       <Setter Property="Background" Value="Transparent" />
@@ -512,6 +521,18 @@
             </Grid>
           </Border>
 
+          <!-- "Chọn nhiều": what to do with the checked messages. -->
+          <Border DockPanel.Dock="Top" Classes="selectionbar" IsVisible="{Binding IsSelecting}" Padding="16,8" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource Sk.Divider}">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+              <CheckBox IsChecked="{Binding AllSelected}" Content="{l:T 'Chọn tất cả'}" VerticalAlignment="Center" />
+              <TextBlock Grid.Column="1" Classes="muted" Text="{Binding SelectedText}" FontSize="12" Margin="12,0" VerticalAlignment="Center" />
+              <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6">
+                <Button Content="{l:T 'Xóa'}" Command="{Binding DeleteSelectedCommand}" IsEnabled="{Binding HasSelection}" />
+                <Button Content="{l:T 'Xong'}" Command="{Binding StopSelectingCommand}" Classes="accent" />
+              </StackPanel>
+            </Grid>
+          </Border>
+
           <!-- The box: Enter sends, Shift+Enter starts a new line. -->
           <Border DockPanel.Dock="Bottom" Padding="16,10" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource Sk.Divider}">
             <StackPanel Spacing="6">
@@ -553,16 +574,22 @@
                   <DataTemplate DataType="{x:Type vm:ChatBubbleViewModel}" x:DataType="vm:ChatBubbleViewModel">
                     <StackPanel>
                       <TextBlock Classes="muted" Text="{Binding DayText}" IsVisible="{Binding HasDay}" FontSize="12" HorizontalAlignment="Center" Margin="0,10,0,6" />
-                      <Border Classes="bubble" Classes.mine="{Binding IsMine}" Classes.unknown="{Binding IsUnknown}">
-                        <!-- Right click: copy the words, or take the message away here. -->
+                      <!-- While choosing, a click anywhere on the row checks or unchecks the message. -->
+                      <Grid Classes="chatrow" Classes.picked="{Binding IsSelected}" ColumnDefinitions="Auto,*" Tapped="OnChatRowTapped">
+                      <CheckBox Classes="pick" IsChecked="{Binding IsSelected}" IsVisible="{Binding Owner.IsSelecting}" VerticalAlignment="Center" MinWidth="0" Width="24" Padding="0" Margin="0,0,10,0"
+                                AutomationProperties.Name="{l:T 'Chọn'}" />
+                      <Border Grid.Column="1" Classes="bubble" Classes.mine="{Binding IsMine}" Classes.unknown="{Binding IsUnknown}">
+                        <!-- Right click: copy the words, choose several, or take the message away here. -->
                         <Border.ContextMenu>
                           <ContextMenu>
                             <MenuItem Header="{l:T 'Sao chép'}" Command="{Binding CopyCommand}" IsVisible="{Binding IsText}" />
+                            <MenuItem Header="{l:T 'Chọn nhiều'}" Command="{Binding SelectManyCommand}" />
                             <MenuItem Header="{l:T 'Xóa tin nhắn'}" Command="{Binding DeleteCommand}" />
                           </ContextMenu>
                         </Border.ContextMenu>
                         <StackPanel Spacing="2">
-                          <SelectableTextBlock Classes="body" Text="{Binding Text}" TextWrapping="Wrap" IsVisible="{Binding IsText}" ContextFlyout="{x:Null}" />
+                          <SelectableTextBlock Classes="body" Text="{Binding Text}" TextWrapping="Wrap" IsVisible="{Binding IsText}" ContextFlyout="{x:Null}"
+                                               IsHitTestVisible="{Binding !Owner.IsSelecting}" />
                           <ItemsControl ItemsSource="{Binding Links}" IsVisible="{Binding HasLinks}">
                             <ItemsControl.ItemTemplate>
                               <DataTemplate x:DataType="x:String">
@@ -616,6 +643,7 @@
                           </StackPanel>
                         </StackPanel>
                       </Border>
+                      </Grid>
                     </StackPanel>
                   </DataTemplate>
                   <DataTemplate DataType="{x:Type vm:ChatFileViewModel}" x:DataType="vm:ChatFileViewModel">

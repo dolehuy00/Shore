@@ -225,6 +225,17 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>While choosing messages, a click on a row checks or unchecks it; its buttons and check box do their own job.</summary>
+    private void OnChatRowTapped(object? sender, TappedEventArgs e)
+    {
+        if (sender is Control { DataContext: ChatBubbleViewModel { Owner.IsSelecting: true } bubble }
+            && !((e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<Button>().Any() ?? false))
+        {
+            bubble.IsSelected = !bubble.IsSelected;
+            e.Handled = true;
+        }
+    }
+
     private void OnChatKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Key == Key.Enter && !e.KeyModifiers.HasFlag(KeyModifiers.Shift) && DataContext is MainWindowViewModel main)

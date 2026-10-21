@@ -182,6 +182,15 @@
     <Style Selector="Border.bubble.mine TextBlock, Border.bubble.mine SelectableTextBlock">
       <Setter Property="Foreground" Value="{DynamicResource AccentButtonForeground}" />
     </Style>
+    <!-- A message checked in "Chọn nhiều": its row washed in the accent blue, as the cards are. -->
+    <!-- Transparent, not empty, so a tap between the bubble and the edge still reaches the row. Set here rather than on
+         the row itself, where it would win over "picked". -->
+    <Style Selector="Grid.chatrow">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Grid.chatrow.picked">
+      <Setter Property="Background" Value="#263B82F6" />
+    </Style>
     <!-- A web address in a message: underlined, in the accent color (white on our own bubbles). -->
     <Style Selector="Button.link">
       <Setter Property="Background" Value="Transparent" />
@@ -778,6 +787,19 @@
               </StackPanel>
             </Grid>
 
+            <!-- "Chọn nhiều": [☐ Chọn tất cả] Đã chọn N … [✕ end choosing] [Xóa the checked messages]. -->
+            <Border DockPanel.Dock="Top" Classes="card selectionbar" IsVisible="{Binding IsSelecting}" Margin="0,0,0,6" Padding="12,6">
+              <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                <CheckBox IsChecked="{Binding AllSelected}" Content="{l:T 'Chọn tất cả'}" />
+                <TextBlock Grid.Column="1" Classes="muted" Text="{Binding SelectedText}" FontSize="12" Margin="8,0" VerticalAlignment="Center" />
+                <Button Grid.Column="2" Classes="round close" Command="{Binding StopSelectingCommand}" VerticalAlignment="Center" Margin="0,0,8,0"
+                        AutomationProperties.Name="{l:T 'Xong'}">
+                  <PathIcon Data="{StaticResource Icon.Dismiss}" Width="12" Height="12" />
+                </Button>
+                <Button Grid.Column="3" Content="{l:T 'Xóa'}" Command="{Binding DeleteSelectedCommand}" IsEnabled="{Binding HasSelection}" Padding="14,5" VerticalAlignment="Center" />
+              </Grid>
+            </Border>
+
             <!-- The box, and ➤; empty, 🎤 instead: hold to record, slide left to cancel, let go to send. -->
             <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0,6,0,10">
               <TextBlock Classes="muted" Text="{Binding Notice}" IsVisible="{Binding HasNotice}" FontSize="12" TextWrapping="Wrap" />
@@ -818,11 +840,16 @@
                     <DataTemplate DataType="{x:Type dvm:ChatBubbleViewModel}" x:DataType="dvm:ChatBubbleViewModel">
                       <StackPanel>
                         <TextBlock Classes="muted" Text="{Binding DayText}" IsVisible="{Binding HasDay}" FontSize="12" HorizontalAlignment="Center" Margin="0,10,0,6" />
-                        <!-- Long press: copy the words, or take the message away here. -->
-                        <Border Classes="bubble" Classes.mine="{Binding IsMine}" Classes.unknown="{Binding IsUnknown}" Holding="OnBubbleHolding">
+                        <!-- While choosing, a tap anywhere on the row checks or unchecks the message. -->
+                        <Grid Classes="chatrow" Classes.picked="{Binding IsSelected}" ColumnDefinitions="Auto,*" Tapped="OnChatRowTapped">
+                        <CheckBox Classes="pick" IsChecked="{Binding IsSelected}" IsVisible="{Binding Owner.IsSelecting}" VerticalAlignment="Center" MinWidth="0" Width="24" Padding="0" Margin="0,0,10,0"
+                                  AutomationProperties.Name="{l:T 'Chọn'}" />
+                        <!-- Long press: copy the words, choose several, or take the message away here. -->
+                        <Border Grid.Column="1" Classes="bubble" Classes.mine="{Binding IsMine}" Classes.unknown="{Binding IsUnknown}" Holding="OnBubbleHolding">
                           <FlyoutBase.AttachedFlyout>
                             <MenuFlyout>
                               <MenuItem Header="{l:T 'Sao chép'}" Command="{Binding CopyCommand}" IsVisible="{Binding IsText}" />
+                              <MenuItem Header="{l:T 'Chọn nhiều'}" Command="{Binding SelectManyCommand}" />
                               <MenuItem Header="{l:T 'Xóa tin nhắn'}" Command="{Binding DeleteCommand}" />
                             </MenuFlyout>
                           </FlyoutBase.AttachedFlyout>
@@ -880,6 +907,7 @@
                             </StackPanel>
                           </StackPanel>
                         </Border>
+                        </Grid>
                       </StackPanel>
                     </DataTemplate>
                     <DataTemplate DataType="{x:Type dvm:ChatFileViewModel}" x:DataType="dvm:ChatFileViewModel">

@@ -655,5 +655,6 @@
   "Xóa mọi tin nhắn với {0} trên máy này? Máy kia vẫn giữ tin của nó. File đã gửi, đã nhận vẫn ở Hộp nhận và Đã gửi.": "Delete every message with {0} on this device? The other device keeps its own. Files sent and received stay in Inbox and Sent.",
   "Đang tải {0:0}%": "Downloading {0:0}%",
   "7 ngày: gửi {0} · nhận {1} tin": "7 days: {0} messages sent · {1} received",
-  "Tổng: gửi {0} · nhận {1} tin": "Total: {0} messages sent · {1} received"
+  "Tổng: gửi {0} · nhận {1} tin": "Total: {0} messages sent · {1} received",
+  "Xóa {0} tin nhắn trên máy này? Máy kia vẫn giữ tin của nó.": "Delete {0} messages on this device? The other device keeps its own."
 }
