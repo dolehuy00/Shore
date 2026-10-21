@@ -104,6 +104,7 @@ Migration `0006_chat.sql` ([09](09-data-storage.md)):
 - Chuột phải một tin: **Sao chép** (tin chữ), **Thu hồi** (tin của mình), **Chọn nhiều**, **Xóa tin nhắn**. Chọn nhiều: mỗi tin có ô chọn, click cả hàng để chọn/bỏ (hàng được chọn nền xanh nhạt), thanh trên cùng [☐ Chọn tất cả] "Đã chọn N" [Xóa] [Xong]; xóa từ 2 tin trở lên thì hỏi trước. Địa chỉ web trong tin (tối đa 3) hiện thành dòng gạch chân ngay dưới, bấm thì mở trình duyệt. ⋮ trên đầu hội thoại: **Xóa hội thoại…** (hỏi trước).
 - Bong bóng thoại: ▶/⏸ trên nền tròn, 48 vạch sóng (phần đã phát tô đậm), thời lượng.
 - Thẻ người ở Xóm thêm nút 💬 và mục **Nhắn tin** (liên hệ). Toast tin mới (trừ khi "Bận", hoặc đang mở đúng hội thoại đó và cửa sổ ở trước), bấm thì mở đúng hội thoại; tắt toast thì chỉ còn số chưa đọc trên "Tin nhắn".
+- Mở hội thoại thì hiện ngay tin mới nhất (cuộn tới cuối trước khi vẽ khung đầu tiên, không thì hội thoại dài hiện chỗ cũ một khung rồi nhảy), và giữ ở cuối khi ảnh tải xong làm thẻ cao lên; kéo lên đọc tin cũ thì thôi giữ. Điện thoại cũng vậy (`ChatScroll`, dùng chung).
 - Tin đọc khi trang Tin nhắn đang mở đúng hội thoại **và** cửa sổ đang ở trước (thu nhỏ, ở khay hay sau cửa sổ khác thì chưa).
 
 ### 6.2 Điện thoại
@@ -121,7 +122,7 @@ Migration `0006_chat.sql` ([09](09-data-storage.md)):
 
 ### 6.3 File trong hội thoại
 
-Offer mình gửi cho người đó (không qua nhóm) và mọi offer người đó gửi cho mình (Hộp nhận không giữ nhóm của offer) hiện thành **thẻ** trong luồng tin theo giờ gửi/nhận, bên của người gửi: tên file ("app.zip + 2 mục") hoặc chữ của "Gửi văn bản", dung lượng, trạng thái (lời như ở Hộp nhận / Đã gửi), thanh tiến độ khi đang tải, [Tải] với offer mới và [Xem] mở tab Hộp nhận / Đã gửi (điện thoại: File → Nhận / Đã gửi), nơi làm được mọi việc khác. Hộp nhận và Đã gửi vẫn đủ mọi offer như cũ; thẻ chỉ là một cách xem khác, không lưu thêm gì. Danh sách hội thoại vẫn chỉ xếp theo tin nhắn.
+Offer mình gửi cho người đó (không qua nhóm) và mọi offer người đó gửi cho mình (Hộp nhận không giữ nhóm của offer) hiện thành **thẻ** trong luồng tin theo giờ gửi/nhận, bên của người gửi: tên file ("app.zip + 2 mục") hoặc chữ của "Gửi văn bản", dung lượng, trạng thái (lời như ở Hộp nhận / Đã gửi), thanh tiến độ khi đang tải, [Tải] với offer mới và [Xem] mở tab Hộp nhận / Đã gửi (điện thoại: File → Nhận / Đã gửi), nơi làm được mọi việc khác. Hộp nhận và Đã gửi vẫn đủ mọi offer như cũ; thẻ chỉ là một cách xem khác, không lưu thêm gì. Trong danh sách hội thoại, offer mới hơn tin nhắn cuối thì thay nó: giờ của offer, dòng "[Ảnh]" / "[3 ảnh]" / chữ của "Gửi văn bản" / "app.zip + 2 mục" (của mình thì thêm "Bạn: "), và xếp theo giờ đó; người chỉ mới gửi file cũng lên danh sách. Offer không tính vào số chưa đọc.
 
 Chuột phải (điện thoại: nhấn giữ) một thẻ: **Thu hồi** offer mình gửi còn mở (hỏi trước, như ở Đã gửi: người nhận không tải được nữa) và **Xem**.
 

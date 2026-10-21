@@ -411,21 +411,25 @@ public sealed partial class ChatViewModel : ObservableObject
         }
     }
 
-    /// <param name="peer">The conversation that changed; null when contacts changed.</param>
+    /// <param name="peer">The conversation that changed; null when contacts or offers changed.</param>
     private async Task RefreshAsync(DeviceId? peer)
     {
         IReadOnlyList<ChatConversation> conversations = await chat.GetConversationsAsync(CancellationToken.None);
-        List<ChatPersonViewModel> ordered = [];
-        foreach (ChatConversation conversation in conversations)
-        {
-            ordered.Add(Person(conversation.Peer).Update(conversation));
-        }
+        // A file card is said in the conversation too: the newest of a message or an offer leads, by its time.
+        Dictionary<DeviceId, ChatLastFile> files = LastFiles();
+        List<ChatPersonViewModel> ordered =
+        [
+            .. conversations.Select(c => c.Peer).Union(files.Keys)
+                .Select(p => (Peer: p, Conversation: conversations.FirstOrDefault(c => c.Peer == p), File: files.GetValueOrDefault(p)))
+                .OrderByDescending(x => x.File is { } file && (x.Conversation is null || file.At > x.Conversation.Last.SentAt) ? file.At : x.Conversation!.Last.SentAt)
+                .Select(x => Person(x.Peer).Update(x.Conversation, x.File)),
+        ];
 
         // Contacts not written to yet come after, by name, so a conversation can start from here too.
         ordered.AddRange(trust.GetAll(TrustLevel.Trusted)
             .Where(c => !ordered.Any(p => p.Peer == c.DeviceId))
             .OrderBy(c => c.ShownName, StringComparer.CurrentCultureIgnoreCase)
-            .Select(c => Person(c.DeviceId).Update(null)));
+            .Select(c => Person(c.DeviceId).Update(null, null)));
         if (Current is { } current && !ordered.Contains(current))
         {
             ordered.Add(current);
@@ -524,7 +528,7 @@ public sealed partial class ChatViewModel : ObservableObject
 
     private void QueueFilesRefresh() => Dispatcher.UIThread.Post(() =>
     {
-        if (filesQueued || Current is not { } person)
+        if (filesQueued)
         {
             return;
         }
@@ -533,12 +537,47 @@ public sealed partial class ChatViewModel : ObservableObject
         Dispatcher.UIThread.Post(async () =>
         {
             filesQueued = false;
-            if (Current == person)
-            {
-                await RefreshMessagesAsync(person);
-            }
+            // The list too: an offer may now be the last thing said with someone.
+            await RefreshAsync(null);
         });
     });
+
+    /// <summary>The newest offer with each contact, as its card shows in the conversation (not through a group).</summary>
+    private Dictionary<DeviceId, ChatLastFile> LastFiles()
+    {
+        Dictionary<DeviceId, ChatLastFile> last = [];
+        foreach (SentOffer sent in offers.GetOffers().Where(o => o.GroupId is null))
+        {
+            foreach (SentRecipient recipient in sent.Recipients)
+            {
+                Keep(recipient.DeviceId, new ChatLastFile(sent.CreatedAt, true, FileText(sent.Note, sent.Paths, sent.Paths.Count > 0 && sent.Paths.All(StorageReport.IsPicture))));
+            }
+        }
+
+        foreach (ReceivedOffer received in inbox.GetOffers())
+        {
+            string[] paths = [.. received.Files.Select(f => f.RelativePath)];
+            bool pictures = received.Files.Count > 0 && received.Files.All(f => !f.IsDirectory && StorageReport.IsPicture(f.RelativePath));
+            Keep(received.SenderId, new ChatLastFile(received.ReceivedAt, false, FileText(received.Note, paths, pictures)));
+        }
+
+        return last;
+
+        void Keep(DeviceId peer, ChatLastFile file)
+        {
+            // Contacts only: a conversation with anyone else cannot be written in.
+            if (trust.Get(peer) is { TrustLevel: TrustLevel.Trusted } && (!last.TryGetValue(peer, out ChatLastFile? newest) || file.At > newest.At))
+            {
+                last[peer] = file;
+            }
+        }
+    }
+
+    /// <summary>"[Ảnh]", "[3 ảnh]", the words of "Gửi văn bản", or "app.zip + 2 mục".</summary>
+    private static string FileText(string? note, IReadOnlyList<string> paths, bool pictures) =>
+        paths.Count == 0 ? note ?? ""
+        : pictures ? paths.Count == 1 ? L.T("[Ảnh]") : L.F("[{0} ảnh]", paths.Count)
+        : TransferText.Summary(paths);
 
     /// <summary>Takes a message out of this conversation, here only.</summary>
     internal async Task DeleteAsync(ChatBubbleViewModel bubble)
@@ -821,9 +860,17 @@ public sealed partial class ChatPersonViewModel(DeviceId peer, ChatViewModel own
     [RelayCommand]
     private void Open() => owner.Open(Peer);
 
-    internal ChatPersonViewModel Update(ChatConversation? conversation)
+    /// <param name="file">The newest offer with this person; it shows when newer than the last message.</param>
+    internal ChatPersonViewModel Update(ChatConversation? conversation, ChatLastFile? file)
     {
         Unread = conversation?.Unread ?? 0;
+        if (file is not null && (conversation is null || file.At > conversation.Last.SentAt))
+        {
+            TimeText = ChatViewModel.ShortTime(file.At);
+            Preview = file.Outgoing ? L.F("Bạn: {0}", TransferText.Preview(file.Text)) : TransferText.Preview(file.Text);
+            return this;
+        }
+
         TimeText = conversation is null ? "" : ChatViewModel.ShortTime(conversation.Last.SentAt);
         Preview = conversation is null ? L.T("Chưa có tin nhắn")
             : conversation.Last.Outgoing ? L.F("Bạn: {0}", TransferText.Preview(ChatBubbleViewModel.TextOf(conversation.Last)))
@@ -1181,3 +1228,6 @@ public sealed partial class ChatFileViewModel(string id, ChatViewModel owner) : 
 
 /// <summary>A picture shown in a file card, and where it is, to open it.</summary>
 public sealed record ChatPicture(Bitmap Image, string Location);
+
+/// <summary>The newest offer with someone, for the conversation list: when, whose, and what it was.</summary>
+public sealed record ChatLastFile(DateTimeOffset At, bool Outgoing, string Text);

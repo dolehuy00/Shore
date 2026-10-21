@@ -605,6 +605,8 @@
   "{0} giờ {1} phút": "{0} h {1} min",
   "{0} phút": "{0} min",
   "Ảnh": "Pictures",
+  "[Ảnh]": "[Photo]",
+  "[{0} ảnh]": "[{0} photos]",
   "Video": "Videos",
   "Tài liệu": "Documents",
   "File nén, cài đặt": "Archives, installers",
