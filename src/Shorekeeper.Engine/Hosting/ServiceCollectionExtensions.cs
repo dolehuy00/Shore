@@ -69,6 +69,8 @@ public static class ServiceCollectionExtensions
         services.AddHostedService(sp => sp.GetRequiredService<PhotoBackupService>());
         services.AddSingleton<ChatService>();
         services.AddHostedService(sp => sp.GetRequiredService<ChatService>());
+        services.AddSingleton<GroupChatService>();
+        services.AddHostedService(sp => sp.GetRequiredService<GroupChatService>());
 
         return services;
     }

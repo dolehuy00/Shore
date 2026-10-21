@@ -45,7 +45,7 @@
 | `port` | Cổng HTTPS API | M1 (API có từ M2) |
 | `addrs` | Các IPv4 của máy | M1 |
 | `status` | `available` \| `busy` | M1 |
-| `caps` | Khả năng: `bridge` khi máy đang làm cầu nối; `audio`, `audio-locked` (§4.7); `chat` khi nhận tin nhắn (§4.8) | M4 |
+| `caps` | Khả năng: `bridge` khi máy đang làm cầu nối; `audio`, `audio-locked` (§4.7); `chat` khi nhận tin nhắn (§4.8); `chat-group` khi nhận tin nhóm (§4.9, không có khi GPO tắt nhóm) | M4 |
 | `proto` | Phiên bản API hỗ trợ | (dự kiến) |
 | `groups` | Nhóm mà máy này Host (tối đa 5): `[{ id, name, n }]`, `n` = số thành viên | M5 |
 | `dept` | Phòng ban trong AD, tối đa 40 ký tự | M6b |
@@ -191,6 +191,16 @@ Chỉ giữa hai liên hệ. Người gửi lưu tin trước rồi mới gửi;
 | POST | `/chat/messages` | Trusted | `{ id, sentAt, kind, text?, durationMs?, wave?, audio? }` → `204`. `id` 32 chữ số hex do người gửi tạo, xếp theo thời gian (UUIDv7); đã có thì vẫn `204` và bỏ qua (gửi lại an toàn). `kind` `text` cần `text` 1–4.000 ký tự; `voice` cần `audio` (file Ogg Opus, base64, tối đa 2 MB), `durationMs` 1 ms–5 phút và `wave` tối đa 48 byte; `kind` khác (bản sau) được giữ, không có chữ. `sentAt` muộn hơn giờ máy nhận thì lấy giờ máy nhận. Sai định dạng `400`; quá 20 tin/giây `429` |
 | POST | `/chat/receipts` | Trusted | `{ readUpTo }`: máy gọi đã đọc các tin của mình tới `id` này → `204` |
 | POST | `/chat/recalls` | Trusted | `{ ids, offers? }`: tổng 1–500 `id` tin và offer **máy gọi đã gửi** cho máy này, cần thu hồi → `204`. Tin đó thành `kind` `recalled` (không chữ, không âm thanh, đã đọc); offer thành "đã thu hồi" (dừng tải, ảnh tự tải để hiện trong Tin nhắn bị xóa, file người nhận tự tải thì giữ). `id` không có hay của máy khác thì bỏ qua. Sai định dạng `400`. Chờ gửi khi offline như receipt; bản cũ trả `403`, hoặc `400` khi chỉ có `offers`, thì người gọi thôi (offer vẫn được ngừng chia sẻ qua `/inbox/offers/{offerId}/withdrawn`). Thời hạn 5 phút do máy gọi giữ |
+
+### 4.9 Tin nhóm ([16](16-group-chat.md))
+
+Giữa các thành viên một nhóm, theo danh sách thành viên của máy được gọi; không cần là liên hệ. Tác giả gửi tới từng thành viên khác và ký mỗi tin bằng khóa thiết bị (ECDSA P-256 trên các trường của tin, [16 §3.5](16-group-chat.md)). Route mở cho mọi máy không bị chặn; handler trả `403` mã `not_member` khi người gọi (hay máy này) không trong nhóm đó, khác với `not_trusted` mà bản cũ trả cho route lạ: tác giả thử lại `not_member` trong 2 phút (danh sách các máy lệch nhau một lúc), còn `not_trusted` là bản cũ. GPO tắt nhóm: `404`.
+
+| Method | Path | Quyền | Mô tả |
+|---|---|---|---|
+| POST | `/chat/groups/{groupId}/messages` | Thành viên | `{ id, authorId, authorName, authorKey, sentAt, kind, sig, text?, durationMs?, wave?, audio? }` → `204`. Như `/chat/messages`; `authorId` phải là người gọi, `authorKey` (SubjectPublicKeyInfo, base64) có SHA-256 đúng bằng `authorId`, `sig` đúng với các trường đã ký; sai thì `400`. `sentAt` không bị kẹp (mọi máy phải xếp như nhau), nhưng muộn hơn giờ máy nhận quá 1 ngày thì `400`. `authorName` không ký, chỉ để hiện |
+| POST | `/chat/groups/{groupId}/receipts` | Thành viên | `{ readUpTo }`: máy gọi đã đọc tin **của máy này** trong nhóm tới `id` đó → `204`. Chỉ gửi cho tác giả |
+| POST | `/chat/groups/{groupId}/recalls` | Thành viên | `{ recalls: [{ id, sig }] }`, 1–500 lệnh thu hồi do tác giả (người gọi) ký → `204`. Tin đó thành `recalled`; lệnh ký sai hay tin không phải của người gọi thì bỏ qua |
 
 ## 5. Timeout & giới hạn
 

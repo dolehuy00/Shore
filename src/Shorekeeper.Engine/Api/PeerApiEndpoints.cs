@@ -29,6 +29,7 @@ public static class PeerApiEndpoints
         var profile = services.GetRequiredService<DirectoryProfileService>();
         var audio = services.GetRequiredService<AudioService>();
         var chat = services.GetRequiredService<ChatService>();
+        var groupChat = services.GetRequiredService<GroupChatService>();
         var api = new PeerApi(trust, groupStore);
 
         api.Map("GET", "/hello", RequiredAccess.AnyPeer, _ => PeerResponse.Json(new HelloResponse(
@@ -221,6 +222,25 @@ public static class PeerApiEndpoints
 
         api.Map("POST", "/chat/recalls", RequiredAccess.Trusted, async request =>
             await request.ReadJsonAsync<ChatRecallBody>() is { } body ? await chat.HandleRecallAsync(request.Caller, body) : Invalid());
+
+        // ───────────── Group messages (docs/16-group-chat.md §4): members of that group, contacts or not ─────────────
+
+        // Open to any peer here: the handler answers "not_member" rather than "not_trusted", which an older version
+        // gives for a route it does not have, so a sender can tell a member list behind ours from an old version.
+        api.Map("POST", "/chat/groups/{groupId}/messages", RequiredAccess.AnyPeer, async request =>
+            await request.ReadJsonAsync<GroupChatMessageBody>() is { } body
+                ? await groupChat.HandleMessageAsync(request.Caller, request.Route("groupId"), body)
+                : Invalid());
+
+        api.Map("POST", "/chat/groups/{groupId}/receipts", RequiredAccess.AnyPeer, async request =>
+            await request.ReadJsonAsync<ChatReceiptBody>() is { } body
+                ? await groupChat.HandleReceiptAsync(request.Caller, request.Route("groupId"), body)
+                : Invalid());
+
+        api.Map("POST", "/chat/groups/{groupId}/recalls", RequiredAccess.AnyPeer, async request =>
+            await request.ReadJsonAsync<GroupChatRecallBody>() is { } body
+                ? await groupChat.HandleRecallAsync(request.Caller, request.Route("groupId"), body)
+                : Invalid());
 
         return api;
     }

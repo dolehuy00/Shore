@@ -183,6 +183,40 @@ CREATE TABLE ChatCleared (                  -- 0010: "Xóa hội thoại"; thẻ
   PeerId TEXT PRIMARY KEY, ClearedAt INTEGER NOT NULL
 );
 
+-- ───────────── Tin nhóm (0011, docs/16-group-chat.md §5) ─────────────
+CREATE TABLE ChatGroups (                   -- tên nhóm, giữ cho hội thoại cả khi nhóm không còn
+  GroupId TEXT PRIMARY KEY, Name TEXT NOT NULL
+);
+
+CREATE TABLE ChatGroupMessages (
+  GroupId TEXT NOT NULL, Id TEXT NOT NULL,
+  AuthorId TEXT NOT NULL, AuthorName TEXT NOT NULL,
+  AuthorKey BLOB NOT NULL,                  -- SubjectPublicKeyInfo của tác giả, để kiểm và chuyển tiếp
+  Outgoing INTEGER NOT NULL, Kind TEXT NOT NULL, Text TEXT,
+  SentAt INTEGER NOT NULL, ReceivedAt INTEGER,
+  State TEXT NOT NULL,                      -- tin nhận: unread|read; tin mình: theo ChatGroupDeliveries
+  DurationMs INTEGER, Wave BLOB, VoicePath TEXT,
+  Sig BLOB NOT NULL, RecallSig BLOB,        -- chữ ký tin và lệnh thu hồi của tác giả
+  PRIMARY KEY (GroupId, Id)
+);
+
+CREATE TABLE ChatGroupDeliveries (          -- tin mình gửi, mỗi thành viên một dòng
+  GroupId TEXT NOT NULL, Id TEXT NOT NULL, PeerId TEXT NOT NULL,
+  State TEXT NOT NULL,                      -- pending|delivered|read|failed|old
+  RefusedAt INTEGER,                        -- lần đầu bị trả not_member: thử lại 2 phút
+  PRIMARY KEY (GroupId, Id, PeerId)
+);
+
+CREATE TABLE ChatGroupReceipts (            -- "Đã xem" chưa báo được cho tác giả
+  GroupId TEXT NOT NULL, AuthorId TEXT NOT NULL, ReadUpTo TEXT NOT NULL,
+  PRIMARY KEY (GroupId, AuthorId)
+);
+
+CREATE TABLE ChatGroupRecalls (             -- thu hồi chưa báo được cho thành viên
+  GroupId TEXT NOT NULL, PeerId TEXT NOT NULL, Id TEXT NOT NULL, Sig BLOB NOT NULL,
+  PRIMARY KEY (GroupId, PeerId, Id)
+);
+
 -- ───────────── Nhật ký ─────────────
 CREATE TABLE ActivityLog (
   Id INTEGER PRIMARY KEY, At INTEGER NOT NULL, Kind TEXT NOT NULL,

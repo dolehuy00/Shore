@@ -1,6 +1,6 @@
 # 16 — Chat nhóm (C5)
 
-> Trạng thái: **kế hoạch** (2026-10-21). Nối tiếp [15](15-chat.md) (C1–C4, hội thoại 1-1) trên nền Nhóm ở [07](07-groups.md).
+> Trạng thái: **C5a xong** (2026-10-21: engine gửi thẳng, ký, đã nhận / đã xem theo người, thu hồi), C5b–C5e kế hoạch. Nối tiếp [15](15-chat.md) (C1–C4, hội thoại 1-1) trên nền Nhóm ở [07](07-groups.md).
 >
 > Đã chốt (2026-10-21), chi tiết ở §9:
 > - thành viên **chuyển tin hộ** khi người gửi offline;
@@ -36,16 +36,16 @@ Thành viên một **Nhóm** nhắn cho cả nhóm văn bản và tin nhắn tho
 ### 3.1 Gửi
 
 - **Tác giả gửi thẳng tới từng thành viên** (fan-out). Mỗi tin có ID do tác giả tạo (UUIDv7, như 1-1), lưu một lần trong `ChatGroupMessages`. Mỗi thành viên khác (theo danh sách lúc gửi) có một dòng `ChatGroupDeliveries` ở trạng thái `pending`.
-- Hàng đợi **theo từng máy nhận**, dùng chung luồng gửi với tin 1-1: tin tới một máy vẫn đúng thứ tự, và một người offline không chặn người khác. Máy online thì gửi ngay; offline thì gửi khi `PeerDirectory` báo máy đó online; cứ 30 giây thử lại với máy đang online.
+- Hàng đợi **theo từng máy nhận** (`GroupChatService`, riêng với tin 1-1): tin tới một máy vẫn đúng thứ tự, và một người offline không chặn người khác. Máy online thì gửi ngay; offline thì gửi khi `PeerDirectory` báo máy đó online; cứ 30 giây thử lại với máy đang online. Như mọi lần gọi máy khác, `PeerClient` thử cả những địa chỉ từng kết nối được.
 - Người nhận đang offline và tác giả tắt máy trước khi họ online: thành viên khác chuyển hộ (§3.6).
 - Thoại: âm thanh đi trong request như 1-1. Nhóm lớn thì một tin thoại 2 MB nhân với số người; chấp nhận được trong LAN, gửi tối đa 4 người cùng lúc.
 - **Danh sách đổi khi tin còn chờ**:
   - Tin chờ cho người đã rời hay bị loại thì bỏ.
   - Nhóm đóng thì bỏ hết, và hội thoại chỉ còn đọc.
-- **Danh sách các máy lệch nhau một lúc.** Người nhận chưa biết tác giả vừa vào nhóm thì trả `403`. Với nhóm, `403` được thử lại trong 2 phút, vì long-poll cập nhật danh sách trong vòng 20 giây; quá 2 phút mới thành `failed` với người đó.
+- **Danh sách các máy lệch nhau một lúc.** Người nhận chưa biết tác giả vừa vào nhóm thì trả `403` mã `not_member`. Mã này được thử lại trong 2 phút (`RefusedAt`), vì long-poll cập nhật danh sách trong vòng 20 giây; quá 2 phút mới thành `failed` với người đó.
 - **Bản cũ**:
   - Presence thêm `caps: "chat-group"`. Máy nghe trực tiếp mà không có cap này thì không gửi, và hiện "Bản cũ" với người đó.
-  - Máy không biết `caps` (qua Bridge hay probe) thì vẫn gửi; nhận `404` thì là bản cũ.
+  - Máy không biết `caps` (qua Bridge hay probe) thì vẫn gửi. Bản cũ trả route lạ như người lạ (`403` mã `not_trusted`), nên mã đó thành `old`. Vì vậy route nhóm mở cho mọi máy không bị chặn và tự kiểm thành viên, để trả `not_member` riêng.
 - **Giới hạn**: 20 tin/giây mỗi máy gửi, tính chung tin 1-1 và tin nhóm.
 
 ### 3.2 Thứ tự
@@ -115,7 +115,7 @@ Một cơ chế cho cả hai việc: **thành viên kéo tin còn thiếu từ t
 
 | Method | Path | Quyền | Ghi chú |
 |---|---|---|---|
-| `POST` | `/chat/groups/{groupId}/messages` | Thành viên `groupId` | Một tin đã ký → `204`; đã có ID đó (hay dấu xóa) thì vẫn `204`, không làm gì; ký sai `400`. Người gọi là tác giả |
+| `POST` | `/chat/groups/{groupId}/messages` | Thành viên `groupId` | Một tin đã ký → `204`; đã có ID đó (hay dấu xóa, từ C5b) thì vẫn `204`, không làm gì; ký sai `400`. Người gọi là tác giả. Không phải thành viên: `403` `not_member` |
 | `POST` | `/chat/groups/{groupId}/receipts` | Thành viên `groupId` | `{ readUpTo }`: tin **của máy này** mà người gọi đã đọc tới |
 | `POST` | `/chat/groups/{groupId}/recalls` | Thành viên `groupId` | `{ recalls: [{ id, sig }] }`, lệnh thu hồi đã ký, tối đa 500 |
 | `GET` | `/chat/groups/{groupId}/index?after=` | Thành viên `groupId` | Danh sách gọn (§3.6), `{ entries, next, more }` |
@@ -136,16 +136,16 @@ Tin nhóm như tin 1-1, thêm các trường ký:
 }
 ```
 
-- Dùng **route mới** chứ không thêm `groupId` vào `/chat/messages`: bản cũ bỏ qua trường lạ, sẽ hiểu tin nhóm thành tin 1-1. Với route mới, bản cũ trả `404`.
+- Dùng **route mới** chứ không thêm `groupId` vào `/chat/messages`: bản cũ bỏ qua trường lạ, sẽ hiểu tin nhóm thành tin 1-1. Với route mới, bản cũ trả `403` `not_trusted` như với mọi route lạ.
 - `authorName` không nằm trong phần ký, chỉ để hiện tên khi chưa biết người đó. Tên trong danh sách thành viên được ưu tiên.
-- Quyền: middleware `TrustedOrGroupMember` như gửi file, rồi handler kiểm tra đúng nhóm. Trusted thôi thì không đủ, vì phải là thành viên của nhóm đó.
+- Quyền: route mở cho mọi máy không bị chặn (`AnyPeer`); handler kiểm người gọi là thành viên của đúng nhóm đó (`GroupStore.IsMember`) và trả `not_member` nếu không. Trusted thôi thì không đủ.
 - Giới hạn: `index` và `fetch` tối đa 10 lần/giây mỗi người gọi.
 
 ## 5. Lưu trữ
 
-Migration `0011_group_chat.sql` ([09](09-data-storage.md)):
+Migration `0011_group_chat.sql` cho C5a; C5b–C5e thêm migration của mình ([09](09-data-storage.md)):
 
-- `ChatGroups` (`GroupId`, `Name`, `JoinedAt`, `LeftAt`, `Muted`): giữ tên nhóm cho hội thoại sau khi rời, bị loại hay nhóm đóng (bảng `Groups` khi đó đã xóa nhóm), và cờ tắt thông báo.
+- `ChatGroups` (`GroupId`, `Name`): giữ tên nhóm cho hội thoại sau khi rời, bị loại hay nhóm đóng (bảng `Groups` khi đó đã xóa nhóm). Cờ tắt thông báo và lúc vào nhóm thêm ở giai đoạn cần chúng.
 - `ChatGroupMessages` (khóa `GroupId` + `Id`):
   - nội dung như `ChatMessages`: `AuthorId`, `AuthorName`, `Outgoing`, `Kind`, `Text`, `VoicePath`, `DurationMs`, `Wave`, `SentAt`, `ReceivedAt`, `State` (tin nhận: `unread` → `read`);
   - thêm `AuthorKey`, `Sig`, `RecallSig`, `Deleted` (dấu xóa) và `Seq` (§3.6).
@@ -196,7 +196,7 @@ Migration `0011_group_chat.sql` ([09](09-data-storage.md)):
 
 | Giai đoạn | Nội dung | Xong khi |
 |---|---|---|
-| **C5a** Engine gửi thẳng | Migration, ký và kiểm chữ ký, route `messages` / `receipts` / `recalls`, fan-out, chờ gửi theo từng người, chống trùng, thứ tự (§3.2), đã nhận / đã xem theo người, thu hồi, `caps: "chat-group"`, `403` thử lại 2 phút | Test engine 3 máy loopback (bảng dưới) |
+| **C5a** Engine gửi thẳng ✅ | Migration, ký và kiểm chữ ký, route `messages` / `receipts` / `recalls`, fan-out, chờ gửi theo từng người, chống trùng, thứ tự (§3.2), đã nhận / đã xem theo người, thu hồi, `caps: "chat-group"`, `not_member` thử lại 2 phút | Test engine 3 máy loopback (bảng dưới, `GroupChatTests`), cả MiniHttpServer lẫn Kestrel |
 | **C5b** Chuyển hộ & tin cũ | `Seq`, `index` / `fetch`, con trỏ, kéo khi online / khi vào nhóm, cửa sổ 30 ngày / 1.000 tin, dấu xóa, thu hồi qua chuyển hộ | Test engine (bảng dưới) |
 | **C5c** Máy tính | Danh sách + hội thoại nhóm, tên người gửi, Chi tiết, Tắt thông báo, nút ở trang Nhóm, toast | Nhắn thật PC (Host) ↔ điện thoại (thành viên) |
 | **C5d** Điện thoại | Như C5c + thông báo nhóm có Trả lời | Nhắn thật, cả khi app ở nền |

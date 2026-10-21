@@ -52,6 +52,8 @@ internal sealed class TestNode : IAsyncDisposable
 
     public ChatService Chat => Get<ChatService>();
 
+    public GroupChatService GroupChat => Get<GroupChatService>();
+
     public string DownloadDirectory => folder.Paths.DefaultDownloadDirectory;
 
     /// <summary>Scratch folder for files a test sends.</summary>

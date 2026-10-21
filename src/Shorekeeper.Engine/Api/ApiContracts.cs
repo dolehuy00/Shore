@@ -123,6 +123,21 @@ public sealed record ChatReceiptBody(string ReadUpTo);
 /// <param name="Offers">Offers taken back from the conversation (docs/15-chat.md §6.3); a version without them ignores it.</param>
 public sealed record ChatRecallBody(IReadOnlyList<string> Ids, IReadOnlyList<string>? Offers = null);
 
+/// <summary>
+/// Body of <c>POST /api/v1/chat/groups/{groupId}/messages</c> (docs/16-group-chat.md §4): a message of
+/// <see cref="ChatMessageBody"/> to a whole group, signed by its author (the caller) with its device key
+/// (<paramref name="AuthorKey"/>, a SubjectPublicKeyInfo whose hash is <paramref name="AuthorId"/>), so it stays the
+/// author's whoever passes it on. <paramref name="AuthorName"/> is not signed: only shown while the member list has none.
+/// </summary>
+public sealed record GroupChatMessageBody(
+    string Id, string AuthorId, string AuthorName, byte[] AuthorKey, DateTimeOffset SentAt, string Kind, byte[] Sig,
+    string? Text = null, int? DurationMs = null, byte[]? Wave = null, byte[]? Audio = null);
+
+/// <summary>Body of <c>POST /api/v1/chat/groups/{groupId}/recalls</c>: messages taken back, each with its signed recall.</summary>
+public sealed record GroupChatRecallBody(IReadOnlyList<GroupChatRecall> Recalls);
+
+public sealed record GroupChatRecall(string Id, byte[] Sig);
+
 public static class ChatKinds
 {
     public const string Text = "text";
@@ -140,6 +155,12 @@ public static class ApiErrorCodes
     public const string NotFound = "not_found";
     public const string InvalidRequest = "invalid_request";
     public const string NotRecipient = "not_recipient";
+
+    /// <summary>
+    /// The caller is not in that group, as far as this device's member list says. Unlike <see cref="NotTrusted"/>, which
+    /// is also what a version without the route answers, it may be a list a few seconds behind: worth trying again.
+    /// </summary>
+    public const string NotMember = "not_member";
     public const string OfferClosed = "offer_closed";
     public const string SourceChanged = "source_changed";
     public const string Busy = "busy";

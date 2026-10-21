@@ -623,7 +623,8 @@ public sealed class ChatService(
         }
     }
 
-    private bool TakeRate(DeviceId caller)
+    /// <summary>One more message from <paramref name="caller"/> this second, group messages included; false past the limit.</summary>
+    internal bool TakeRate(DeviceId caller)
     {
         long second = timeProvider.GetUtcNow().ToUnixTimeSeconds();
         lock (gate)
@@ -640,7 +641,7 @@ public sealed class ChatService(
     }
 
     /// <summary>An Ogg file of the right size, a length within the limit, a waveform of the right size.</summary>
-    private static bool IsVoice(byte[]? audio, int durationMs, byte[]? wave) =>
+    internal static bool IsVoice(byte[]? audio, int durationMs, byte[]? wave) =>
         audio is { Length: > 4 and <= MaxVoiceBytes } && audio.AsSpan().StartsWith("OggS"u8)
         && durationMs is > 0 and <= VoiceRecorder.MaxDurationMs + 1000
         && wave is { Length: <= VoiceRecorder.WaveBars };

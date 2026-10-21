@@ -91,6 +91,9 @@ public static class PresenceCapabilities
 
     /// <summary>Takes messages (docs/15-chat.md §2); versions before it answer them like an unknown route.</summary>
     public const string Chat = "chat";
+
+    /// <summary>Takes group messages (docs/16-group-chat.md §3.1); not announced while IT has turned groups off.</summary>
+    public const string GroupChat = "chat-group";
 }
 
 public static class PresenceStatus
