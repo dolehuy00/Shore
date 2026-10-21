@@ -224,7 +224,11 @@ Test engine của C5b:
 - C xóa một tin rồi kéo lại từ người khác thì tin không quay về.
 - Kéo lần hai từ cùng người chỉ lấy phần mới.
 
-Thử thật chỉ có 2 máy (PC làm Host, điện thoại); chuyển hộ và 3 người trở lên chỉ có trong test engine.
+Thử thật 3 máy (2026-10-21: PC làm Host, OPPO Reno10 Android 13, Samsung A07 Android 16):
+
+- A07 mới vào nhóm kéo đủ 6 tin cũ (cả tin của OPPO, tin đã thu hồi chỉ còn ghi chú), đã đọc, không thông báo; màu và chữ cái đầu của mỗi người giống nhau trên cả ba máy.
+- Tắt hẳn app trên A07, PC gửi một tin (OPPO nhận, PC hiện "Đã xem 1/2"), tắt PC, mở lại A07: A07 kéo tin đó từ OPPO, có thông báo nhóm như tin thường.
+- Mở lại PC: tin đó thành "Đã xem 2/2" (PC gửi tiếp, A07 trả "đã có", rồi báo đã xem); A07 không có tin trùng.
 
 ## 8. Rủi ro
 
