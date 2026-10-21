@@ -1,8 +1,10 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
+using Microsoft.Extensions.DependencyInjection;
 using Shorekeeper.Core.Identity;
 using Shorekeeper.Engine.Api;
+using Shorekeeper.Engine.Chat;
 using Shorekeeper.Engine.Monitoring;
 using Shorekeeper.Engine.Settings;
 using Shorekeeper.Engine.Transfers;
@@ -442,6 +444,48 @@ public sealed class TransferTests : IAsyncLifetime
 
         ReceivedOffer offer = await WaitForOfferAsync(b, offerId);
         await WaitUntil(() => b.Inbox.Get(new OfferKey(offer.SenderId, offer.OfferId)) is { State: InboxState.Completed });
+    }
+
+    [Fact]
+    public async Task Recalled_pictures_leave_both_conversations_and_the_recipients_folder()
+    {
+        string offerId = await SendAsync(a, [WriteFile(a, "photo.jpg", [1, 2, 3]), WriteFile(a, "shot.png", [4, 5, 6])], b.Id);
+        var key = new OfferKey(a.Id, offerId);
+        await WaitUntil(() => b.Inbox.Get(key) is { State: InboxState.Completed });
+        string[] downloaded = [.. b.Inbox.Get(key)!.Files.Select(f => f.FinalPath!)];
+
+        Assert.True(await a.Chat.RecallOfferAsync(b.Id, offerId, Ct));
+
+        Assert.True(a.Offers.GetOffers().Single().Recalled);
+        await WaitUntil(() => b.Inbox.Get(key) is { Recalled: true });
+        Assert.All(downloaded, path => Assert.False(File.Exists(path)));
+    }
+
+    [Fact]
+    public async Task Recalled_files_the_recipient_downloaded_stay_with_it()
+    {
+        string offerId = await SendAsync(a, [WriteFile(a, "report.pdf", [1, 2, 3])], b.Id);
+        ReceivedOffer done = await DownloadAsync(b, await WaitForOfferAsync(b, offerId));
+
+        Assert.True(await a.Chat.RecallOfferAsync(b.Id, offerId, Ct));
+
+        await WaitUntil(() => b.Inbox.Get(new OfferKey(a.Id, offerId)) is { Recalled: true, State: InboxState.Completed });
+        Assert.True(File.Exists(done.Files.Single().FinalPath));
+    }
+
+    [Fact]
+    public async Task Files_can_be_taken_back_only_within_five_minutes_of_sending()
+    {
+        var time = new OffsetTime();
+        await using TestNode sender = await TestNode.StartAsync("Sender", services: s => s.AddSingleton<TimeProvider>(time));
+        await sender.ConnectAsync(b);
+        string offerId = await SendAsync(sender, [WriteFile(sender, "report.pdf", [1, 2, 3])], b.Id);
+        await WaitForOfferAsync(b, offerId);
+
+        time.Offset = ChatService.RecallWindow + TimeSpan.FromSeconds(1);
+
+        Assert.False(await sender.Chat.RecallOfferAsync(b.Id, offerId, Ct));
+        Assert.False(sender.Offers.GetOffers().Single().Recalled);
     }
 
     [Theory]

@@ -67,7 +67,7 @@ public sealed class OfferService(
         long since = (timeProvider.GetUtcNow() - HistoryRetention).ToUnixTimeMilliseconds();
         await using SqliteConnection connection = await database.OpenAsync(cancellationToken);
         var offerRows = await connection.QueryAsync<OfferRow>(
-            "SELECT OfferId, GroupId, Note, TotalBytes, State, CreatedAt, ExpiresAt FROM Offers WHERE CreatedAt >= @since;", new { since });
+            "SELECT OfferId, GroupId, Note, TotalBytes, State, CreatedAt, ExpiresAt, Recalled FROM Offers WHERE CreatedAt >= @since;", new { since });
         var fileRows = (await connection.QueryAsync<OfferFileRow>(
             "SELECT OfferId, FileId, RelativePath, Size, ModifiedAt, SourcePath, SnapshotPath, Changed FROM OfferFiles;")).ToLookup(f => f.OfferId);
         var recipientRows = (await connection.QueryAsync<RecipientRow>(
@@ -81,6 +81,7 @@ public sealed class OfferService(
                 {
                     GroupId = row.GroupId,
                     Files = [.. fileRows[row.OfferId].Select(f => f.ToFile())],
+                    Recalled = row.Recalled != 0,
                 };
                 foreach (RecipientRow r in recipientRows[row.OfferId])
                 {
@@ -339,6 +340,27 @@ public sealed class OfferService(
                 // It learns when it next tries to download (410).
             }
         }
+    }
+
+    /// <summary>
+    /// "Thu hồi" from a conversation (docs/15-chat.md §6.3): withdrawn like "Ngừng chia sẻ", and its card becomes a note.
+    /// The recipients are told by <see cref="Chat.ChatService.RecallOfferAsync"/>, which also checks the time allowed.
+    /// </summary>
+    internal async Task RecallAsync(string offerId)
+    {
+        lock (gate)
+        {
+            if (!offers.TryGetValue(offerId, out Offer? offer) || offer.Recalled)
+            {
+                return;
+            }
+
+            offer.Recalled = true;
+        }
+
+        await ExecuteAsync("UPDATE Offers SET Recalled = 1 WHERE OfferId = @offerId;", new { offerId });
+        await WithdrawAsync(offerId);
+        Changed?.Invoke(this, offerId);
     }
 
     /// <summary>
@@ -781,6 +803,8 @@ public sealed class OfferService(
 
         public Dictionary<DeviceId, Recipient> Recipients { get; } = [];
 
+        public bool Recalled { get; set; }
+
         public long TotalBytes => Files.Sum(f => f.Size);
 
         public SentOffer ToSnapshot() => new(
@@ -790,7 +814,8 @@ public sealed class OfferService(
             Files.Any(f => f.Changed),
             [.. Recipients.Select(r => new SentRecipient(r.Key, r.Value.State, Interlocked.Read(ref r.Value.BytesServed)))],
             GroupId,
-            [.. Files.Where(f => !f.IsDirectory).Select(f => f.SnapshotPath ?? f.SourcePath)]);
+            [.. Files.Where(f => !f.IsDirectory).Select(f => f.SnapshotPath ?? f.SourcePath)],
+            Recalled);
     }
 
     /// <param name="SnapshotPath">Temporary copy served instead of the original, if any.</param>
@@ -822,6 +847,8 @@ public sealed class OfferService(
         public long CreatedAt { get; init; }
 
         public long ExpiresAt { get; init; }
+
+        public long Recalled { get; init; }
     }
 
     private sealed class OfferFileRow

@@ -69,7 +69,8 @@ CREATE TABLE Offers (
   State      TEXT NOT NULL,             -- open|withdrawn|expired|done
   CreatedAt  INTEGER NOT NULL,
   ExpiresAt  INTEGER NOT NULL,
-  ClosedAt   INTEGER
+  ClosedAt   INTEGER,
+  Recalled   INTEGER NOT NULL DEFAULT 0 -- 0009: "Thu hồi" trong Tin nhắn, thẻ thành ghi chú
 );
 
 CREATE TABLE OfferFiles (
@@ -110,6 +111,8 @@ CREATE TABLE InboxOffers (
   SentAt     INTEGER,                   -- 0008: createdAt của người gửi (không muộn hơn ReceivedAt), xếp thẻ trong Tin nhắn; trống thì dùng ReceivedAt
   ExpiresAt  INTEGER NOT NULL,
   State      TEXT NOT NULL,             -- new|seen|downloading|completed|partial|failed|declined|withdrawn|expired
+  Recalled   INTEGER NOT NULL DEFAULT 0, -- 0009: người gửi thu hồi trong Tin nhắn
+  ChatPicture INTEGER NOT NULL DEFAULT 0, -- 0009: ảnh tự tải để hiện trong Tin nhắn; thu hồi thì xóa file
   PRIMARY KEY (SenderId, OfferId)
 );
 
@@ -172,6 +175,7 @@ CREATE TABLE ChatReceipts (                 -- "Đã xem" chưa báo được ch
 
 CREATE TABLE ChatRecalls (                  -- 0007: thu hồi chưa báo được cho máy kia
   PeerId TEXT NOT NULL, Id TEXT NOT NULL,
+  IsOffer INTEGER NOT NULL DEFAULT 0,       -- 0009: Id là offer chứ không phải tin
   PRIMARY KEY (PeerId, Id)
 );
 

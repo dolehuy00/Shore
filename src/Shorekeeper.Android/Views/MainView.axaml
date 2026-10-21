@@ -935,15 +935,21 @@
                     <DataTemplate DataType="{x:Type dvm:ChatFileViewModel}" x:DataType="dvm:ChatFileViewModel">
                       <StackPanel>
                         <TextBlock Classes="muted" Text="{Binding DayText}" IsVisible="{Binding HasDay}" FontSize="12" HorizontalAlignment="Center" Margin="0,10,0,6" />
-                        <!-- Long press: withdraw what we sent, or see it in File. -->
+                        <!-- Long press: take back what we sent (five minutes), then only stop sharing it; or see it in File. -->
                         <Border Classes="filecard" Classes.mine="{Binding IsMine}" Holding="OnFileCardHolding">
                           <FlyoutBase.AttachedFlyout>
                             <MenuFlyout>
-                              <MenuItem Header="{l:T 'Thu hồi'}" Command="{Binding WithdrawCommand}" IsVisible="{Binding CanWithdraw}" />
+                              <MenuItem Header="{l:T 'Thu hồi'}" Command="{Binding RecallCommand}" IsVisible="{Binding CanRecall}" />
+                              <MenuItem Header="{l:T 'Ngừng chia sẻ'}" Command="{Binding WithdrawCommand}" IsVisible="{Binding CanStopSharing}" />
                               <MenuItem Header="Xem" Command="{Binding ShowCommand}" />
                             </MenuFlyout>
                           </FlyoutBase.AttachedFlyout>
                           <Panel>
+                          <!-- Taken back by its sender: a note, as for a message. -->
+                          <StackPanel IsVisible="{Binding IsRecalled}" Spacing="2">
+                            <TextBlock Text="{Binding RecalledText}" FontStyle="Italic" TextWrapping="Wrap" />
+                            <TextBlock Classes="muted" Text="{Binding StatusText}" FontSize="12" HorizontalAlignment="Right" />
+                          </StackPanel>
                           <!-- An offer of pictures shows them; click one to open it. -->
                           <StackPanel IsVisible="{Binding HasPictures}" Spacing="4">
                             <ItemsControl ItemsSource="{Binding Pictures}">

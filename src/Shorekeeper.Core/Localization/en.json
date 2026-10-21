@@ -662,7 +662,10 @@
   "Gửi file… (hoặc kéo thả, Ctrl+V)": "Send files… (or drag and drop, Ctrl+V)",
   "Tự tải ảnh máy đã kết nối gửi": "Download pictures from connected devices",
   "Ảnh đến 20 MB tự tải về thư mục nhận để hiện ngay trong Tin nhắn. Tắt thì ảnh chờ bạn bấm Tải như file khác.": "Pictures up to 20 MB download to the received folder by themselves and show right in Messages. Off, they wait for you to tap Download like other files.",
-  "Thu hồi file này? Người nhận sẽ không tải được nữa; ai đã tải xong thì vẫn giữ file.": "Withdraw this file? The recipient can no longer download it; anyone who already did keeps it.",
+  "Ngừng chia sẻ": "Stop sharing",
+  "Ngừng chia sẻ file này? Người nhận sẽ không tải được nữa; ai đã tải xong thì vẫn giữ file.": "Stop sharing this file? The recipient can no longer download it; anyone who already did keeps it.",
+  "Ảnh đã được thu hồi": "This photo was withdrawn",
+  "File đã được thu hồi": "This file was withdrawn",
   "Tin nhắn đã được thu hồi": "This message was withdrawn",
   "Tự tải ảnh máy đã kết nối gửi (đến 20 MB) để hiện ngay trong Tin nhắn": "Download pictures from connected devices (up to 20 MB) to show them right in Messages"
 }

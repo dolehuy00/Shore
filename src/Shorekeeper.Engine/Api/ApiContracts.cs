@@ -120,7 +120,8 @@ public sealed record ChatMessageBody(
 public sealed record ChatReceiptBody(string ReadUpTo);
 
 /// <summary>Body of <c>POST /api/v1/chat/recalls</c>: the caller takes back these messages it sent ("Thu hồi").</summary>
-public sealed record ChatRecallBody(IReadOnlyList<string> Ids);
+/// <param name="Offers">Offers taken back from the conversation (docs/15-chat.md §6.3); a version without them ignores it.</param>
+public sealed record ChatRecallBody(IReadOnlyList<string> Ids, IReadOnlyList<string>? Offers = null);
 
 public static class ChatKinds
 {

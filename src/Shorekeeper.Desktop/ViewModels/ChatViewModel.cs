@@ -62,8 +62,19 @@ public sealed partial class ChatViewModel : ObservableObject
         offers.Changed += (_, _) => QueueFilesRefresh();
         inbox.Changed += (_, _) => QueueFilesRefresh();
         inbox.OfferArrived += (_, _) => QueueFilesRefresh();
+        // "Thu hồi" leaves the menus once its time is up (ChatService.RecallWindow), with nothing else changing.
+        recallClock = new DispatcherTimer(TimeSpan.FromSeconds(10), DispatcherPriority.Normal, (_, _) =>
+        {
+            foreach (ChatEntryViewModel entry in Messages)
+            {
+                entry.RefreshRecall();
+            }
+        });
         _ = RefreshAsync(null);
     }
+
+    /// <summary>Kept so the timer is not collected.</summary>
+    private readonly DispatcherTimer recallClock;
 
     /// <summary>Puts text on the clipboard (set by the window).</summary>
     public Action<string>? CopyText { get; set; }
@@ -492,12 +503,12 @@ public sealed partial class ChatViewModel : ObservableObject
                     card.Update(sent, person.Peer);
                     // Only offers of pictures and nothing else show as pictures; by their names, as an Android source
                     // (content://…/document/msf:1234) need not have one.
-                    card.ShowPictures(sent.Sources is { Count: > 0 } sources && sent.Paths.Count > 0 && sent.Paths.All(StorageReport.IsPicture) ? sources : []);
+                    card.ShowPictures(!sent.Recalled && sent.Sources is { Count: > 0 } sources && sent.Paths.Count > 0 && sent.Paths.All(StorageReport.IsPicture) ? sources : []);
                     break;
                 case (ChatFileViewModel card, ReceivedOffer received):
                     card.Update(received, person.IsOnline);
                     card.ShowPictures(
-                        received.Files.Count > 0 && received.Files.All(f => !f.IsDirectory && StorageReport.IsPicture(f.RelativePath))
+                        !received.Recalled && received.Files.Count > 0 && received.Files.All(f => !f.IsDirectory && StorageReport.IsPicture(f.RelativePath))
                             ? [.. received.Files.Where(f => f.State == InboxFileState.Completed && f.FinalPath is not null && File.Exists(f.FinalPath)).Select(f => f.FinalPath!)]
                             : []);
                     break;
@@ -550,7 +561,8 @@ public sealed partial class ChatViewModel : ObservableObject
         {
             foreach (SentRecipient recipient in sent.Recipients)
             {
-                Keep(recipient.DeviceId, new ChatLastFile(sent.CreatedAt, true, FileText(sent.Note, sent.Paths, sent.Paths.Count > 0 && sent.Paths.All(StorageReport.IsPicture))));
+                bool pictures = sent.Paths.Count > 0 && sent.Paths.All(StorageReport.IsPicture);
+                Keep(recipient.DeviceId, new ChatLastFile(sent.CreatedAt, true, sent.Recalled ? RecalledText(pictures) : FileText(sent.Note, sent.Paths, pictures)));
             }
         }
 
@@ -558,7 +570,7 @@ public sealed partial class ChatViewModel : ObservableObject
         {
             string[] paths = [.. received.Files.Select(f => f.RelativePath)];
             bool pictures = received.Files.Count > 0 && received.Files.All(f => !f.IsDirectory && StorageReport.IsPicture(f.RelativePath));
-            Keep(received.SenderId, new ChatLastFile(received.SentAt, false, FileText(received.Note, paths, pictures)));
+            Keep(received.SenderId, new ChatLastFile(received.SentAt, false, received.Recalled ? RecalledText(pictures) : FileText(received.Note, paths, pictures)));
         }
 
         return last;
@@ -572,6 +584,9 @@ public sealed partial class ChatViewModel : ObservableObject
             }
         }
     }
+
+    /// <summary>What a file card taken back says, on both sides.</summary>
+    internal static string RecalledText(bool pictures) => pictures ? L.T("Ảnh đã được thu hồi") : L.T("File đã được thu hồi");
 
     /// <summary>"[Ảnh]", "[3 ảnh]", the words of "Gửi văn bản", or "app.zip + 2 mục".</summary>
     private static string FileText(string? note, IReadOnlyList<string> paths, bool pictures) =>
@@ -705,12 +720,22 @@ public sealed partial class ChatViewModel : ObservableObject
         await chat.RecallAsync(person.Peer, [bubble.Id], CancellationToken.None);
     }
 
-    /// <summary>"Thu hồi" on a file card we sent, as in Đã gửi: the person can no longer download it.</summary>
+    /// <summary>"Ngừng chia sẻ" on a file card we sent, past the time to take it back: the person can no longer download it.</summary>
     internal async Task WithdrawAsync(string offerId)
     {
-        if (Confirm is null || await Confirm(L.T("Thu hồi"), L.T("Thu hồi file này? Người nhận sẽ không tải được nữa; ai đã tải xong thì vẫn giữ file."), L.T("Thu hồi")))
+        if (Confirm is null || await Confirm(
+                L.T("Ngừng chia sẻ"), L.T("Ngừng chia sẻ file này? Người nhận sẽ không tải được nữa; ai đã tải xong thì vẫn giữ file."), L.T("Ngừng chia sẻ")))
         {
             await offers.WithdrawAsync(offerId);
+        }
+    }
+
+    /// <summary>"Thu hồi" on a file card we sent: a note on both sides, and pictures that downloaded by themselves go.</summary>
+    internal async Task RecallFileAsync(string offerId)
+    {
+        if (Current is { } person)
+        {
+            await chat.RecallOfferAsync(person.Peer, offerId, CancellationToken.None);
         }
     }
 
@@ -890,6 +915,11 @@ public sealed partial class ChatPersonViewModel(DeviceId peer, ChatViewModel own
 /// <summary>Something in the open conversation, in time order: a message or a file card.</summary>
 public abstract partial class ChatEntryViewModel(string id) : ObservableObject
 {
+    /// <summary>Called by the clock: "Thu hồi" goes once its time is up.</summary>
+    internal virtual void RefreshRecall()
+    {
+    }
+
     public string Id { get; } = id;
 
     /// <summary>Set on the first entry of a day: "Hôm nay", "20/10/2026".</summary>
@@ -905,6 +935,9 @@ public sealed partial class ChatBubbleViewModel(string id, ChatViewModel owner) 
 {
     /// <summary>The kind last shown, so links and waveform are built again only when it changes.</summary>
     private string? kind;
+
+    /// <summary>Until when "Thu hồi" is offered: never for theirs, any time for one still waiting.</summary>
+    private DateTimeOffset recallUntil;
 
     /// <summary>For the check box while choosing.</summary>
     public ChatViewModel Owner => owner;
@@ -986,7 +1019,7 @@ public sealed partial class ChatBubbleViewModel(string id, ChatViewModel owner) 
     [ObservableProperty]
     public partial bool CanCopy { get; set; }
 
-    /// <summary>Ours and not taken back yet.</summary>
+    /// <summary>Ours, not taken back yet, and sent less than five minutes ago (or still waiting).</summary>
     [ObservableProperty]
     public partial bool CanRecall { get; set; }
 
@@ -995,6 +1028,8 @@ public sealed partial class ChatBubbleViewModel(string id, ChatViewModel owner) 
 
     [RelayCommand]
     private Task RecallAsync() => owner.RecallAsync(this);
+
+    internal override void RefreshRecall() => CanRecall = DateTimeOffset.UtcNow <= recallUntil;
 
     [RelayCommand]
     private void OpenLink(string link) => owner.OpenLink?.Invoke(link);
@@ -1009,7 +1044,10 @@ public sealed partial class ChatBubbleViewModel(string id, ChatViewModel owner) 
         IsVoice = message.Kind == ChatKinds.Voice;
         IsUnknown = message.Kind is not (ChatKinds.Text or ChatKinds.Voice);
         CanCopy = message.Kind == ChatKinds.Text;
-        CanRecall = message.Outgoing && message.Kind is ChatKinds.Text or ChatKinds.Voice;
+        recallUntil = !message.Outgoing || message.Kind is not (ChatKinds.Text or ChatKinds.Voice) ? DateTimeOffset.MinValue
+            : message.State == ChatMessageState.Pending ? DateTimeOffset.MaxValue
+            : message.SentAt + ChatService.RecallWindow;
+        RefreshRecall();
         Text = TextOf(message);
         // New lists only when the message changed (sent, recalled): every refresh would build the rows again.
         bool changed = message.Kind != kind;
@@ -1061,6 +1099,9 @@ public sealed partial class ChatFileViewModel(string id, ChatViewModel owner) : 
     private string? offerId;
     private string? picturesShown;
 
+    /// <summary>Until when "Thu hồi" is offered: never for theirs, any time while it waits to be delivered.</summary>
+    private DateTimeOffset recallUntil;
+
     /// <summary>Pictures of an offer of pictures, once they can be read here (sent: the originals; received: once downloaded).</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasPictures), nameof(IsPlain))]
@@ -1068,8 +1109,16 @@ public sealed partial class ChatFileViewModel(string id, ChatViewModel owner) : 
 
     public bool HasPictures => Pictures.Count > 0;
 
-    /// <summary>A card with its icon and name (no pictures to show).</summary>
-    public bool IsPlain => !HasPictures;
+    /// <summary>A card with its icon and name (no pictures to show, not taken back).</summary>
+    public bool IsPlain => !HasPictures && !IsRecalled;
+
+    /// <summary>Taken back by its sender: only <see cref="RecalledText"/> shows.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsPlain))]
+    public partial bool IsRecalled { get; set; }
+
+    [ObservableProperty]
+    public partial string RecalledText { get; set; } = "";
 
     /// <summary>"+3" when more pictures came than show.</summary>
     [ObservableProperty]
@@ -1080,10 +1129,24 @@ public sealed partial class ChatFileViewModel(string id, ChatViewModel owner) : 
 
     /// <summary>Ours and still open: it can be withdrawn.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanStopSharing))]
     public partial bool CanWithdraw { get; set; }
+
+    /// <summary>Ours, sent less than five minutes ago (or not delivered yet), not taken back: "Thu hồi".</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanStopSharing))]
+    public partial bool CanRecall { get; set; }
+
+    /// <summary>"Ngừng chia sẻ" once it is too late to take it back.</summary>
+    public bool CanStopSharing => CanWithdraw && !CanRecall;
 
     [RelayCommand]
     private Task WithdrawAsync() => offerId is { } id ? owner.WithdrawAsync(id) : Task.CompletedTask;
+
+    [RelayCommand]
+    private Task RecallAsync() => offerId is { } id ? owner.RecallFileAsync(id) : Task.CompletedTask;
+
+    internal override void RefreshRecall() => CanRecall = DateTimeOffset.UtcNow <= recallUntil;
 
     [RelayCommand]
     private void OpenPicture(ChatPicture picture) => owner.OpenPicture(picture, received: !IsMine);
@@ -1175,10 +1238,16 @@ public sealed partial class ChatFileViewModel(string id, ChatViewModel owner) : 
         IsMine = true;
         key = null;
         offerId = offer.OfferId;
-        CanWithdraw = offer.State == OfferState.Open;
+        CanWithdraw = offer.State == OfferState.Open && !offer.Recalled;
         IsText = offer.Paths.Count == 0;
         Title = IsText ? TransferText.Preview(offer.Note ?? "", 200) : TransferText.Summary(offer.Paths);
         SentRecipient? recipient = offer.Recipients.FirstOrDefault(r => r.DeviceId == peer);
+        IsRecalled = offer.Recalled;
+        RecalledText = ChatViewModel.RecalledText(offer.Paths.Count > 0 && offer.Paths.All(StorageReport.IsPicture));
+        recallUntil = offer.Recalled || recipient is null ? DateTimeOffset.MinValue
+            : recipient.State == RecipientState.Pending ? DateTimeOffset.MaxValue
+            : offer.CreatedAt + ChatService.RecallWindow;
+        RefreshRecall();
         string state = offer.State switch
         {
             OfferState.Withdrawn => L.T("Đã thu hồi"),
@@ -1194,7 +1263,7 @@ public sealed partial class ChatFileViewModel(string id, ChatViewModel owner) : 
                 _ => L.T("lỗi"),
             },
         };
-        StatusText = Status(offer.CreatedAt, offer.TotalBytes, state);
+        StatusText = offer.Recalled ? Time(offer.CreatedAt) : Status(offer.CreatedAt, offer.TotalBytes, state);
         CanDownload = false;
         Progress = -1;
     }
@@ -1205,6 +1274,10 @@ public sealed partial class ChatFileViewModel(string id, ChatViewModel owner) : 
         key = new OfferKey(offer.SenderId, offer.OfferId);
         offerId = null;
         CanWithdraw = false;
+        recallUntil = DateTimeOffset.MinValue;
+        CanRecall = false;
+        IsRecalled = offer.Recalled;
+        RecalledText = ChatViewModel.RecalledText(offer.Files.Count > 0 && offer.Files.All(f => !f.IsDirectory && StorageReport.IsPicture(f.RelativePath)));
         IsText = offer.Files.Count == 0;
         Title = IsText ? TransferText.Preview(offer.Note ?? "", 200) : TransferText.Summary(offer.Files.Select(f => f.RelativePath));
         string state = offer.State switch
@@ -1220,17 +1293,16 @@ public sealed partial class ChatFileViewModel(string id, ChatViewModel owner) : 
             InboxState.Withdrawn => L.T("Người gửi đã thu hồi"),
             _ => L.T("Đã hết hạn"),
         };
-        StatusText = Status(offer.SentAt, offer.TotalBytes, state);
-        CanDownload = offer.State == InboxState.New && senderOnline && offer.ExpiresAt > DateTimeOffset.UtcNow;
+        StatusText = offer.Recalled ? Time(offer.SentAt) : Status(offer.SentAt, offer.TotalBytes, state);
+        CanDownload = !offer.Recalled && offer.State == InboxState.New && senderOnline && offer.ExpiresAt > DateTimeOffset.UtcNow;
         Progress = offer.State == InboxState.Downloading && offer.TotalBytes > 0 ? 100.0 * offer.BytesReceived / offer.TotalBytes : -1;
     }
 
     /// <summary>"16:10 · 75 KB · đã nhận", the time as under a message.</summary>
-    private string Status(DateTimeOffset at, long totalBytes, string state)
-    {
-        string time = at.ToLocalTime().ToString("HH:mm", L.Culture);
-        return IsText ? $"{time} · {state}" : $"{time} · {TransferText.Size(totalBytes)} · {state}";
-    }
+    private string Status(DateTimeOffset at, long totalBytes, string state) =>
+        IsText ? $"{Time(at)} · {state}" : $"{Time(at)} · {TransferText.Size(totalBytes)} · {state}";
+
+    private static string Time(DateTimeOffset at) => at.ToLocalTime().ToString("HH:mm", L.Culture);
 }
 
 /// <summary>A picture shown in a file card, and where it is, to open it.</summary>

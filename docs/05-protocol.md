@@ -190,7 +190,7 @@ Chỉ giữa hai liên hệ. Người gửi lưu tin trước rồi mới gửi;
 |---|---|---|---|
 | POST | `/chat/messages` | Trusted | `{ id, sentAt, kind, text?, durationMs?, wave?, audio? }` → `204`. `id` 32 chữ số hex do người gửi tạo, xếp theo thời gian (UUIDv7); đã có thì vẫn `204` và bỏ qua (gửi lại an toàn). `kind` `text` cần `text` 1–4.000 ký tự; `voice` cần `audio` (file Ogg Opus, base64, tối đa 2 MB), `durationMs` 1 ms–5 phút và `wave` tối đa 48 byte; `kind` khác (bản sau) được giữ, không có chữ. `sentAt` muộn hơn giờ máy nhận thì lấy giờ máy nhận. Sai định dạng `400`; quá 20 tin/giây `429` |
 | POST | `/chat/receipts` | Trusted | `{ readUpTo }`: máy gọi đã đọc các tin của mình tới `id` này → `204` |
-| POST | `/chat/recalls` | Trusted | `{ ids }`: 1–500 `id` tin **máy gọi đã gửi** cho máy này, cần thu hồi → `204`. Tin đó thành `kind` `recalled` (không chữ, không âm thanh, đã đọc); `id` không có hay của máy khác thì bỏ qua. Sai định dạng `400`. Chờ gửi khi offline như receipt; bản cũ trả `403` thì người gọi thôi |
+| POST | `/chat/recalls` | Trusted | `{ ids, offers? }`: tổng 1–500 `id` tin và offer **máy gọi đã gửi** cho máy này, cần thu hồi → `204`. Tin đó thành `kind` `recalled` (không chữ, không âm thanh, đã đọc); offer thành "đã thu hồi" (dừng tải, ảnh tự tải để hiện trong Tin nhắn bị xóa, file người nhận tự tải thì giữ). `id` không có hay của máy khác thì bỏ qua. Sai định dạng `400`. Chờ gửi khi offline như receipt; bản cũ trả `403`, hoặc `400` khi chỉ có `offers`, thì người gọi thôi (offer vẫn được ngừng chia sẻ qua `/inbox/offers/{offerId}/withdrawn`). Thời hạn 5 phút do máy gọi giữ |
 
 ## 5. Timeout & giới hạn
 

@@ -67,7 +67,7 @@ public sealed class InboxService(
         await connection.ExecuteAsync("UPDATE InboxOffers SET State = 'failed' WHERE State = 'downloading';");
 
         var offerRows = await connection.QueryAsync<InboxOfferRow>(
-            "SELECT SenderId, OfferId, Note, TotalBytes, ReceivedAt, SentAt, ExpiresAt, State FROM InboxOffers WHERE ReceivedAt >= @since;", new { since });
+            "SELECT SenderId, OfferId, Note, TotalBytes, ReceivedAt, SentAt, ExpiresAt, State, Recalled, ChatPicture FROM InboxOffers WHERE ReceivedAt >= @since;", new { since });
         var fileRows = (await connection.QueryAsync<InboxFileRow>(
             "SELECT SenderId, OfferId, FileId, RelativePath, Size, ModifiedAt, State, FinalPath, Error FROM InboxFiles;"))
             .ToLookup(f => (f.SenderId, f.OfferId));
@@ -82,6 +82,8 @@ public sealed class InboxService(
                     DateTimeOffset.FromUnixTimeMilliseconds(row.ExpiresAt))
                 {
                     State = Enum.Parse<InboxState>(row.State, true),
+                    Recalled = row.Recalled != 0,
+                    ChatPicture = row.ChatPicture != 0,
                 };
                 foreach (InboxFileRow file in fileRows[(row.SenderId, row.OfferId)])
                 {
@@ -322,14 +324,20 @@ public sealed class InboxService(
             }
         }
 
+        // "Tự nhận file" for this contact (docs/06-file-transfer.md §10), or pictures to show in the conversation. Only
+        // the latter go again if the sender takes them back: the person did not choose to keep them.
+        bool autoAccept = false;
+        if (files.Count > 0 && trust.Get(sender) is { TrustLevel: TrustLevel.Trusted } contact)
+        {
+            autoAccept = contact.AutoAcceptMaxBytes is { } limit && item.TotalBytes <= (limit == TrustStore.FollowSettingsLimit ? settings.Current.AutoAcceptMaxBytes : limit);
+            item.ChatPicture = !autoAccept && settings.Current.ChatAutoDownloadPictures && manifest.GroupId is null && item.TotalBytes <= ChatPictureMaxBytes
+                && files.All(f => !f.IsDirectory && StorageReport.IsPicture(f.RelativePath));
+        }
+
         await InsertAsync(item);
         logger.LogInformation("Offer {Offer} received from {Sender}: {Files} entries, {Bytes} bytes", key.OfferId, sender, files.Count, item.TotalBytes);
 
-        // "Tự nhận file" for this contact (docs/06-file-transfer.md §10), or pictures to show in the conversation.
-        if (files.Count > 0 && trust.Get(sender) is { TrustLevel: TrustLevel.Trusted } contact
-            && ((contact.AutoAcceptMaxBytes is { } limit && item.TotalBytes <= (limit == TrustStore.FollowSettingsLimit ? settings.Current.AutoAcceptMaxBytes : limit))
-                || (settings.Current.ChatAutoDownloadPictures && manifest.GroupId is null && item.TotalBytes <= ChatPictureMaxBytes
-                    && files.All(f => !f.IsDirectory && StorageReport.IsPicture(f.RelativePath)))))
+        if (autoAccept || item.ChatPicture)
         {
             Download(key);
         }
@@ -354,6 +362,63 @@ public sealed class InboxService(
         }
 
         await SaveOfferStateAsync(key, InboxState.Withdrawn);
+    }
+
+    /// <summary>
+    /// The sender took these offers back from the conversation ("Thu hồi", docs/15-chat.md §6.3): downloads stop, pictures
+    /// that downloaded by themselves for it are deleted, and files the person downloaded stay where they are.
+    /// </summary>
+    internal async Task HandleRecalledAsync(DeviceId sender, IReadOnlyCollection<string> offerIds)
+    {
+        foreach (string offerId in offerIds)
+        {
+            var key = new OfferKey(sender, offerId);
+            List<string> delete = [];
+            InboxState state;
+            lock (gate)
+            {
+                if (!items.TryGetValue(key, out Item? item) || item.Recalled)
+                {
+                    continue;
+                }
+
+                item.Recalled = true;
+                item.Cancellation?.Cancel();
+                if (item.ChatPicture)
+                {
+                    delete.AddRange(item.Files.Where(f => f.State == InboxFileState.Completed && f.FinalPath is not null).Select(f => f.FinalPath!));
+                    item.State = InboxState.Withdrawn;
+                }
+                else if (item.State is not (InboxState.Completed or InboxState.Partial or InboxState.Declined))
+                {
+                    item.State = InboxState.Withdrawn;
+                }
+
+                state = item.State;
+            }
+
+            foreach (string file in delete)
+            {
+                try
+                {
+                    File.Delete(file);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    // Open in a viewer: it stays, like a file the person downloaded.
+                    logger.LogDebug(ex, "Recalled picture {File} not deleted", file);
+                }
+            }
+
+            await using (SqliteConnection connection = await database.OpenAsync())
+            {
+                await connection.ExecuteAsync(
+                    "UPDATE InboxOffers SET Recalled = 1, State = @state WHERE SenderId = @sender AND OfferId = @offerId;",
+                    new { state = Name(state), sender = sender.Value, offerId });
+            }
+
+            Changed?.Invoke(this, key);
+        }
     }
 
     // ───────────── Downloading ─────────────
@@ -723,14 +788,14 @@ public sealed class InboxService(
         await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync();
         await connection.ExecuteAsync(
             """
-            INSERT INTO InboxOffers (SenderId, OfferId, Note, TotalBytes, ReceivedAt, SentAt, ExpiresAt, State)
-            VALUES (@sender, @offerId, @note, @total, @receivedAt, @sentAt, @expiresAt, @state);
+            INSERT INTO InboxOffers (SenderId, OfferId, Note, TotalBytes, ReceivedAt, SentAt, ExpiresAt, State, ChatPicture)
+            VALUES (@sender, @offerId, @note, @total, @receivedAt, @sentAt, @expiresAt, @state, @chatPicture);
             """,
             new
             {
                 sender = item.Key.SenderId.Value, offerId = item.Key.OfferId, note = item.Note, total = item.TotalBytes,
                 receivedAt = item.ReceivedAt.ToUnixTimeMilliseconds(), sentAt = item.SentAt.ToUnixTimeMilliseconds(), expiresAt = item.ExpiresAt.ToUnixTimeMilliseconds(),
-                state = Name(item.State),
+                state = Name(item.State), chatPicture = item.ChatPicture,
             },
             transaction);
         await connection.ExecuteAsync(
@@ -760,6 +825,12 @@ public sealed class InboxService(
 
         public DateTimeOffset SentAt { get; } = sentAt;
 
+        /// <summary>Taken back by the sender from the conversation.</summary>
+        public bool Recalled { get; set; }
+
+        /// <summary>Downloaded by itself to show in the conversation, not by the person's choice.</summary>
+        public bool ChatPicture { get; set; }
+
         public DateTimeOffset ExpiresAt { get; } = expiresAt;
 
         public List<FileItem> Files { get; } = [];
@@ -779,7 +850,7 @@ public sealed class InboxService(
         public ReceivedOffer ToSnapshot() => new(
             Key.SenderId, Key.OfferId, Note, TotalBytes, ReceivedAt, ExpiresAt, State,
             Files.Sum(f => f.BytesReceived), ReconnectingUntil, Error,
-            [.. Files.Select(f => new InboxFile(f.FileId, f.RelativePath, f.Size, f.IsDirectory, f.State, f.FinalPath, f.Error))], SentAt);
+            [.. Files.Select(f => new InboxFile(f.FileId, f.RelativePath, f.Size, f.IsDirectory, f.State, f.FinalPath, f.Error))], SentAt, Recalled);
     }
 
     private sealed class FileItem(string fileId, string relativePath, string[] segments, long size, bool isDirectory, DateTimeOffset? modifiedAt)
@@ -827,6 +898,10 @@ public sealed class InboxService(
         public long ExpiresAt { get; init; }
 
         public string State { get; init; } = "";
+
+        public long Recalled { get; init; }
+
+        public long ChatPicture { get; init; }
     }
 
     private sealed class InboxFileRow

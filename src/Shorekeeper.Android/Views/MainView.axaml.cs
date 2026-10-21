@@ -24,6 +24,9 @@ public partial class MainView : UserControl
 {
     private long lastRemeasure;
 
+    /// <summary>When a message or card was last held: letting go is not a tap on the picture or link under the finger.</summary>
+    private long heldAt;
+
     /// <summary>Where the finger went down on 🎤, and whether it is still there.</summary>
     private Point micStart;
     private bool micHeld;
@@ -48,6 +51,15 @@ public partial class MainView : UserControl
         LayoutLog.View = this;
         SizeChanged += (_, e) => LayoutLog.Event($"size {e.PreviousSize.Width:0}x{e.PreviousSize.Height:0} -> {e.NewSize.Width:0}x{e.NewSize.Height:0}");
         LayoutUpdated += (_, _) => RemeasureIfCollapsed();
+        // A button's command runs only when its Click is not handled.
+        AddHandler(Button.ClickEvent, (_, e) =>
+        {
+            if (Environment.TickCount64 - heldAt < 1500)
+            {
+                heldAt = 0;
+                e.Handled = true;
+            }
+        });
         DataContextChanged += (_, _) =>
         {
             if (DataContext is MainViewModel main)
@@ -128,6 +140,7 @@ public partial class MainView : UserControl
         }
 
         MainActivity.Current?.Window?.DecorView.PerformHapticFeedback(FeedbackConstants.LongPress);
+        heldAt = Environment.TickCount64;
         if (message.Owner.IsSelecting)
         {
             message.IsSelected = !message.IsSelected;
@@ -146,6 +159,7 @@ public partial class MainView : UserControl
         if (e.HoldingState == HoldingState.Started && sender is Control card)
         {
             MainActivity.Current?.Window?.DecorView.PerformHapticFeedback(FeedbackConstants.LongPress);
+            heldAt = Environment.TickCount64;
             FlyoutBase.ShowAttachedFlyout(card);
             e.Handled = true;
         }

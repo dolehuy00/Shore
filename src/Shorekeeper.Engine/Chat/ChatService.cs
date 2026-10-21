@@ -11,6 +11,7 @@ using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Monitoring;
 using Shorekeeper.Engine.Storage;
+using Shorekeeper.Engine.Transfers;
 
 namespace Shorekeeper.Engine.Chat;
 
@@ -45,6 +46,8 @@ public sealed class ChatService(
     PeerClient client,
     PeerDirectory directory,
     UsageStatsService usage,
+    OfferService offers,
+    InboxService inbox,
     TimeProvider timeProvider,
     ILogger<ChatService> logger) : BackgroundService
 {
@@ -58,6 +61,9 @@ public sealed class ChatService(
 
     /// <summary>Messages one recall may take back.</summary>
     public const int MaxRecall = 500;
+
+    /// <summary>How long after sending a message or file can be taken back ("Thu hồi"); one not delivered yet, any time.</summary>
+    public static readonly TimeSpan RecallWindow = TimeSpan.FromMinutes(5);
 
     /// <summary>Waiting messages are tried again this often while their peer is online (it may have been busy).</summary>
     private static readonly TimeSpan RetryEvery = TimeSpan.FromSeconds(30);
@@ -187,15 +193,21 @@ public sealed class ChatService(
 
     /// <summary>
     /// "Thu hồi": our messages become "Tin nhắn đã được thu hồi" here at once, their words and voice gone, and on the
-    /// peer's device as soon as it is told (now, or when it is next online). One still waiting is never sent.
+    /// peer's device as soon as it is told (now, or when it is next online). One still waiting is never sent. Only within
+    /// <see cref="RecallWindow"/> of sending, unless still waiting.
     /// </summary>
     public async Task RecallAsync(DeviceId peer, IReadOnlyCollection<string> ids, CancellationToken cancellationToken)
     {
         List<string?> files;
         await using (SqliteConnection connection = await database.OpenAsync(cancellationToken))
         {
+            long since = (timeProvider.GetUtcNow() - RecallWindow).ToUnixTimeMilliseconds();
             List<string> mine = [.. await connection.QueryAsync<string>(
-                "SELECT Id FROM ChatMessages WHERE PeerId = @peer AND Id IN @ids AND Outgoing = 1 AND Kind <> 'recalled';", new { peer = peer.Value, ids })];
+                """
+                SELECT Id FROM ChatMessages
+                WHERE PeerId = @peer AND Id IN @ids AND Outgoing = 1 AND Kind <> 'recalled' AND (SentAt >= @since OR State = 'pending');
+                """,
+                new { peer = peer.Value, ids, since })];
             if (mine.Count == 0)
             {
                 return;
@@ -213,6 +225,34 @@ public sealed class ChatService(
         DeleteFiles(files);
         Changed?.Invoke(this, peer);
         Kick(peer);
+    }
+
+    /// <summary>
+    /// "Thu hồi" on a file card (docs/15-chat.md §6.3), within <see cref="RecallWindow"/> of sending or while not yet
+    /// delivered: the offer is withdrawn, its card becomes a note, and every recipient is told like for a message.
+    /// </summary>
+    /// <returns>False when it can no longer be taken back (too late, already, or not one of ours to this peer).</returns>
+    public async Task<bool> RecallOfferAsync(DeviceId peer, string offerId, CancellationToken cancellationToken)
+    {
+        if (offers.GetOffers().FirstOrDefault(o => o.OfferId == offerId) is not { GroupId: null, Recalled: false } offer
+            || offer.Recipients.FirstOrDefault(r => r.DeviceId == peer) is not { } recipient
+            || (timeProvider.GetUtcNow() - offer.CreatedAt > RecallWindow && recipient.State != RecipientState.Pending))
+        {
+            return false;
+        }
+
+        await offers.RecallAsync(offerId);
+        await WriteAsync(
+            "INSERT OR IGNORE INTO ChatRecalls (PeerId, Id, IsOffer) VALUES (@peer, @offerId, 1);",
+            offer.Recipients.Select(r => new { peer = r.DeviceId.Value, offerId }),
+            cancellationToken);
+        foreach (SentRecipient r in offer.Recipients)
+        {
+            Changed?.Invoke(this, r.DeviceId);
+            Kick(r.DeviceId);
+        }
+
+        return true;
     }
 
     /// <summary>The whole conversation, on this device only: messages, voice files and a "Đã xem" not told yet.</summary>
@@ -336,12 +376,16 @@ public sealed class ChatService(
 
     internal async Task<PeerResponse> HandleRecallAsync(DeviceId caller, ChatRecallBody body)
     {
-        if (body.Ids is not { Count: > 0 and <= MaxRecall } || !body.Ids.All(id => Guid.TryParseExact(id, "N", out _)))
+        IReadOnlyList<string> offerIds = body.Offers ?? [];
+        if ((body.Ids?.Count ?? 0) + offerIds.Count is not (> 0 and <= MaxRecall)
+            || !(body.Ids ?? []).Concat(offerIds).All(id => Guid.TryParseExact(id, "N", out _)))
         {
             return PeerResponse.Problem(HttpStatusCode.BadRequest, ApiErrorCodes.InvalidRequest);
         }
 
-        string[] ids = [.. body.Ids.Select(id => Guid.ParseExact(id, "N").ToString("N"))];
+        // Offers are the caller's own: the inbox only knows them under its id.
+        await inbox.HandleRecalledAsync(caller, [.. offerIds.Select(id => Guid.ParseExact(id, "N").ToString("N"))]);
+        string[] ids = [.. (body.Ids ?? []).Select(id => Guid.ParseExact(id, "N").ToString("N"))];
         List<string?> files;
         int changed;
         await using (SqliteConnection connection = await database.OpenAsync())
@@ -482,7 +526,7 @@ public sealed class ChatService(
     {
         List<MessageRow> pending;
         string? receipt;
-        List<string> recalls;
+        List<(string Id, long IsOffer)> recalls;
         await using (SqliteConnection connection = await database.OpenAsync(cancellationToken))
         {
             // A recalled message that never left stays here.
@@ -491,8 +535,8 @@ public sealed class ChatService(
                 new { peer = peer.Value })];
             receipt = await connection.QuerySingleOrDefaultAsync<string>(
                 "SELECT ReadUpTo FROM ChatReceipts WHERE PeerId = @peer;", new { peer = peer.Value });
-            recalls = [.. await connection.QueryAsync<string>(
-                "SELECT Id FROM ChatRecalls WHERE PeerId = @peer LIMIT @max;", new { peer = peer.Value, max = MaxRecall })];
+            recalls = [.. await connection.QueryAsync<(string, long)>(
+                "SELECT Id, IsOffer FROM ChatRecalls WHERE PeerId = @peer LIMIT @max;", new { peer = peer.Value, max = MaxRecall })];
         }
 
         foreach (MessageRow row in pending)
@@ -526,9 +570,12 @@ public sealed class ChatService(
         }
 
         // The same for recalls: a version without them cannot take anything back anyway.
-        if (recalls.Count > 0 && await PostAsync(peer, "chat/recalls", new ChatRecallBody(recalls), cancellationToken) is not null)
+        string[] recalledOffers = [.. recalls.Where(r => r.IsOffer != 0).Select(r => r.Id)];
+        var recall = new ChatRecallBody([.. recalls.Where(r => r.IsOffer == 0).Select(r => r.Id)], recalledOffers.Length > 0 ? recalledOffers : null);
+        if (recalls.Count > 0 && await PostAsync(peer, "chat/recalls", recall, cancellationToken) is not null)
         {
-            await WriteAsync("DELETE FROM ChatRecalls WHERE PeerId = @peer AND Id IN @recalls;", new { peer = peer.Value, recalls }, cancellationToken);
+            string[] done = [.. recalls.Select(r => r.Id)];
+            await WriteAsync("DELETE FROM ChatRecalls WHERE PeerId = @peer AND Id IN @done;", new { peer = peer.Value, done }, cancellationToken);
         }
     }
 

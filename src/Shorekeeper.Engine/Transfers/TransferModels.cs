@@ -55,7 +55,8 @@ public sealed record SentOffer(
     bool HasChangedFiles,
     IReadOnlyList<SentRecipient> Recipients,
     string? GroupId = null,
-    IReadOnlyList<string>? Sources = null);
+    IReadOnlyList<string>? Sources = null,
+    bool Recalled = false);
 
 // ───────────── Receiving ─────────────
 
@@ -90,6 +91,7 @@ public sealed record InboxFile(string FileId, string RelativePath, long Size, bo
 /// <param name="ReconnectingUntil">Set while the connection dropped and the download is retrying.</param>
 /// <param name="SentAt">When the sender made it, on its clock and never later than <paramref name="ReceivedAt"/>: an offer
 /// delivered once this device came online keeps its place among the messages (docs/15-chat.md §6.3).</param>
+/// <param name="Recalled">The sender took it back from the conversation ("Thu hồi").</param>
 public sealed record ReceivedOffer(
     DeviceId SenderId,
     string OfferId,
@@ -102,4 +104,5 @@ public sealed record ReceivedOffer(
     DateTimeOffset? ReconnectingUntil,
     string? Error,
     IReadOnlyList<InboxFile> Files,
-    DateTimeOffset SentAt);
+    DateTimeOffset SentAt,
+    bool Recalled);

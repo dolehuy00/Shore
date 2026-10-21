@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using Microsoft.Extensions.DependencyInjection;
 using Shorekeeper.Core.Audio;
 using Shorekeeper.Core.Discovery;
 using Shorekeeper.Engine.Api;
@@ -265,6 +266,21 @@ public sealed class ChatTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_message_can_be_taken_back_only_within_five_minutes_of_sending()
+    {
+        var time = new OffsetTime();
+        await using TestNode sender = await TestNode.StartAsync("Sender", services: s => s.AddSingleton<TimeProvider>(time));
+        await sender.ConnectAsync(b);
+        ChatMessage sent = await sender.Chat.SendTextAsync(b.Id, "đã lâu rồi", Ct);
+        await WaitUntil(() => sender.Chat.GetMessagesAsync(b.Id, Ct).Result.Single().State == ChatMessageState.Delivered);
+
+        time.Offset = ChatService.RecallWindow + TimeSpan.FromSeconds(1);
+        await sender.Chat.RecallAsync(b.Id, [sent.Id], Ct);
+
+        Assert.Equal(ChatKinds.Text, (await sender.Chat.GetMessagesAsync(b.Id, Ct)).Single().Kind);
+    }
+
+    [Fact]
     public async Task A_message_recalled_before_it_left_is_never_sent()
     {
         a.Directory.Remove(b.Id);
@@ -339,4 +355,12 @@ public sealed class ChatTests : IAsyncLifetime
             await Task.Delay(50, Ct);
         }
     }
+}
+
+/// <summary>The real clock moved on by <see cref="Offset"/>: timers still run, but "now" can be later than it is.</summary>
+internal sealed class OffsetTime : TimeProvider
+{
+    public TimeSpan Offset { get; set; }
+
+    public override DateTimeOffset GetUtcNow() => base.GetUtcNow() + Offset;
 }
