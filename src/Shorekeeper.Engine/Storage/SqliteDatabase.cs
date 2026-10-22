@@ -40,4 +40,11 @@ public sealed class SqliteDatabase
             throw;
         }
     }
+
+    /// <summary>Closes the pooled connections to this file only, which otherwise keep it open on Windows.</summary>
+    internal void ClearPool()
+    {
+        using var connection = new SqliteConnection(connectionString);
+        SqliteConnection.ClearPool(connection);
+    }
 }

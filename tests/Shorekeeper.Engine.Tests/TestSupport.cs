@@ -1,8 +1,8 @@
 using System.Net;
 using System.Net.Sockets;
-using Microsoft.Data.Sqlite;
 using Shorekeeper.Core.Localization;
 using Shorekeeper.Core.Platform;
+using Shorekeeper.Engine.Storage;
 using Shorekeeper.Engine.Tests;
 
 [assembly: AssemblyFixture(typeof(VietnameseText))]
@@ -31,15 +31,27 @@ internal sealed class TempAppFolder : IDisposable
 
     public void Dispose()
     {
-        // Pooled SQLite connections keep the file open on Windows.
-        SqliteConnection.ClearAllPools();
-        try
+        // Pooled SQLite connections keep the file open on Windows. Only this folder's: SqliteConnection.ClearAllPools
+        // also closes connections other tests are opening right now.
+        var database = new SqliteDatabase(Paths);
+        for (int attempt = 1; ; attempt++)
         {
-            Directory.Delete(Root, recursive: true);
-        }
-        catch (IOException)
-        {
-            // Best effort; the OS temp cleaner will get it.
+            database.ClearPool();
+            try
+            {
+                Directory.Delete(Root, recursive: true);
+                return;
+            }
+            catch (IOException) when (attempt < 10)
+            {
+                // Work still finishing after the engine stopped can hand a connection back to the pool for a moment.
+                Thread.Sleep(100);
+            }
+            catch (IOException)
+            {
+                // Best effort; the OS temp cleaner will get it.
+                return;
+            }
         }
     }
 }

@@ -101,6 +101,8 @@ public sealed class GroupChatTests : IAsyncLifetime
     public async Task Messages_wait_for_an_offline_member_and_arrive_in_order()
     {
         Offline(tuan);
+        // Nor from Mai, who would pass them on.
+        Apart(mai, tuan);
         string[] texts = ["một", "hai", "ba"];
         foreach (string text in texts)
         {
@@ -257,6 +259,8 @@ public sealed class GroupChatTests : IAsyncLifetime
     public async Task A_message_changed_by_whoever_passes_it_on_is_dropped()
     {
         Offline(tuan);
+        // Tuấn must not get it from Mai before she changes it.
+        Apart(mai, tuan);
         GroupChatMessage sent = await host.GroupChat.SendTextAsync(groupId, "3 giờ", Ct);
         await WaitUntil(() => Messages(mai).Count == 1);
         using (SqliteConnection connection = await mai.Get<SqliteDatabase>().OpenAsync(Ct))
@@ -264,6 +268,7 @@ public sealed class GroupChatTests : IAsyncLifetime
             await connection.ExecuteAsync("UPDATE ChatGroupMessages SET Text = '4 giờ' WHERE Id = @Id;", new { sent.Id });
         }
 
+        Together(mai, tuan);
         await tuan.GroupChat.PullAllAsync(Ct);
 
         Assert.Empty(Messages(tuan));
@@ -403,16 +408,20 @@ public sealed class GroupChatTests : IAsyncLifetime
     /// Huy and the member cannot reach each other: each is gone from the other's directory, and so are the addresses
     /// that once worked. Others still reach both.
     /// </summary>
-    private void Offline(TestNode member)
+    private void Offline(TestNode member) => Apart(host, member);
+
+    private void Online(TestNode member) => Together(host, member);
+
+    private static void Apart(TestNode one, TestNode other)
     {
-        Forget(host, member);
-        Forget(member, host);
+        Forget(one, other);
+        Forget(other, one);
     }
 
-    private void Online(TestNode member)
+    private static void Together(TestNode one, TestNode other)
     {
-        host.Sees(member);
-        member.Sees(host);
+        one.Sees(other);
+        other.Sees(one);
     }
 
     private static void Forget(TestNode node, TestNode other)

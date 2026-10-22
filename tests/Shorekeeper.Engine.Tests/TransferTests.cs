@@ -481,6 +481,8 @@ public sealed class TransferTests : IAsyncLifetime
         await sender.ConnectAsync(b);
         string offerId = await SendAsync(sender, [WriteFile(sender, "report.pdf", [1, 2, 3])], b.Id);
         await WaitForOfferAsync(b, offerId);
+        // B can have the offer before the sender hears back; while it is still pending it can be taken back at any time.
+        await WaitUntil(() => sender.Offers.GetOffers().Single().Recipients.Single().State != RecipientState.Pending);
 
         time.Offset = ChatService.RecallWindow + TimeSpan.FromSeconds(1);
 
