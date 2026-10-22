@@ -1111,6 +1111,7 @@ public sealed class GroupChatService(
         groups.Changed += OnGroupsChanged;
         try
         {
+            await DropFromRemovedAsync();
             DateTimeOffset pulled = DateTimeOffset.MinValue;
             while (!stoppingToken.IsCancellationRequested)
             {
@@ -1144,7 +1145,53 @@ public sealed class GroupChatService(
     }
 
     /// <summary>A group joined (or its members changed): what those online hold that we lack.</summary>
-    private void OnGroupsChanged(object? sender, EventArgs e) => _ = PullAllAsync(CancellationToken.None);
+    private void OnGroupsChanged(object? sender, EventArgs e)
+    {
+        _ = PullAllAsync(CancellationToken.None);
+        _ = DropFromRemovedAsync();
+    }
+
+    /// <summary>
+    /// What reached us from someone after the Host removed them, while our member list did not know yet
+    /// (docs/16-group-chat.md §3.6): deleted here like "Xóa". Judged by when it reached us, which they cannot set.
+    /// </summary>
+    private async Task DropFromRemovedAsync()
+    {
+        try
+        {
+            foreach (Group group in groups.GetAll())
+            {
+                if (groups.GetRoster(group.Id) is not { Removed.Count: > 0 } roster)
+                {
+                    continue;
+                }
+
+                List<string> ids = [];
+                await using (SqliteConnection connection = await database.OpenAsync())
+                {
+                    foreach (GroupRosterRemoved removed in roster.Removed)
+                    {
+                        ids.AddRange(await connection.QueryAsync<string>(
+                            """
+                            SELECT Id FROM ChatGroupMessages
+                            WHERE GroupId = @groupId AND AuthorId = @author AND Outgoing = 0 AND Deleted = 0 AND ReceivedAt > @at;
+                            """,
+                            new { groupId = group.Id, author = removed.DeviceId, at = removed.At.ToUnixTimeMilliseconds() }));
+                    }
+                }
+
+                if (ids.Count > 0)
+                {
+                    logger.LogWarning("Deleting {Count} group messages of {Group} that came after their author was removed", ids.Count, group.Id);
+                    await DeleteAsync(group.Id, ids, CancellationToken.None);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Deleting group messages from removed members failed");
+        }
+    }
 
     private async Task SendAllPendingAsync(CancellationToken cancellationToken)
     {

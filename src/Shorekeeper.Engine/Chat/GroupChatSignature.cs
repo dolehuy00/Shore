@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
 using Shorekeeper.Core.Identity;
+using Shorekeeper.Engine.Api;
 
 namespace Shorekeeper.Engine.Chat;
 
@@ -12,12 +13,14 @@ internal readonly record struct GroupChatContent(
 /// <summary>
 /// Group messages and their recalls are signed with the author's device key (docs/16-group-chat.md §3.5), so a member
 /// passing one on can neither forge nor change it. The public key travels with the message: its hash must be the
-/// author's DeviceId, so nobody needs to have met the author before.
+/// author's DeviceId, so nobody needs to have met the author before. The Host signs the member list the same way
+/// (docs/07-groups.md §4.1).
 /// </summary>
 internal static class GroupChatSignature
 {
     private const string MessagePurpose = "shorekeeper-group-chat/1";
     private const string RecallPurpose = "shorekeeper-group-recall/1";
+    private const string RosterPurpose = "shorekeeper-group-roster/1";
 
     public static byte[] SignMessage(ECDsa key, GroupChatContent content) =>
         key.SignData(MessageBytes(content), HashAlgorithmName.SHA256);
@@ -31,6 +34,16 @@ internal static class GroupChatSignature
 
     public static bool VerifyRecall(byte[] authorKey, byte[] sig, string groupId, string id, DeviceId author, long sentAtMs) =>
         Verify(authorKey, sig, author, RecallBytes(groupId, id, author, sentAtMs));
+
+    /// <summary>Signs the member list as the Host: <paramref name="roster"/> with its <see cref="GroupRoster.Sig"/> left out.</summary>
+    public static byte[] SignRoster(ECDsa key, GroupRoster roster) => key.SignData(RosterBytes(roster), HashAlgorithmName.SHA256);
+
+    /// <summary>Complete, and signed by the key of its <see cref="GroupRoster.HostId"/>.</summary>
+    public static bool VerifyRoster(GroupRoster roster) =>
+        roster is { GroupId: not null, Name: not null, HostKey: not null, Sig: not null, Members: not null, Removed: not null }
+        && roster.Members.All(m => m is { DeviceId: not null, Name: not null }) && roster.Removed.All(r => r is { DeviceId: not null })
+        && DeviceId.TryParse(roster.HostId, out DeviceId host)
+        && Verify(roster.HostKey, roster.Sig, host, RosterBytes(roster));
 
     private static bool Verify(byte[] authorKey, byte[] sig, DeviceId author, byte[] data)
     {
@@ -77,6 +90,32 @@ internal static class GroupChatSignature
         Write(stream, id);
         Write(stream, author.Value);
         Write(stream, sentAtMs);
+        return stream.ToArray();
+    }
+
+    private static byte[] RosterBytes(GroupRoster roster)
+    {
+        using var stream = new MemoryStream();
+        Write(stream, RosterPurpose);
+        Write(stream, roster.GroupId);
+        Write(stream, roster.Version);
+        Write(stream, roster.Name);
+        Write(stream, roster.HostId);
+        Write(stream, (long)roster.Members.Count);
+        foreach (GroupRosterMember member in roster.Members)
+        {
+            Write(stream, member.DeviceId);
+            Write(stream, member.Name);
+            Write(stream, member.IsHost ? 1L : 0L);
+        }
+
+        Write(stream, (long)roster.Removed.Count);
+        foreach (GroupRosterRemoved removed in roster.Removed)
+        {
+            Write(stream, removed.DeviceId);
+            Write(stream, removed.At.ToUnixTimeMilliseconds());
+        }
+
         return stream.ToArray();
     }
 

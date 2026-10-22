@@ -1,12 +1,15 @@
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Shorekeeper.Core.Discovery;
 using Shorekeeper.Core.Identity;
 using Shorekeeper.Core.Localization;
 using Shorekeeper.Engine.Api;
+using Shorekeeper.Engine.Chat;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Settings;
 
@@ -42,6 +45,7 @@ public sealed class GroupService(
     PeerDirectory directory,
     ProbeHints hints,
     LocalDevice device,
+    ShorekeeperEngine engine,
     SettingsService settings,
     TimeProvider timeProvider,
     ILogger<GroupService> logger) : BackgroundService
@@ -51,6 +55,9 @@ public sealed class GroupService(
     public const int MaxJoined = 50;
     public const int MaxNoteLength = 200;
     public static readonly TimeSpan MaxWait = TimeSpan.FromSeconds(25);
+
+    /// <summary>How long the signed member list names who left: a day past the group chat history (docs/16-group-chat.md §3.6).</summary>
+    public static readonly TimeSpan RemovedKept = TimeSpan.FromDays(31);
 
     private const int RequestsPerWindow = 5;
     private const int MaxPendingPerGroup = 50;
@@ -114,6 +121,7 @@ public sealed class GroupService(
 
         var group = new Group(Guid.NewGuid().ToString("N"), name, device.DeviceId, GroupRole.Host, [new GroupMember(device.DeviceId, device.DisplayName, true)]);
         await store.SaveAsync(group, cancellationToken);
+        await SignRosterAsync(group.Id);
         logger.LogInformation("Group {Group} ({Name}) created", group.Id, name);
         return group;
     }
@@ -122,6 +130,7 @@ public sealed class GroupService(
     {
         Group group = Hosted(groupId);
         await store.SaveAsync(group with { Name = ValidName(name) });
+        await SignRosterAsync(groupId);
         Bump(groupId);
     }
 
@@ -167,6 +176,7 @@ public sealed class GroupService(
 
         await store.SaveAsync(group with { Members = [.. group.Members.Where(m => m.DeviceId != peer)] });
         await store.RemoveRequestAsync(groupId, peer);
+        await SignRosterAsync(groupId);
         Bump(groupId);
     }
 
@@ -305,6 +315,7 @@ public sealed class GroupService(
         if (group.Contains(caller) && caller != device.DeviceId)
         {
             await store.SaveAsync(group with { Members = [.. group.Members.Where(m => m.DeviceId != caller)] });
+            await SignRosterAsync(groupId);
         }
 
         await store.RemoveRequestAsync(groupId, caller);
@@ -421,6 +432,12 @@ public sealed class GroupService(
     {
         try
         {
+            // Groups hosted from before signed member lists.
+            foreach (Group hosted in store.GetAll().Where(g => g.Role == GroupRole.Host))
+            {
+                await SignRosterAsync(hosted.Id);
+            }
+
             using var timer = new PeriodicTimer(Tick);
             do
             {
@@ -471,6 +488,11 @@ public sealed class GroupService(
                 {
                     case GroupStatus.Member:
                         await ApplyAsync(group, state);
+                        if (state.Roster is { } roster && !await AdoptRosterAsync(groupId, roster))
+                        {
+                            logger.LogWarning("Member list for group {Group} from its Host is not signed by it", groupId);
+                        }
+
                         since = state.Version;
                         break;
                     case GroupStatus.Declined:
@@ -499,6 +521,11 @@ public sealed class GroupService(
                 SetReachable(groupId, false);
                 try
                 {
+                    if (store.Get(groupId) is { Role: GroupRole.Member } member)
+                    {
+                        await AskMemberForRosterAsync(member, stoppingToken);
+                    }
+
                     await Task.Delay(RetryAfter, stoppingToken);
                 }
                 catch (OperationCanceledException)
@@ -560,6 +587,122 @@ public sealed class GroupService(
         Notice?.Invoke(this, new GroupNotice(group.Name, message));
     }
 
+    // ───────────── Signed member list (docs/07-groups.md §4.1) ─────────────
+
+    /// <summary>
+    /// Host: signs the member list again when it changed. Who is no longer on it is named with the time, for
+    /// <see cref="RemovedKept"/>; one who is back is not. Members get it with their next answer.
+    /// </summary>
+    private async Task SignRosterAsync(string groupId)
+    {
+        if (store.Get(groupId) is not { Role: GroupRole.Host } group)
+        {
+            return;
+        }
+
+        GroupRoster? before = store.GetRoster(groupId);
+        GroupRosterMember[] members = [.. group.Members.Select(m => new GroupRosterMember(m.DeviceId.Value, m.Name, m.IsHost))];
+        if (before is not null && before.Name == group.Name && before.Members.SequenceEqual(members))
+        {
+            return;
+        }
+
+        long now = timeProvider.GetUtcNow().ToUnixTimeMilliseconds();
+        DateTimeOffset at = DateTimeOffset.FromUnixTimeMilliseconds(now);
+        X509Certificate2 certificate = engine.Identity.Certificate;
+        var roster = new GroupRoster(
+            groupId,
+            Math.Max(now, (before?.Version ?? 0) + 1), // never back, even with the clock set back or a restored identity
+            group.Name,
+            device.DeviceId.Value,
+            certificate.PublicKey.ExportSubjectPublicKeyInfo(),
+            members,
+            [
+                .. (before?.Removed ?? []).Where(r => !group.Contains(DeviceId.Parse(r.DeviceId)) && at - r.At < RemovedKept),
+                .. (before?.Members ?? []).Where(m => !group.Contains(DeviceId.Parse(m.DeviceId))).Select(m => new GroupRosterRemoved(m.DeviceId, at)),
+            ],
+            []);
+        using (ECDsa key = certificate.GetECDsaPrivateKey()!)
+        {
+            roster = roster with { Sig = GroupChatSignature.SignRoster(key, roster) };
+        }
+
+        await store.TrySaveRosterAsync(roster);
+    }
+
+    /// <summary>
+    /// A member list signed by our Host, from the Host itself or from a member: taken when newer than ours, and our
+    /// copy of the members follows it. False when it is not our Host's; a list without us is left to the Host's answer.
+    /// </summary>
+    internal async Task<bool> AdoptRosterAsync(string groupId, GroupRoster roster)
+    {
+        if (roster.GroupId != groupId || store.Get(groupId) is not { Role: GroupRole.Member } group
+            || roster.HostId != group.HostId.Value || !GroupChatSignature.VerifyRoster(roster))
+        {
+            return false;
+        }
+
+        var members = new List<GroupMember>();
+        foreach (GroupRosterMember entry in roster.Members.Take(MaxMembers))
+        {
+            if (DeviceId.TryParse(entry.DeviceId, out DeviceId id))
+            {
+                members.Add(new GroupMember(id, entry.Name.Length > PresenceCodec.MaxNameLength ? entry.Name[..PresenceCodec.MaxNameLength] : entry.Name, entry.IsHost));
+            }
+        }
+
+        if (!members.Any(m => m.DeviceId == device.DeviceId) || !await store.TrySaveRosterAsync(roster))
+        {
+            return true;
+        }
+
+        string name = ValidName(roster.Name, fallback: true);
+        if (store.Get(groupId) is { } current && (current.Name != name || !current.Members.SequenceEqual(members)))
+        {
+            await store.SaveAsync(current with { Name = name, Members = members });
+        }
+
+        return true;
+    }
+
+    /// <summary>Our signed member list for a member who asks, when newer than <paramref name="since"/>; null when none to give.</summary>
+    internal GroupRoster? GetRosterFor(DeviceId caller, string groupId, long since) =>
+        IsEnabled && store.IsMember(groupId, caller) && store.GetRoster(groupId) is { } roster && roster.Version > since ? roster : null;
+
+    /// <summary>
+    /// The Host did not answer: a member we see online, picked at random, may have a newer list from it, e.g. with
+    /// someone removed (docs/07-groups.md §4.1). One a round keeps a group without its Host quiet.
+    /// </summary>
+    private async Task AskMemberForRosterAsync(Group group, CancellationToken cancellationToken)
+    {
+        HashSet<DeviceId> online = [.. directory.Snapshot().Where(p => p.State == PeerState.Online).Select(p => p.DeviceId)];
+        GroupMember[] reachable = [.. group.Members.Where(m => m.DeviceId != device.DeviceId && m.DeviceId != group.HostId && online.Contains(m.DeviceId))];
+        if (reachable.Length == 0)
+        {
+            return;
+        }
+
+        DeviceId member = reachable[Random.Shared.Next(reachable.Length)].DeviceId;
+        long since = store.GetRoster(group.Id)?.Version ?? 0;
+        try
+        {
+            using HttpResponseMessage response = await client.SendAsync(
+                member,
+                b => new HttpRequestMessage(HttpMethod.Get, new Uri(b, string.Create(CultureInfo.InvariantCulture, $"groups/{group.Id}/roster?since={since}"))),
+                RequestTimeout,
+                cancellationToken);
+            if (response.StatusCode == HttpStatusCode.OK
+                && !await AdoptRosterAsync(group.Id, await PeerClient.ReadAsync<GroupRoster>(response, cancellationToken)))
+            {
+                logger.LogWarning("Member list for group {Group} from {Peer} is not signed by its Host", group.Id, member);
+            }
+        }
+        catch (Exception ex) when (ex is PeerUnreachableException or PeerApiException or HttpRequestException or System.Text.Json.JsonException)
+        {
+            logger.LogDebug(ex, "Asking {Peer} for the member list of group {Group} failed", member, group.Id);
+        }
+    }
+
     // ───────────── Helpers ─────────────
 
     private GroupStateResponse? BuildState(DeviceId caller, string groupId)
@@ -578,7 +721,8 @@ public sealed class GroupService(
                 .. group.Members.Select(m => online.TryGetValue(m.DeviceId, out PeerInfo? peer)
                     ? new GroupMemberEntry(m.DeviceId.Value, m.Name, m.IsHost, peer.Address.ToString(), peer.DiscoveryPort)
                     : new GroupMemberEntry(m.DeviceId.Value, m.Name, m.IsHost, null, 0)),
-            ]);
+            ],
+            store.GetRoster(groupId));
         }
 
         return store.GetRequest(groupId, caller)?.State switch
@@ -599,6 +743,7 @@ public sealed class GroupService(
             }
 
             await store.SaveAsync(group with { Members = [.. group.Members, new GroupMember(peer, name, false)] });
+            await SignRosterAsync(group.Id);
         }
 
         await store.RemoveRequestAsync(group.Id, peer);

@@ -298,6 +298,62 @@ public sealed class GroupChatTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task The_host_signs_the_member_list_with_who_left_and_members_take_only_that()
+    {
+        GroupRoster first = host.GroupStore.GetRoster(groupId)!;
+        await host.Groups.RemoveMemberAsync(groupId, tuan.Id);
+
+        GroupRoster roster = host.GroupStore.GetRoster(groupId)!;
+        Assert.True(roster.Version > first.Version);
+        Assert.Equal(tuan.Id.Value, Assert.Single(roster.Removed).DeviceId);
+        Assert.DoesNotContain(roster.Members, m => m.DeviceId == tuan.Id.Value);
+        await WaitUntil(() => mai.GroupStore.GetRoster(groupId)?.Version == roster.Version);
+        Assert.Equal(2, mai.GroupStore.Get(groupId)!.Members.Count);
+
+        // Changed by whoever passes it on, or an older one: not taken.
+        GroupRoster forged = roster with { Version = roster.Version + 1, Removed = [] };
+        Assert.False(await mai.Groups.AdoptRosterAsync(groupId, forged));
+        Assert.True(await mai.Groups.AdoptRosterAsync(groupId, first));
+        Assert.Equal(roster.Version, mai.GroupStore.GetRoster(groupId)!.Version);
+        Assert.Equal(2, mai.GroupStore.Get(groupId)!.Members.Count);
+    }
+
+    [Fact]
+    public async Task A_removal_reaches_a_member_who_cannot_reach_the_host_through_another_member()
+    {
+        await using TestNode lan = await TestNode.StartAsync("Lan");
+        await JoinAsync(lan);
+        // Mai reaches neither Huy nor Tuấn: only Lan can tell her.
+        await CutOffFromHostAsync(mai);
+        Apart(mai, tuan);
+
+        await host.Groups.RemoveMemberAsync(groupId, tuan.Id);
+
+        // Her next try at Huy fails, and she asks Lan instead (every 15 seconds).
+        await WaitUntil(() => mai.GroupStore.Get(groupId) is { Members.Count: 3 } group && !group.Contains(tuan.Id), TimeSpan.FromSeconds(40));
+        Together(mai, tuan);
+        (HttpStatusCode status, string body) = await PostAsync(tuan, mai, $"chat/groups/{groupId}/messages", Signed(tuan, "vẫn ở đây?"));
+        Assert.Equal(HttpStatusCode.Forbidden, status);
+        Assert.Contains(ApiErrorCodes.NotMember, body);
+    }
+
+    [Fact]
+    public async Task What_a_removed_member_got_in_while_the_list_was_behind_is_deleted_once_it_is_known()
+    {
+        await CutOffFromHostAsync(mai);
+        Assert.Equal(HttpStatusCode.NoContent, (await PostAsync(tuan, mai, $"chat/groups/{groupId}/messages", Signed(tuan, "trước khi bị loại"))).Status);
+        await host.Groups.RemoveMemberAsync(groupId, tuan.Id);
+        Assert.Equal(HttpStatusCode.NoContent, (await PostAsync(tuan, mai, $"chat/groups/{groupId}/messages", Signed(tuan, "sau khi bị loại"))).Status);
+        Assert.Equal(2, Messages(mai).Count);
+
+        // However it reaches her: from Huy, or from another member.
+        Assert.True(await mai.Groups.AdoptRosterAsync(groupId, host.GroupStore.GetRoster(groupId)!));
+
+        await WaitUntil(() => Messages(mai).Count == 1);
+        Assert.Equal("trước khi bị loại", Messages(mai).Single().Text);
+    }
+
+    [Fact]
     public async Task A_new_member_gets_what_the_members_said_but_not_who_left()
     {
         await mai.GroupChat.SendTextAsync(groupId, "Mai đây", Ct);
@@ -523,6 +579,19 @@ public sealed class GroupChatTests : IAsyncLifetime
     /// </summary>
     private async Task<Group> BehindOnAsync(TestNode lan)
     {
+        await JoinAsync(lan);
+
+        await CutOffFromHostAsync(tuan);
+        Apart(mai, tuan);
+
+        Group caughtUp = tuan.GroupStore.Get(groupId)!;
+        await tuan.GroupStore.SaveAsync(caughtUp with { Members = [.. caughtUp.Members.Where(m => m.DeviceId != lan.Id)] }, Ct);
+        return caughtUp;
+    }
+
+    /// <summary>Lan joins the group, seen by everyone and seeing everyone.</summary>
+    private async Task JoinAsync(TestNode lan)
+    {
         foreach (TestNode other in (TestNode[])[host, mai, tuan])
         {
             Together(lan, other);
@@ -531,13 +600,6 @@ public sealed class GroupChatTests : IAsyncLifetime
         await host.Groups.InviteAsync(groupId, lan.Id, lan.Id.ShortForm, "PC", Ct);
         await lan.Groups.AcceptInvitationAsync(lan.Groups.GetInvitations().Single(), Ct);
         await WaitUntil(() => ((TestNode[])[lan, mai, tuan]).All(n => n.GroupStore.Get(groupId) is { Members.Count: 4 }));
-
-        await CutOffFromHostAsync(tuan);
-        Apart(mai, tuan);
-
-        Group caughtUp = tuan.GroupStore.Get(groupId)!;
-        await tuan.GroupStore.SaveAsync(caughtUp with { Members = [.. caughtUp.Members.Where(m => m.DeviceId != lan.Id)] }, Ct);
-        return caughtUp;
     }
 
     /// <summary>
@@ -620,12 +682,12 @@ public sealed class GroupChatTests : IAsyncLifetime
         return (response.StatusCode, await response.Content.ReadAsStringAsync(Ct));
     }
 
-    private static async Task WaitUntil(Func<bool> condition)
+    private static async Task WaitUntil(Func<bool> condition, TimeSpan? timeout = null)
     {
-        DateTime deadline = DateTime.UtcNow + TimeSpan.FromSeconds(15);
+        DateTime deadline = DateTime.UtcNow + (timeout ?? TimeSpan.FromSeconds(15));
         while (!condition())
         {
-            Assert.True(DateTime.UtcNow < deadline, "Condition not met within 15s.");
+            Assert.True(DateTime.UtcNow < deadline, "Condition not met in time.");
             await Task.Delay(50, Ct);
         }
     }

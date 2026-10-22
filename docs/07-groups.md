@@ -45,6 +45,17 @@ sequenceDiagram
 - Địa chỉ thành viên mà mình chưa nghe trực tiếp được đưa vào **probe** ([03 §4](03-discovery-presence.md)): trả lời thì hiện trong "Xóm" với nhãn *"Cùng nhóm Build QA"*, kể cả khác subnet.
 - **Host offline:** nhóm hiện *"Host offline"*. Thành viên **vẫn gửi file cho nhau được** dựa trên danh sách đã cache. Chỉ là không vào/ra thành viên mới được cho đến khi Host online lại. Không gọi được Host thì thử lại sau 15 giây.
 
+### 4.1 Danh sách có chữ ký của Host (2026-10-22)
+
+Để người bị loại không lọt qua máy chưa biết tin loại (chat nhóm, [16 §3.6](16-group-chat.md)):
+
+- Mỗi lần danh sách hay tên nhóm đổi, Host ký lại danh sách (`GroupRoster`, khóa thiết bị của Host, như chữ ký tin nhóm [16 §3.5](16-group-chat.md)): tên, thành viên, **người đã rời hay bị loại trong 31 ngày kèm giờ** (giờ của Host; người vào lại thì không còn trong đó), và `version`. `version` là giờ ký (ms), luôn lớn hơn bản trước, nên Host khởi động lại hay khôi phục danh tính sang máy khác cũng không lùi.
+- Câu trả lời long-poll mang kèm danh sách đã ký (`roster`). Thành viên kiểm: khóa khớp `HostId` của nhóm, chữ ký đúng, `version` lớn hơn bản đang giữ; rồi lưu (`GroupRosters`) và lấy danh sách thành viên theo đó. Danh sách không có mình thì bỏ qua: câu trả lời của Host sẽ cho mình ra khỏi nhóm.
+- **Không gọi được Host**: mỗi lần thử lại (15 giây), hỏi **một** thành viên đang online, chọn ngẫu nhiên, `GET /groups/{id}/roster?since={version}`; họ có bản mới hơn thì đưa. Như vậy chỉ cần một người biết là tin loại tới được những máy không gọi được Host, kể cả khi Host đã tắt. Một người một lượt để nhóm không có Host không ồn.
+- Người bị loại không chặn được việc này: người khác vẫn đưa, và không ai sửa được danh sách mà không làm hỏng chữ ký.
+- Còn hở: Host loại người rồi tắt ngay trước khi ai kịp nhận.
+- Host bản cũ không ký: thành viên dùng danh sách như trước.
+
 ## 5. Quyền trong nhóm
 
 | Hành động | Host | Thành viên |

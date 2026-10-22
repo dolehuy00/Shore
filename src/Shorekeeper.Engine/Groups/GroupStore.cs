@@ -1,7 +1,9 @@
+using System.Text.Json;
 using Dapper;
 using Microsoft.Data.Sqlite;
 using Shorekeeper.Core.Identity;
 using Shorekeeper.Core.Trust;
+using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Settings;
 using Shorekeeper.Engine.Storage;
 using Shorekeeper.Engine.Trust;
@@ -50,6 +52,7 @@ public sealed class GroupStore(SqliteDatabase database, TrustStore trust, Settin
     private readonly Lock gate = new();
     private Dictionary<string, Group> groups = [];
     private Dictionary<(string GroupId, DeviceId PeerId), JoinRequest> requests = [];
+    private Dictionary<string, GroupRoster> rosters = [];
 
     /// <summary>Raised after any change to groups, members or join requests.</summary>
     public event EventHandler? Changed;
@@ -62,11 +65,13 @@ public sealed class GroupStore(SqliteDatabase database, TrustStore trust, Settin
             "SELECT GroupId, DeviceId, DisplayName, IsHost FROM GroupMembers ORDER BY JoinedAt;")).ToLookup(m => m.GroupId);
         var requestRows = await connection.QueryAsync<RequestRow>(
             "SELECT GroupId, DeviceId, DisplayName, HostName, Note, State, DeclinedCount, RequestedAt FROM GroupJoinRequests;");
+        var rosterRows = await connection.QueryAsync<string>("SELECT Roster FROM GroupRosters;");
 
         lock (gate)
         {
             groups = groupRows.Select(g => g.ToGroup(memberRows[g.GroupId])).ToDictionary(g => g.Id);
             requests = requestRows.Select(r => r.ToRequest()).ToDictionary(r => (r.GroupId, r.PeerId));
+            rosters = rosterRows.Select(r => JsonSerializer.Deserialize<GroupRoster>(r, PeerJson.Options)!).ToDictionary(r => r.GroupId);
         }
     }
 
@@ -110,6 +115,15 @@ public sealed class GroupStore(SqliteDatabase database, TrustStore trust, Settin
     /// <summary>Who may offer us files and download ours: contacts, or members of the group the offer belongs to.</summary>
     public bool CanExchangeFiles(DeviceId peer, string? groupId) =>
         trust.GetLevel(peer) == TrustLevel.Trusted || (groupId is not null && IsMember(groupId, peer));
+
+    /// <summary>The newest member list signed by the Host of <paramref name="groupId"/> we have (docs/07-groups.md §4.1).</summary>
+    public GroupRoster? GetRoster(string groupId)
+    {
+        lock (gate)
+        {
+            return rosters.GetValueOrDefault(groupId);
+        }
+    }
 
     public IReadOnlyList<JoinRequest> GetRequests(string groupId)
     {
@@ -161,6 +175,33 @@ public sealed class GroupStore(SqliteDatabase database, TrustStore trust, Settin
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>
+    /// Keeps <paramref name="roster"/> (checked by the caller) as the group's newest. False, keeping ours, when it is not
+    /// newer than ours.
+    /// </summary>
+    public async Task<bool> TrySaveRosterAsync(GroupRoster roster, CancellationToken cancellationToken = default)
+    {
+        lock (gate)
+        {
+            if (rosters.TryGetValue(roster.GroupId, out GroupRoster? ours) && ours.Version >= roster.Version)
+            {
+                return false;
+            }
+
+            rosters[roster.GroupId] = roster;
+        }
+
+        await using SqliteConnection connection = await database.OpenAsync(cancellationToken);
+        await connection.ExecuteAsync(
+            """
+            INSERT INTO GroupRosters (GroupId, Version, Roster) VALUES (@GroupId, @Version, @json)
+            ON CONFLICT (GroupId) DO UPDATE SET Version = excluded.Version, Roster = excluded.Roster WHERE excluded.Version > GroupRosters.Version;
+            """,
+            new { roster.GroupId, roster.Version, json = JsonSerializer.Serialize(roster, PeerJson.Options) });
+        Changed?.Invoke(this, EventArgs.Empty);
+        return true;
+    }
+
     /// <summary>Forgets the group: closed, left, or we were removed. Its requests go with it.</summary>
     public async Task RemoveAsync(string groupId, CancellationToken cancellationToken = default)
     {
@@ -169,12 +210,14 @@ public sealed class GroupStore(SqliteDatabase database, TrustStore trust, Settin
             """
             DELETE FROM GroupJoinRequests WHERE GroupId = @groupId;
             DELETE FROM GroupMembers WHERE GroupId = @groupId;
+            DELETE FROM GroupRosters WHERE GroupId = @groupId;
             DELETE FROM Groups WHERE GroupId = @groupId;
             """,
             new { groupId });
         lock (gate)
         {
             groups.Remove(groupId);
+            rosters.Remove(groupId);
             foreach (var key in requests.Keys.Where(k => k.GroupId == groupId).ToList())
             {
                 requests.Remove(key);

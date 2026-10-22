@@ -160,6 +160,12 @@ public static class PeerApiEndpoints
                 ? PeerResponse.Json(state)
                 : NotFound());
 
+        // On any member: the Host's signed member list, for a member who cannot reach the Host. Not newer: 204.
+        api.Map("GET", "/groups/{groupId}/roster", RequiredAccess.AnyPeer, request => Task.FromResult(
+            groups.GetRosterFor(request.Caller, request.Route("groupId"), request.QueryInt64("since") ?? 0) is { } roster
+                ? PeerResponse.Json(roster)
+                : NoContent()));
+
         api.Map("POST", "/groups/{groupId}/leave", RequiredAccess.AnyPeer, async request =>
         {
             await groups.HandleLeaveAsync(request.Caller, request.Route("groupId"));

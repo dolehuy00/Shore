@@ -80,10 +80,31 @@ public sealed record GroupJoinResponse(string Status);
 /// <summary>
 /// Response of <c>GET /api/v1/groups/{groupId}/state?since=&amp;wait=</c>, long-polled by members and by peers waiting to be approved.
 /// Members get the member list; addresses are where the Host sees each member right now (empty when offline).
+/// <see cref="Roster"/>: the same list as the Host signed it, for members to pass on (none from a Host before it).
 /// </summary>
-public sealed record GroupStateResponse(string Status, long Version, string Name, IReadOnlyList<GroupMemberEntry> Members);
+public sealed record GroupStateResponse(
+    string Status, long Version, string Name, IReadOnlyList<GroupMemberEntry> Members, GroupRoster? Roster = null);
 
 public sealed record GroupMemberEntry(string DeviceId, string Name, bool IsHost, string? Address, int DiscoveryPort);
+
+/// <summary>
+/// The member list signed by the Host (docs/07-groups.md §4.1), also the body of <c>POST /api/v1/groups/{groupId}/roster</c>:
+/// members pass it on, so a removal reaches those who cannot reach the Host. The higher <see cref="Version"/> wins.
+/// <see cref="Removed"/>: who left or was removed in the last 31 days, and when, by the Host's clock.
+/// </summary>
+public sealed record GroupRoster(
+    string GroupId,
+    long Version,
+    string Name,
+    string HostId,
+    byte[] HostKey,
+    IReadOnlyList<GroupRosterMember> Members,
+    IReadOnlyList<GroupRosterRemoved> Removed,
+    byte[] Sig);
+
+public sealed record GroupRosterMember(string DeviceId, string Name, bool IsHost);
+
+public sealed record GroupRosterRemoved(string DeviceId, DateTimeOffset At);
 
 public static class GroupStatus
 {

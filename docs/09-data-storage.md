@@ -148,6 +148,11 @@ CREATE TABLE GroupMembers (
   PRIMARY KEY (GroupId, DeviceId)
 );
 
+-- 0013: danh sách Host đã ký (docs/07-groups.md §4.1), bản mới nhất mỗi nhóm, giữ nguyên JSON để đưa lại và kiểm lại
+CREATE TABLE GroupRosters (
+  GroupId TEXT PRIMARY KEY, Version INTEGER NOT NULL, Roster TEXT NOT NULL
+);
+
 CREATE TABLE GroupJoinRequests (       -- chỉ ở Host
   GroupId TEXT NOT NULL, DeviceId TEXT NOT NULL, Note TEXT,
   State TEXT NOT NULL,                  -- pending | invited (Host đã mời = duyệt trước) | declined
