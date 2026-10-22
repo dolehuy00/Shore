@@ -277,6 +277,63 @@ public sealed class GroupChatTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Who_left_is_remembered_with_the_time_until_back_or_a_month_has_passed()
+    {
+        await host.Groups.RemoveMemberAsync(groupId, tuan.Id);
+
+        FormerMember gone = Assert.Single(host.GroupStore.Get(groupId)!.Former!);
+        Assert.Equal(tuan.Id, gone.DeviceId);
+        Assert.Equal(1, Query<long>(host, "SELECT COUNT(*) FROM GroupFormerMembers WHERE GroupId = @groupId;", new { groupId }));
+        await WaitUntil(() => mai.GroupStore.Get(groupId) is { Former: [var copy] } && copy == gone);
+
+        await host.Groups.InviteAsync(groupId, tuan.Id, tuan.Id.ShortForm, "PC", Ct);
+        await tuan.Groups.AcceptInvitationAsync(tuan.Groups.GetInvitations().Single(), Ct);
+        await WaitUntil(() => host.GroupStore.Get(groupId) is { Members.Count: 3, Former: [] });
+
+        await host.Groups.RemoveMemberAsync(groupId, tuan.Id);
+        hostTime.Offset = GroupStore.FormerKept;
+        await host.Groups.RenameAsync(groupId, "Build QA 2");
+        Assert.Empty(host.GroupStore.Get(groupId)!.Former!);
+    }
+
+    [Fact]
+    public async Task A_removed_member_cannot_slip_new_messages_in_through_a_member()
+    {
+        // Mai keeps the list from before, so she takes Tuấn's messages as one on his side would.
+        await CutOffFromHostAsync(mai);
+        Assert.Equal(HttpStatusCode.NoContent, (await PostAsync(tuan, mai, $"chat/groups/{groupId}/messages", Signed(tuan, "trước khi bị loại"))).Status);
+        await host.Groups.RemoveMemberAsync(groupId, tuan.Id);
+        Assert.Equal(HttpStatusCode.NoContent, (await PostAsync(tuan, mai, $"chat/groups/{groupId}/messages", Signed(tuan, "sau khi bị loại"))).Status);
+        Assert.Equal(2, Messages(mai).Count);
+
+        // Seeing Mai again, Huy pulls from her.
+        Together(host, mai);
+        await PulledAllAsync(host, mai);
+
+        Assert.Equal("trước khi bị loại", Assert.Single(Messages(host)).Text);
+    }
+
+    [Fact]
+    public async Task A_new_member_still_gets_what_someone_who_left_said_before()
+    {
+        await tuan.GroupChat.SendTextAsync(groupId, "Tuấn đây", Ct);
+        await WaitUntil(() => Messages(host).Count == 1 && Messages(mai).Count == 1);
+        await tuan.Groups.LeaveAsync(groupId);
+        await WaitUntil(() => mai.GroupStore.Get(groupId) is { Members.Count: 2, Former.Count: 1 });
+
+        await using TestNode lan = await TestNode.StartAsync("Lan");
+        Together(lan, host);
+        Together(lan, mai);
+        await host.Groups.InviteAsync(groupId, lan.Id, lan.Id.ShortForm, "PC", Ct);
+        await lan.Groups.AcceptInvitationAsync(lan.Groups.GetInvitations().Single(), Ct);
+        await WaitUntil(() => lan.GroupStore.Get(groupId) is { Former.Count: 1 });
+        await lan.GroupChat.PullAllAsync(Ct);
+
+        GroupChatMessage got = Assert.Single(Messages(lan));
+        Assert.Equal((tuan.Id, "Tuấn đây"), (got.Author, got.Text));
+    }
+
+    [Fact]
     public async Task A_member_passes_on_what_the_author_sent_while_another_was_away()
     {
         var received = new List<GroupChatMessage>();
@@ -313,8 +370,9 @@ public sealed class GroupChatTests : IAsyncLifetime
             await connection.ExecuteAsync("UPDATE ChatGroupMessages SET Text = '4 giờ' WHERE Id = @Id;", new { sent.Id });
         }
 
+        // Seeing Mai again, Tuấn pulls from her.
         Together(mai, tuan);
-        await tuan.GroupChat.PullAllAsync(Ct);
+        await PulledAllAsync(tuan, mai);
 
         Assert.Empty(Messages(tuan));
         Online(tuan);
@@ -477,9 +535,8 @@ public sealed class GroupChatTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Lan joins, but Tuấn's list stays behind: he no longer reaches Huy, and the answer to the poll he had waiting
-    /// (sped up by a rename) is the last one he gets. Mai, who would pass Lan's message on, is out of his reach too.
-    /// Returns his list as it would be once he catches up.
+    /// Lan joins, but Tuấn's list stays behind (<see cref="CutOffFromHostAsync"/>). Mai, who would pass Lan's message
+    /// on, is out of his reach too. Returns his list as it would be once he catches up.
     /// </summary>
     private async Task<Group> BehindOnAsync(TestNode lan)
     {
@@ -492,14 +549,31 @@ public sealed class GroupChatTests : IAsyncLifetime
         await lan.Groups.AcceptInvitationAsync(lan.Groups.GetInvitations().Single(), Ct);
         await WaitUntil(() => ((TestNode[])[lan, mai, tuan]).All(n => n.GroupStore.Get(groupId) is { Members.Count: 4 }));
 
-        Offline(tuan);
+        await CutOffFromHostAsync(tuan);
         Apart(mai, tuan);
-        await host.Groups.RenameAsync(groupId, "Build QA 2");
-        await WaitUntil(() => tuan.Groups.IsHostReachable(groupId) == false);
 
         Group caughtUp = tuan.GroupStore.Get(groupId)!;
         await tuan.GroupStore.SaveAsync(caughtUp with { Members = [.. caughtUp.Members.Where(m => m.DeviceId != lan.Id)] }, Ct);
         return caughtUp;
+    }
+
+    /// <summary>
+    /// <paramref name="member"/> no longer reaches Huy, and the answer to the poll it had waiting (sped up by a rename)
+    /// is the last one it gets: its member list stays as it is now.
+    /// </summary>
+    private async Task CutOffFromHostAsync(TestNode member)
+    {
+        Offline(member);
+        await host.Groups.RenameAsync(groupId, host.GroupStore.Get(groupId)!.Name + "+");
+        await WaitUntil(() => member.Groups.IsHostReachable(groupId) == false);
+    }
+
+    /// <summary>Waits until <paramref name="puller"/> has gone through all <paramref name="from"/> holds of the group.</summary>
+    private async Task PulledAllAsync(TestNode puller, TestNode from)
+    {
+        long newest = Query<long>(from, "SELECT MAX(Seq) FROM ChatGroupMessages WHERE GroupId = @groupId;", new { groupId });
+        await WaitUntil(() => Query<long?>(
+            puller, "SELECT After FROM ChatGroupCursors WHERE GroupId = @groupId AND PeerId = @from;", new { groupId, from = from.Id.Value }) == newest);
     }
 
     /// <summary>When <paramref name="peer"/> first answered "not a member" to <paramref name="author"/>'s message.</summary>

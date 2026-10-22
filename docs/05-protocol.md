@@ -137,7 +137,7 @@ Quyền `Any` ở middleware; handler tự quyết theo DeviceId người gọi.
 | Method | Path | Quyền | Mô tả |
 |---|---|---|---|
 | POST | `/groups/{groupId}/join-requests` | Any (rate limit) | `{ name, host, note }` → `202 { status: "pending" }`, hoặc `200 { status: "member" }` nếu đã được mời / đã là thành viên. `429` khi gửi nhiều hoặc bị từ chối 3 lần trong 24 giờ, `503` khi nhóm đủ 100 người |
-| GET | `/groups/{groupId}/state?since=&wait=` | Thành viên / người đang xin | Long-poll tối đa 25 giây → `{ status, version, name, members: [{ deviceId, name, isHost, address, discoveryPort }] }`. `status`: `member` (kèm danh sách, chờ đến khi `version` khác `since`), `pending` (chờ quyết định), `declined`. Người khác, người bị loại, nhóm đã đóng: `404` |
+| GET | `/groups/{groupId}/state?since=&wait=` | Thành viên / người đang xin | Long-poll tối đa 25 giây → `{ status, version, name, members: [{ deviceId, name, isHost, address, discoveryPort }], former: [{ deviceId, leftAt }] }`. `former`: ai rời hay bị loại trong 31 ngày và lúc nào (giờ của Host), để nhận tin chat nhóm chuyển hộ ([16 §3.6](16-group-chat.md)); Host bản cũ không có. `status`: `member` (kèm danh sách, chờ đến khi `version` khác `since`), `pending` (chờ quyết định), `declined`. Người khác, người bị loại, nhóm đã đóng: `404` |
 | POST | `/groups/{groupId}/leave` | Any | Rời nhóm, hoặc rút yêu cầu đang chờ |
 
 ### 4.5 Nhóm — endpoint trên **người được mời**

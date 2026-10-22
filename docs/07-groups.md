@@ -40,7 +40,7 @@ sequenceDiagram
 
 ## 4. Thành viên ↔ Host
 
-- Mỗi nhóm, thành viên **long-poll** `GET /groups/{id}/state?since=<version>&wait=20` tới Host (thay cho SSE, ADR-011). Có thay đổi (vào, rời, bị loại, đổi tên, đóng) thì Host trả ngay; không thì trả sau tối đa 20 giây. Mỗi câu trả lời có **danh sách thành viên kèm địa chỉ** mà Host đang thấy (trống khi offline).
+- Mỗi nhóm, thành viên **long-poll** `GET /groups/{id}/state?since=<version>&wait=20` tới Host (thay cho SSE, ADR-011). Có thay đổi (vào, rời, bị loại, đổi tên, đóng) thì Host trả ngay; không thì trả sau tối đa 20 giây. Mỗi câu trả lời có **danh sách thành viên kèm địa chỉ** mà Host đang thấy (trống khi offline), và những người đã rời hay bị loại trong 31 ngày kèm giờ rời (cho chat nhóm, [16 §3.6](16-group-chat.md)).
 - Thành viên **cache danh sách thành viên** gần nhất (SQLite).
 - Địa chỉ thành viên mà mình chưa nghe trực tiếp được đưa vào **probe** ([03 §4](03-discovery-presence.md)): trả lời thì hiện trong "Xóm" với nhãn *"Cùng nhóm Build QA"*, kể cả khác subnet.
 - **Host offline:** nhóm hiện *"Host offline"*. Thành viên **vẫn gửi file cho nhau được** dựa trên danh sách đã cache. Chỉ là không vào/ra thành viên mới được cho đến khi Host online lại. Không gọi được Host thì thử lại sau 15 giây.

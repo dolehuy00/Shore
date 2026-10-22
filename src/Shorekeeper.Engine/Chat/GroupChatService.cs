@@ -979,7 +979,8 @@ public sealed class GroupChatService(
             foreach (GroupChatMessageBody message in answer.Messages.Where(m => batch.Contains(m.Id)))
             {
                 got.Add(message.Id);
-                if (DeviceId.TryParse(message.AuthorId, out DeviceId author) && author != me && IsValid(groupId, message, author, peer))
+                if (DeviceId.TryParse(message.AuthorId, out DeviceId author) && author != me && IsValid(groupId, message, author, peer)
+                    && WasMemberAt(groupId, author, message.SentAt, message.Id, peer))
                 {
                     await StoreReceivedAsync(groupId, message, author, relayed: true);
                 }
@@ -988,7 +989,7 @@ public sealed class GroupChatService(
             foreach (GroupChatRecalledEntry recall in answer.Recalled.Where(r => batch.Contains(r.Id)))
             {
                 got.Add(recall.Id);
-                if (DeviceId.TryParse(recall.AuthorId, out DeviceId author) && author != me)
+                if (DeviceId.TryParse(recall.AuthorId, out DeviceId author) && author != me && WasMemberAt(groupId, author, recall.SentAt, recall.Id, peer))
                 {
                     await StoreRecalledAsync(groupId, recall, author, peer);
                 }
@@ -1004,6 +1005,21 @@ public sealed class GroupChatService(
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// Passed on by a member, a message counts only if its author was in the group when it was sent: a member now, or
+    /// one who left after (docs/16-group-chat.md §3.6). Signed is not enough: whoever was removed can still sign.
+    /// </summary>
+    private bool WasMemberAt(string groupId, DeviceId author, DateTimeOffset sentAt, string id, DeviceId from)
+    {
+        if (groups.WasMemberAt(groupId, author, sentAt))
+        {
+            return true;
+        }
+
+        logger.LogWarning("Group message {Id} by {Author}, not a member when sent, passed on by {Peer}: dropped", id, author, from);
+        return false;
     }
 
     /// <summary>A message taken back before it reached us: only its note, if the recall is its author's.</summary>

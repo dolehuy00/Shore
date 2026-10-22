@@ -110,7 +110,8 @@ Một cơ chế cho cả hai việc: **thành viên kéo tin còn thiếu từ t
 - **Ai được nhận qua chuyển hộ**:
   - Người chuyển (người gọi) phải đang là thành viên.
   - Tin phải ký đúng.
-  - Tác giả có thể đã rời nhóm: tin cũ của họ vẫn hiện, như ở máy những người có mặt lúc đó.
+  - Tác giả phải ở trong nhóm **lúc gửi**: đang là thành viên, hoặc đã rời / bị loại **sau** `sentAt` của tin. Tin cũ của người đã rời vẫn hiện, như ở máy những người có mặt lúc đó; tin họ ký sau lúc rời thì bỏ (log ghi ai chuyển tới).
+  - Giờ rời do Host ghi (`GroupFormerMembers`, giữ 31 ngày, hơn cửa sổ lịch sử 1 ngày) và gửi kèm danh sách thành viên (`former` trong `GET /groups/{id}/state`, [05](05-protocol.md)). Danh sách đó đến thẳng từ Host qua mTLS nên không cần chữ ký. Người vào lại thì không còn trong `former`. Host bản cũ không gửi `former`: tin chuyển hộ của người đã rời bị bỏ (an toàn, chỉ mất tin cũ của họ).
 - Người chuyển hộ chỉ đưa tin nó đã nhận và kiểm được, nên không tạo được tin giả. Tin trong lịch sử vẫn hiện tên tác giả lúc gửi (lưu kèm tin), kể cả khi người đó đã rời.
 
 ## 4. API
@@ -228,6 +229,7 @@ Test engine của C5b:
 - D mới vào nhóm: kéo được tin trong 30 ngày, kể cả tin của người đã rời; không có tin ngoài cửa sổ.
 - C xóa một tin rồi kéo lại từ người khác thì tin không quay về.
 - Kéo lần hai từ cùng người chỉ lấy phần mới.
+- C bị loại vẫn gửi được cho B (danh sách của B chưa cập nhật): A kéo từ B nhận tin C gửi trước lúc bị loại, bỏ tin sau lúc đó. Người mới vào vẫn nhận tin cũ của người đã rời. Host nhớ giờ rời tới khi người đó vào lại hoặc quá 31 ngày (thêm 2026-10-22).
 
 Thử thật 3 máy (2026-10-21: PC làm Host, OPPO Reno10 Android 13, Samsung A07 Android 16):
 
@@ -239,7 +241,7 @@ Thử thật 3 máy (2026-10-21: PC làm Host, OPPO Reno10 Android 13, Samsung A
 
 | Rủi ro | Cách xử lý |
 |---|---|
-| Một thành viên cùng phe với người đã bị loại, đưa tin mới của người đó vào nhóm (chữ ký vẫn đúng) | Chấp nhận: người đó vốn đã đọc được nhóm và tự chép lại được. Máy nhận ghi log người chuyển. Muốn chặn hẳn thì cần danh sách thành viên có chữ ký của Host, để sau |
+| Một thành viên cùng phe với người đã bị loại, đưa tin mới của người đó vào nhóm (chữ ký vẫn đúng) | Đã chặn (2026-10-22): tin chuyển hộ chỉ nhận khi tác giả ở trong nhóm lúc gửi, theo giờ rời Host ghi (§3.6); máy nhận ghi log người chuyển. Còn hở: người bị loại ký tin lùi giờ về trước lúc bị loại; tin đó nằm ở quá khứ, không đẩy lên đầu hội thoại, và không phân biệt được với một tin thật họ gửi lúc đó mà máy này bị lỡ |
 | Lịch sử chỉ có khi còn ai đó online giữ nó | Cửa sổ 30 ngày / 1.000 tin trên mọi máy thành viên, nên chỉ cần một người online |
 | Kéo lịch sử từ nhiều người tốn băng thông | `index` gọn trước, `fetch` chỉ tin thiếu; kéo lần lượt từng người, không song song |
 | Danh sách thành viên các máy lệch nhau ngay sau khi có người vào hay rời | `403` thử lại 2 phút (§3.1); tin chờ cho người đã rời thì bỏ |

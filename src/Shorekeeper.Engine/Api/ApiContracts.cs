@@ -80,10 +80,14 @@ public sealed record GroupJoinResponse(string Status);
 /// <summary>
 /// Response of <c>GET /api/v1/groups/{groupId}/state?since=&amp;wait=</c>, long-polled by members and by peers waiting to be approved.
 /// Members get the member list; addresses are where the Host sees each member right now (empty when offline).
+/// <see cref="Former"/>: who left in the last 31 days and when, by the Host's clock (none from a Host before it).
 /// </summary>
-public sealed record GroupStateResponse(string Status, long Version, string Name, IReadOnlyList<GroupMemberEntry> Members);
+public sealed record GroupStateResponse(
+    string Status, long Version, string Name, IReadOnlyList<GroupMemberEntry> Members, IReadOnlyList<GroupFormerEntry>? Former = null);
 
 public sealed record GroupMemberEntry(string DeviceId, string Name, bool IsHost, string? Address, int DiscoveryPort);
+
+public sealed record GroupFormerEntry(string DeviceId, DateTimeOffset LeftAt);
 
 public static class GroupStatus
 {
