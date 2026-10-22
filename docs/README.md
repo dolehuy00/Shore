@@ -29,11 +29,11 @@
 | 09 | [Lưu trữ dữ liệu](09-data-storage.md) | Thư mục, schema SQLite |
 | 10 | [UX & luồng màn hình](10-ux.md) | Màn hình, kéo thả, thông báo |
 | 11 | [Triển khai trên Windows](11-windows-deployment.md) | Installer, firewall, GPO, auto-start |
-| 12 | [Lộ trình](12-roadmap.md) | Milestone M0 → M6 |
+| 12 | [Lộ trình](12-roadmap.md) | Milestone M0 → M8 |
 | 13 | [Tích hợp Active Directory](13-active-directory.md) | Tùy chọn, nếu công ty có AD |
-| 14 | [Bản Android](14-android.md) | Kế hoạch: ràng buộc nền tảng, kiến trúc, giai đoạn A0 → A6 |
+| 14 | [Bản Android](14-android.md) | Ràng buộc nền tảng, kiến trúc, giai đoạn A0 → A6 |
 | 15 | [Tin nhắn](15-chat.md) | Hội thoại 1-1, văn bản và tin nhắn thoại, giai đoạn C1 → C5 |
-| 16 | [Chat nhóm](16-group-chat.md) | Kế hoạch C5: hội thoại theo Nhóm, gửi tới từng thành viên, đã xem theo người |
+| 16 | [Chat nhóm](16-group-chat.md) | C5: hội thoại theo Nhóm, gửi tới từng thành viên, đã xem theo người |
 | — | [Quyết định kiến trúc (ADR)](decisions.md) | Nhật ký quyết định & lý do |
 | — | [Câu hỏi mở](open-questions.md) | Những điểm cần chốt thêm |
 

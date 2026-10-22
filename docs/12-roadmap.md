@@ -107,9 +107,12 @@ Kế hoạch ban đầu:
 - **Chuẩn bị port Linux/macOS** ([02](02-architecture.md) §9, ADR-014): Desktop build `net10.0` khi đích không phải Windows; khóa trong thư mục quyền 700; cross-publish `linux-x64` / `osx-arm64` được; Core + Engine test chạy trên WSL Ubuntu.
 - **Chưa làm:** AD trên domain thật (chỉ test bằng dữ liệu giả), mức 3–4 (cần AD CS); chạy giao diện trên Linux/macOS thật, libsecret / Keychain, gói cài Linux/macOS; tìm theo email.
 
-## M7 — Android (kế hoạch)
+## M7 — Android ✅ (A0–A6, 2026-10-16)
 
 Xem [14](14-android.md): A0 spike trên điện thoại thật (mTLS, multicast) → A1 tách Engine khỏi ASP.NET Core → A2 nhận file → A3 gửi từ menu Chia sẻ → A4 chạy nền & thông báo → A5 nhóm → A6 phát hành APK.
+
+- Sau A6 (2026-10-19 → 10-20): nghe / phát âm thanh, quét mã QR để Kết nối, gửi chữ đã chép, tự gửi ảnh, widget màn hình chính.
+- **Chưa làm:** quyền mạng LAN của Android 17; tự chạy lại sau khi khởi động lại máy; giữ service đủ 30 phút liên tục (đã thử ~13 phút); chạy workflow phát hành trên GitHub.
 
 ## M8 — Tin nhắn ✅ (C1–C5, 2026-10-21)
 

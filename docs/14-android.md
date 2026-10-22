@@ -1,6 +1,6 @@
-# 14 — Bản Android (kế hoạch)
+# 14 — Bản Android
 
-> Trạng thái: **kế hoạch**, chưa làm. Các điểm đánh dấu 🔍 phải kiểm chứng ở giai đoạn A0 trước khi viết code thật.
+> Trạng thái: **A0–A6 xong** (2026-10-15 → 10-16). Sau đó thêm nghe / phát âm thanh, quét mã QR, tự gửi ảnh, widget (§3.5–3.8, 2026-10-19 → 10-20) và tin nhắn ([15](15-chat.md), [16](16-group-chat.md)). Các điểm 🔍 là những gì A0 đã kiểm chứng; mục "Chưa làm" / "Chưa kiểm chứng" của từng giai đoạn còn mở.
 
 ## 1. Mục tiêu
 
@@ -225,7 +225,7 @@ APK ký bằng keystore riêng (miễn phí, không cần mua chứng chỉ như
 
 Quyết định (2026-10-16): build bằng script trên máy và bằng workflow khi push tag; một Release gồm cả APK và MSI.
 
-**A6 — kết quả (2026-10-16):**
+**A6 — kết quả (2026-10-16, ✅ xong):**
 
 - **Keystore phát hành** `shorekeeper-release.keystore` (PKCS12, RSA 4096, alias `shorekeeper`, hạn đến 2054), chứng chỉ SHA-256 `96:3A:5C:4A:C4:2A:5E:A0:0C:84:82:27:F1:AC:8C:EB:99:D7:95:03:48:34:D7:03:00:D5:F0:75:11:DE:40:26` (in trong ghi chú Release để người tải kiểm tra). Keystore và mật khẩu **không nằm trong repo** (`.gitignore` chặn `*.keystore`, `*.jks`). **Mất keystore là không cập nhật được app nữa**: Android chỉ cho cài đè bản ký cùng khóa, người dùng phải gỡ app (mất danh tính nếu chưa sao lưu). Giữ một bản sao keystore + mật khẩu ở nơi an toàn ngoài máy build.
 - **Version**: `ApplicationDisplayVersion` lấy `Version` trong `Directory.Build.props`; versionCode = major·10000 + minor·100 + patch (0.1.0 → 100), luôn tăng khi tăng version.
