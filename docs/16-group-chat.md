@@ -213,6 +213,7 @@ Test engine của C5a:
 
 - A gửi, B nhận ngay; C offline rồi online thì A gửi tiếp, đủ và đúng thứ tự.
 - C bị loại: tin chờ cho C bị bỏ, và C nhắn vào thì nhận `403`.
+- D vừa vào nhóm mà danh sách của C chưa có D: C trả `not_member`, tin của D vẫn chờ gửi cho C; danh sách của C cập nhật thì D gửi tiếp được. Bị từ chối quá 2 phút thì thành `failed`; Gửi lại khi danh sách đã khớp thì tới (thêm 2026-10-22).
 - Người ngoài nhóm, kể cả liên hệ Trusted, gửi vào nhận `403`. Nhóm đã đóng thì cũng `403`.
 - Tin có chữ ký sai, hay `authorKey` không khớp `authorId`, nhận `400`.
 - Máy không có cap `chat-group` không được gửi, và có trạng thái `old`.

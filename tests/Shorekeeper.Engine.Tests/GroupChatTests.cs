@@ -232,6 +232,51 @@ public sealed class GroupChatTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_member_whose_list_is_behind_gets_it_once_it_catches_up()
+    {
+        var lanTime = new OffsetTime();
+        await using TestNode lan = await TestNode.StartAsync("Lan", services: s => s.AddSingleton<TimeProvider>(lanTime));
+        Group caughtUp = await BehindOnAsync(lan);
+
+        GroupChatMessage sent = await lan.GroupChat.SendTextAsync(groupId, "Chào cả nhóm", Ct);
+
+        await WaitUntil(() => RefusedAt(lan, sent.Id, tuan) is not null);
+        Assert.Equal(GroupDeliveryState.Pending, Delivery(lan, sent.Id, tuan));
+        Assert.Empty(Messages(tuan));
+
+        // What the next answer from Huy brings; then Lan tries again, as on its 30-second round.
+        await tuan.GroupStore.SaveAsync(caughtUp, Ct);
+        Reappear(lan, tuan);
+
+        await WaitUntil(() => Delivery(lan, sent.Id, tuan) == GroupDeliveryState.Delivered);
+        Assert.Equal("Chào cả nhóm", Messages(tuan).Single().Text);
+    }
+
+    [Fact]
+    public async Task A_member_refusing_for_two_minutes_fails_until_sent_again()
+    {
+        var lanTime = new OffsetTime();
+        await using TestNode lan = await TestNode.StartAsync("Lan", services: s => s.AddSingleton<TimeProvider>(lanTime));
+        Group caughtUp = await BehindOnAsync(lan);
+        GroupChatMessage sent = await lan.GroupChat.SendTextAsync(groupId, "Chào cả nhóm", Ct);
+        await WaitUntil(() => RefusedAt(lan, sent.Id, tuan) is not null);
+
+        // Refused again once the two minutes are over.
+        lanTime.Offset = GroupChatService.NotMemberGrace + TimeSpan.FromSeconds(1);
+        Reappear(lan, tuan);
+        await WaitUntil(() => Delivery(lan, sent.Id, tuan) == GroupDeliveryState.Failed);
+        Assert.Equal(GroupDeliveryState.Delivered, Delivery(lan, sent.Id, mai));
+
+        // "Gửi lại" once the lists agree.
+        await tuan.GroupStore.SaveAsync(caughtUp, Ct);
+        await lan.GroupChat.RetryAsync(groupId, sent.Id, tuan.Id, Ct);
+
+        await WaitUntil(() => Delivery(lan, sent.Id, tuan) == GroupDeliveryState.Delivered);
+        Assert.Equal("Chào cả nhóm", Messages(tuan).Single().Text);
+        Assert.Null(RefusedAt(lan, sent.Id, tuan));
+    }
+
+    [Fact]
     public async Task A_member_passes_on_what_the_author_sent_while_another_was_away()
     {
         var received = new List<GroupChatMessage>();
@@ -429,6 +474,43 @@ public sealed class GroupChatTests : IAsyncLifetime
         node.Directory.Remove(other.Id);
         using SqliteConnection connection = node.Get<SqliteDatabase>().OpenAsync(Ct).Result;
         connection.Execute("DELETE FROM PeerEndpoints WHERE DeviceId = @id;", new { id = other.Id.Value });
+    }
+
+    /// <summary>
+    /// Lan joins, but Tuấn's list stays behind: he no longer reaches Huy, and the answer to the poll he had waiting
+    /// (sped up by a rename) is the last one he gets. Mai, who would pass Lan's message on, is out of his reach too.
+    /// Returns his list as it would be once he catches up.
+    /// </summary>
+    private async Task<Group> BehindOnAsync(TestNode lan)
+    {
+        foreach (TestNode other in (TestNode[])[host, mai, tuan])
+        {
+            Together(lan, other);
+        }
+
+        await host.Groups.InviteAsync(groupId, lan.Id, lan.Id.ShortForm, "PC", Ct);
+        await lan.Groups.AcceptInvitationAsync(lan.Groups.GetInvitations().Single(), Ct);
+        await WaitUntil(() => ((TestNode[])[lan, mai, tuan]).All(n => n.GroupStore.Get(groupId) is { Members.Count: 4 }));
+
+        Offline(tuan);
+        Apart(mai, tuan);
+        await host.Groups.RenameAsync(groupId, "Build QA 2");
+        await WaitUntil(() => tuan.Groups.IsHostReachable(groupId) == false);
+
+        Group caughtUp = tuan.GroupStore.Get(groupId)!;
+        await tuan.GroupStore.SaveAsync(caughtUp with { Members = [.. caughtUp.Members.Where(m => m.DeviceId != lan.Id)] }, Ct);
+        return caughtUp;
+    }
+
+    /// <summary>When <paramref name="peer"/> first answered "not a member" to <paramref name="author"/>'s message.</summary>
+    private long? RefusedAt(TestNode author, string id, TestNode peer) => Query<long?>(
+        author, "SELECT RefusedAt FROM ChatGroupDeliveries WHERE GroupId = @groupId AND Id = @id AND PeerId = @peer;", new { groupId, id, peer = peer.Id.Value });
+
+    /// <summary><paramref name="node"/> hears <paramref name="other"/> come online, which sends what waits for it.</summary>
+    private static void Reappear(TestNode node, TestNode other)
+    {
+        node.Directory.Remove(other.Id);
+        node.Sees(other);
     }
 
     private static T Query<T>(TestNode node, string sql, object parameters)
