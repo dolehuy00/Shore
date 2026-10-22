@@ -6,7 +6,7 @@
 > - thành viên **chuyển tin hộ** khi người gửi offline;
 > - **chỉ người gửi** thấy ai đã xem tin của mình;
 > - **tắt thông báo** được theo từng nhóm;
-> - **người mới vào thấy tin cũ**.
+> - **người mới vào thấy tin cũ** của những người còn trong nhóm (2026-10-22: không còn tin của người đã rời, §3.6).
 
 ## 1. Mục tiêu
 
@@ -18,7 +18,7 @@ Thành viên một **Nhóm** nhắn cho cả nhóm văn bản và tin nhắn tho
 | Văn bản, thoại tối đa 5 phút, như 1-1 | @nhắc tên, cảm xúc, trả lời trích dẫn, sửa tin |
 | Người gửi offline thì thành viên khác chuyển hộ; tin ký bằng khóa của người gửi | Chuyển hộ file (file chỉ tải từ người gửi, như hiện nay) |
 | Đã nhận / đã xem theo từng người, chỉ người gửi thấy | Đồng bộ lịch sử giữa các máy của cùng một người |
-| Người mới vào thấy tin 30 ngày gần nhất | |
+| Người mới vào thấy tin 30 ngày gần nhất của người còn trong nhóm | Chuyển hộ tin của người đã rời hay bị loại |
 | Thu hồi tin và file của mình trong 5 phút; xóa trên máy mình | |
 | Tắt thông báo theo nhóm | |
 | File gửi cho nhóm hiện thành thẻ trong hội thoại nhóm | |
@@ -110,9 +110,14 @@ Một cơ chế cho cả hai việc: **thành viên kéo tin còn thiếu từ t
 - **Ai được nhận qua chuyển hộ**:
   - Người chuyển (người gọi) phải đang là thành viên.
   - Tin phải ký đúng.
-  - Tác giả phải ở trong nhóm **lúc gửi**: đang là thành viên, hoặc đã rời / bị loại **sau** `sentAt` của tin. Tin cũ của người đã rời vẫn hiện, như ở máy những người có mặt lúc đó; tin họ ký sau lúc rời thì bỏ (log ghi ai chuyển tới).
-  - Giờ rời do Host ghi (`GroupFormerMembers`, giữ 31 ngày, hơn cửa sổ lịch sử 1 ngày) và gửi kèm danh sách thành viên (`former` trong `GET /groups/{id}/state`, [05](05-protocol.md)). Danh sách đó đến thẳng từ Host qua mTLS nên không cần chữ ký. Người vào lại thì không còn trong `former`. Host bản cũ không gửi `former`: tin chuyển hộ của người đã rời bị bỏ (an toàn, chỉ mất tin cũ của họ).
-- Người chuyển hộ chỉ đưa tin nó đã nhận và kiểm được, nên không tạo được tin giả. Tin trong lịch sử vẫn hiện tên tác giả lúc gửi (lưu kèm tin), kể cả khi người đó đã rời.
+  - Tác giả phải **đang** là thành viên, theo danh sách của máy nhận. Lệnh thu hồi cũng vậy. Không thì bỏ, và log ghi ai chuyển tới.
+- Vì sao không nhận tin của người đã rời (bỏ từ 2026-10-22): `sentAt` do tác giả tự đặt, nên người bị loại vẫn ký được tin mới rồi lùi giờ về trước lúc bị loại, và một thành viên cùng phe chuyển nó vào nhóm. Không ai làm chứng lúc tin được ký thì không phân biệt được tin đó với một tin thật bị lỡ. Cái giá:
+  - người mới vào không thấy tin cũ của người đã rời;
+  - tin của một người mà máy mình bị lỡ, nếu người đó rời trước khi mình kéo được, thì không tới nữa.
+
+  Máy đã có tin của họ từ trước thì vẫn giữ và hiện như cũ.
+- Người chuyển hộ chỉ đưa tin nó đã nhận và kiểm được, nên không tạo được tin giả. Tin trong lịch sử hiện tên tác giả lúc gửi (lưu kèm tin).
+- Danh sách của máy nhận chưa biết ai vừa bị loại (chưa gọi được Host) thì vẫn nhận tin của người đó, như với tin gửi thẳng, tới khi danh sách cập nhật.
 
 ## 4. API
 
@@ -226,10 +231,10 @@ Test engine của C5b:
 - A gửi khi C offline rồi A tắt; C online thì kéo tin đó từ B.
 - Chữ ký vẫn đúng sau khi qua tay B. B sửa chữ trong tin thì C bỏ tin.
 - A thu hồi khi C offline: C kéo từ B thấy dòng "đã thu hồi", không bao giờ thấy nội dung.
-- D mới vào nhóm: kéo được tin trong 30 ngày, kể cả tin của người đã rời; không có tin ngoài cửa sổ.
+- D mới vào nhóm: kéo được tin trong 30 ngày của người còn trong nhóm, không có tin của người đã rời (từ 2026-10-22), không có tin ngoài cửa sổ.
+- C bị loại vẫn gửi được cho B (danh sách của B chưa cập nhật): A kéo từ B không nhận tin nào của C, kể cả tin lùi giờ về trước lúc bị loại (thêm 2026-10-22).
 - C xóa một tin rồi kéo lại từ người khác thì tin không quay về.
 - Kéo lần hai từ cùng người chỉ lấy phần mới.
-- C bị loại vẫn gửi được cho B (danh sách của B chưa cập nhật): A kéo từ B nhận tin C gửi trước lúc bị loại, bỏ tin sau lúc đó. Người mới vào vẫn nhận tin cũ của người đã rời. Host nhớ giờ rời tới khi người đó vào lại hoặc quá 31 ngày (thêm 2026-10-22).
 
 Thử thật 3 máy (2026-10-21: PC làm Host, OPPO Reno10 Android 13, Samsung A07 Android 16):
 
@@ -241,7 +246,7 @@ Thử thật 3 máy (2026-10-21: PC làm Host, OPPO Reno10 Android 13, Samsung A
 
 | Rủi ro | Cách xử lý |
 |---|---|
-| Một thành viên cùng phe với người đã bị loại, đưa tin mới của người đó vào nhóm (chữ ký vẫn đúng) | Đã chặn (2026-10-22): tin chuyển hộ chỉ nhận khi tác giả ở trong nhóm lúc gửi, theo giờ rời Host ghi (§3.6); máy nhận ghi log người chuyển. Còn hở: người bị loại ký tin lùi giờ về trước lúc bị loại; tin đó nằm ở quá khứ, không đẩy lên đầu hội thoại, và không phân biệt được với một tin thật họ gửi lúc đó mà máy này bị lỡ |
+| Một thành viên cùng phe với người đã bị loại, đưa tin mới của người đó vào nhóm (chữ ký vẫn đúng, kể cả lùi giờ) | Đã chặn (2026-10-22): tin chuyển hộ chỉ nhận khi tác giả đang là thành viên (§3.6); máy nhận ghi log người chuyển. Đổi lại, không còn chuyển hộ tin của người đã rời. Thành viên đó vẫn tự chép lại chữ được, nhưng đứng tên chính mình |
 | Lịch sử chỉ có khi còn ai đó online giữ nó | Cửa sổ 30 ngày / 1.000 tin trên mọi máy thành viên, nên chỉ cần một người online |
 | Kéo lịch sử từ nhiều người tốn băng thông | `index` gọn trước, `fetch` chỉ tin thiếu; kéo lần lượt từng người, không song song |
 | Danh sách thành viên các máy lệch nhau ngay sau khi có người vào hay rời | `403` thử lại 2 phút (§3.1); tin chờ cho người đã rời thì bỏ |
@@ -258,4 +263,4 @@ Thử thật 3 máy (2026-10-21: PC làm Host, OPPO Reno10 Android 13, Samsung A
 | D1 | Tác giả offline thì có ai chuyển tin hộ không? | **Có**: thành viên kéo tin thiếu từ nhau (§3.6). Mỗi tin ký bằng khóa thiết bị của tác giả (§3.5), nên người chuyển không giả hay sửa được |
 | D2 | Ai thấy ai đã xem? | **Chỉ tác giả**, như 1-1; receipt gửi thẳng cho tác giả, không chuyển hộ |
 | D3 | Tắt thông báo theo từng nhóm? | **Có**, trong ⋮ của hội thoại nhóm |
-| D4 | Người mới vào thấy tin cũ? | **Có**: tin 30 ngày / 1.000 tin gần nhất, kéo từ thành viên đang online (§3.6) |
+| D4 | Người mới vào thấy tin cũ? | **Có**: tin 30 ngày / 1.000 tin gần nhất, kéo từ thành viên đang online (§3.6). Từ 2026-10-22 chỉ tin của người còn trong nhóm, để chặn tin giả của người bị loại |

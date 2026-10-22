@@ -55,7 +55,6 @@ public sealed class GroupService(
     private const int RequestsPerWindow = 5;
     private const int MaxPendingPerGroup = 50;
     private const int DeclinesBeforeLock = 3;
-    private const int MaxFormer = 1000; // taken from the Host's answer, however many it lists
     private static readonly TimeSpan RequestWindow = TimeSpan.FromMinutes(10);
     private static readonly TimeSpan DeclineLock = TimeSpan.FromHours(24);
     private static readonly TimeSpan PollWait = TimeSpan.FromSeconds(20);
@@ -522,21 +521,11 @@ public sealed class GroupService(
             }
         }
 
-        var former = new List<FormerMember>();
-        foreach (GroupFormerEntry entry in (state.Former ?? []).Take(MaxFormer))
-        {
-            if (DeviceId.TryParse(entry.DeviceId, out DeviceId id) && !members.Any(m => m.DeviceId == id))
-            {
-                former.Add(new FormerMember(id, entry.LeftAt));
-            }
-        }
-
         string name = ValidName(state.Name, fallback: true);
         Group current = store.Get(group.Id) ?? group;
-        if (current.Role != GroupRole.Member || current.Name != name || !current.Members.SequenceEqual(members)
-            || !(current.Former ?? []).SequenceEqual(former))
+        if (current.Role != GroupRole.Member || current.Name != name || !current.Members.SequenceEqual(members))
         {
-            await store.SaveAsync(current with { Name = name, Role = GroupRole.Member, Members = members, Former = former });
+            await store.SaveAsync(current with { Name = name, Role = GroupRole.Member, Members = members });
             if (current.Role == GroupRole.Pending)
             {
                 Notice?.Invoke(this, new GroupNotice(name, L.F("Bạn đã vào nhóm \"{0}\".", name)));
@@ -589,8 +578,7 @@ public sealed class GroupService(
                 .. group.Members.Select(m => online.TryGetValue(m.DeviceId, out PeerInfo? peer)
                     ? new GroupMemberEntry(m.DeviceId.Value, m.Name, m.IsHost, peer.Address.ToString(), peer.DiscoveryPort)
                     : new GroupMemberEntry(m.DeviceId.Value, m.Name, m.IsHost, null, 0)),
-            ],
-            [.. (group.Former ?? []).Select(f => new GroupFormerEntry(f.DeviceId.Value, f.LeftAt))]);
+            ]);
         }
 
         return store.GetRequest(groupId, caller)?.State switch

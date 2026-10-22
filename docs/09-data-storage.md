@@ -148,12 +148,6 @@ CREATE TABLE GroupMembers (
   PRIMARY KEY (GroupId, DeviceId)
 );
 
--- 0013: ai rời / bị loại trong 31 ngày, giờ của Host. Host ghi; thành viên chép từ Host (docs/16-group-chat.md §3.6)
-CREATE TABLE GroupFormerMembers (
-  GroupId TEXT NOT NULL, DeviceId TEXT NOT NULL, LeftAt INTEGER NOT NULL,
-  PRIMARY KEY (GroupId, DeviceId)
-);
-
 CREATE TABLE GroupJoinRequests (       -- chỉ ở Host
   GroupId TEXT NOT NULL, DeviceId TEXT NOT NULL, Note TEXT,
   State TEXT NOT NULL,                  -- pending | invited (Host đã mời = duyệt trước) | declined

@@ -277,60 +277,43 @@ public sealed class GroupChatTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Who_left_is_remembered_with_the_time_until_back_or_a_month_has_passed()
-    {
-        await host.Groups.RemoveMemberAsync(groupId, tuan.Id);
-
-        FormerMember gone = Assert.Single(host.GroupStore.Get(groupId)!.Former!);
-        Assert.Equal(tuan.Id, gone.DeviceId);
-        Assert.Equal(1, Query<long>(host, "SELECT COUNT(*) FROM GroupFormerMembers WHERE GroupId = @groupId;", new { groupId }));
-        await WaitUntil(() => mai.GroupStore.Get(groupId) is { Former: [var copy] } && copy == gone);
-
-        await host.Groups.InviteAsync(groupId, tuan.Id, tuan.Id.ShortForm, "PC", Ct);
-        await tuan.Groups.AcceptInvitationAsync(tuan.Groups.GetInvitations().Single(), Ct);
-        await WaitUntil(() => host.GroupStore.Get(groupId) is { Members.Count: 3, Former: [] });
-
-        await host.Groups.RemoveMemberAsync(groupId, tuan.Id);
-        hostTime.Offset = GroupStore.FormerKept;
-        await host.Groups.RenameAsync(groupId, "Build QA 2");
-        Assert.Empty(host.GroupStore.Get(groupId)!.Former!);
-    }
-
-    [Fact]
-    public async Task A_removed_member_cannot_slip_new_messages_in_through_a_member()
+    public async Task Nothing_of_a_removed_member_is_passed_on_even_dated_before_the_removal()
     {
         // Mai keeps the list from before, so she takes Tuấn's messages as one on his side would.
         await CutOffFromHostAsync(mai);
-        Assert.Equal(HttpStatusCode.NoContent, (await PostAsync(tuan, mai, $"chat/groups/{groupId}/messages", Signed(tuan, "trước khi bị loại"))).Status);
+        DateTimeOffset before = DateTimeOffset.UtcNow;
         await host.Groups.RemoveMemberAsync(groupId, tuan.Id);
-        Assert.Equal(HttpStatusCode.NoContent, (await PostAsync(tuan, mai, $"chat/groups/{groupId}/messages", Signed(tuan, "sau khi bị loại"))).Status);
+        foreach (GroupChatMessageBody body in (GroupChatMessageBody[])[Signed(tuan, "sau khi bị loại"), Signed(tuan, "lùi giờ", before - TimeSpan.FromMinutes(1))])
+        {
+            Assert.Equal(HttpStatusCode.NoContent, (await PostAsync(tuan, mai, $"chat/groups/{groupId}/messages", body)).Status);
+        }
+
         Assert.Equal(2, Messages(mai).Count);
 
         // Seeing Mai again, Huy pulls from her.
         Together(host, mai);
         await PulledAllAsync(host, mai);
 
-        Assert.Equal("trước khi bị loại", Assert.Single(Messages(host)).Text);
+        Assert.Empty(Messages(host));
     }
 
     [Fact]
-    public async Task A_new_member_still_gets_what_someone_who_left_said_before()
+    public async Task A_new_member_gets_what_the_members_said_but_not_who_left()
     {
+        await mai.GroupChat.SendTextAsync(groupId, "Mai đây", Ct);
         await tuan.GroupChat.SendTextAsync(groupId, "Tuấn đây", Ct);
-        await WaitUntil(() => Messages(host).Count == 1 && Messages(mai).Count == 1);
+        await WaitUntil(() => Messages(host).Count == 2);
         await tuan.Groups.LeaveAsync(groupId);
-        await WaitUntil(() => mai.GroupStore.Get(groupId) is { Members.Count: 2, Former.Count: 1 });
+        await WaitUntil(() => host.GroupStore.Get(groupId) is { Members.Count: 2 });
 
         await using TestNode lan = await TestNode.StartAsync("Lan");
         Together(lan, host);
-        Together(lan, mai);
         await host.Groups.InviteAsync(groupId, lan.Id, lan.Id.ShortForm, "PC", Ct);
         await lan.Groups.AcceptInvitationAsync(lan.Groups.GetInvitations().Single(), Ct);
-        await WaitUntil(() => lan.GroupStore.Get(groupId) is { Former.Count: 1 });
-        await lan.GroupChat.PullAllAsync(Ct);
+        await WaitUntil(() => lan.GroupStore.Get(groupId) is { Members.Count: 3 });
+        await PulledAllAsync(lan, host);
 
-        GroupChatMessage got = Assert.Single(Messages(lan));
-        Assert.Equal((tuan.Id, "Tuấn đây"), (got.Author, got.Text));
+        Assert.Equal("Mai đây", Assert.Single(Messages(lan)).Text);
     }
 
     [Fact]

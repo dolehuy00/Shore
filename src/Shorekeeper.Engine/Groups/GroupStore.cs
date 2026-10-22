@@ -22,16 +22,9 @@ public enum GroupRole
 
 public sealed record GroupMember(DeviceId DeviceId, string Name, bool IsHost);
 
-/// <summary>Someone who left or was removed, and when, by the Host's clock.</summary>
-public sealed record FormerMember(DeviceId DeviceId, DateTimeOffset LeftAt);
-
-/// <param name="Former">Who left in the last <see cref="GroupStore.FormerKept"/>; kept by the Host, copied to members.</param>
-public sealed record Group(string Id, string Name, DeviceId HostId, GroupRole Role, IReadOnlyList<GroupMember> Members, IReadOnlyList<FormerMember>? Former = null)
+public sealed record Group(string Id, string Name, DeviceId HostId, GroupRole Role, IReadOnlyList<GroupMember> Members)
 {
     public bool Contains(DeviceId id) => Members.Any(m => m.DeviceId == id);
-
-    /// <summary>A member now, or one who left after <paramref name="sentAt"/>.</summary>
-    public bool WasMemberAt(DeviceId id, DateTimeOffset sentAt) => Contains(id) || (Former ?? []).Any(f => f.DeviceId == id && sentAt < f.LeftAt);
 }
 
 public enum JoinRequestState
@@ -54,9 +47,6 @@ public sealed record JoinRequest(
 /// </summary>
 public sealed class GroupStore(SqliteDatabase database, TrustStore trust, SettingsService settings, TimeProvider timeProvider)
 {
-    /// <summary>A day past the history members pass on to each other (docs/16-group-chat.md §3.6).</summary>
-    public static readonly TimeSpan FormerKept = TimeSpan.FromDays(31);
-
     private readonly Lock gate = new();
     private Dictionary<string, Group> groups = [];
     private Dictionary<(string GroupId, DeviceId PeerId), JoinRequest> requests = [];
@@ -72,15 +62,10 @@ public sealed class GroupStore(SqliteDatabase database, TrustStore trust, Settin
             "SELECT GroupId, DeviceId, DisplayName, IsHost FROM GroupMembers ORDER BY JoinedAt;")).ToLookup(m => m.GroupId);
         var requestRows = await connection.QueryAsync<RequestRow>(
             "SELECT GroupId, DeviceId, DisplayName, HostName, Note, State, DeclinedCount, RequestedAt FROM GroupJoinRequests;");
-        var formerRows = (await connection.QueryAsync<(string GroupId, string DeviceId, long LeftAt)>(
-            "SELECT GroupId, DeviceId, LeftAt FROM GroupFormerMembers;")).ToLookup(f => f.GroupId);
 
         lock (gate)
         {
-            groups = groupRows.Select(g => g.ToGroup(memberRows[g.GroupId]) with
-            {
-                Former = [.. formerRows[g.GroupId].Select(f => new FormerMember(DeviceId.Parse(f.DeviceId), DateTimeOffset.FromUnixTimeMilliseconds(f.LeftAt)))],
-            }).ToDictionary(g => g.Id);
+            groups = groupRows.Select(g => g.ToGroup(memberRows[g.GroupId])).ToDictionary(g => g.Id);
             requests = requestRows.Select(r => r.ToRequest()).ToDictionary(r => (r.GroupId, r.PeerId));
         }
     }
@@ -98,19 +83,6 @@ public sealed class GroupStore(SqliteDatabase database, TrustStore trust, Settin
         lock (gate)
         {
             return groups.GetValueOrDefault(groupId);
-        }
-    }
-
-    /// <summary>
-    /// We are in <paramref name="groupId"/>, and <paramref name="author"/> is a member or left after
-    /// <paramref name="sentAt"/>: a message it signed then belongs to the group, whoever passes it on.
-    /// </summary>
-    public bool WasMemberAt(string groupId, DeviceId author, DateTimeOffset sentAt)
-    {
-        lock (gate)
-        {
-            return settings.Current.GroupsEnabled
-                && groups.TryGetValue(groupId, out Group? group) && group.Role != GroupRole.Pending && group.WasMemberAt(author, sentAt);
         }
     }
 
@@ -157,29 +129,10 @@ public sealed class GroupStore(SqliteDatabase database, TrustStore trust, Settin
 
     // ───────────── Changes ─────────────
 
-    /// <summary>
-    /// Adds the group or replaces it (name, role, members), e.g. with a fresh copy from the Host. In a group we host,
-    /// whoever is no longer among the members becomes a former member from now, and one who is back is no longer.
-    /// </summary>
+    /// <summary>Adds the group or replaces it (name, role, members), e.g. with a fresh copy from the Host.</summary>
     public async Task SaveAsync(Group group, CancellationToken cancellationToken = default)
     {
         long now = timeProvider.GetUtcNow().ToUnixTimeMilliseconds();
-        // To the millisecond, as stored and as members get it: the copies compare equal.
-        DateTimeOffset at = DateTimeOffset.FromUnixTimeMilliseconds(now);
-        if (group.Role == GroupRole.Host)
-        {
-            Group? before = Get(group.Id);
-            group = group with
-            {
-                Former =
-                [
-                    .. (before?.Former ?? []).Where(f => !group.Contains(f.DeviceId)),
-                    .. (before?.Members ?? []).Where(m => !group.Contains(m.DeviceId)).Select(m => new FormerMember(m.DeviceId, at)),
-                ],
-            };
-        }
-
-        group = group with { Former = [.. (group.Former ?? []).Where(f => at - f.LeftAt < FormerKept)] };
         await using SqliteConnection connection = await database.OpenAsync(cancellationToken);
         await using SqliteTransaction transaction = connection.BeginTransaction();
         await connection.ExecuteAsync(
@@ -196,15 +149,6 @@ public sealed class GroupStore(SqliteDatabase database, TrustStore trust, Settin
             await connection.ExecuteAsync(
                 "INSERT INTO GroupMembers (GroupId, DeviceId, DisplayName, IsHost, JoinedAt) VALUES (@GroupId, @DeviceId, @Name, @IsHost, @now);",
                 new { GroupId = group.Id, DeviceId = member.DeviceId.Value, member.Name, member.IsHost, now },
-                transaction);
-        }
-
-        await connection.ExecuteAsync("DELETE FROM GroupFormerMembers WHERE GroupId = @Id;", new { group.Id }, transaction);
-        foreach (FormerMember former in group.Former!)
-        {
-            await connection.ExecuteAsync(
-                "INSERT INTO GroupFormerMembers (GroupId, DeviceId, LeftAt) VALUES (@GroupId, @DeviceId, @LeftAt);",
-                new { GroupId = group.Id, DeviceId = former.DeviceId.Value, LeftAt = former.LeftAt.ToUnixTimeMilliseconds() },
                 transaction);
         }
 
@@ -225,7 +169,6 @@ public sealed class GroupStore(SqliteDatabase database, TrustStore trust, Settin
             """
             DELETE FROM GroupJoinRequests WHERE GroupId = @groupId;
             DELETE FROM GroupMembers WHERE GroupId = @groupId;
-            DELETE FROM GroupFormerMembers WHERE GroupId = @groupId;
             DELETE FROM Groups WHERE GroupId = @groupId;
             """,
             new { groupId });
