@@ -72,7 +72,7 @@ public sealed class KestrelApiServer(
 
         WebApplication webApp = builder.Build();
         PeerApi api = PeerApiEndpoints.Create(services);
-        webApp.Run(context => HandleAsync(api, context));
+        webApp.Run(context => HandleAsync(api, context, webApp.Lifetime.ApplicationStopping));
 
         try
         {
@@ -88,22 +88,36 @@ public sealed class KestrelApiServer(
         return new Uri(webApp.Urls.First()).Port;
     }
 
-    private static async Task HandleAsync(PeerApi api, HttpContext context)
+    /// <param name="stopping">
+    /// Stopping waits for the requests in flight: long polls (a member's group state, up to 20 s) end here instead,
+    /// as with <see cref="MiniHttpServer"/>.
+    /// </param>
+    private static async Task HandleAsync(PeerApi api, HttpContext context, CancellationToken stopping)
     {
         string basePath = PeerClient.ApiBasePath.TrimEnd('/');
         string path = context.Request.Path.Value ?? "";
-        PeerResponse response = context.Connection.ClientCertificate is not { } certificate
-            ? PeerResponse.Problem(HttpStatusCode.Unauthorized, ApiErrorCodes.NotTrusted)
-            : await api.HandleAsync(new PeerRequest
-            {
-                Method = context.Request.Method,
-                Path = path.StartsWith(basePath + "/", StringComparison.OrdinalIgnoreCase) ? path[basePath.Length..] : "",
-                Query = context.Request.Query.ToDictionary(q => q.Key, q => q.Value.ToString(), StringComparer.OrdinalIgnoreCase),
-                Caller = DeviceIdentity.FromCertificate(certificate),
-                RemoteAddress = context.Connection.RemoteIpAddress ?? IPAddress.None,
-                Body = context.Request.Body,
-                Aborted = context.RequestAborted,
-            });
+        using var aborted = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted, stopping);
+        PeerResponse response;
+        try
+        {
+            response = context.Connection.ClientCertificate is not { } certificate
+                ? PeerResponse.Problem(HttpStatusCode.Unauthorized, ApiErrorCodes.NotTrusted)
+                : await api.HandleAsync(new PeerRequest
+                {
+                    Method = context.Request.Method,
+                    Path = path.StartsWith(basePath + "/", StringComparison.OrdinalIgnoreCase) ? path[basePath.Length..] : "",
+                    Query = context.Request.Query.ToDictionary(q => q.Key, q => q.Value.ToString(), StringComparer.OrdinalIgnoreCase),
+                    Caller = DeviceIdentity.FromCertificate(certificate),
+                    RemoteAddress = context.Connection.RemoteIpAddress ?? IPAddress.None,
+                    Body = context.Request.Body,
+                    Aborted = aborted.Token,
+                });
+        }
+        catch (OperationCanceledException) when (stopping.IsCancellationRequested)
+        {
+            context.Abort();
+            return;
+        }
 
         IResult result = response switch
         {
