@@ -136,6 +136,7 @@ Tùy chọn từng nhóm, Host bật khi tạo nhóm hoặc ở **Sửa nhóm…
   - Lệnh thu hồi và "đã xem" vẫn nhận: chúng chỉ bớt đi, và tác giả bỏ chúng ngay khi máy kia trả lời.
 - Đổi lại, Host tắt thì cả nhóm không nhắn được. Nhóm thường (mặc định) vẫn nhắn khi Host offline.
 - File gửi trong nhóm không theo cờ này.
+- Thử thật (2026-10-22, PC làm Host, OPPO Reno10 Android 13): hộp Tạo nhóm và Sửa nhóm… có ô đánh dấu, Sửa nhóm… nhớ trạng thái; bật cho "Nhóm thử" thì danh sách ký có `hostOnly`. PC bật: điện thoại nhắn được, PC nhận. Tắt app PC: điện thoại khóa ô soạn với dòng "Host đang offline…". Bật lại PC: điện thoại mở khóa trong khoảng 11 giây. Tắt cờ rồi tắt PC: ô soạn vẫn mở.
 
 ## 4. API
 
