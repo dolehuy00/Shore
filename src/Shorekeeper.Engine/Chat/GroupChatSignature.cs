@@ -114,8 +114,10 @@ internal static class GroupChatSignature
         {
             Write(stream, removed.DeviceId);
             Write(stream, removed.At.ToUnixTimeMilliseconds());
+            Write(stream, removed.BackAt?.ToUnixTimeMilliseconds() ?? 0L);
         }
 
+        Write(stream, roster.HostOnly ? 1L : 0L);
         return stream.ToArray();
     }
 

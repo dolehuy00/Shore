@@ -1267,7 +1267,7 @@
                             <MenuFlyout>
                               <MenuItem Header="{l:T 'Gửi thư mục cho nhóm…'}" Command="{Binding SendFolderCommand}" IsVisible="{Binding CanDrop}" />
                               <MenuItem Header="{l:T 'Gửi văn bản cho nhóm…'}" Command="{Binding SendTextCommand}" IsVisible="{Binding CanDrop}" />
-                              <MenuItem Header="{l:T 'Đổi tên nhóm…'}" Command="{Binding RenameCommand}" IsVisible="{Binding IsHost}" />
+                              <MenuItem Header="{l:T 'Sửa nhóm…'}" Command="{Binding EditCommand}" IsVisible="{Binding IsHost}" />
                               <MenuItem Header="{l:T 'Đóng nhóm…'}" Command="{Binding CloseCommand}" IsVisible="{Binding IsHost}" />
                               <MenuItem Header="{Binding LeaveText}" Command="{Binding LeaveCommand}" IsVisible="{Binding CanLeave}" />
                             </MenuFlyout>

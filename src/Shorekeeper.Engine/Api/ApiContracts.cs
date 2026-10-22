@@ -92,6 +92,7 @@ public sealed record GroupMemberEntry(string DeviceId, string Name, bool IsHost,
 /// The member list signed by the Host (docs/07-groups.md §4.1), also the body of <c>POST /api/v1/groups/{groupId}/roster</c>:
 /// members pass it on, so a removal reaches those who cannot reach the Host. The higher <see cref="Version"/> wins.
 /// <see cref="Removed"/>: who left or was removed in the last 31 days, and when, by the Host's clock.
+/// <see cref="HostOnly"/>: group messages only while members hear from the Host ("Chỉ nhắn khi Host online").
 /// </summary>
 public sealed record GroupRoster(
     string GroupId,
@@ -101,11 +102,13 @@ public sealed record GroupRoster(
     byte[] HostKey,
     IReadOnlyList<GroupRosterMember> Members,
     IReadOnlyList<GroupRosterRemoved> Removed,
-    byte[] Sig);
+    byte[] Sig,
+    bool HostOnly = false);
 
 public sealed record GroupRosterMember(string DeviceId, string Name, bool IsHost);
 
-public sealed record GroupRosterRemoved(string DeviceId, DateTimeOffset At);
+/// <summary>Out of the group from <see cref="At"/>, until <see cref="BackAt"/> when let in again; one entry per time out.</summary>
+public sealed record GroupRosterRemoved(string DeviceId, DateTimeOffset At, DateTimeOffset? BackAt = null);
 
 public static class GroupStatus
 {
@@ -205,6 +208,9 @@ public static class ApiErrorCodes
     /// is also what a version without the route answers, it may be a list a few seconds behind: worth trying again.
     /// </summary>
     public const string NotMember = "not_member";
+
+    /// <summary>A group with "Chỉ nhắn khi Host online" while this device has not heard from its Host lately: later.</summary>
+    public const string HostOffline = "host_offline";
     public const string OfferClosed = "offer_closed";
     public const string SourceChanged = "source_changed";
     public const string Busy = "busy";

@@ -371,6 +371,14 @@ public sealed class DialogService(
         return viewModel.Confirmed ? viewModel.Text : null;
     }
 
+    /// <summary>A text and a tick box below it; null when cancelled.</summary>
+    public static async Task<(string Text, bool Option)?> PromptWithOptionAsync(string title, string label, string initialText, string optionText, bool option)
+    {
+        var viewModel = new TextPromptViewModel(title, label, initialText) { OptionText = optionText, IsOptionChecked = option };
+        await ShowAsync(new TextPromptWindow { DataContext = viewModel }, viewModel);
+        return viewModel.Confirmed ? (viewModel.Text, viewModel.IsOptionChecked) : null;
+    }
+
     /// <summary>Shown even when the app sits in the tray: the requester is waiting for an answer.</summary>
     public void ShowIncoming(IncomingPairing request)
     {

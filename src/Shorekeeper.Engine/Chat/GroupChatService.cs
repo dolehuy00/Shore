@@ -165,6 +165,11 @@ public sealed class GroupChatService(
             throw new InvalidOperationException("Not in this group.");
         }
 
+        if (!groups.CanChat(groupId))
+        {
+            throw new InvalidOperationException(L.T("Nhóm này chỉ nhắn được khi Host online."));
+        }
+
         DeviceId[] recipients = [.. group.Members.Select(m => m.DeviceId).Where(id => id != me)];
         if (recipients.Length == 0)
         {
@@ -534,6 +539,12 @@ public sealed class GroupChatService(
             return refusal;
         }
 
+        // "Chỉ nhắn khi Host online": our member list may be behind. Recalls and receipts still come: they only take away.
+        if (!groups.CanChat(groupId))
+        {
+            return PeerResponse.Problem(HttpStatusCode.Forbidden, ApiErrorCodes.HostOffline);
+        }
+
         if (!chat.TakeRate(caller))
         {
             return PeerResponse.Problem(HttpStatusCode.TooManyRequests, ApiErrorCodes.RateLimited);
@@ -863,7 +874,7 @@ public sealed class GroupChatService(
         {
             while (true)
             {
-                foreach (Group group in groups.GetAll().Where(g => groups.IsMember(g.Id, peer)))
+                foreach (Group group in groups.GetAll().Where(g => groups.IsMember(g.Id, peer) && groups.CanChat(g.Id)))
                 {
                     // Not reachable: no use asking about its other groups now.
                     if (!await PullAsync(group, peer, cancellationToken))
@@ -1152,9 +1163,14 @@ public sealed class GroupChatService(
     }
 
     /// <summary>
-    /// What reached us from someone after the Host removed them, while our member list did not know yet
-    /// (docs/16-group-chat.md §3.6): deleted here like "Xóa". Judged by when it reached us, which they cannot set,
-    /// against the removal time read in our clock (the Host's, less how far it is ahead).
+    /// What reached us from someone while they were out of the group and our member list did not know
+    /// (docs/16-group-chat.md §3.6): deleted here like "Xóa". Judged by when it reached us, which they cannot set:
+    /// <list type="bullet">
+    /// <item>within a time out the Host's signed list names (until they were let in again, if they were), read in our
+    /// clock: the Host's, less how far it is ahead;</item>
+    /// <item>for someone gone from our list with no such time (older than the Host keeps, or a Host without signed
+    /// lists): after we last heard from the Host that they were a member.</item>
+    /// </list>
     /// </summary>
     private async Task DropFromRemovedAsync()
     {
@@ -1162,29 +1178,38 @@ public sealed class GroupChatService(
         {
             foreach (Group group in groups.GetAll())
             {
-                if (groups.GetRoster(group.Id) is not { Removed.Count: > 0 } roster)
+                GroupRosterRemoved[] removals = [.. groups.GetRoster(group.Id)?.Removed ?? []];
+                TimeSpan hostAhead = groups.GetHostOffset(group.Id);
+                List<(string Author, long From, long Until)> spans =
+                [
+                    .. removals.Select(r => (r.DeviceId, (r.At - hostAhead).ToUnixTimeMilliseconds(), r.BackAt is { } back ? (back - hostAhead).ToUnixTimeMilliseconds() : long.MaxValue)),
+                    .. groups.GetDepartures(group.Id)
+                        .Where(d => !removals.Any(r => r.DeviceId == d.Key.Value && r.BackAt is null))
+                        .Select(d => (d.Key.Value, d.Value, long.MaxValue)),
+                ];
+                if (spans.Count == 0)
                 {
                     continue;
                 }
 
-                TimeSpan hostAhead = groups.GetHostOffset(group.Id);
                 List<string> ids = [];
                 await using (SqliteConnection connection = await database.OpenAsync())
                 {
-                    foreach (GroupRosterRemoved removed in roster.Removed)
+                    foreach ((string author, long from, long until) in spans)
                     {
                         ids.AddRange(await connection.QueryAsync<string>(
                             """
                             SELECT Id FROM ChatGroupMessages
-                            WHERE GroupId = @groupId AND AuthorId = @author AND Outgoing = 0 AND Deleted = 0 AND ReceivedAt > @at;
+                            WHERE GroupId = @groupId AND AuthorId = @author AND Outgoing = 0 AND Deleted = 0
+                              AND ReceivedAt > @from AND ReceivedAt < @until;
                             """,
-                            new { groupId = group.Id, author = removed.DeviceId, at = (removed.At - hostAhead).ToUnixTimeMilliseconds() }));
+                            new { groupId = group.Id, author, from, until }));
                     }
                 }
 
                 if (ids.Count > 0)
                 {
-                    logger.LogWarning("Deleting {Count} group messages of {Group} that came after their author was removed", ids.Count, group.Id);
+                    logger.LogWarning("Deleting {Count} group messages of {Group} that came while their author was out of it", ids.Count, group.Id);
                     await DeleteAsync(group.Id, ids, CancellationToken.None);
                 }
             }
@@ -1333,6 +1358,11 @@ public sealed class GroupChatService(
             if (taken.Value)
             {
                 await SetDeliveryAsync(row, peer, GroupDeliveryState.Delivered, cancellationToken);
+            }
+            else if (code == ApiErrorCodes.HostOffline)
+            {
+                // It has not heard from the Host lately; again later, in order, for as long as it takes.
+                return;
             }
             else if (code == ApiErrorCodes.NotMember)
             {

@@ -84,12 +84,22 @@ public sealed partial class GroupsViewModel : ObservableObject
     [RelayCommand]
     private async Task CreateAsync()
     {
-        string? name = await DialogService.PromptAsync(L.T("Tạo nhóm"), L.T("Tên nhóm:"), "");
-        if (!string.IsNullOrWhiteSpace(name))
+        if (await DialogService.PromptWithOptionAsync(L.T("Tạo nhóm"), L.T("Tên nhóm:"), "", HostOnlyText, false) is { } answer
+            && !string.IsNullOrWhiteSpace(answer.Text))
         {
-            await RunAsync(L.T("Không tạo được nhóm"), () => groups.CreateAsync(name));
+            await RunAsync(L.T("Không tạo được nhóm"), async () =>
+            {
+                Group group = await groups.CreateAsync(answer.Text);
+                if (answer.Option)
+                {
+                    await groups.SetHostOnlyChatAsync(group.Id, true);
+                }
+            });
         }
     }
+
+    /// <summary>docs/16-group-chat.md §3.7.</summary>
+    private static string HostOnlyText => L.T("Chỉ nhắn khi Host online: Host tắt thì cả nhóm không nhắn được, đổi lại người bị loại không chen được tin nào");
 
     // ───────────── Actions used by the cards ─────────────
 
@@ -148,12 +158,17 @@ public sealed partial class GroupsViewModel : ObservableObject
         }
     }
 
-    internal async Task RenameAsync(GroupCardViewModel card)
+    internal async Task EditAsync(GroupCardViewModel card)
     {
-        string? name = await DialogService.PromptAsync(L.T("Đổi tên nhóm"), L.T("Tên mới:"), card.Name);
-        if (!string.IsNullOrWhiteSpace(name))
+        bool hostOnly = store.Get(card.Id)?.HostOnlyChat ?? false;
+        if (await DialogService.PromptWithOptionAsync(L.T("Sửa nhóm"), L.T("Tên nhóm:"), card.Name, HostOnlyText, hostOnly) is { } answer
+            && !string.IsNullOrWhiteSpace(answer.Text))
         {
-            await RunAsync(L.T("Không đổi tên được"), () => groups.RenameAsync(card.Id, name));
+            await RunAsync(L.T("Không sửa được nhóm"), async () =>
+            {
+                await groups.RenameAsync(card.Id, answer.Text);
+                await groups.SetHostOnlyChatAsync(card.Id, answer.Option);
+            });
         }
     }
 
@@ -479,7 +494,7 @@ public sealed partial class GroupCardViewModel(string id, GroupsViewModel owner)
     private Task InviteAsync() => owner.InviteAsync(this);
 
     [RelayCommand]
-    private Task RenameAsync() => owner.RenameAsync(this);
+    private Task EditAsync() => owner.EditAsync(this);
 
     [RelayCommand]
     private Task CloseAsync() => owner.CloseAsync(this);

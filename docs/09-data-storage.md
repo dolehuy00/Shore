@@ -139,7 +139,15 @@ CREATE TABLE Groups (
   CreatedAt    INTEGER NOT NULL,
   JoinedAt     INTEGER NOT NULL,
   State        TEXT NOT NULL DEFAULT 'member',  -- 0003: member | pending (đã xin, chờ Host duyệt)
-  HostOffsetMs INTEGER NOT NULL DEFAULT 0       -- 0014: đồng hồ Host nhanh hơn máy này bao nhiêu (docs/07-groups.md §4.1)
+  HostOffsetMs INTEGER NOT NULL DEFAULT 0,      -- 0014: đồng hồ Host nhanh hơn máy này bao nhiêu (docs/07-groups.md §4.1)
+  HostOnlyChat INTEGER NOT NULL DEFAULT 0,      -- 0015: "Chỉ nhắn khi Host online" (docs/16-group-chat.md §3.7)
+  SyncedAt     INTEGER NOT NULL DEFAULT 0       -- 0015: lần cuối nghe Host (ms, giờ máy này), ghi ~1 phút một lần
+);
+
+-- 0015: ai biến khỏi danh sách mà danh sách Host ký không có giờ rời, cùng lần cuối Host xác nhận họ còn trong nhóm
+CREATE TABLE GroupDepartures (
+  GroupId TEXT NOT NULL, DeviceId TEXT NOT NULL, ConfirmedAt INTEGER NOT NULL,
+  PRIMARY KEY (GroupId, DeviceId)
 );
 
 -- Host: nguồn sự thật. Thành viên: bản cache (dùng khi Host offline)

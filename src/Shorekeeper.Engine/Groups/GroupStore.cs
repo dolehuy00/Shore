@@ -24,7 +24,8 @@ public enum GroupRole
 
 public sealed record GroupMember(DeviceId DeviceId, string Name, bool IsHost);
 
-public sealed record Group(string Id, string Name, DeviceId HostId, GroupRole Role, IReadOnlyList<GroupMember> Members)
+/// <param name="HostOnlyChat">"Chỉ nhắn khi Host online": set by the Host, carried in its signed list (docs/16-group-chat.md §3.7).</param>
+public sealed record Group(string Id, string Name, DeviceId HostId, GroupRole Role, IReadOnlyList<GroupMember> Members, bool HostOnlyChat = false)
 {
     public bool Contains(DeviceId id) => Members.Any(m => m.DeviceId == id);
 }
@@ -49,14 +50,27 @@ public sealed record JoinRequest(
 /// </summary>
 public sealed class GroupStore(SqliteDatabase database, TrustStore trust, SettingsService settings, TimeProvider timeProvider)
 {
+    /// <summary>"Chỉ nhắn khi Host online": how recent the Host's last answer must be. It answers at least every 20 s.</summary>
+    public static readonly TimeSpan HostFresh = TimeSpan.FromMinutes(1);
+
+    /// <summary>How long someone gone from the list without a time is remembered: as long as the Host names who left.</summary>
+    private static readonly TimeSpan DepartureKept = TimeSpan.FromDays(31);
+
     /// <summary>Changes of the Host's clock smaller than this are noise of the network, not worth a write.</summary>
     private const long HostOffsetStep = 100;
+
+    /// <summary>When we last heard the Host is written at most this often; the moment itself is kept in memory.</summary>
+    private const long SyncedWriteStep = 60_000;
 
     private readonly Lock gate = new();
     private Dictionary<string, Group> groups = [];
     private Dictionary<(string GroupId, DeviceId PeerId), JoinRequest> requests = [];
     private Dictionary<string, GroupRoster> rosters = [];
     private Dictionary<string, long> hostOffsets = [];
+    private Dictionary<string, long> synced = [];
+    private Dictionary<string, long> syncedWritten = [];
+    private readonly HashSet<string> hostLost = [];
+    private Dictionary<string, Dictionary<DeviceId, long>> departures = [];
 
     /// <summary>Raised after any change to groups, members or join requests.</summary>
     public event EventHandler? Changed;
@@ -64,13 +78,16 @@ public sealed class GroupStore(SqliteDatabase database, TrustStore trust, Settin
     public async Task LoadAsync(CancellationToken cancellationToken = default)
     {
         await using SqliteConnection connection = await database.OpenAsync(cancellationToken);
-        var groupRows = await connection.QueryAsync<GroupRow>("SELECT GroupId, Name, HostDeviceId, IsHostedByMe, State FROM Groups;");
+        var groupRows = await connection.QueryAsync<GroupRow>("SELECT GroupId, Name, HostDeviceId, IsHostedByMe, State, HostOnlyChat FROM Groups;");
         var memberRows = (await connection.QueryAsync<MemberRow>(
             "SELECT GroupId, DeviceId, DisplayName, IsHost FROM GroupMembers ORDER BY JoinedAt;")).ToLookup(m => m.GroupId);
         var requestRows = await connection.QueryAsync<RequestRow>(
             "SELECT GroupId, DeviceId, DisplayName, HostName, Note, State, DeclinedCount, RequestedAt FROM GroupJoinRequests;");
         var rosterRows = await connection.QueryAsync<string>("SELECT Roster FROM GroupRosters;");
-        var offsetRows = await connection.QueryAsync<(string GroupId, long HostOffsetMs)>("SELECT GroupId, HostOffsetMs FROM Groups;");
+        var offsetRows = (await connection.QueryAsync<(string GroupId, long HostOffsetMs, long SyncedAt)>(
+            "SELECT GroupId, HostOffsetMs, SyncedAt FROM Groups;")).ToList();
+        var departureRows = await connection.QueryAsync<(string GroupId, string DeviceId, long ConfirmedAt)>(
+            "SELECT GroupId, DeviceId, ConfirmedAt FROM GroupDepartures;");
 
         lock (gate)
         {
@@ -78,6 +95,10 @@ public sealed class GroupStore(SqliteDatabase database, TrustStore trust, Settin
             requests = requestRows.Select(r => r.ToRequest()).ToDictionary(r => (r.GroupId, r.PeerId));
             rosters = rosterRows.Select(r => JsonSerializer.Deserialize<GroupRoster>(r, PeerJson.Options)!).ToDictionary(r => r.GroupId);
             hostOffsets = offsetRows.ToDictionary(r => r.GroupId, r => r.HostOffsetMs);
+            synced = offsetRows.ToDictionary(r => r.GroupId, r => r.SyncedAt);
+            syncedWritten = new Dictionary<string, long>(synced);
+            departures = departureRows.GroupBy(r => r.GroupId)
+                .ToDictionary(d => d.Key, d => d.ToDictionary(r => DeviceId.Parse(r.DeviceId), r => r.ConfirmedAt));
         }
     }
 
@@ -131,6 +152,81 @@ public sealed class GroupStore(SqliteDatabase database, TrustStore trust, Settin
         }
     }
 
+    /// <summary>
+    /// Whether group messages may come and go now: always, unless the group is "Chỉ nhắn khi Host online" and we have
+    /// not heard from its Host within <see cref="HostFresh"/>, or the last try failed. The Host itself always may.
+    /// </summary>
+    public bool CanChat(string groupId)
+    {
+        lock (gate)
+        {
+            return settings.Current.GroupsEnabled && groups.TryGetValue(groupId, out Group? group) && group.Role != GroupRole.Pending
+                && (group.Role == GroupRole.Host || !group.HostOnlyChat
+                    || (!hostLost.Contains(groupId) && timeProvider.GetUtcNow().ToUnixTimeMilliseconds() - synced.GetValueOrDefault(groupId) <= (long)HostFresh.TotalMilliseconds));
+        }
+    }
+
+    /// <summary>
+    /// The Host just answered with its member list: what our list says is confirmed as of now. Call after taking
+    /// the answer, so who left in it was last confirmed at the time before.
+    /// </summary>
+    public async Task MarkSyncedAsync(string groupId)
+    {
+        long now = timeProvider.GetUtcNow().ToUnixTimeMilliseconds();
+        bool write;
+        bool flipped;
+        lock (gate)
+        {
+            if (!groups.TryGetValue(groupId, out Group? group))
+            {
+                return;
+            }
+
+            flipped = hostLost.Remove(groupId) && group.HostOnlyChat;
+            synced[groupId] = now;
+            write = now - syncedWritten.GetValueOrDefault(groupId) >= SyncedWriteStep;
+            if (write)
+            {
+                syncedWritten[groupId] = now;
+            }
+        }
+
+        if (write)
+        {
+            await using SqliteConnection connection = await database.OpenAsync();
+            await connection.ExecuteAsync("UPDATE Groups SET SyncedAt = @now WHERE GroupId = @groupId;", new { groupId, now });
+        }
+
+        if (flipped)
+        {
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    /// <summary>A try at the Host failed: a "Chỉ nhắn khi Host online" group stops until it answers again.</summary>
+    public void MarkHostLost(string groupId)
+    {
+        bool flipped;
+        lock (gate)
+        {
+            flipped = hostLost.Add(groupId) && groups.TryGetValue(groupId, out Group? group) && group.HostOnlyChat;
+        }
+
+        if (flipped)
+        {
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    /// <summary>Who is gone from our list without a time from the Host, and when we last heard they were a member (ms, our clock).</summary>
+    public IReadOnlyDictionary<DeviceId, long> GetDepartures(string groupId)
+    {
+        lock (gate)
+        {
+            return departures.TryGetValue(groupId, out var gone) ? new Dictionary<DeviceId, long>(gone) : [];
+        }
+    }
+
     /// <summary>How far the Host's clock is ahead of ours, as last measured; zero before that (or on the Host).</summary>
     public TimeSpan GetHostOffset(string groupId)
     {
@@ -180,16 +276,50 @@ public sealed class GroupStore(SqliteDatabase database, TrustStore trust, Settin
     public async Task SaveAsync(Group group, CancellationToken cancellationToken = default)
     {
         long now = timeProvider.GetUtcNow().ToUnixTimeMilliseconds();
+        // On a member: who is gone, and when we last heard they were in (unknown before the first answer).
+        Dictionary<DeviceId, long> gone;
+        lock (gate)
+        {
+            gone = departures.TryGetValue(group.Id, out var known) ? new Dictionary<DeviceId, long>(known) : [];
+            if (group.Role == GroupRole.Member && groups.TryGetValue(group.Id, out Group? before) && before.Role == GroupRole.Member
+                && synced.GetValueOrDefault(group.Id) is > 0 and long confirmed)
+            {
+                foreach (GroupMember left in before.Members.Where(m => !group.Contains(m.DeviceId)))
+                {
+                    gone[left.DeviceId] = confirmed;
+                }
+            }
+
+            foreach (DeviceId back in gone.Keys.Where(group.Contains).ToList())
+            {
+                gone.Remove(back);
+            }
+
+            foreach (DeviceId old in gone.Where(d => now - d.Value > (long)DepartureKept.TotalMilliseconds).Select(d => d.Key).ToList())
+            {
+                gone.Remove(old);
+            }
+        }
+
         await using SqliteConnection connection = await database.OpenAsync(cancellationToken);
         await using SqliteTransaction transaction = connection.BeginTransaction();
         await connection.ExecuteAsync(
             """
-            INSERT INTO Groups (GroupId, Name, HostDeviceId, IsHostedByMe, CreatedAt, JoinedAt, State)
-            VALUES (@Id, @Name, @HostId, @IsHost, @now, @now, @State)
-            ON CONFLICT (GroupId) DO UPDATE SET Name = excluded.Name, State = excluded.State;
+            INSERT INTO Groups (GroupId, Name, HostDeviceId, IsHostedByMe, CreatedAt, JoinedAt, State, HostOnlyChat)
+            VALUES (@Id, @Name, @HostId, @IsHost, @now, @now, @State, @HostOnlyChat)
+            ON CONFLICT (GroupId) DO UPDATE SET Name = excluded.Name, State = excluded.State, HostOnlyChat = excluded.HostOnlyChat;
             """,
-            new { group.Id, group.Name, HostId = group.HostId.Value, IsHost = group.Role == GroupRole.Host, now, State = StateName(group.Role) },
+            new { group.Id, group.Name, HostId = group.HostId.Value, IsHost = group.Role == GroupRole.Host, now, State = StateName(group.Role), group.HostOnlyChat },
             transaction);
+        await connection.ExecuteAsync("DELETE FROM GroupDepartures WHERE GroupId = @Id;", new { group.Id }, transaction);
+        foreach ((DeviceId peer, long confirmedAt) in gone)
+        {
+            await connection.ExecuteAsync(
+                "INSERT INTO GroupDepartures (GroupId, DeviceId, ConfirmedAt) VALUES (@GroupId, @DeviceId, @confirmedAt);",
+                new { GroupId = group.Id, DeviceId = peer.Value, confirmedAt },
+                transaction);
+        }
+
         await connection.ExecuteAsync("DELETE FROM GroupMembers WHERE GroupId = @Id;", new { group.Id }, transaction);
         foreach (GroupMember member in group.Members)
         {
@@ -203,6 +333,7 @@ public sealed class GroupStore(SqliteDatabase database, TrustStore trust, Settin
         lock (gate)
         {
             groups[group.Id] = group;
+            departures[group.Id] = gone;
         }
 
         Changed?.Invoke(this, EventArgs.Empty);
@@ -244,6 +375,7 @@ public sealed class GroupStore(SqliteDatabase database, TrustStore trust, Settin
             DELETE FROM GroupJoinRequests WHERE GroupId = @groupId;
             DELETE FROM GroupMembers WHERE GroupId = @groupId;
             DELETE FROM GroupRosters WHERE GroupId = @groupId;
+            DELETE FROM GroupDepartures WHERE GroupId = @groupId;
             DELETE FROM Groups WHERE GroupId = @groupId;
             """,
             new { groupId });
@@ -252,6 +384,10 @@ public sealed class GroupStore(SqliteDatabase database, TrustStore trust, Settin
             groups.Remove(groupId);
             rosters.Remove(groupId);
             hostOffsets.Remove(groupId);
+            synced.Remove(groupId);
+            syncedWritten.Remove(groupId);
+            hostLost.Remove(groupId);
+            departures.Remove(groupId);
             foreach (var key in requests.Keys.Where(k => k.GroupId == groupId).ToList())
             {
                 requests.Remove(key);
@@ -326,12 +462,15 @@ public sealed class GroupStore(SqliteDatabase database, TrustStore trust, Settin
 
         public string State { get; init; } = "";
 
+        public long HostOnlyChat { get; init; }
+
         public Group ToGroup(IEnumerable<MemberRow> members) => new(
             GroupId,
             Name,
             DeviceId.Parse(HostDeviceId),
             IsHostedByMe != 0 ? GroupRole.Host : State == "pending" ? GroupRole.Pending : GroupRole.Member,
-            [.. members.Select(m => new GroupMember(DeviceId.Parse(m.DeviceId), m.DisplayName ?? "", m.IsHost != 0))]);
+            [.. members.Select(m => new GroupMember(DeviceId.Parse(m.DeviceId), m.DisplayName ?? "", m.IsHost != 0))],
+            HostOnlyChat != 0);
     }
 
     private sealed class MemberRow

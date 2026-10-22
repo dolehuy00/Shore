@@ -1158,9 +1158,11 @@ public sealed partial class ChatViewModel : ObservableObject
         if (current.GroupId is { } open)
         {
             IReadOnlyList<GroupMember>? others = groupChat.OthersIn(open);
-            CanWrite = others is { Count: > 0 };
+            bool hostAway = others is { Count: > 0 } && !groups.CanChat(open);
+            CanWrite = others is { Count: > 0 } && !hostAway;
             Notice = others is null ? L.T("Bạn không còn trong nhóm này.")
                 : others.Count == 0 ? L.T("Nhóm chưa có ai khác để nhắn.")
+                : hostAway ? L.T("Host đang offline: nhóm này chỉ nhắn được khi Host online.")
                 : null;
             return;
         }

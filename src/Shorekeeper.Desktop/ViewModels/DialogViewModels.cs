@@ -453,7 +453,7 @@ public sealed partial class PasswordPromptViewModel(string title, string label, 
     private void Cancel() => RequestClose();
 }
 
-/// <summary>Single-line text input, e.g. "Đặt tên gợi nhớ".</summary>
+/// <summary>Single-line text input, e.g. "Đặt tên gợi nhớ", with a tick box below when <see cref="OptionText"/> is set.</summary>
 public sealed partial class TextPromptViewModel(string title, string label, string initialText, string? okText = null) : DialogViewModel
 {
     public string Title { get; } = title;
@@ -463,6 +463,13 @@ public sealed partial class TextPromptViewModel(string title, string label, stri
     public string OkText { get; } = okText ?? L.T("Lưu");
 
     public bool IsMultiline { get; init; }
+
+    public string? OptionText { get; init; }
+
+    public bool HasOption => OptionText is not null;
+
+    [ObservableProperty]
+    public partial bool IsOptionChecked { get; set; }
 
     [ObservableProperty]
     public partial string Text { get; set; } = initialText;

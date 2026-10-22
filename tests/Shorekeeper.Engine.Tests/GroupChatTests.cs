@@ -50,6 +50,8 @@ public sealed class GroupChatTests : IAsyncLifetime
         }
 
         await WaitUntil(() => mai.GroupStore.Get(group.Id) is { Members.Count: 3 } && tuan.GroupStore.Get(group.Id) is { Members.Count: 3 });
+        // Huy's member lists still on their way would note where Tuấn and Mai are again after a test forgets it.
+        await host.Groups.WhenToldAsync();
         groupId = group.Id;
     }
 
@@ -224,6 +226,8 @@ public sealed class GroupChatTests : IAsyncLifetime
             new PresencePacket { Type = PresencePacketTypes.Heartbeat, Id = tuan.Id.Value, Name = "peer", Port = tuan.ApiPort, Capabilities = [PresenceCapabilities.Chat] },
             IPAddress.Loopback,
             discoveryPort: 47470);
+        // Nor through Mai, who would pass it on.
+        Apart(mai, tuan);
 
         GroupChatMessage sent = await host.GroupChat.SendTextAsync(groupId, "một", Ct);
 
@@ -307,8 +311,8 @@ public sealed class GroupChatTests : IAsyncLifetime
         Assert.True(roster.Version > first.Version);
         Assert.Equal(tuan.Id.Value, Assert.Single(roster.Removed).DeviceId);
         Assert.DoesNotContain(roster.Members, m => m.DeviceId == tuan.Id.Value);
-        await WaitUntil(() => mai.GroupStore.GetRoster(groupId)?.Version == roster.Version);
-        Assert.Equal(2, mai.GroupStore.Get(groupId)!.Members.Count);
+        // The list is kept, then the members follow it.
+        await WaitUntil(() => mai.GroupStore.GetRoster(groupId)?.Version == roster.Version && mai.GroupStore.Get(groupId) is { Members.Count: 2 });
 
         // Changed by whoever passes it on, or an older one: not taken.
         GroupRoster forged = roster with { Version = roster.Version + 1, Removed = [] };
@@ -421,6 +425,72 @@ public sealed class GroupChatTests : IAsyncLifetime
         await boss.DisposeAsync();
 
         Assert.Equal(2, mai.GroupStore.Get(group.Id)!.Members.Count);
+    }
+
+    [Fact]
+    public async Task What_came_while_someone_was_out_is_deleted_even_after_they_are_back()
+    {
+        await CutOffFromHostAsync(mai);
+        await PostToMaiAsync("trước khi bị loại");
+        await host.Groups.RemoveMemberAsync(groupId, tuan.Id);
+        await PostToMaiAsync("lúc bị loại");
+        await WaitUntil(() => tuan.GroupStore.Get(groupId) is null);
+        await host.Groups.InviteAsync(groupId, tuan.Id, tuan.Id.ShortForm, "PC", Ct);
+        await tuan.Groups.AcceptInvitationAsync(tuan.Groups.GetInvitations().Single(), Ct);
+        await WaitUntil(() => host.GroupStore.Get(groupId) is { Members.Count: 3 });
+        await PostToMaiAsync("sau khi vào lại");
+
+        // The newest list has Tuấn as a member again, and still names his time out.
+        GroupRoster roster = host.GroupStore.GetRoster(groupId)!;
+        Assert.NotNull(Assert.Single(roster.Removed).BackAt);
+        Assert.True(await mai.Groups.AdoptRosterAsync(groupId, roster));
+
+        await WaitUntil(() => Messages(mai).Count == 2);
+        Assert.Equal(["trước khi bị loại", "sau khi vào lại"], Messages(mai).Select(m => m.Text));
+    }
+
+    [Fact]
+    public async Task Someone_gone_without_a_time_loses_what_came_after_the_host_last_said_they_were_in()
+    {
+        await PostToMaiAsync("lúc còn trong nhóm");
+        await CutOffFromHostAsync(mai);
+        await PostToMaiAsync("không rõ lúc nào");
+        await host.Groups.RemoveMemberAsync(groupId, tuan.Id);
+        // A month on, the Host's list no longer names when Tuấn left: as for a device away that long.
+        hostTime.Offset = GroupService.RemovedKept + TimeSpan.FromDays(1);
+        await host.Groups.RenameAsync(groupId, "Build QA tháng sau");
+        GroupRoster roster = host.GroupStore.GetRoster(groupId)!;
+        Assert.Empty(roster.Removed);
+
+        Assert.True(await mai.Groups.AdoptRosterAsync(groupId, roster));
+
+        await WaitUntil(() => Messages(mai).Count == 1);
+        Assert.Equal("lúc còn trong nhóm", Messages(mai).Single().Text);
+    }
+
+    [Fact]
+    public async Task A_group_messaging_only_while_the_host_is_online_waits_for_it()
+    {
+        await host.Groups.SetHostOnlyChatAsync(groupId, true);
+        await WaitUntil(() => mai.GroupStore.Get(groupId) is { HostOnlyChat: true } && tuan.GroupStore.Get(groupId) is { HostOnlyChat: true });
+        Assert.True(mai.GroupStore.CanChat(groupId));
+
+        await CutOffFromHostAsync(mai);
+
+        Assert.False(mai.GroupStore.CanChat(groupId));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => mai.GroupChat.SendTextAsync(groupId, "có ai không?", Ct));
+        GroupChatMessage sent = await tuan.GroupChat.SendTextAsync(groupId, "họp lúc 3 giờ", Ct);
+        await WaitUntil(() => Delivery(tuan, sent.Id, host) == GroupDeliveryState.Delivered);
+        await Task.Delay(300, Ct);
+        Assert.Equal(GroupDeliveryState.Pending, Delivery(tuan, sent.Id, mai));
+        Assert.Empty(Messages(mai));
+
+        // Huy answers her again (her next try, within 15 seconds); then Tuấn's next try gets through.
+        Together(host, mai);
+        await WaitUntil(() => mai.GroupStore.CanChat(groupId), TimeSpan.FromSeconds(40));
+        Reappear(tuan, mai);
+        await WaitUntil(() => Delivery(tuan, sent.Id, mai) == GroupDeliveryState.Delivered);
+        Assert.Equal("họp lúc 3 giờ", Messages(mai).Single().Text);
     }
 
     [Fact]
@@ -658,6 +728,10 @@ public sealed class GroupChatTests : IAsyncLifetime
         await tuan.GroupStore.SaveAsync(caughtUp with { Members = [.. caughtUp.Members.Where(m => m.DeviceId != lan.Id)] }, Ct);
         return caughtUp;
     }
+
+    /// <summary>Tuấn, removed or not, posts straight to Mai, who takes it if her list still has him.</summary>
+    private async Task PostToMaiAsync(string text) =>
+        Assert.Equal(HttpStatusCode.NoContent, (await PostAsync(tuan, mai, $"chat/groups/{groupId}/messages", Signed(tuan, text))).Status);
 
     /// <summary>Lan joins the group, seen by everyone and seeing everyone.</summary>
     private async Task JoinAsync(TestNode lan)

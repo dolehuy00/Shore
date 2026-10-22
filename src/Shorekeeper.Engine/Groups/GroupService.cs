@@ -141,6 +141,18 @@ public sealed class GroupService(
         Bump(groupId);
     }
 
+    /// <summary>"Chỉ nhắn khi Host online" (docs/16-group-chat.md §3.7): members get it with the signed list.</summary>
+    public async Task SetHostOnlyChatAsync(string groupId, bool hostOnly)
+    {
+        Group group = Hosted(groupId);
+        if (group.HostOnlyChat != hostOnly)
+        {
+            await store.SaveAsync(group with { HostOnlyChat = hostOnly });
+            await SignRosterAsync(groupId);
+            Bump(groupId);
+        }
+    }
+
     /// <summary>Deletes the group; members learn it on their next poll (404) and forget it too.</summary>
     public async Task CloseAsync(string groupId)
     {
@@ -509,6 +521,7 @@ public sealed class GroupService(
                             logger.LogWarning("Member list for group {Group} from its Host is not signed by it", groupId);
                         }
 
+                        await store.MarkSyncedAsync(groupId);
                         since = state.Version;
                         break;
                     case GroupStatus.Declined:
@@ -534,7 +547,11 @@ public sealed class GroupService(
             catch (Exception ex) when (ex is PeerUnreachableException or PeerApiException or HttpRequestException or System.Text.Json.JsonException)
             {
                 logger.LogDebug(ex, "Host of group {Group} not available", groupId);
+                // Stopped first: whoever sees the Host unreachable sees the group stopped too.
+                store.MarkHostLost(groupId);
                 SetReachable(groupId, false);
+                // Back, the Host answers at once rather than wait for a change: a group stopped meanwhile starts again.
+                since = 0;
                 try
                 {
                     if (store.Get(groupId) is { Role: GroupRole.Member } member)
@@ -606,8 +623,9 @@ public sealed class GroupService(
     // ───────────── Signed member list (docs/07-groups.md §4.1) ─────────────
 
     /// <summary>
-    /// Host: signs the member list again when it changed. Who is no longer on it is named with the time, for
-    /// <see cref="RemovedKept"/>; one who is back is not. Members get it with their next answer.
+    /// Host: signs the member list again when it changed. Who is no longer on it is named with the time, and one who is
+    /// let in again keeps that entry with the time back: what reached a member from them in between is deleted there.
+    /// Entries go <see cref="RemovedKept"/> after they end. Members get it with their next answer.
     /// </summary>
     private async Task SignRosterAsync(string groupId)
     {
@@ -618,7 +636,7 @@ public sealed class GroupService(
 
         GroupRoster? before = store.GetRoster(groupId);
         GroupRosterMember[] members = [.. group.Members.Select(m => new GroupRosterMember(m.DeviceId.Value, m.Name, m.IsHost))];
-        if (before is not null && before.Name == group.Name && before.Members.SequenceEqual(members))
+        if (before is not null && before.Name == group.Name && before.HostOnly == group.HostOnlyChat && before.Members.SequenceEqual(members))
         {
             return;
         }
@@ -634,10 +652,12 @@ public sealed class GroupService(
             certificate.PublicKey.ExportSubjectPublicKeyInfo(),
             members,
             [
-                .. (before?.Removed ?? []).Where(r => !group.Contains(DeviceId.Parse(r.DeviceId)) && at - r.At < RemovedKept),
+                .. (before?.Removed ?? []).Where(r => at - (r.BackAt ?? r.At) < RemovedKept)
+                    .Select(r => r.BackAt is null && group.Contains(DeviceId.Parse(r.DeviceId)) ? r with { BackAt = at } : r),
                 .. (before?.Members ?? []).Where(m => !group.Contains(DeviceId.Parse(m.DeviceId))).Select(m => new GroupRosterRemoved(m.DeviceId, at)),
             ],
-            []);
+            [],
+            group.HostOnlyChat);
         using (ECDsa key = certificate.GetECDsaPrivateKey()!)
         {
             roster = roster with { Sig = GroupChatSignature.SignRoster(key, roster) };
@@ -650,10 +670,21 @@ public sealed class GroupService(
     }
 
     /// <summary>On a member, from the Host: a member list it signed. Null when not from our Host of a group we are in.</summary>
-    internal async Task<bool?> HandleRosterAsync(DeviceId caller, string groupId, GroupRoster roster) =>
-        IsEnabled && store.Get(groupId) is { Role: GroupRole.Member } group && group.HostId == caller
-            ? await AdoptRosterAsync(groupId, roster)
-            : null;
+    internal async Task<bool?> HandleRosterAsync(DeviceId caller, string groupId, GroupRoster roster)
+    {
+        if (!IsEnabled || store.Get(groupId) is not { Role: GroupRole.Member } group || group.HostId != caller)
+        {
+            return null;
+        }
+
+        bool taken = await AdoptRosterAsync(groupId, roster);
+        if (taken)
+        {
+            await store.MarkSyncedAsync(groupId);
+        }
+
+        return taken;
+    }
 
     /// <summary>Host: sends our signed list to <paramref name="members"/>, noting who took it; in the background.</summary>
     private void Tell(GroupRoster roster, IEnumerable<DeviceId> members)
@@ -710,6 +741,15 @@ public sealed class GroupService(
             {
                 known.Members.Add(member);
             }
+        }
+    }
+
+    /// <summary>Host: once every send of our signed lists started so far is done.</summary>
+    internal Task WhenToldAsync()
+    {
+        lock (gate)
+        {
+            return Task.WhenAll([.. pushes]);
         }
     }
 
@@ -798,9 +838,10 @@ public sealed class GroupService(
         }
 
         string name = ValidName(roster.Name, fallback: true);
-        if (store.Get(groupId) is { } current && (current.Name != name || !current.Members.SequenceEqual(members)))
+        if (store.Get(groupId) is { } current
+            && (current.Name != name || current.HostOnlyChat != roster.HostOnly || !current.Members.SequenceEqual(members)))
         {
-            await store.SaveAsync(current with { Name = name, Members = members });
+            await store.SaveAsync(current with { Name = name, Members = members, HostOnlyChat = roster.HostOnly });
         }
 
         return true;
