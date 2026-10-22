@@ -80,10 +80,11 @@ public sealed record GroupJoinResponse(string Status);
 /// <summary>
 /// Response of <c>GET /api/v1/groups/{groupId}/state?since=&amp;wait=</c>, long-polled by members and by peers waiting to be approved.
 /// Members get the member list; addresses are where the Host sees each member right now (empty when offline).
-/// <see cref="Roster"/>: the same list as the Host signed it, for members to pass on (none from a Host before it).
+/// <see cref="Roster"/>: the same list as the Host signed it, for members to pass on; <see cref="Now"/>: the Host's clock
+/// when answering, against which members read the times in it (neither from a Host before them).
 /// </summary>
 public sealed record GroupStateResponse(
-    string Status, long Version, string Name, IReadOnlyList<GroupMemberEntry> Members, GroupRoster? Roster = null);
+    string Status, long Version, string Name, IReadOnlyList<GroupMemberEntry> Members, GroupRoster? Roster = null, DateTimeOffset? Now = null);
 
 public sealed record GroupMemberEntry(string DeviceId, string Name, bool IsHost, string? Address, int DiscoveryPort);
 

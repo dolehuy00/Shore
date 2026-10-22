@@ -137,7 +137,8 @@ Quyền `Any` ở middleware; handler tự quyết theo DeviceId người gọi.
 | Method | Path | Quyền | Mô tả |
 |---|---|---|---|
 | POST | `/groups/{groupId}/join-requests` | Any (rate limit) | `{ name, host, note }` → `202 { status: "pending" }`, hoặc `200 { status: "member" }` nếu đã được mời / đã là thành viên. `429` khi gửi nhiều hoặc bị từ chối 3 lần trong 24 giờ, `503` khi nhóm đủ 100 người |
-| GET | `/groups/{groupId}/state?since=&wait=` | Thành viên / người đang xin | Long-poll tối đa 25 giây → `{ status, version, name, members: [{ deviceId, name, isHost, address, discoveryPort }], roster }`. `status`: `member` (kèm danh sách, chờ đến khi `version` khác `since`), `pending` (chờ quyết định), `declined`. `roster`: danh sách Host đã ký ([07 §4.1](07-groups.md)), Host bản cũ không có. Người khác, người bị loại, nhóm đã đóng: `404` |
+| GET | `/groups/{groupId}/state?since=&wait=` | Thành viên / người đang xin | Long-poll tối đa 25 giây → `{ status, version, name, members: [{ deviceId, name, isHost, address, discoveryPort }], roster }`. `status`: `member` (kèm danh sách, chờ đến khi `version` khác `since`), `pending` (chờ quyết định), `declined`. `roster`: danh sách Host đã ký, `now`: giờ của Host lúc trả lời ([07 §4.1](07-groups.md)); Host bản cũ không có. Người khác, người bị loại, nhóm đã đóng: `404` |
+| POST | `/groups/{groupId}/roster` | Host của nhóm (máy nhận kiểm) | Host báo bản danh sách mới vừa ký → `204` (nhận, hay không mới hơn); chữ ký sai `400`; không phải Host của nhóm mình đang ở: `404` |
 | GET | `/groups/{groupId}/roster?since=` | Thành viên (theo danh sách máy được gọi) | Danh sách Host đã ký mà máy này đang giữ, nếu `version` lớn hơn `since` → `{ groupId, version, name, hostId, hostKey, members: [{ deviceId, name, isHost }], removed: [{ deviceId, at }], sig }`; không thì `204`. Cho thành viên không gọi được Host ([07 §4.1](07-groups.md)) |
 | POST | `/groups/{groupId}/leave` | Any | Rời nhóm, hoặc rút yêu cầu đang chờ |
 

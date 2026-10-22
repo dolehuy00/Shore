@@ -1153,7 +1153,8 @@ public sealed class GroupChatService(
 
     /// <summary>
     /// What reached us from someone after the Host removed them, while our member list did not know yet
-    /// (docs/16-group-chat.md §3.6): deleted here like "Xóa". Judged by when it reached us, which they cannot set.
+    /// (docs/16-group-chat.md §3.6): deleted here like "Xóa". Judged by when it reached us, which they cannot set,
+    /// against the removal time read in our clock (the Host's, less how far it is ahead).
     /// </summary>
     private async Task DropFromRemovedAsync()
     {
@@ -1166,6 +1167,7 @@ public sealed class GroupChatService(
                     continue;
                 }
 
+                TimeSpan hostAhead = groups.GetHostOffset(group.Id);
                 List<string> ids = [];
                 await using (SqliteConnection connection = await database.OpenAsync())
                 {
@@ -1176,7 +1178,7 @@ public sealed class GroupChatService(
                             SELECT Id FROM ChatGroupMessages
                             WHERE GroupId = @groupId AND AuthorId = @author AND Outgoing = 0 AND Deleted = 0 AND ReceivedAt > @at;
                             """,
-                            new { groupId = group.Id, author = removed.DeviceId, at = removed.At.ToUnixTimeMilliseconds() }));
+                            new { groupId = group.Id, author = removed.DeviceId, at = (removed.At - hostAhead).ToUnixTimeMilliseconds() }));
                     }
                 }
 

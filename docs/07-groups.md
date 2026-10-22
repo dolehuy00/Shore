@@ -50,10 +50,14 @@ sequenceDiagram
 Để người bị loại không lọt qua máy chưa biết tin loại (chat nhóm, [16 §3.6](16-group-chat.md)):
 
 - Mỗi lần danh sách hay tên nhóm đổi, Host ký lại danh sách (`GroupRoster`, khóa thiết bị của Host, như chữ ký tin nhóm [16 §3.5](16-group-chat.md)): tên, thành viên, **người đã rời hay bị loại trong 31 ngày kèm giờ** (giờ của Host; người vào lại thì không còn trong đó), và `version`. `version` là giờ ký (ms), luôn lớn hơn bản trước, nên Host khởi động lại hay khôi phục danh tính sang máy khác cũng không lùi.
-- Câu trả lời long-poll mang kèm danh sách đã ký (`roster`). Thành viên kiểm: khóa khớp `HostId` của nhóm, chữ ký đúng, `version` lớn hơn bản đang giữ; rồi lưu (`GroupRosters`) và lấy danh sách thành viên theo đó. Danh sách không có mình thì bỏ qua: câu trả lời của Host sẽ cho mình ra khỏi nhóm.
+- Câu trả lời long-poll mang kèm danh sách đã ký (`roster`) và giờ của Host lúc trả lời (`now`). Thành viên kiểm: khóa khớp `HostId` của nhóm, chữ ký đúng, `version` lớn hơn bản đang giữ; rồi lưu (`GroupRosters`) và lấy danh sách thành viên theo đó. Danh sách không có mình thì bỏ qua: câu trả lời của Host sẽ cho mình ra khỏi nhóm.
+- **Đồng hồ của Host**: mỗi câu trả lời, thành viên lấy `now` trừ giờ máy mình lúc nhận được, lưu làm độ lệch (`Groups.HostOffsetMs`, chỉ ghi khi đổi quá 100 ms). Lấy lúc nhận chứ không lấy giữa lượt đi về, vì long-poll chờ ở Host; sai số là thời gian truyền một chiều, vài ms trong LAN. Giờ trong danh sách đã ký là giờ Host; đổi sang giờ máy mình bằng cách trừ độ lệch. Máy chưa từng gọi được Host thì độ lệch là 0.
+- **Host báo ngay**: mỗi lần ký bản mới, Host gửi `POST /groups/{id}/roster` tới mọi thành viên đang online, không chờ họ hỏi. Máy thành viên chỉ nhận bản gửi từ chính Host. Host nhớ ai đã có bản mới nhất (gửi được, hoặc đã trả lời long-poll của họ kèm bản đó).
+- **Việc còn dở**: bản có người bị loại mà một thành viên chưa có thì Host gửi ngay khi thấy người đó online, ví dụ sau khi Host khởi động lại. Long-poll của thành viên cũng lấy được nó trong vòng 15 giây khi Host mở lại.
+- **Trước khi thoát**: bản có người bị loại mà chưa thành viên nào có thì Host gửi cho ai đang online và chờ tối đa 3 giây. Test chạy trong cùng một tiến trình, nơi lần gửi đang dở vẫn kịp tới dù không chờ, nên không đo được bước chờ này; nó dành cho app thật, tiến trình thoát hẳn sau khi dừng.
 - **Không gọi được Host**: mỗi lần thử lại (15 giây), hỏi **một** thành viên đang online, chọn ngẫu nhiên, `GET /groups/{id}/roster?since={version}`; họ có bản mới hơn thì đưa. Như vậy chỉ cần một người biết là tin loại tới được những máy không gọi được Host, kể cả khi Host đã tắt. Một người một lượt để nhóm không có Host không ồn.
 - Người bị loại không chặn được việc này: người khác vẫn đưa, và không ai sửa được danh sách mà không làm hỏng chữ ký.
-- Còn hở: Host loại người rồi tắt ngay trước khi ai kịp nhận.
+- Còn hở: Host loại người khi không thành viên nào online, rồi tắt trước khi có ai online. Không có cách nào kín hẳn mà vẫn giữ chat khi Host offline: lúc đó chỉ Host biết, và Host không có mặt. Kín hẳn cần giấy thành viên có hạn do Host gia hạn, đổi lại Host tắt quá hạn thì cả nhóm không nhắn được; đã cân nhắc và không chọn (2026-10-22).
 - Host bản cũ không ký: thành viên dùng danh sách như trước.
 
 ## 5. Quyền trong nhóm

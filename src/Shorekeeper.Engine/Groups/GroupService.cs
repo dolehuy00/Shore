@@ -59,6 +59,9 @@ public sealed class GroupService(
     /// <summary>How long the signed member list names who left: a day past the group chat history (docs/16-group-chat.md §3.6).</summary>
     public static readonly TimeSpan RemovedKept = TimeSpan.FromDays(31);
 
+    /// <summary>How long stopping waits to tell a removal nobody has heard of yet (docs/07-groups.md §4.1).</summary>
+    public static readonly TimeSpan StopWait = TimeSpan.FromSeconds(3);
+
     private const int RequestsPerWindow = 5;
     private const int MaxPendingPerGroup = 50;
     private const int DeclinesBeforeLock = 3;
@@ -77,6 +80,10 @@ public sealed class GroupService(
     private readonly List<GroupInvitation> invitations = [];
     private readonly Dictionary<string, bool> hostReachable = [];
     private readonly Dictionary<string, Task> pollers = [];
+
+    /// <summary>Host: which members are known to have our newest signed list of each group, and its version.</summary>
+    private readonly Dictionary<string, (long Version, HashSet<DeviceId> Members)> told = [];
+    private readonly HashSet<Task> pushes = [];
 
     /// <summary>Host side: someone asked to join one of our groups.</summary>
     public event EventHandler<JoinRequest>? JoinRequested;
@@ -438,6 +445,8 @@ public sealed class GroupService(
                 await SignRosterAsync(hosted.Id);
             }
 
+            directory.Changed += OnPeerChanged;
+
             using var timer = new PeriodicTimer(Tick);
             do
             {
@@ -459,6 +468,7 @@ public sealed class GroupService(
         }
         finally
         {
+            directory.Changed -= OnPeerChanged;
             Task[] running;
             lock (gate)
             {
@@ -487,6 +497,12 @@ public sealed class GroupService(
                 switch (state.Status)
                 {
                     case GroupStatus.Member:
+                        if (state.Now is { } hostNow)
+                        {
+                            // Taken when the answer arrives: a long poll waits at the Host, so half the round trip would be wrong.
+                            await store.SetHostOffsetAsync(groupId, hostNow - timeProvider.GetUtcNow());
+                        }
+
                         await ApplyAsync(group, state);
                         if (state.Roster is { } roster && !await AdoptRosterAsync(groupId, roster))
                         {
@@ -627,7 +643,132 @@ public sealed class GroupService(
             roster = roster with { Sig = GroupChatSignature.SignRoster(key, roster) };
         }
 
-        await store.TrySaveRosterAsync(roster);
+        if (await store.TrySaveRosterAsync(roster))
+        {
+            Tell(roster, OnlineMembers(group));
+        }
+    }
+
+    /// <summary>On a member, from the Host: a member list it signed. Null when not from our Host of a group we are in.</summary>
+    internal async Task<bool?> HandleRosterAsync(DeviceId caller, string groupId, GroupRoster roster) =>
+        IsEnabled && store.Get(groupId) is { Role: GroupRole.Member } group && group.HostId == caller
+            ? await AdoptRosterAsync(groupId, roster)
+            : null;
+
+    /// <summary>Host: sends our signed list to <paramref name="members"/>, noting who took it; in the background.</summary>
+    private void Tell(GroupRoster roster, IEnumerable<DeviceId> members)
+    {
+        foreach (DeviceId member in members)
+        {
+            Task push = TellAsync(roster, member);
+            lock (gate)
+            {
+                pushes.Add(push);
+            }
+
+            _ = push.ContinueWith(
+                done =>
+                {
+                    lock (gate)
+                    {
+                        pushes.Remove(done);
+                    }
+                },
+                TaskScheduler.Default);
+        }
+    }
+
+    private async Task TellAsync(GroupRoster roster, DeviceId member)
+    {
+        try
+        {
+            using HttpResponseMessage response = await client.SendAsync(
+                member,
+                b => new HttpRequestMessage(HttpMethod.Post, new Uri(b, $"groups/{roster.GroupId}/roster")) { Content = JsonContent.Create(roster) },
+                RequestTimeout,
+                CancellationToken.None);
+            await PeerClient.EnsureSuccessAsync(response, CancellationToken.None);
+            Told(roster, member);
+        }
+        catch (Exception ex) when (ex is PeerUnreachableException or PeerApiException or HttpRequestException or TaskCanceledException)
+        {
+            // It asks for it itself: on its next answer from us, or from another member.
+            logger.LogDebug(ex, "Telling {Peer} the member list of group {Group} failed", member, roster.GroupId);
+        }
+    }
+
+    private void Told(GroupRoster roster, DeviceId member)
+    {
+        lock (gate)
+        {
+            if (!told.TryGetValue(roster.GroupId, out var known) || known.Version < roster.Version)
+            {
+                told[roster.GroupId] = known = (roster.Version, []);
+            }
+
+            if (known.Version == roster.Version)
+            {
+                known.Members.Add(member);
+            }
+        }
+    }
+
+    private bool WasTold(GroupRoster roster, DeviceId member)
+    {
+        lock (gate)
+        {
+            return told.TryGetValue(roster.GroupId, out var known) && known.Version == roster.Version && known.Members.Contains(member);
+        }
+    }
+
+    private IEnumerable<DeviceId> OnlineMembers(Group group)
+    {
+        HashSet<DeviceId> online = [.. directory.Snapshot().Where(p => p.State == PeerState.Online).Select(p => p.DeviceId)];
+        return [.. group.Members.Select(m => m.DeviceId).Where(m => m != device.DeviceId && online.Contains(m))];
+    }
+
+    /// <summary>
+    /// Host: a member comes online who has not had a list of ours that names someone removed, e.g. after we
+    /// restarted: told now, rather than when it next asks.
+    /// </summary>
+    private void OnPeerChanged(object? sender, PeerChange change)
+    {
+        if (change.Kind == PeerChangeKind.Removed || change.Peer.State != PeerState.Online || !IsEnabled)
+        {
+            return;
+        }
+
+        foreach (Group group in store.GetAll().Where(g => g.Role == GroupRole.Host && g.Contains(change.Peer.DeviceId)))
+        {
+            if (store.GetRoster(group.Id) is { Removed.Count: > 0 } roster && !WasTold(roster, change.Peer.DeviceId))
+            {
+                Tell(roster, [change.Peer.DeviceId]);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Host: before going, a removal no member has heard of yet is told to whoever is online, waiting up to
+    /// <see cref="StopWait"/>: otherwise it would wait for this device to come back.
+    /// </summary>
+    public override async Task StopAsync(CancellationToken cancellationToken)
+    {
+        foreach (Group group in store.GetAll().Where(g => g.Role == GroupRole.Host))
+        {
+            if (store.GetRoster(group.Id) is { Removed.Count: > 0 } roster && !group.Members.Any(m => WasTold(roster, m.DeviceId)))
+            {
+                Tell(roster, OnlineMembers(group));
+            }
+        }
+
+        Task[] pending;
+        lock (gate)
+        {
+            pending = [.. pushes];
+        }
+
+        await Task.WhenAny(Task.WhenAll(pending), Task.Delay(StopWait, CancellationToken.None));
+        await base.StopAsync(cancellationToken);
     }
 
     /// <summary>
@@ -715,6 +856,12 @@ public sealed class GroupService(
         long version = VersionOf(groupId);
         if (group.Contains(caller))
         {
+            GroupRoster? roster = store.GetRoster(groupId);
+            if (roster is not null)
+            {
+                Told(roster, caller);
+            }
+
             Dictionary<DeviceId, PeerInfo> online = directory.Snapshot().Where(p => p.State == PeerState.Online).ToDictionary(p => p.DeviceId);
             return new GroupStateResponse(GroupStatus.Member, version, group.Name,
             [
@@ -722,7 +869,8 @@ public sealed class GroupService(
                     ? new GroupMemberEntry(m.DeviceId.Value, m.Name, m.IsHost, peer.Address.ToString(), peer.DiscoveryPort)
                     : new GroupMemberEntry(m.DeviceId.Value, m.Name, m.IsHost, null, 0)),
             ],
-            store.GetRoster(groupId));
+            roster,
+            timeProvider.GetUtcNow());
         }
 
         return store.GetRequest(groupId, caller)?.State switch

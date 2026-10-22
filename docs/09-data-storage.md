@@ -138,7 +138,8 @@ CREATE TABLE Groups (
   IsHostedByMe INTEGER NOT NULL,
   CreatedAt    INTEGER NOT NULL,
   JoinedAt     INTEGER NOT NULL,
-  State        TEXT NOT NULL DEFAULT 'member'   -- 0003: member | pending (đã xin, chờ Host duyệt)
+  State        TEXT NOT NULL DEFAULT 'member',  -- 0003: member | pending (đã xin, chờ Host duyệt)
+  HostOffsetMs INTEGER NOT NULL DEFAULT 0       -- 0014: đồng hồ Host nhanh hơn máy này bao nhiêu (docs/07-groups.md §4.1)
 );
 
 -- Host: nguồn sự thật. Thành viên: bản cache (dùng khi Host offline)

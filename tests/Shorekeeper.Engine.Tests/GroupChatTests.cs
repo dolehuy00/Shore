@@ -354,6 +354,76 @@ public sealed class GroupChatTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task The_removal_time_is_read_in_the_members_own_clock()
+    {
+        // Huy's clock is two minutes ahead; Mai measures it on his answers.
+        hostTime.Offset = TimeSpan.FromMinutes(2);
+        await CutOffFromHostAsync(mai);
+        Assert.InRange(mai.GroupStore.GetHostOffset(groupId), TimeSpan.FromSeconds(119), TimeSpan.FromSeconds(121));
+        Assert.Equal(HttpStatusCode.NoContent, (await PostAsync(tuan, mai, $"chat/groups/{groupId}/messages", Signed(tuan, "trước khi bị loại"))).Status);
+        await host.Groups.RemoveMemberAsync(groupId, tuan.Id);
+        Assert.Equal(HttpStatusCode.NoContent, (await PostAsync(tuan, mai, $"chat/groups/{groupId}/messages", Signed(tuan, "sau khi bị loại"))).Status);
+
+        Assert.True(await mai.Groups.AdoptRosterAsync(groupId, host.GroupStore.GetRoster(groupId)!));
+
+        await WaitUntil(() => Messages(mai).Count == 1);
+        Assert.Equal("trước khi bị loại", Messages(mai).Single().Text);
+    }
+
+    [Fact]
+    public async Task The_host_tells_a_removal_at_once_to_a_member_who_cannot_ask_it()
+    {
+        // Mai no longer finds Huy, but he still finds her.
+        Forget(mai, host);
+        await host.Groups.RenameAsync(groupId, "Build QA 2");
+        await WaitUntil(() => mai.Groups.IsHostReachable(groupId) == false);
+
+        await host.Groups.RemoveMemberAsync(groupId, tuan.Id);
+
+        // Well before her next try, 15 seconds on.
+        await WaitUntil(() => mai.GroupStore.Get(groupId) is { Members.Count: 2 }, TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public async Task A_member_back_online_is_told_of_a_removal_it_missed()
+    {
+        await CutOffFromHostAsync(mai);
+        await host.Groups.RemoveMemberAsync(groupId, tuan.Id);
+        await Task.Delay(300, Ct);
+        Assert.Equal(3, mai.GroupStore.Get(groupId)!.Members.Count);
+
+        // Huy finds her again; she still cannot find him.
+        host.Sees(mai);
+
+        await WaitUntil(() => mai.GroupStore.Get(groupId) is { Members.Count: 2 }, TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public async Task A_host_quitting_right_after_a_removal_tells_it_first()
+    {
+        TestNode boss = await TestNode.StartAsync("Sếp");
+        Together(boss, mai);
+        Together(boss, tuan);
+        Group group = await boss.Groups.CreateAsync("Ban giám đốc", Ct);
+        foreach (TestNode member in (TestNode[])[mai, tuan])
+        {
+            await boss.Groups.InviteAsync(group.Id, member.Id, member.Id.ShortForm, "PC", Ct);
+            await member.Groups.AcceptInvitationAsync(member.Groups.GetInvitations().Single(), Ct);
+        }
+
+        await WaitUntil(() => mai.GroupStore.Get(group.Id) is { Members.Count: 3 });
+        // Mai only hears from the boss when he tells her.
+        Forget(mai, boss);
+        await boss.Groups.RenameAsync(group.Id, "Ban giám đốc 2");
+        await WaitUntil(() => mai.Groups.IsHostReachable(group.Id) == false);
+
+        await boss.Groups.RemoveMemberAsync(group.Id, tuan.Id);
+        await boss.DisposeAsync();
+
+        Assert.Equal(2, mai.GroupStore.Get(group.Id)!.Members.Count);
+    }
+
+    [Fact]
     public async Task A_new_member_gets_what_the_members_said_but_not_who_left()
     {
         await mai.GroupChat.SendTextAsync(groupId, "Mai đây", Ct);

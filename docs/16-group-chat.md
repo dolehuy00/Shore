@@ -119,8 +119,9 @@ Một cơ chế cho cả hai việc: **thành viên kéo tin còn thiếu từ t
 - Người chuyển hộ chỉ đưa tin nó đã nhận và kiểm được, nên không tạo được tin giả. Tin trong lịch sử hiện tên tác giả lúc gửi (lưu kèm tin).
 - **Máy chưa biết ai vừa bị loại** (chưa gọi được Host) vẫn nhận tin của người đó, gửi thẳng hay chuyển hộ, tới khi danh sách cập nhật. Thu hẹp và dọn lại (2026-10-22):
   - Tin loại đi theo danh sách Host đã ký, và thành viên đưa cho nhau khi không gọi được Host ([07 §4.1](07-groups.md)): chỉ cần một người biết.
-  - Danh sách đã ký ghi giờ bị loại (giờ Host). Nhận được nó thì máy **xóa** (như "Xóa", để lại dấu xóa) tin của người đó mà máy **nhận** sau giờ đó, theo `ReceivedAt` do chính máy ghi, người bị loại không đặt được. Đồng hồ Host và máy nhận lệch bao nhiêu thì ranh giới lệch bấy nhiêu.
-  - Còn hở: Host loại người rồi tắt ngay, trước khi ai nhận được danh sách mới.
+  - Danh sách đã ký ghi giờ bị loại (giờ Host). Nhận được nó thì máy **xóa** (như "Xóa", để lại dấu xóa) tin của người đó mà máy **nhận** sau giờ đó, theo `ReceivedAt` do chính máy ghi, người bị loại không đặt được. Giờ bị loại được đổi sang giờ máy mình theo độ lệch đồng hồ đo được với Host ([07 §4.1](07-groups.md)), nên ranh giới chỉ sai vài ms.
+  - Host báo ngay khi loại, báo thành viên vừa online, và báo trước khi thoát.
+  - Còn hở: Host loại người khi không thành viên nào online, rồi tắt trước khi có ai online. Tin lọt trong lúc đó bị xóa khi Host mở lại.
 
 ## 4. API
 
@@ -236,7 +237,7 @@ Test engine của C5b:
 - A thu hồi khi C offline: C kéo từ B thấy dòng "đã thu hồi", không bao giờ thấy nội dung.
 - D mới vào nhóm: kéo được tin trong 30 ngày của người còn trong nhóm, không có tin của người đã rời (từ 2026-10-22), không có tin ngoài cửa sổ.
 - C bị loại vẫn gửi được cho B (danh sách của B chưa cập nhật): A kéo từ B không nhận tin nào của C, kể cả tin lùi giờ về trước lúc bị loại (thêm 2026-10-22).
-- Danh sách đã ký: Host ký lại khi loại C, ghi C và giờ; danh sách bị sửa hay cũ hơn thì không nhận. B không gọi được Host vẫn biết C bị loại nhờ hỏi D, rồi từ chối C. Tin C lọt vào B sau giờ bị loại bị xóa khi B biết; tin trước đó giữ nguyên (thêm 2026-10-22).
+- Danh sách đã ký: Host ký lại khi loại C, ghi C và giờ; danh sách bị sửa hay cũ hơn thì không nhận. B không gọi được Host vẫn biết C bị loại nhờ hỏi D, rồi từ chối C. Tin C lọt vào B sau giờ bị loại bị xóa khi B biết; tin trước đó giữ nguyên, kể cả khi đồng hồ Host nhanh 2 phút. Host báo ngay B khi B không gọi được Host mà Host gọi được B, báo B khi B vừa online lại, và báo trước khi thoát (thêm 2026-10-22).
 - C xóa một tin rồi kéo lại từ người khác thì tin không quay về.
 - Kéo lần hai từ cùng người chỉ lấy phần mới.
 
@@ -251,7 +252,7 @@ Thử thật 3 máy (2026-10-21: PC làm Host, OPPO Reno10 Android 13, Samsung A
 | Rủi ro | Cách xử lý |
 |---|---|
 | Một thành viên cùng phe với người đã bị loại, đưa tin mới của người đó vào nhóm (chữ ký vẫn đúng, kể cả lùi giờ) | Đã chặn (2026-10-22): tin chuyển hộ chỉ nhận khi tác giả đang là thành viên (§3.6); máy nhận ghi log người chuyển. Đổi lại, không còn chuyển hộ tin của người đã rời. Thành viên đó vẫn tự chép lại chữ được, nhưng đứng tên chính mình |
-| Máy chưa gọi được Host chưa biết ai vừa bị loại, vẫn nhận tin của người đó | Danh sách Host ký, thành viên đưa cho nhau khi không gọi được Host ([07 §4.1](07-groups.md)); biết rồi thì xóa tin của người đó nhận sau giờ bị loại (§3.6). Còn hở khi Host loại rồi tắt ngay trước khi ai nhận được |
+| Máy chưa gọi được Host chưa biết ai vừa bị loại, vẫn nhận tin của người đó | Danh sách Host ký; Host báo ngay, báo người vừa online, báo trước khi thoát; thành viên đưa cho nhau khi không gọi được Host ([07 §4.1](07-groups.md)); biết rồi thì xóa tin của người đó nhận sau giờ bị loại, theo đồng hồ đã đo (§3.6). Còn hở khi Host loại lúc không ai online rồi tắt trước khi có ai online; kín hẳn thì phải bỏ chat khi Host offline |
 | Lịch sử chỉ có khi còn ai đó online giữ nó | Cửa sổ 30 ngày / 1.000 tin trên mọi máy thành viên, nên chỉ cần một người online |
 | Kéo lịch sử từ nhiều người tốn băng thông | `index` gọn trước, `fetch` chỉ tin thiếu; kéo lần lượt từng người, không song song |
 | Danh sách thành viên các máy lệch nhau ngay sau khi có người vào hay rời | `403` thử lại 2 phút (§3.1); tin chờ cho người đã rời thì bỏ |

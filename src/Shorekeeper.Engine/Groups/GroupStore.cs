@@ -49,10 +49,14 @@ public sealed record JoinRequest(
 /// </summary>
 public sealed class GroupStore(SqliteDatabase database, TrustStore trust, SettingsService settings, TimeProvider timeProvider)
 {
+    /// <summary>Changes of the Host's clock smaller than this are noise of the network, not worth a write.</summary>
+    private const long HostOffsetStep = 100;
+
     private readonly Lock gate = new();
     private Dictionary<string, Group> groups = [];
     private Dictionary<(string GroupId, DeviceId PeerId), JoinRequest> requests = [];
     private Dictionary<string, GroupRoster> rosters = [];
+    private Dictionary<string, long> hostOffsets = [];
 
     /// <summary>Raised after any change to groups, members or join requests.</summary>
     public event EventHandler? Changed;
@@ -66,12 +70,14 @@ public sealed class GroupStore(SqliteDatabase database, TrustStore trust, Settin
         var requestRows = await connection.QueryAsync<RequestRow>(
             "SELECT GroupId, DeviceId, DisplayName, HostName, Note, State, DeclinedCount, RequestedAt FROM GroupJoinRequests;");
         var rosterRows = await connection.QueryAsync<string>("SELECT Roster FROM GroupRosters;");
+        var offsetRows = await connection.QueryAsync<(string GroupId, long HostOffsetMs)>("SELECT GroupId, HostOffsetMs FROM Groups;");
 
         lock (gate)
         {
             groups = groupRows.Select(g => g.ToGroup(memberRows[g.GroupId])).ToDictionary(g => g.Id);
             requests = requestRows.Select(r => r.ToRequest()).ToDictionary(r => (r.GroupId, r.PeerId));
             rosters = rosterRows.Select(r => JsonSerializer.Deserialize<GroupRoster>(r, PeerJson.Options)!).ToDictionary(r => r.GroupId);
+            hostOffsets = offsetRows.ToDictionary(r => r.GroupId, r => r.HostOffsetMs);
         }
     }
 
@@ -123,6 +129,33 @@ public sealed class GroupStore(SqliteDatabase database, TrustStore trust, Settin
         {
             return rosters.GetValueOrDefault(groupId);
         }
+    }
+
+    /// <summary>How far the Host's clock is ahead of ours, as last measured; zero before that (or on the Host).</summary>
+    public TimeSpan GetHostOffset(string groupId)
+    {
+        lock (gate)
+        {
+            return TimeSpan.FromMilliseconds(hostOffsets.GetValueOrDefault(groupId));
+        }
+    }
+
+    /// <summary>Keeps a fresh measure of the Host's clock; written only when it moved, not on every answer.</summary>
+    public async Task SetHostOffsetAsync(string groupId, TimeSpan offset)
+    {
+        long ms = (long)offset.TotalMilliseconds;
+        lock (gate)
+        {
+            if (!groups.ContainsKey(groupId) || Math.Abs(hostOffsets.GetValueOrDefault(groupId) - ms) < HostOffsetStep)
+            {
+                return;
+            }
+
+            hostOffsets[groupId] = ms;
+        }
+
+        await using SqliteConnection connection = await database.OpenAsync();
+        await connection.ExecuteAsync("UPDATE Groups SET HostOffsetMs = @ms WHERE GroupId = @groupId;", new { groupId, ms });
     }
 
     public IReadOnlyList<JoinRequest> GetRequests(string groupId)
@@ -218,6 +251,7 @@ public sealed class GroupStore(SqliteDatabase database, TrustStore trust, Settin
         {
             groups.Remove(groupId);
             rosters.Remove(groupId);
+            hostOffsets.Remove(groupId);
             foreach (var key in requests.Keys.Where(k => k.GroupId == groupId).ToList())
             {
                 requests.Remove(key);

@@ -160,6 +160,16 @@ public static class PeerApiEndpoints
                 ? PeerResponse.Json(state)
                 : NotFound());
 
+        // On a member: the Host tells of a new member list it signed, e.g. right after removing someone.
+        api.Map("POST", "/groups/{groupId}/roster", RequiredAccess.AnyPeer, async request =>
+            await request.ReadJsonAsync<GroupRoster>() is not { } body ? Invalid()
+            : await groups.HandleRosterAsync(request.Caller, request.Route("groupId"), body) switch
+            {
+                null => NotFound(),
+                true => NoContent(),
+                false => Invalid(),
+            });
+
         // On any member: the Host's signed member list, for a member who cannot reach the Host. Not newer: 204.
         api.Map("GET", "/groups/{groupId}/roster", RequiredAccess.AnyPeer, request => Task.FromResult(
             groups.GetRosterFor(request.Caller, request.Route("groupId"), request.QueryInt64("since") ?? 0) is { } roster
