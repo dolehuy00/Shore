@@ -148,4 +148,4 @@ shorekeeper://pair?id=<DeviceId máy tính>&a=<ip:port>,<ip:port>&k=<lời mời
 | `AllowedSubnets` | multi-string | Chỉ giao tiếp với các dải này |
 | `DisableGroups` | dword | Tắt tính năng nhóm |
 | `AllowBridge` | dword | Cho phép người dùng bật Bridge |
-| `AuditLog` | dword | Ghi log gửi/nhận |
+| `AuditLog` | dword | Ghi nhật ký kiểm tra gửi/nhận vào Windows Event Log ([11 §9](11-windows-deployment.md)) |

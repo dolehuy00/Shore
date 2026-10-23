@@ -12,6 +12,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IPolicyProvider, RegistryPolicyProvider>();
         services.AddSingleton<IFirewallInspector, WindowsFirewallInspector>();
         services.AddSingleton<IFileTagger, MarkOfTheWebTagger>();
+        services.AddSingleton<IAuditSink, EventLogAuditSink>();
         services.AddSingleton<INotifier, WindowsToastNotifier>();
         services.AddSingleton<IGlobalHotkey, WindowsGlobalHotkey>();
         services.AddSingleton<IDirectoryInfo, ActiveDirectoryInfo>();

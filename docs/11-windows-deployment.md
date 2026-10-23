@@ -71,7 +71,7 @@ Template nằm ở `deploy/admx/`: `Shorekeeper.admx` + `en-US\Shorekeeper.adml`
 | `MaxOfferSizeGB` | dword | | Chưa làm, chưa có trong ADMX |
 | `DisableGroups` | dword | `1` = tắt nhóm (không tạo/vào, chỉ nhận file từ liên hệ) | ✅ |
 | `AllowedSubnets` | multi-string | Chỉ giao tiếp trong các dải này | Chưa làm |
-| `AuditLog` | dword | | Chưa làm |
+| `AuditLog` | dword | `1` = ghi nhật ký kiểm tra vào Windows Event Log (§9) | ✅ |
 
 Thiết lập bị chính sách khóa thì hiển thị xám kèm 🔒 *"Do quản trị viên đặt"*.
 
@@ -100,4 +100,36 @@ MSI ghi `HKLM\Software\Microsoft\Windows\CurrentVersion\Run\Shorekeeper = "C:\Pr
 | AppLocker / WDAC | Rule theo publisher |
 | Proxy | `HttpClient` tắt proxy hệ thống (`UseProxy = false`), mọi kết nối đều trong LAN |
 | IDS/IPS | Subnet Probe tắt mặc định, có giới hạn tốc độ |
-| DLP | `AuditLog` ghi ai gửi gì cho ai (tên, size, SHA-256) |
+| DLP | `AuditLog` ghi ai gửi gì cho ai (tên, size, SHA-256), xem §9 |
+
+## 9. Nhật ký kiểm tra (audit log)
+
+Cho bộ phận bảo mật (Q7, 2026-10-23). **Tắt mặc định**; IT bật bằng chính sách `AuditLog` = `1`, người dùng không tắt được. Mọi phiên người dùng trên máy đều ghi.
+
+- **Ghi ở đâu:** Windows Event Log, log **Application**, nguồn **`Shorekeeper`**. Người dùng thường không xóa được log này, và IT gom về một chỗ như mọi sự kiện khác (Windows Event Forwarding, Splunk, Wazuh…). Đăng ký nguồn cần quyền admin nên MSI làm (§2); bản không cài bằng MSI không ghi được, app chỉ ghi lỗi vào log của mình.
+- **Mỗi sự kiện** là một dòng JSON: `event`, `at` (UTC), `user` (tài khoản Windows `DOMAIN\user`), `device` (DeviceId máy này), rồi chi tiết. Người được nhắc tới ghi `{ id, name }` (DeviceId và tên: tên liên hệ, tên trong nhóm hoặc tên nó quảng bá); nhóm ghi `{ id, name }`.
+- **Không bao giờ ghi nội dung tin nhắn**, kể cả chữ gửi bằng "Gửi văn bản" (chỉ ghi `text: true`).
+- Android không có GPO nên không ghi.
+
+| Event ID | `event` | Máy ghi | Chi tiết |
+|---|---|---|---|
+| 1001 | `OfferSent` | Người gửi | `offer`, `group`, `to` (danh sách người nhận), `files`, `bytes`, `text`, `list` (tối đa 100 file: `path`, `size`) |
+| 1002 | `FileSent` | Người gửi | Người nhận đã đọc hết một file: `offer`, `group`, `to`, `file`, `size`, `sha256` |
+| 2001 | `OfferReceived` | Người nhận | `offer`, `group`, `from`, `files`, `bytes`, `text` |
+| 2002 | `FileReceived` | Người nhận | Đã tải xong và khớp checksum: `offer`, `group`, `from`, `file`, `savedTo`, `size`, `sha256` |
+| 2003 | `OfferDeclined` | Người nhận | Từ chối, hoặc xóa khỏi Hộp nhận khi chưa trả lời: `offer`, `from` |
+| 3001 | `ContactAdded` | Mỗi bên | Kết nối xong (hoặc khôi phục từ bản sao lưu): `peer`, `host` |
+| 3002 | `ContactBlocked` | Người chặn | `peer`, `host` |
+| 3003 | `ContactRemoved` | Người ngắt | Ngắt kết nối / bỏ chặn: `peer`, `was` (`contact` / `blocked`) |
+| 4001 | `GroupJoined` | Mỗi máy | Tạo nhóm hoặc được cho vào: `group`, `role` (`host` / `member`), `host`, `members` |
+| 4002 | `GroupLeft` | Mỗi máy | Rời, bị loại, hoặc nhóm đóng: `group` |
+| 4003 | `GroupMemberAdded` | Mỗi thành viên | Ai đó vào nhóm: `group`, `member` |
+| 4004 | `GroupMemberRemoved` | Mỗi thành viên | Ai đó rời hoặc bị loại: `group`, `member` |
+
+Một file đi qua mạng nên có ở **cả hai máy**: `FileSent` bên gửi, `FileReceived` bên nhận, cùng `offer` và `sha256`. Chỉ thấy một bên thì máy kia không bật nhật ký, hoặc không cài bằng MSI.
+
+Ví dụ (2002):
+
+```json
+{"event":"FileReceived","at":"2026-10-23T03:15:42.118Z","user":"CORP\\mai.tran","device":"k7q2ab…","offer":"5f0c…","group":null,"from":{"id":"m3xadf…","name":"Huy Lê"},"file":"Báo cáo/Q3.xlsx","savedTo":"D:\\Nhan\\Báo cáo\\Q3.xlsx","size":482113,"sha256":"9b1d…"}
+```

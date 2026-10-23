@@ -41,6 +41,14 @@ Tắt: không đánh dấu.</string>
 Bật: người dùng không tạo, không vào và không được mời vào nhóm; máy này không làm Host nhóm và chỉ nhận file từ người đã kết nối.
 Tắt hoặc không cấu hình: dùng được nhóm.</string>
 
+      <string id="AuditLog">Ghi nhật ký kiểm tra file gửi và nhận</string>
+      <string id="AuditLog_Help">Ghi vào Windows Application log (nguồn "Shorekeeper") ai gửi file nào cho ai: tên file, dung lượng và SHA-256, người gửi, người nhận, lúc nào, có tải về hay từ chối; cùng ai được kết nối hoặc bị chặn, ai vào hoặc rời nhóm. Không bao giờ ghi nội dung tin nhắn. Gom các sự kiện bằng Windows Event Forwarding hoặc hệ thống SIEM.
+
+Bộ cài MSI đăng ký nguồn sự kiện; bản không cài bằng MSI không ghi được nhật ký.
+
+Bật: mọi người dùng trên máy này đều được ghi, người dùng không tắt được.
+Tắt hoặc không cấu hình: không ghi gì.</string>
+
       <string id="AllowBridge">Cho phép người dùng bật vai trò cầu nối</string>
       <string id="AllowBridge_Help">Vai trò cầu nối giúp một máy chuyển tiếp presence giữa các subnet, để người ở các subnet khác nhau thấy nhau.
 

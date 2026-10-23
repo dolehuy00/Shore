@@ -18,6 +18,7 @@
     <PackageVersion Include="Dapper" Version="2.1.89" />
     <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="10.0.12" />
     <PackageVersion Include="System.DirectoryServices.AccountManagement" Version="10.0.12" />
+    <PackageVersion Include="System.Diagnostics.EventLog" Version="10.0.12" />
 
     <!-- Audio: Opus in managed code, the same on Windows and Android -->
     <PackageVersion Include="Concentus" Version="2.2.2" />

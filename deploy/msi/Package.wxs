@@ -91,6 +91,15 @@
     </Component>
 
     <!--
+      The audit log (policy AuditLog, docs/11-windows-deployment.md §9) writes to the Application log as "Shorekeeper".
+      Registering a source needs an administrator, so the app cannot do it itself. The message file is the one .NET uses.
+    -->
+    <Component Id="EventLogSource" Directory="INSTALLFOLDER">
+      <util:EventSource Log="Application" Name="Shorekeeper" KeyPath="yes"
+                        EventMessageFile="[WindowsFolder]Microsoft.NET\Framework64\v4.0.30319\EventLogMessages.dll" />
+    </Component>
+
+    <!--
       Explorer: right-click a file or folder → "Gửi bằng Shorekeeper…" (Windows 11: under "Show more options";
       the new menu needs package identity, see docs/decisions.md ADR-012). Explorer starts the exe once per
       selected item; the running app gathers them in one "Gửi nhanh" window.
@@ -117,6 +126,7 @@
       <ComponentRef Id="DownloadDirectoryPolicy" />
       <ComponentRef Id="BridgeAddressesPolicy" />
       <ComponentRef Id="ExplorerMenu" />
+      <ComponentRef Id="EventLogSource" />
     </Feature>
   </Package>
 </Wix>

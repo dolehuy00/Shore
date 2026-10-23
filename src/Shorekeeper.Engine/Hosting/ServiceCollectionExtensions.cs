@@ -24,7 +24,7 @@ public static class ServiceCollectionExtensions
 {
     /// <summary>
     /// Registers the engine. The caller must also register an <see cref="ISecretProtector"/>
-    /// (platform-specific); <see cref="IPolicyProvider"/> defaults to no policies.
+    /// (platform-specific); <see cref="IPolicyProvider"/> defaults to no policies, <see cref="IAuditSink"/> to nowhere.
     /// </summary>
     public static IServiceCollection AddShorekeeperEngine(this IServiceCollection services, AppPaths paths)
     {
@@ -33,6 +33,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IPolicyProvider>(NullPolicyProvider.Instance);
         services.TryAddSingleton<IFirewallInspector>(NullFirewallInspector.Instance);
         services.TryAddSingleton<IDirectoryInfo>(NullDirectoryInfo.Instance);
+        services.TryAddSingleton<IAuditSink>(NullAuditSink.Instance);
 
         services.AddSingleton<SettingsStore>();
         services.AddSingleton<SettingsService>();
@@ -43,6 +44,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<TrustStore>();
         services.AddSingleton<GroupStore>();
         services.AddSingleton<PeerDirectory>();
+        services.AddSingleton<AuditLog>();
         services.AddSingleton<LocalDevice>();
         services.AddSingleton<ShorekeeperEngine>();
         services.AddHostedService<EngineHostedService>();

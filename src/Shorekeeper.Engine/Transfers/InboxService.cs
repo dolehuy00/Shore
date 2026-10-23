@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json.Nodes;
 using Dapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
@@ -34,6 +35,7 @@ public sealed class InboxService(
     IFileTagger fileTagger,
     IPolicyProvider policy,
     UsageStatsService usage,
+    AuditLog audit,
     TimeProvider timeProvider,
     ILogger<InboxService> logger)
 {
@@ -175,6 +177,7 @@ public sealed class InboxService(
         }
 
         await SaveOfferStateAsync(key, InboxState.Declined);
+        AuditDeclined(key);
         await SendReceiptAsync(key, ReceiptStatus.Declined);
     }
 
@@ -211,6 +214,7 @@ public sealed class InboxService(
 
             if (item.State == InboxState.New && item.ExpiresAt > timeProvider.GetUtcNow())
             {
+                AuditDeclined(item.Key);
                 _ = SendReceiptAsync(item.Key, ReceiptStatus.Declined);
             }
 
@@ -339,6 +343,15 @@ public sealed class InboxService(
 
         await InsertAsync(item);
         logger.LogInformation("Offer {Offer} received from {Sender}: {Files} entries, {Bytes} bytes", key.OfferId, sender, files.Count, item.TotalBytes);
+        audit.Write(AuditEvent.OfferReceived, () => new JsonObject
+        {
+            ["offer"] = key.OfferId,
+            ["group"] = audit.GroupInfo(item.GroupId),
+            ["from"] = audit.Peer(sender),
+            ["files"] = files.Count(f => !f.IsDirectory),
+            ["bytes"] = item.TotalBytes,
+            ["text"] = item.Note is not null,
+        });
 
         if (autoAccept || item.ChatPicture)
         {
@@ -540,6 +553,16 @@ public sealed class InboxService(
             }
 
             await SetFileResultAsync(item, file, InboxFileState.Completed, final, null, hash);
+            audit.Write(AuditEvent.FileReceived, () => new JsonObject
+            {
+                ["offer"] = item.Key.OfferId,
+                ["group"] = audit.GroupInfo(item.GroupId),
+                ["from"] = audit.Peer(item.Key.SenderId),
+                ["file"] = file.RelativePath,
+                ["savedTo"] = final,
+                ["size"] = file.Size,
+                ["sha256"] = hash,
+            });
         }
         catch (Exception ex) when (ex is DownloadFailedException or OperationCanceledException or IOException or UnauthorizedAccessException)
         {
@@ -602,6 +625,12 @@ public sealed class InboxService(
             await Task.Delay(TimeSpan.FromSeconds(1), timeProvider, cancellationToken);
         }
     }
+
+    private void AuditDeclined(OfferKey key) => audit.Write(AuditEvent.OfferDeclined, () => new JsonObject
+    {
+        ["offer"] = key.OfferId,
+        ["from"] = audit.Peer(key.SenderId),
+    });
 
     private async Task SendReceiptAsync(OfferKey key, string status)
     {

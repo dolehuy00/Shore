@@ -10,12 +10,13 @@
 | Q4 | Người lạ có gửi file được không? | **Không.** Phải Kết nối hoặc vào chung nhóm |
 | Q5 | Rớt mạng? | Nối lại và tải tiếp trong 60 giây; quá thì Lỗi → ADR-007 |
 | Q6/Q8 | Hạn file / người nhận có giữ file không? | File đã nhận là **vĩnh viễn**. Chỉ có **offer** hết hạn (người chưa tải thì không tải được nữa) |
-| Q7 | Có cần **audit log** cho bộ phận bảo mật không? | **Cần** (2026-10-23). Chưa làm; thiết kế còn chốt |
+| Q7 | Có cần **audit log** cho bộ phận bảo mật không? | **Cần** (2026-10-23): GPO `AuditLog` bật, ghi vào Windows Event Log; chỉ chuyện gửi/nhận file, liên hệ và nhóm, không ghi nội dung tin nhắn → [11 §9](11-windows-deployment.md) |
 | Q9 | Nhóm phức tạp? | Nhóm chỉ là danh sách thành viên: xin vào → Host duyệt → ADR-004 |
 | Q11 | Tên hiển thị: "Shorekeeper" hay tên tiếng Việt? | **Giữ "Shorekeeper"** (2026-10-23) |
 | Q12 | IPv6? | **Tạm chưa**: chỉ IPv4 (2026-10-23) |
 | Q13 | Công ty có **AD CS** không? | **Chưa có** (2026-10-23): chỉ AD mức 1–2; mức 3–4 hoãn → ADR-008 |
 | Q14 | Đọc thẳng file gốc hay luôn snapshot? | **Đọc thẳng** mặc định; snapshot khi file bị khóa hoặc bật tùy chọn |
+| Q15 | Offer mở mặc định bao lâu: 24 giờ có hợp không? | **Hợp** (2026-10-23): 24 giờ, người dùng đổi được, IT đặt trần |
 | Q16 | Cửa sổ kết nối lại 60 giây có đủ không? | **Đủ** (2026-10-23): 60 giây, cấu hình 15–300 giây |
 | — | Ai quyết định gửi cho ai? | **Người gửi** chọn người nhận; **người nhận** tự quyết tải hay không |
 
@@ -23,5 +24,4 @@
 
 | # | Câu hỏi | Ảnh hưởng | Đề xuất hiện tại |
 |---|---|---|---|
-| Q10 | Có Wi-Fi bật client isolation hoặc VPN không? | Discovery | Wi-Fi isolation: chỉ Manual/Bridge; VPN để sau |
-| Q15 | Offer mở mặc định bao lâu: 24 giờ có hợp không? | UX | 24 giờ, người dùng đổi được, IT đặt trần |
+| Q10 | Có Wi-Fi bật client isolation hoặc VPN không? | Discovery | **Tạm bỏ qua** (2026-10-23). Wi-Fi isolation: chỉ Manual/Bridge; VPN để sau |

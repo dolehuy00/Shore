@@ -24,6 +24,9 @@ public enum GroupRole
 
 public sealed record GroupMember(DeviceId DeviceId, string Name, bool IsHost);
 
+/// <summary>A group as it was and as it is now; <paramref name="After"/> is null when we no longer have it.</summary>
+public sealed record GroupChange(Group? Before, Group? After);
+
 /// <param name="HostOnlyChat">"Chỉ nhắn khi Host online": set by the Host, carried in its signed list (docs/16-group-chat.md §3.7).</param>
 public sealed record Group(string Id, string Name, DeviceId HostId, GroupRole Role, IReadOnlyList<GroupMember> Members, bool HostOnlyChat = false)
 {
@@ -74,6 +77,9 @@ public sealed class GroupStore(SqliteDatabase database, TrustStore trust, Settin
 
     /// <summary>Raised after any change to groups, members or join requests.</summary>
     public event EventHandler? Changed;
+
+    /// <summary>Raised after a group is saved or forgotten (the audit log).</summary>
+    public event EventHandler<GroupChange>? GroupChanged;
 
     public async Task LoadAsync(CancellationToken cancellationToken = default)
     {
@@ -278,10 +284,12 @@ public sealed class GroupStore(SqliteDatabase database, TrustStore trust, Settin
         long now = timeProvider.GetUtcNow().ToUnixTimeMilliseconds();
         // On a member: who is gone, and when we last heard they were in (unknown before the first answer).
         Dictionary<DeviceId, long> gone;
+        Group? before;
         lock (gate)
         {
             gone = departures.TryGetValue(group.Id, out var known) ? new Dictionary<DeviceId, long>(known) : [];
-            if (group.Role == GroupRole.Member && groups.TryGetValue(group.Id, out Group? before) && before.Role == GroupRole.Member
+            before = groups.GetValueOrDefault(group.Id);
+            if (group.Role == GroupRole.Member && before is { Role: GroupRole.Member }
                 && synced.GetValueOrDefault(group.Id) is > 0 and long confirmed)
             {
                 foreach (GroupMember left in before.Members.Where(m => !group.Contains(m.DeviceId)))
@@ -336,6 +344,7 @@ public sealed class GroupStore(SqliteDatabase database, TrustStore trust, Settin
             departures[group.Id] = gone;
         }
 
+        GroupChanged?.Invoke(this, new GroupChange(before, group));
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
@@ -379,9 +388,10 @@ public sealed class GroupStore(SqliteDatabase database, TrustStore trust, Settin
             DELETE FROM Groups WHERE GroupId = @groupId;
             """,
             new { groupId });
+        Group? before;
         lock (gate)
         {
-            groups.Remove(groupId);
+            groups.Remove(groupId, out before);
             rosters.Remove(groupId);
             hostOffsets.Remove(groupId);
             synced.Remove(groupId);
@@ -392,6 +402,11 @@ public sealed class GroupStore(SqliteDatabase database, TrustStore trust, Settin
             {
                 requests.Remove(key);
             }
+        }
+
+        if (before is not null)
+        {
+            GroupChanged?.Invoke(this, new GroupChange(before, null));
         }
 
         Changed?.Invoke(this, EventArgs.Empty);

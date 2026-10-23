@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Shorekeeper.Engine.Groups;
 using Shorekeeper.Engine.Identity;
+using Shorekeeper.Engine.Monitoring;
 using Shorekeeper.Engine.Settings;
 using Shorekeeper.Engine.Storage;
 using Shorekeeper.Engine.Trust;
@@ -19,6 +20,7 @@ public sealed class ShorekeeperEngine(
     TrustStore trustStore,
     GroupStore groupStore,
     IdentityBackup backup,
+    AuditLog audit,
     ILogger<ShorekeeperEngine> logger) : IDisposable
 {
     private DeviceIdentity? identity;
@@ -41,6 +43,7 @@ public sealed class ShorekeeperEngine(
         await groupStore.LoadAsync(cancellationToken);
         await backup.ApplyPendingRestoreAsync(cancellationToken);
         identity = identityStore.LoadOrCreate();
+        audit.Self = identity.DeviceId;
 
         logger.LogInformation(
             "Engine ready: {DisplayName} ({DeviceId}), data in {DataDirectory}",

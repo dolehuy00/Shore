@@ -21,6 +21,9 @@ public sealed record PeerRecord(
     public bool IsPhone => string.Equals(Os, "android", StringComparison.OrdinalIgnoreCase);
 }
 
+/// <summary>Someone became a contact or was blocked (<paramref name="After"/>), or stopped being either (null).</summary>
+public sealed record TrustChange(PeerRecord? Before, PeerRecord? After);
+
 /// <summary>
 /// Contacts, blocked peers, known addresses and manually added machines (docs/09-data-storage.md).
 /// Contacts and blocked peers are cached in memory because every API request checks them.
@@ -38,6 +41,9 @@ public sealed class TrustStore(SqliteDatabase database, TimeProvider timeProvide
 
     /// <summary>Raised after any change to contacts, blocked peers or manual targets.</summary>
     public event EventHandler? Changed;
+
+    /// <summary>Raised when someone's trust level changes (the audit log).</summary>
+    public event EventHandler<TrustChange>? LevelChanged;
 
     public async Task LoadAsync(CancellationToken cancellationToken = default)
     {
@@ -103,9 +109,15 @@ public sealed class TrustStore(SqliteDatabase database, TimeProvider timeProvide
             await connection.ExecuteAsync("DELETE FROM Peers WHERE DeviceId = @Id;", new { Id = id.Value });
         }
 
+        PeerRecord? before;
         lock (gate)
         {
-            peers.Remove(id);
+            peers.Remove(id, out before);
+        }
+
+        if (before is not null)
+        {
+            LevelChanged?.Invoke(this, new TrustChange(before, null));
         }
 
         Changed?.Invoke(this, EventArgs.Empty);
@@ -262,11 +274,18 @@ public sealed class TrustStore(SqliteDatabase database, TimeProvider timeProvide
                 new { Id = id.Value, displayName, hostName, level = (int)level, trustedAt = level == TrustLevel.Trusted ? now : (long?)null });
         }
 
+        PeerRecord? previous;
+        PeerRecord record;
         lock (gate)
         {
-            PeerRecord? previous = peers.GetValueOrDefault(id);
-            peers[id] = new PeerRecord(
+            previous = peers.GetValueOrDefault(id);
+            record = peers[id] = new PeerRecord(
                 id, displayName, hostName, previous?.Alias, level, level == TrustLevel.Trusted ? previous?.AutoAcceptMaxBytes : null, previous?.Os);
+        }
+
+        if (previous?.TrustLevel != level)
+        {
+            LevelChanged?.Invoke(this, new TrustChange(previous, record));
         }
 
         Changed?.Invoke(this, EventArgs.Empty);

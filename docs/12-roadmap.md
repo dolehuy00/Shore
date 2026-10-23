@@ -67,7 +67,7 @@ Mỗi milestone kết thúc bằng một bản **chạy được, demo được*
 ### M4b ✅ (2026-10-02)
 
 - MSI per-machine bằng WiX v5 (`deploy/build-msi.ps1`): app self-contained, shortcut Start menu, rule firewall theo chương trình (Domain + Private), tự khởi động xuống tray, tham số `AUTOSTART` / `FIREWALL_RULES` / `DOWNLOAD_DIR` / `BRIDGE_ADDRESSES`, đóng app đang chạy khi nâng cấp/gỡ.
-- ADMX + ADML (en-US, vi-VN) cho 10 chính sách app đang đọc.
+- ADMX + ADML (en-US, vi-VN) cho 10 chính sách app đang đọc (sau thêm `DisableGroups`, `AuditLog`).
 - **Chưa làm:** Authenticode (chưa có chứng chỉ, xem [11 §7](11-windows-deployment.md)); lab 2 subnet trên máy thật; cài thử MSI trên máy sạch.
 
 **Xong khi:** 2 subnet thấy nhau sau một lần Kết nối bắc cầu, hoặc ngay lập tức nếu có Bridge.
@@ -106,6 +106,11 @@ Kế hoạch ban đầu:
 - **Sao lưu/khôi phục danh tính** ([04](04-identity-security.md) §1.1, ADR-013): file `.skbackup` có mật khẩu (khóa + liên hệ + nhóm), khôi phục áp dụng khi app khởi động lại.
 - **Chuẩn bị port Linux/macOS** ([02](02-architecture.md) §9, ADR-014): Desktop build `net10.0` khi đích không phải Windows; khóa trong thư mục quyền 700; cross-publish `linux-x64` / `osx-arm64` được; Core + Engine test chạy trên WSL Ubuntu.
 - **Chưa làm:** AD trên domain thật (chỉ test bằng dữ liệu giả), mức 3–4 (cần AD CS); chạy giao diện trên Linux/macOS thật, libsecret / Keychain, gói cài Linux/macOS; tìm theo email.
+
+### Nhật ký kiểm tra ✅ (2026-10-23)
+
+- GPO `AuditLog` (+ ADMX): ghi vào Windows Event Log (Application, nguồn `Shorekeeper`, MSI đăng ký) gửi/nhận file kèm SHA-256, từ chối, liên hệ, vào/rời nhóm ([11 §9](11-windows-deployment.md)). Không ghi nội dung tin nhắn.
+- **Chưa làm:** cài MSI thật rồi gom sự kiện bằng Windows Event Forwarding.
 
 ## M7 — Android ✅ (A0–A6, 2026-10-16)
 

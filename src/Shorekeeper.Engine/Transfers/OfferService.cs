@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json.Nodes;
 using Dapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
@@ -30,6 +31,7 @@ public sealed class OfferService(
     AppPaths paths,
     IExternalFileSource external,
     UsageStatsService usage,
+    AuditLog audit,
     TimeProvider timeProvider,
     ILogger<OfferService> logger)
 {
@@ -48,6 +50,12 @@ public sealed class OfferService(
 
     /// <summary>How long a hash request waits for the background hash before answering 202 (must stay below the client timeout).</summary>
     private static readonly TimeSpan HashWait = TimeSpan.FromSeconds(10);
+
+    /// <summary>How long the audit log waits for the hash of a file read to its end (a very large file).</summary>
+    private static readonly TimeSpan AuditHashWait = TimeSpan.FromMinutes(30);
+
+    /// <summary>Files named in the audit log's "offer sent"; each one sent is logged on its own anyway.</summary>
+    private const int AuditListed = 100;
 
     private static readonly TimeSpan HistoryRetention = TimeSpan.FromDays(90);
     private static readonly TimeSpan ProgressEvery = TimeSpan.FromMilliseconds(250);
@@ -303,6 +311,20 @@ public sealed class OfferService(
 
         logger.LogInformation("Offer {Offer} created: {Files} entries, {Bytes} bytes, {Recipients} recipients",
             offer.Id, offer.Files.Count, offer.TotalBytes, offer.Recipients.Count);
+        audit.Write(AuditEvent.OfferSent, () =>
+        {
+            OfferFile[] files = [.. offer.Files.Where(f => !f.IsDirectory)];
+            return new JsonObject
+            {
+                ["offer"] = offer.Id,
+                ["group"] = audit.GroupInfo(offer.GroupId),
+                ["to"] = new JsonArray([.. offer.Recipients.Keys.Select(r => audit.Peer(r))]),
+                ["files"] = files.Length,
+                ["bytes"] = offer.TotalBytes,
+                ["text"] = offer.Note is not null,
+                ["list"] = new JsonArray([.. files.Take(AuditListed).Select(f => new JsonObject { ["path"] = f.RelativePath, ["size"] = f.Size })]),
+            };
+        });
         Changed?.Invoke(this, offer.Id);
         foreach (DeviceId recipient in offer.Recipients.Keys)
         {
@@ -528,7 +550,11 @@ public sealed class OfferService(
             Interlocked.Add(ref recipient.BytesServed, read);
             usage.AddSent(caller, read, 0);
             ReportProgress(offerId);
-        }, () => usage.AddSent(caller, 0, 1), () => Interlocked.Decrement(ref activeStreams));
+        }, () =>
+        {
+            usage.AddSent(caller, 0, 1);
+            _ = AuditFileSentAsync(offer, file, caller);
+        }, () => Interlocked.Decrement(ref activeStreams));
         return PeerResponse.File(counting, "application/octet-stream", file.ModifiedAt, ETagFor(file));
     }
 
@@ -573,6 +599,26 @@ public sealed class OfferService(
 
         await SetRecipientStateAsync(offerId, caller, state.Value);
         return PeerResponse.Empty(HttpStatusCode.NoContent);
+    }
+
+    /// <summary>A recipient read the file to its end. Its hash started when the download did, and is usually ready.</summary>
+    private async Task AuditFileSentAsync(Offer offer, OfferFile file, DeviceId recipient)
+    {
+        if (!audit.IsOn)
+        {
+            return;
+        }
+
+        string? sha256 = await hasher.TryGetAsync(file.ServePath, file.Size, file.ModifiedAt, AuditHashWait, CancellationToken.None);
+        audit.Write(AuditEvent.FileSent, () => new JsonObject
+        {
+            ["offer"] = offer.Id,
+            ["group"] = audit.GroupInfo(offer.GroupId),
+            ["to"] = audit.Peer(recipient),
+            ["file"] = file.RelativePath,
+            ["size"] = file.Size,
+            ["sha256"] = sha256,
+        });
     }
 
     private (PeerResponse? Error, (Offer, OfferFile, Recipient)? Found) Find(DeviceId caller, string offerId, string fileId)

@@ -41,6 +41,14 @@ If disabled, files are not marked.</string>
 If enabled, users cannot create, join or be invited into groups, this computer does not host groups, and it accepts files only from contacts.
 If disabled or not configured, groups are available.</string>
 
+      <string id="AuditLog">Keep an audit log of files sent and received</string>
+      <string id="AuditLog_Help">Writes to the Windows Application log (source "Shorekeeper") who sent which file to whom: file name, size and SHA-256, the people involved and when, and whether the file was downloaded or declined; also who became a contact or was blocked, and who joined or left a group. The content of messages is never logged. Collect the events with Windows Event Forwarding or your SIEM.
+
+The MSI registers the event source; a copy not installed by the MSI cannot write the log.
+
+If enabled, every user's copy on this computer keeps the log and users cannot turn it off.
+If disabled or not configured, nothing is logged.</string>
+
       <string id="AllowBridge">Allow users to turn on the bridge role</string>
       <string id="AllowBridge_Help">The bridge role lets a computer relay presence between subnets, so people in different subnets see each other.
 
