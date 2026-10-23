@@ -108,7 +108,7 @@ Mỗi mục: **Bối cảnh → Quyết định → Hệ quả**. Trạng thái:
 
 ## ADR-008 — Tích hợp AD qua chứng chỉ (attestation), không qua Kerberos
 
-**Trạng thái:** Đề xuất (phụ thuộc công ty có AD CS)
+**Trạng thái:** Hoãn: công ty chưa có AD CS (Q13, 2026-10-23)
 
 **Bối cảnh:** App chạy trong phiên người dùng trên nhiều máy, không có SPN, nên Kerberos ngang hàng không khả thi, còn NTLM đang bị loại bỏ.
 
