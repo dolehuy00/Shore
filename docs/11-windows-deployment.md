@@ -128,6 +128,8 @@ Cho bộ phận bảo mật (Q7, 2026-10-23). **Tắt mặc định**; IT bật 
 
 Một file đi qua mạng nên có ở **cả hai máy**: `FileSent` bên gửi, `FileReceived` bên nhận, cùng `offer` và `sha256`. Chỉ thấy một bên thì máy kia không bật nhật ký, hoặc không cài bằng MSI.
 
+Thử thật (2026-10-23, PC dev, nguồn đăng ký bằng `New-EventLog`, `AuditLog` = 1 ở HKLM): gửi một file từ PC sang OPPO bằng **Gửi nhanh** → Application log có 1001 `OfferSent` ngay khi gửi; điện thoại bấm Tải → 1002 `FileSent` với `sha256` đúng của file. Nội dung hiện đủ trong Event Viewer / `Get-WinEvent`.
+
 Ví dụ (2002):
 
 ```json
