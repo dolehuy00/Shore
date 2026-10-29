@@ -1,6 +1,6 @@
 # 17 — Dọn giao diện (U5 → U7)
 
-> Trạng thái: **xong trên PC** (2026-10-29): U5, U6, U7. Điện thoại có U5a và U6 trong mã, chưa build APK để thử. Nối tiếp đợt đổi giao diện U1–U4 (2026-10-16, [12](12-roadmap.md)). Làm theo thứ tự U5 → U6 → U7: U5 đổi bố cục chung, làm sau thì phải sửa lại nhiều chỗ.
+> Trạng thái: **xong** (2026-10-29): U5, U6, U7 trên PC; U5a, U6 trên điện thoại. Nối tiếp đợt đổi giao diện U1–U4 (2026-10-16, [12](12-roadmap.md)). Làm theo thứ tự U5 → U6 → U7: U5 đổi bố cục chung, làm sau thì phải sửa lại nhiều chỗ.
 
 ## 1. Vì sao
 
@@ -27,6 +27,7 @@ Xem lại cả 6 trang của app PC (2026-10-29): rối chủ yếu vì **một 
 - Ô tìm Ctrl+K không còn trả về văn bản (nó tìm trong Hộp nhận / Đã gửi). Tìm trong tin nhắn là việc khác, để sau.
 - Thẻ văn bản trong hội thoại hiện đủ chữ (trước đây 200 ký tự, 3 dòng), chọn được, với [Sao chép] và [Mở] cho link; không còn [Xem]. Thông báo văn bản đến trên điện thoại mở hội thoại.
 - Thử thật (2026-10-29, PC): Hộp nhận và Đã gửi chỉ còn offer có file; Gửi nhanh một đoạn chữ cho "Mai (máy thử)" mở hội thoại với Mai, thẻ có đủ chữ và [Sao chép].
+- Thử thật (2026-10-29, Nubia Z2577 Android 16, APK mới): PC Gửi nhanh "U5 thu tren Nubia: https://example.com" → thông báo có [Sao chép]; chạm thông báo mở hội thoại với PC, thẻ đủ chữ với [Sao chép], không có [Xem]; tab File → Nhận trống. [Mở] chỉ hiện khi cả đoạn chữ là một link, như trước.
 - Offer có cả file lẫn chữ thì vẫn ở trang File, chữ là ghi chú như cũ.
 
 **U5b. Trang File** (PC): Hộp nhận và Đã gửi thành một mục **File** trên thanh bên, hai tab **Nhận | Đã gửi** đầu trang, như điện thoại. Huy hiệu của mục File là số file mới nhận. Mọi chỗ trước đây mở Hộp nhận / Đã gửi (thẻ trong hội thoại, cửa sổ file đến, kết quả tìm, gửi xong) mở đúng tab. Thanh bên còn 6 mục.
