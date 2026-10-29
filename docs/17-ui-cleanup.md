@@ -1,6 +1,6 @@
 # 17 — Dọn giao diện (U5 → U7)
 
-> Trạng thái: **đang làm** (2026-10-29): U5, U6, U7a–c xong. Nối tiếp đợt đổi giao diện U1–U4 (2026-10-16, [12](12-roadmap.md)). Làm theo thứ tự U5 → U6 → U7: U5 đổi bố cục chung, làm sau thì phải sửa lại nhiều chỗ.
+> Trạng thái: **xong trên PC** (2026-10-29): U5, U6, U7. Điện thoại có U5a và U6 trong mã, chưa build APK để thử. Nối tiếp đợt đổi giao diện U1–U4 (2026-10-16, [12](12-roadmap.md)). Làm theo thứ tự U5 → U6 → U7: U5 đổi bố cục chung, làm sau thì phải sửa lại nhiều chỗ.
 
 ## 1. Vì sao
 
@@ -71,6 +71,8 @@ Thử thật U7b–c (2026-10-29, PC): Xóm và Nhóm còn một dòng với bi�
 | Giới thiệu | Phiên bản, DeviceId đầy đủ kèm [Sao chép], thư mục dữ liệu |
 
 Mục đúng nhóm nào sẽ theo những gì trang Cài đặt đang có; bảng trên là hướng, không thêm cài đặt mới.
+
+Đã làm (2026-10-29): khối "Gửi & nhận" có một nút Lưu chung cho tên, thư mục, thời hạn, ngôn ngữ, phím tắt…, nên không tách: mục **Chung** là cả khối đó. **Mạng**: Máy ở mạng khác (nút Lưu riêng), chẩn đoán, máy thêm thủ công. **Bảo mật**: sao lưu / khôi phục danh tính, đã chặn. **Thống kê**. **Giới thiệu**: DeviceId với [Sao chép], dữ liệu ứng dụng, phiên bản. Mở Cài đặt lần đầu là mục Chung; app nhớ mục đang xem tới khi tắt.
 
 ## 5. Không làm đợt này
 

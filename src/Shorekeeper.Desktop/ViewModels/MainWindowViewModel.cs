@@ -61,6 +61,16 @@ public sealed partial class NavItem(NavPage page, string title, string icon, str
 
 public sealed record StatusOption(MyStatus Status, string Label);
 
+/// <summary>"Cài đặt", one section at a time (docs/17-ui-cleanup.md §4).</summary>
+public enum SettingsSection
+{
+    General,
+    Network,
+    Security,
+    Stats,
+    About,
+}
+
 public sealed partial class MainWindowViewModel : ObservableObject
 {
     private readonly LocalPresence presence;
@@ -296,6 +306,15 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public bool IsAudioVisible => SelectedNavItem.Page == NavPage.Audio;
 
     public bool IsSettingsVisible => SelectedNavItem.Page == NavPage.Settings;
+
+    [ObservableProperty]
+    public partial SettingsSection SettingsSection { get; set; }
+
+    [RelayCommand]
+    private void SetSettingsSection(SettingsSection section) => SettingsSection = section;
+
+    [RelayCommand]
+    private Task CopyDeviceIdAsync() => DialogService.CopyTextAsync(DeviceId);
 
     public bool IsComingSoonVisible => SelectedNavItem.Milestone is not null;
 
