@@ -1,6 +1,6 @@
 # 17 — Dọn giao diện (U5 → U7)
 
-> Trạng thái: **đang làm** (2026-10-29): U5a xong. Nối tiếp đợt đổi giao diện U1–U4 (2026-10-16, [12](12-roadmap.md)). Làm theo thứ tự U5 → U6 → U7: U5 đổi bố cục chung, làm sau thì phải sửa lại nhiều chỗ.
+> Trạng thái: **đang làm** (2026-10-29): U5 xong. Nối tiếp đợt đổi giao diện U1–U4 (2026-10-16, [12](12-roadmap.md)). Làm theo thứ tự U5 → U6 → U7: U5 đổi bố cục chung, làm sau thì phải sửa lại nhiều chỗ.
 
 ## 1. Vì sao
 
@@ -33,7 +33,9 @@ Xem lại cả 6 trang của app PC (2026-10-29): rối chủ yếu vì **một 
 
 **U5c. Máy mình một chỗ** (PC): góc trên phải giữ trạng thái (Online / Bận / Ẩn), tên và mã ngắn. Thẻ dưới trái chỉ còn **ổ nhận**: thanh dung lượng và "Trống 119 GB / 462 GB".
 
-**U5d. Cài đặt**: bỏ dòng "Tên hiển thị" chỉ đọc ở "Thiết bị này"; tên chỉ sửa ở "Gửi & nhận".
+**U5d. Cài đặt**: bỏ dòng "Tên hiển thị" chỉ đọc ở "Thiết bị này"; tên chỉ sửa ở "Gửi & nhận". "Thư mục nhận" cũng trùng như vậy nên bỏ luôn.
+
+Thử thật U5b–d (2026-10-29, PC): thanh bên 6 mục; File mở tab Nhận, bấm "Đã gửi" đổi tab; thẻ dưới trái "Ổ nhận file"; "Thiết bị này" còn DeviceId, dữ liệu ứng dụng, phiên bản.
 
 ## 3. U6 — Văn bản trống
 

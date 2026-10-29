@@ -134,6 +134,26 @@
       <Setter Property="BorderBrush" Value="{DynamicResource AccentButtonBackground}" />
       <Setter Property="BorderThickness" Value="2" />
     </Style>
+    <!-- File: "Nhận | Đã gửi", a segmented switch, the chosen side raised like a card (as on the phone). -->
+    <Style Selector="Border.segments">
+      <Setter Property="Background" Value="{DynamicResource Sk.TileBackground}" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="3" />
+    </Style>
+    <Style Selector="Button.segment">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="0,6" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.segment.on">
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.segment.on /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource Sk.CardBackground}" />
+    </Style>
     <Style Selector="TextBlock.muted">
       <Setter Property="Foreground" Value="{DynamicResource Sk.MutedText}" />
     </Style>
@@ -495,27 +515,16 @@
       </Grid>
     </Border>
 
-    <!-- Navigation, and this device at the bottom -->
+    <!-- Navigation, and the drive received files go to at the bottom (this device itself is at the top right). -->
     <Border Grid.Row="1" Background="{DynamicResource Sk.SidebarBackground}" BorderThickness="0,0,1,0" BorderBrush="{DynamicResource Sk.Divider}">
       <DockPanel>
-        <Border DockPanel.Dock="Bottom" Margin="10" Padding="12,10" CornerRadius="8" BorderThickness="1"
-                BorderBrush="{DynamicResource Sk.CardBorder}" Background="{DynamicResource Sk.CardBackground}">
+        <Border DockPanel.Dock="Bottom" Margin="10" Padding="12,10" CornerRadius="8" BorderThickness="1" IsVisible="{Binding HasStorage}"
+                BorderBrush="{DynamicResource Sk.CardBorder}" Background="{DynamicResource Sk.CardBackground}" ToolTip.Tip="{Binding DownloadDirectory}">
           <StackPanel Spacing="6">
-            <Grid ColumnDefinitions="Auto,*">
-              <PathIcon Data="{StaticResource Icon.Laptop}" Width="22" Height="22" VerticalAlignment="Center" />
-              <StackPanel Grid.Column="1" Margin="10,0,0,0">
-                <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                <StackPanel Orientation="Horizontal" Spacing="6">
-                  <Ellipse Classes="dot" Classes.busy="{Binding IsBusy}" Classes.muted="{Binding IsHidden}" Width="8" Height="8" />
-                  <TextBlock Classes="muted" Text="{Binding SelectedStatus.Label}" FontSize="12" />
-                </StackPanel>
-              </StackPanel>
-            </Grid>
-            <StackPanel Spacing="4" IsVisible="{Binding HasStorage}" ToolTip.Tip="{Binding DownloadDirectory}">
-              <ProgressBar Value="{Binding StorageUsed}" Maximum="1" Height="4" MinHeight="4" MinWidth="0" CornerRadius="2"
-                           Background="{DynamicResource Sk.Track}" />
-              <TextBlock Classes="muted" Text="{Binding StorageText}" FontSize="11" />
-            </StackPanel>
+            <TextBlock Text="{l:T 'Ổ nhận file'}" FontSize="12" FontWeight="SemiBold" />
+            <ProgressBar Value="{Binding StorageUsed}" Maximum="1" Height="4" MinHeight="4" MinWidth="0" CornerRadius="2"
+                         Background="{DynamicResource Sk.Track}" />
+            <TextBlock Classes="muted" Text="{Binding StorageText}" FontSize="11" />
           </StackPanel>
         </Border>
 
@@ -982,9 +991,21 @@
                      Text="{l:T 'Kéo file hoặc thư mục vào một người để gửi. Click chọn người rồi nhấn Ctrl+V để gửi file hoặc đoạn chữ đã copy; Ctrl+click để chọn nhiều người.'}" />
         </StackPanel>
 
+        <!-- File: "Nhận | Đã gửi", as on the phone (docs/17-ui-cleanup.md §2). -->
+        <Grid IsVisible="{Binding IsFilesVisible}" ColumnDefinitions="*,Auto" MaxWidth="860" HorizontalAlignment="Stretch">
+          <TextBlock Classes="h2" Text="{l:T 'File'}" VerticalAlignment="Center" />
+          <Border Grid.Column="1" Classes="segments" Width="240">
+            <Grid ColumnDefinitions="*,*">
+              <Button Classes="segment" Classes.on="{Binding !IsSentTab}" Command="{Binding ShowPageCommand}" CommandParameter="{x:Static vm:NavPage.Inbox}"
+                      Content="{l:T 'Nhận'}" />
+              <Button Grid.Column="1" Classes="segment" Classes.on="{Binding IsSentTab}" Command="{Binding ShowPageCommand}" CommandParameter="{x:Static vm:NavPage.Sent}"
+                      Content="{l:T 'Đã gửi'}" />
+            </Grid>
+          </Border>
+        </Grid>
+
         <!-- Hộp nhận -->
         <StackPanel Classes="page" IsVisible="{Binding IsInboxVisible}" Spacing="14" MaxWidth="860" HorizontalAlignment="Stretch">
-          <TextBlock Classes="h2" Text="{l:T 'Hộp nhận'}" />
           <!-- "Chọn nhiều" (⋮ on an offer): check boxes on the offers, and what to do with the checked ones. -->
           <Border Classes="panel selectionbar" IsVisible="{Binding Inbox.IsSelecting}" Padding="14,8">
             <Grid ColumnDefinitions="Auto,*,Auto">
@@ -1084,7 +1105,6 @@
 
         <!-- Đã gửi -->
         <StackPanel Classes="page" IsVisible="{Binding IsSentVisible}" Spacing="14" MaxWidth="860" HorizontalAlignment="Stretch">
-          <TextBlock Classes="h2" Text="{l:T 'Đã gửi'}" />
           <!-- "Chọn nhiều" (⋮ on an offer): check boxes on the offers, and what to do with the checked ones. -->
           <Border Classes="panel selectionbar" IsVisible="{Binding Sent.IsSelecting}" Padding="14,8">
             <Grid ColumnDefinitions="Auto,*,Auto">
@@ -1528,21 +1548,16 @@
           <TextBlock Classes="h2" Text="{l:T 'Thiết bị này'}" />
 
           <Border Padding="18,16,18,6" CornerRadius="8" BorderThickness="1" BorderBrush="{DynamicResource Sk.CardBorder}" Background="{DynamicResource Sk.CardBackground}">
-            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto">
-              <TextBlock Classes="label" Text="{l:T 'Tên hiển thị'}" />
-              <SelectableTextBlock Classes="value" Grid.Column="1" Text="{Binding DisplayName}" />
+            <!-- The name and the download folder are set under "Gửi & nhận", not repeated here (docs/17-ui-cleanup.md §2). -->
+            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto">
+              <TextBlock Classes="label" Text="DeviceId" />
+              <SelectableTextBlock Classes="value" Grid.Column="1" Text="{Binding DeviceId}" FontFamily="Consolas,monospace" />
 
-              <TextBlock Classes="label" Grid.Row="1" Text="DeviceId" />
-              <SelectableTextBlock Classes="value" Grid.Row="1" Grid.Column="1" Text="{Binding DeviceId}" FontFamily="Consolas,monospace" />
+              <TextBlock Classes="label" Grid.Row="1" Text="{l:T 'Dữ liệu ứng dụng'}" />
+              <SelectableTextBlock Classes="value" Grid.Row="1" Grid.Column="1" Text="{Binding DataDirectory}" />
 
-              <TextBlock Classes="label" Grid.Row="2" Text="{l:T 'Thư mục nhận'}" />
-              <SelectableTextBlock Classes="value" Grid.Row="2" Grid.Column="1" Text="{Binding DownloadDirectory}" />
-
-              <TextBlock Classes="label" Grid.Row="3" Text="{l:T 'Dữ liệu ứng dụng'}" />
-              <SelectableTextBlock Classes="value" Grid.Row="3" Grid.Column="1" Text="{Binding DataDirectory}" />
-
-              <TextBlock Classes="label" Grid.Row="4" Text="{l:T 'Phiên bản'}" />
-              <SelectableTextBlock Classes="value" Grid.Row="4" Grid.Column="1" Text="{Binding AppVersion}" />
+              <TextBlock Classes="label" Grid.Row="2" Text="{l:T 'Phiên bản'}" />
+              <SelectableTextBlock Classes="value" Grid.Row="2" Grid.Column="1" Text="{Binding AppVersion}" />
             </Grid>
           </Border>
 

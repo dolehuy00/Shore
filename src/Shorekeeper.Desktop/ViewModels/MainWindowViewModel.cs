@@ -22,11 +22,18 @@ public enum NavPage
 {
     Neighborhood,
     Messages,
-    Inbox,
-    Sent,
+
+    /// <summary>"File": received and sent, one tab each (docs/17-ui-cleanup.md §2).</summary>
+    Files,
     Groups,
     Audio,
     Settings,
+
+    /// <summary>Not in the navigation: "File" with its "Nhận" tab.</summary>
+    Inbox,
+
+    /// <summary>Not in the navigation: "File" with its "Đã gửi" tab.</summary>
+    Sent,
 }
 
 /// <param name="milestone">Set while the page is not built yet.</param>
@@ -103,12 +110,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
         SelectedNavItem = NavItems[0];
         SelectedStatus = StatusOptions.First(o => o.Status == presence.Status);
 
-        Nav(NavPage.Inbox).Badge = inbox.NewCount;
+        Nav(NavPage.Files).Badge = inbox.NewCount;
         inbox.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(InboxViewModel.NewCount))
             {
-                Nav(NavPage.Inbox).Badge = inbox.NewCount;
+                Nav(NavPage.Files).Badge = inbox.NewCount;
             }
         };
         Nav(NavPage.Groups).Badge = groups.AttentionCount;
@@ -160,8 +167,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
             return true;
         }, TimeSpan.FromMinutes(1));
         Search = new SearchViewModel(neighborhood, groups, inbox, sent, Reveal);
-        dialogs.OfferSent += (_, _) => SelectedNavItem = Nav(NavPage.Sent);
-        dialogs.PageRequested += (_, page) => SelectedNavItem = Nav(page);
+        dialogs.OfferSent += (_, _) => ShowPage(NavPage.Sent);
+        dialogs.PageRequested += (_, page) => ShowPage(page);
         dialogs.TextSent += (_, target) => OpenChat(target);
         dialogs.ChatRequested += (_, target) => OpenChat(target);
         audio.Notice += (_, message) => dialogs.Ask(L.T("Âm thanh"), [message], [], NavPage.Audio, _ => { });
@@ -218,8 +225,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     [
         new(NavPage.Neighborhood, L.T("Xóm"), "Icon.People"),
         new(NavPage.Messages, L.T("Tin nhắn"), "Icon.Chat"),
-        new(NavPage.Inbox, L.T("Hộp nhận"), "Icon.Download"),
-        new(NavPage.Sent, L.T("Đã gửi"), "Icon.Upload"),
+        new(NavPage.Files, L.T("File"), "Icon.FolderOpen"),
         new(NavPage.Groups, L.T("Nhóm"), "Icon.Team"),
         new(NavPage.Audio, L.T("Âm thanh"), "Icon.Speaker"),
         new(NavPage.Settings, L.T("Cài đặt"), "Icon.Settings"),
@@ -234,7 +240,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ComingSoonText), nameof(IsComingSoonVisible), nameof(IsNeighborhoodVisible), nameof(IsMessagesVisible),
-        nameof(IsPageScrollerVisible), nameof(IsInboxVisible), nameof(IsSentVisible), nameof(IsGroupsVisible), nameof(IsAudioVisible), nameof(IsSettingsVisible))]
+        nameof(IsPageScrollerVisible), nameof(IsFilesVisible), nameof(IsInboxVisible), nameof(IsSentVisible), nameof(IsGroupsVisible), nameof(IsAudioVisible),
+        nameof(IsSettingsVisible))]
     public partial NavItem SelectedNavItem { get; set; }
 
     [ObservableProperty]
@@ -252,9 +259,16 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public bool IsPageScrollerVisible => !IsMessagesVisible;
 
-    public bool IsInboxVisible => SelectedNavItem.Page == NavPage.Inbox;
+    public bool IsFilesVisible => SelectedNavItem.Page == NavPage.Files;
 
-    public bool IsSentVisible => SelectedNavItem.Page == NavPage.Sent;
+    /// <summary>"File" shows "Đã gửi" rather than "Nhận".</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsInboxVisible), nameof(IsSentVisible))]
+    public partial bool IsSentTab { get; set; }
+
+    public bool IsInboxVisible => IsFilesVisible && !IsSentTab;
+
+    public bool IsSentVisible => IsFilesVisible && IsSentTab;
 
     public bool IsGroupsVisible => SelectedNavItem.Page == NavPage.Groups;
 
@@ -310,9 +324,17 @@ public sealed partial class MainWindowViewModel : ObservableObject
         {
             Audio.RefreshOutputDevices();
         }
-        else if (value.Page == NavPage.Inbox)
+        else if (IsInboxVisible)
         {
             // Received files may have been deleted or moved since ("Đã xóa file").
+            Inbox.CheckFiles();
+        }
+    }
+
+    partial void OnIsSentTabChanged(bool value)
+    {
+        if (IsInboxVisible)
+        {
             Inbox.CheckFiles();
         }
     }
@@ -327,8 +349,18 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public bool HasStorage => StorageText is not null;
 
+    /// <summary>A page; <see cref="NavPage.Inbox"/> and <see cref="NavPage.Sent"/> are "File" with that tab.</summary>
     [RelayCommand]
-    private void ShowPage(NavPage page) => SelectedNavItem = Nav(page);
+    private void ShowPage(NavPage page)
+    {
+        if (page is NavPage.Inbox or NavPage.Sent)
+        {
+            IsSentTab = page == NavPage.Sent;
+            page = NavPage.Files;
+        }
+
+        SelectedNavItem = Nav(page);
+    }
 
     private NavItem Nav(NavPage page) => NavItems.First(i => i.Page == page);
 
