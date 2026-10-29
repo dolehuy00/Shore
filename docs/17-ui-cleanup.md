@@ -1,6 +1,6 @@
 # 17 — Dọn giao diện (U5 → U7)
 
-> Trạng thái: **đang làm** (2026-10-29): U5, U6, U7a xong. Nối tiếp đợt đổi giao diện U1–U4 (2026-10-16, [12](12-roadmap.md)). Làm theo thứ tự U5 → U6 → U7: U5 đổi bố cục chung, làm sau thì phải sửa lại nhiều chỗ.
+> Trạng thái: **đang làm** (2026-10-29): U5, U6, U7a–c xong. Nối tiếp đợt đổi giao diện U1–U4 (2026-10-16, [12](12-roadmap.md)). Làm theo thứ tự U5 → U6 → U7: U5 đổi bố cục chung, làm sau thì phải sửa lại nhiều chỗ.
 
 ## 1. Vì sao
 
@@ -56,6 +56,8 @@ Chưa xem tận mắt: các offer như vậy trên PC thử đều nằm trong h
 - Mỗi tùy chọn: một dòng mô tả; phần dài (cách cài VB-CABLE, ý nghĩa từng mức độ trễ) vào tooltip.
 
 **U7c. Âm thanh**: **Phát âm thanh** và **Nghe** ở trên. Độ trễ khi nghe, Phát ra, Nhận qua Bluetooth vào mục **Nâng cao** đóng mở được (mặc định đóng).
+
+Thử thật U7b–c (2026-10-29, PC): Xóm và Nhóm còn một dòng với biểu tượng (i), đưa chuột vào thấy đủ hướng dẫn; Âm thanh còn Phát và Nghe, "Nâng cao" mở ra Độ trễ, Phát ra, Bluetooth với mô tả một dòng (đủ chữ khi đưa chuột vào).
 
 **U7d. Cài đặt**: thanh mục con ở đầu trang, mỗi lần một mục:
 

@@ -999,8 +999,11 @@
                        Text="{l:T 'Không có máy nào khác đang online.'}" />
           </StackPanel>
 
-          <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
-                     Text="{l:T 'Kéo file hoặc thư mục vào một người để gửi. Click chọn người rồi nhấn Ctrl+V để gửi file hoặc đoạn chữ đã copy; Ctrl+click để chọn nhiều người.'}" />
+          <!-- One line; the rest on hover (docs/17-ui-cleanup.md §4). -->
+          <StackPanel Orientation="Horizontal" Spacing="6" Background="Transparent" ToolTip.Tip="{l:T 'Kéo file hoặc thư mục vào một người để gửi. Click chọn người rồi nhấn Ctrl+V để gửi file hoặc đoạn chữ đã copy; Ctrl+click để chọn nhiều người.'}">
+            <PathIcon Data="{StaticResource Icon.Info}" Width="14" Height="14" Opacity="0.7" VerticalAlignment="Center" />
+            <TextBlock Classes="muted" FontSize="12" Text="{l:T 'Kéo file vào một người để gửi.'}" VerticalAlignment="Center" />
+          </StackPanel>
         </StackPanel>
 
         <!-- File: "Nhận | Đã gửi", as on the phone (docs/17-ui-cleanup.md §2). -->
@@ -1404,8 +1407,11 @@
             </ItemsControl.ItemTemplate>
           </ItemsControl>
 
-          <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
-                     Text="{l:T 'Kéo file vào một nhóm để gửi cho các thành viên (chọn được từng người). Thành viên vẫn gửi file cho nhau được khi Host offline.'}" />
+          <!-- One line; the rest on hover (docs/17-ui-cleanup.md §4). -->
+          <StackPanel Orientation="Horizontal" Spacing="6" Background="Transparent" ToolTip.Tip="{l:T 'Kéo file vào một nhóm để gửi cho các thành viên (chọn được từng người). Thành viên vẫn gửi file cho nhau được khi Host offline.'}">
+            <PathIcon Data="{StaticResource Icon.Info}" Width="14" Height="14" Opacity="0.7" VerticalAlignment="Center" />
+            <TextBlock Classes="muted" FontSize="12" Text="{l:T 'Kéo file vào một nhóm để gửi cho các thành viên.'}" VerticalAlignment="Center" />
+          </StackPanel>
         </StackPanel>
 
         <!-- Âm thanh: this computer's sound for contacts, and the contacts' sound here. -->
@@ -1495,29 +1501,6 @@
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
 
-              <Grid ColumnDefinitions="*,Auto">
-                <StackPanel Spacing="2" Margin="0,0,12,0" VerticalAlignment="Center">
-                  <TextBlock Text="{l:T 'Độ trễ khi nghe'}" />
-                  <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
-                             Text="{l:T 'Thấp trễ ít nhưng đôi khi hụt tiếng lúc Wi-Fi chập chờn; Ổn định trễ hơn một chút nhưng ít hụt; Bảo toàn xin gửi lại gói bị mất và chịu trễ thêm (có khi vài giây) khi mạng kém để không hụt nhịp nào. Áp dụng từ lần nghe sau.'}" />
-                </StackPanel>
-                <ComboBox Grid.Column="1" SelectedIndex="{Binding Audio.LatencyIndex}" MinWidth="200" VerticalAlignment="Center">
-                  <ComboBoxItem Content="{l:T 'Thấp: cho game'}" />
-                  <ComboBoxItem Content="{l:T 'Ổn định: cho nghe nhạc'}" />
-                  <ComboBoxItem Content="{l:T 'Bảo toàn: không hụt tiếng, trễ hơn'}" />
-                </ComboBox>
-              </Grid>
-
-              <!-- Phát ra: a virtual cable's input here makes what we hear a microphone for this computer's apps. -->
-              <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding Audio.CanChooseOutput}">
-                <StackPanel Spacing="2" Margin="0,0,12,0" VerticalAlignment="Center">
-                  <TextBlock Text="{l:T 'Phát ra'}" />
-                  <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
-                             Text="{l:T 'Dùng điện thoại làm micro: cài VB-CABLE (miễn phí, vb-audio.com), chọn CABLE Input ở đây, điện thoại chọn nguồn Micro rồi bật Phát âm thanh, máy này bấm Nghe; trong Zoom, Discord, OBS… chọn micro CABLE Output. Áp dụng từ lần nghe sau.'}" />
-                </StackPanel>
-                <ComboBox Grid.Column="1" ItemsSource="{Binding Audio.OutputChoices}" SelectedIndex="{Binding Audio.OutputIndex}"
-                          MinWidth="200" MaxWidth="320" VerticalAlignment="Center" />
-              </Grid>
             </StackPanel>
           </Border>
 
@@ -1542,13 +1525,41 @@
             </StackPanel>
           </Border>
 
+          <!-- Nâng cao: what most people never change, closed until opened (docs/17-ui-cleanup.md §4). -->
+          <Expander Header="{l:T 'Nâng cao'}" HorizontalAlignment="Stretch">
+          <StackPanel Spacing="14">
+          <Border Classes="card" IsVisible="{Binding Audio.CanListen}">
+            <StackPanel Spacing="12">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Spacing="2" Margin="0,0,12,0" VerticalAlignment="Center" Background="Transparent" ToolTip.Tip="{l:T 'Thấp trễ ít nhưng đôi khi hụt tiếng lúc Wi-Fi chập chờn; Ổn định trễ hơn một chút nhưng ít hụt; Bảo toàn xin gửi lại gói bị mất và chịu trễ thêm (có khi vài giây) khi mạng kém để không hụt nhịp nào. Áp dụng từ lần nghe sau.'}">
+                  <TextBlock Text="{l:T 'Độ trễ khi nghe'}" />
+                  <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{l:T 'Ít trễ thì dễ hụt tiếng khi Wi-Fi kém. Áp dụng từ lần nghe sau.'}" />
+                </StackPanel>
+                <ComboBox Grid.Column="1" SelectedIndex="{Binding Audio.LatencyIndex}" MinWidth="200" VerticalAlignment="Center">
+                  <ComboBoxItem Content="{l:T 'Thấp: cho game'}" />
+                  <ComboBoxItem Content="{l:T 'Ổn định: cho nghe nhạc'}" />
+                  <ComboBoxItem Content="{l:T 'Bảo toàn: không hụt tiếng, trễ hơn'}" />
+                </ComboBox>
+              </Grid>
+
+              <!-- Phát ra: a virtual cable's input here makes what we hear a microphone for this computer's apps. -->
+              <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding Audio.CanChooseOutput}">
+                <StackPanel Spacing="2" Margin="0,0,12,0" VerticalAlignment="Center" Background="Transparent" ToolTip.Tip="{l:T 'Dùng điện thoại làm micro: cài VB-CABLE (miễn phí, vb-audio.com), chọn CABLE Input ở đây, điện thoại chọn nguồn Micro rồi bật Phát âm thanh, máy này bấm Nghe; trong Zoom, Discord, OBS… chọn micro CABLE Output. Áp dụng từ lần nghe sau.'}">
+                  <TextBlock Text="{l:T 'Phát ra'}" />
+                  <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{l:T 'Loa hay tai nghe để nghe; CABLE Input để dùng điện thoại làm micro.'}" />
+                </StackPanel>
+                <ComboBox Grid.Column="1" ItemsSource="{Binding Audio.OutputChoices}" SelectedIndex="{Binding Audio.OutputIndex}"
+                          MinWidth="200" MaxWidth="320" VerticalAlignment="Center" />
+              </Grid>
+            </StackPanel>
+          </Border>
+
           <!-- Nhận âm thanh qua Bluetooth: paired phones play into this computer (Windows' A2DP sink). -->
           <Border Classes="card" IsVisible="{Binding Audio.CanReceiveBluetooth}">
             <StackPanel Spacing="12">
-              <StackPanel Spacing="2">
+              <StackPanel Spacing="2" Background="Transparent" ToolTip.Tip="{l:T 'Điện thoại đã ghép đôi Bluetooth với máy này phát ra loa máy tính như phát ra tai nghe, không cần chung Wi-Fi hay Shorekeeper trên điện thoại. Trễ khoảng nửa giây: hợp nghe nhạc, không hợp xem phim hay chơi game.'}">
                 <TextBlock Text="{l:T 'Nhận âm thanh qua Bluetooth'}" FontWeight="SemiBold" />
-                <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
-                           Text="{l:T 'Điện thoại đã ghép đôi Bluetooth với máy này phát ra loa máy tính như phát ra tai nghe, không cần chung Wi-Fi hay Shorekeeper trên điện thoại. Trễ khoảng nửa giây: hợp nghe nhạc, không hợp xem phim hay chơi game.'}" />
+                <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{l:T 'Điện thoại ghép đôi Bluetooth phát ra loa máy này, trễ khoảng nửa giây.'}" />
               </StackPanel>
               <TextBlock Classes="muted" Text="{l:T 'Chưa có điện thoại nào ghép đôi Bluetooth với máy này.'}" IsVisible="{Binding Audio.HasNoBluetoothSources}" FontSize="12" />
               <ItemsControl ItemsSource="{Binding Audio.BluetoothSources}">
@@ -1577,6 +1588,8 @@
 
           <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
                      Text="{l:T 'Phát lấy tiếng từ loa mặc định của Windows; Nghe phát ra thiết bị chọn ở Phát ra. Bật nhanh Phát âm thanh từ biểu tượng khay.'}" />
+          </StackPanel>
+          </Expander>
         </StackPanel>
 
         <!-- Cài đặt -->
