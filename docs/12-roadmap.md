@@ -123,6 +123,10 @@ Xem [14](14-android.md): A0 spike trên điện thoại thật (mTLS, multicast)
 
 Xem [15](15-chat.md): C1 Engine văn bản → C2 giao diện (PC: trang Tin nhắn; điện thoại: gộp Hộp nhận + Đã gửi thành tab File, thêm tab Tin nhắn) → C3 tin nhắn thoại → C4 thẻ file trong hội thoại, xóa, hoàn thiện → C5 chat nhóm ([16](16-group-chat.md)).
 
+## Dọn giao diện (U5–U7)
+
+Xem [17](17-ui-cleanup.md): U5 gom chỗ trùng (văn bản chỉ ở Tin nhắn, Hộp nhận + Đã gửi thành trang File, máy mình một chỗ) → U6 văn bản trống → U7 làm gọn từng trang (danh sách File chia ngày + lọc, bớt chữ, Âm thanh "Nâng cao", Cài đặt chia mục).
+
 ## Kiểm thử (xuyên suốt)
 
 | Loại | Nội dung |
