@@ -266,6 +266,27 @@ public sealed partial class MainWindowViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsInboxVisible), nameof(IsSentVisible))]
     public partial bool IsSentTab { get; set; }
 
+    /// <summary>"Tất cả · Ảnh · File · Thư mục" above both tabs of "File".</summary>
+    [ObservableProperty]
+    public partial FileFilter FilesFilter { get; set; }
+
+    /// <summary>The search box of "File": who, or which files.</summary>
+    [ObservableProperty]
+    public partial string FilesQuery { get; set; } = "";
+
+    partial void OnFilesFilterChanged(FileFilter value) => ApplyFilesView();
+
+    partial void OnFilesQueryChanged(string value) => ApplyFilesView();
+
+    private void ApplyFilesView()
+    {
+        Inbox.SetView(FilesFilter, FilesQuery);
+        Sent.SetView(FilesFilter, FilesQuery);
+    }
+
+    [RelayCommand]
+    private void SetFilesFilter(FileFilter filter) => FilesFilter = filter;
+
     public bool IsInboxVisible => IsFilesVisible && !IsSentTab;
 
     public bool IsSentVisible => IsFilesVisible && IsSentTab;
@@ -370,6 +391,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
         {
             // Selecting lets Ctrl+V send to them right away.
             Neighborhood.Select(person, toggle: false);
+        }
+        else
+        {
+            // The offer must be in the list to be pointed at.
+            FilesFilter = FileFilter.All;
+            FilesQuery = "";
         }
 
         ShowPage(result.Kind switch

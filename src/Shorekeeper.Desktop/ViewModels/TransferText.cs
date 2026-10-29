@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Shorekeeper.Core.Localization;
+using Shorekeeper.Core.Text;
 using Shorekeeper.Engine.Transfers;
 
 namespace Shorekeeper.Desktop.ViewModels;
@@ -10,6 +11,31 @@ public enum TransferKind
     Files,
     Images,
     Folder,
+}
+
+/// <summary>"Tất cả · Ảnh · File · Thư mục" on the Files page (docs/17-ui-cleanup.md §4).</summary>
+public enum FileFilter
+{
+    All,
+    Images,
+    Files,
+    Folders,
+}
+
+/// <summary>A row of the Files page, which the filter, the search box and the day headings apply to.</summary>
+public interface IFileRow
+{
+    DateTimeOffset At { get; }
+
+    TransferKind Kind { get; }
+
+    /// <summary>Who and which files, for the search box.</summary>
+    IEnumerable<string> SearchFields { get; }
+
+    bool IsShown { get; set; }
+
+    /// <summary>"Hôm nay", "Hôm qua"…: set on the first shown row of each, null on the others.</summary>
+    string? DayText { get; set; }
 }
 
 /// <summary>Wording shared by the inbox, the sent list and the incoming-offer popup.</summary>
@@ -102,6 +128,45 @@ public static partial class TransferText
         { TotalDays: < 2 } => L.T("hôm qua"),
         _ => L.F("{0:dd/MM}", at.ToLocalTime()),
     };
+
+    /// <summary>"Hôm nay", "Hôm qua", "7 ngày qua", "Trước đó", by the local day.</summary>
+    public static string DayGroup(DateTimeOffset at, DateTimeOffset now)
+    {
+        DateTime day = at.ToLocalTime().Date;
+        DateTime today = now.ToLocalTime().Date;
+        return day >= today ? L.T("Hôm nay")
+            : day == today.AddDays(-1) ? L.T("Hôm qua")
+            : day > today.AddDays(-7) ? L.T("7 ngày qua")
+            : L.T("Trước đó");
+    }
+
+    /// <summary>
+    /// Shows the rows the filter and the search keep (all words, no accents, as Ctrl+K), newest first as given, with a day
+    /// heading above the first of each day group.
+    /// </summary>
+    public static void ApplyView(IEnumerable<IFileRow> rows, FileFilter filter, string query, DateTimeOffset now)
+    {
+        string? last = null;
+        foreach (IFileRow row in rows)
+        {
+            row.IsShown = filter switch
+            {
+                FileFilter.Images => row.Kind == TransferKind.Images,
+                FileFilter.Files => row.Kind == TransferKind.Files,
+                FileFilter.Folders => row.Kind == TransferKind.Folder,
+                _ => true,
+            } && (string.IsNullOrWhiteSpace(query) || TextSearch.Matches(query, row.SearchFields));
+            if (!row.IsShown)
+            {
+                row.DayText = null;
+                continue;
+            }
+
+            string group = DayGroup(row.At, now);
+            row.DayText = group == last ? null : group;
+            last = group;
+        }
+    }
 
     /// <summary>A folder at the top, only pictures, or anything else.</summary>
     public static TransferKind KindOf(IReadOnlyCollection<string> relativePaths) =>

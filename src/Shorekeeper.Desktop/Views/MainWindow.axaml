@@ -71,6 +71,17 @@
       <Setter Property="Margin" Value="0,0,0,10" />
     </Style>
     <!-- A checked offer in "Chọn nhiều" (Hộp nhận, Đã gửi); the change is animated in Themes/Motion.axaml. -->
+    <!-- File: a list, not cards (docs/17-ui-cleanup.md §4). -->
+    <Style Selector="Border.panel.offer">
+      <Setter Property="Padding" Value="12,8" />
+      <Setter Property="Margin" Value="0,0,0,6" />
+    </Style>
+    <Style Selector="TextBlock.dayhead">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{DynamicResource Sk.MutedText}" />
+      <Setter Property="Margin" Value="2,8,0,6" />
+    </Style>
     <Style Selector="Border.panel.picked">
       <!-- A light wash of the accent blue, so the icon tile still stands out in light and dark themes. -->
       <Setter Property="Background" Value="#263B82F6" />
@@ -1004,6 +1015,23 @@
             </Grid>
           </Border>
         </Grid>
+        <!-- What the tab shows: a kind, and who or which files (docs/17-ui-cleanup.md §4). -->
+        <Grid IsVisible="{Binding IsFilesVisible}" ColumnDefinitions="Auto,*" MaxWidth="860" HorizontalAlignment="Stretch" Margin="0,-6,0,0">
+          <Border Classes="segments" Width="340">
+            <Grid ColumnDefinitions="*,*,*,*">
+              <Button Classes="segment" Classes.on="{Binding FilesFilter, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:FileFilter.All}}"
+                      Command="{Binding SetFilesFilterCommand}" CommandParameter="{x:Static vm:FileFilter.All}" Content="{l:T 'Tất cả'}" />
+              <Button Grid.Column="1" Classes="segment" Classes.on="{Binding FilesFilter, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:FileFilter.Images}}"
+                      Command="{Binding SetFilesFilterCommand}" CommandParameter="{x:Static vm:FileFilter.Images}" Content="{l:T 'Ảnh'}" />
+              <Button Grid.Column="2" Classes="segment" Classes.on="{Binding FilesFilter, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:FileFilter.Files}}"
+                      Command="{Binding SetFilesFilterCommand}" CommandParameter="{x:Static vm:FileFilter.Files}" Content="{l:T 'File'}" />
+              <Button Grid.Column="3" Classes="segment" Classes.on="{Binding FilesFilter, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:FileFilter.Folders}}"
+                      Command="{Binding SetFilesFilterCommand}" CommandParameter="{x:Static vm:FileFilter.Folders}" Content="{l:T 'Thư mục'}" />
+            </Grid>
+          </Border>
+          <TextBox Grid.Column="1" Text="{Binding FilesQuery}" PlaceholderText="{l:T 'Tìm theo người hoặc tên file'}" Width="260" HorizontalAlignment="Right" Margin="12,0,0,0"
+                   VerticalContentAlignment="Center" />
+        </Grid>
 
         <!-- Hộp nhận -->
         <StackPanel Classes="page" IsVisible="{Binding IsInboxVisible}" Spacing="14" MaxWidth="860" HorizontalAlignment="Stretch">
@@ -1023,29 +1051,32 @@
             <PathIcon Data="{StaticResource Icon.Download}" Width="40" Height="40" Opacity="0.5" HorizontalAlignment="Center" />
             <TextBlock Text="{l:T 'Chưa có ai gửi gì cho bạn.'}" FontWeight="SemiBold" HorizontalAlignment="Center" />
           </StackPanel>
+          <TextBlock Classes="muted" IsVisible="{Binding Inbox.HasNoMatch}" Text="{l:T 'Không có mục nào khớp.'}" HorizontalAlignment="Center" Margin="0,30" />
           <ItemsControl x:Name="InboxList" ItemsSource="{Binding Inbox.Items}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:InboxItemViewModel">
+                <StackPanel IsVisible="{Binding IsShown}">
+                <TextBlock Classes="dayhead" Text="{Binding DayText}" IsVisible="{Binding HasDay}" />
                 <Border Classes="panel offer" Classes.picked="{Binding IsSelected}" Classes.leaving="{Binding IsLeaving}">
                   <Grid ColumnDefinitions="Auto,Auto,*,Auto">
                     <CheckBox Classes="pick" IsChecked="{Binding IsSelected}" IsVisible="{Binding Owner.IsSelecting}" VerticalAlignment="Center" MinWidth="0" Width="24" Padding="0" Margin="0,0,10,0"
                               AutomationProperties.Name="{l:T 'Chọn'}" />
-                    <Panel Grid.Column="1" VerticalAlignment="Top">
-                      <Border Classes="tile" Width="56" Height="56" VerticalAlignment="Top">
+                    <Panel Grid.Column="1" VerticalAlignment="Center">
+                      <Border Classes="tile" Width="40" Height="40" CornerRadius="8">
                         <Panel>
-                          <PathIcon Data="{StaticResource Icon.Document}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Files}}" Width="24" Height="24" />
-                          <PathIcon Data="{StaticResource Icon.Image}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Images}}" Width="24" Height="24" />
-                          <PathIcon Data="{StaticResource Icon.FolderOpen}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Folder}}" Width="24" Height="24" />
+                          <PathIcon Data="{StaticResource Icon.Document}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Files}}" Width="20" Height="20" />
+                          <PathIcon Data="{StaticResource Icon.Image}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Images}}" Width="20" Height="20" />
+                          <PathIcon Data="{StaticResource Icon.FolderOpen}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Folder}}" Width="20" Height="20" />
                         </Panel>
                       </Border>
-                      <Border Width="56" Height="56" CornerRadius="10" ClipToBounds="True" IsVisible="{Binding HasThumbnail}" VerticalAlignment="Top">
+                      <Border Width="40" Height="40" CornerRadius="8" ClipToBounds="True" IsVisible="{Binding HasThumbnail}">
                         <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" />
                       </Border>
                     </Panel>
 
-                    <StackPanel Grid.Column="2" Margin="14,0,12,0" Spacing="3" VerticalAlignment="Center">
-                      <TextBlock Text="{Binding SenderName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                      <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+                    <!-- Two lines: the files, then who · size · state · when. -->
+                    <StackPanel Grid.Column="2" Margin="12,0,12,0" Spacing="2" VerticalAlignment="Center">
+                      <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                       <!-- "app.zip + 2 mục" names only the first: the button opens the whole list. -->
                       <StackPanel DataContext="{Binding Contents}" x:DataType="vm:OfferContents" IsVisible="{Binding CanExpand}" Spacing="2">
                         <Button Content="{Binding ToggleText}" Command="{Binding ToggleCommand}" Padding="0,2" FontSize="12" HorizontalAlignment="Left"
@@ -1064,7 +1095,8 @@
                       </StackPanel>
                       <TextBlock Text="{Binding Note}" IsVisible="{Binding HasNote}" FontStyle="Italic" Opacity="0.75" TextWrapping="Wrap" />
                       <WrapPanel>
-                        <TextBlock Classes="muted" Text="{Binding Details}" FontSize="12" Margin="0,0,12,0" VerticalAlignment="Center" />
+                        <TextBlock Classes="muted" Text="{Binding SenderName, StringFormat='{}{0} · '}" FontSize="12" VerticalAlignment="Center" />
+                        <TextBlock Classes="muted" Text="{Binding Details}" FontSize="12" Margin="0,0,10,0" VerticalAlignment="Center" />
                         <PathIcon Classes="done" Data="{StaticResource Icon.CheckCircle}" IsVisible="{Binding IsCompleted}" Width="14" Height="14" Margin="0,0,5,0" VerticalAlignment="Center" />
                         <TextBlock Classes="muted" Classes.error="{Binding IsError}" Text="{Binding StatusText}" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" />
                         <TextBlock Classes="muted" Text="{Binding Ago, StringFormat=' · {0}'}" FontSize="12" VerticalAlignment="Center" />
@@ -1080,11 +1112,9 @@
                       <Button Content="{l:T 'Bỏ qua'}" Command="{Binding DeclineCommand}" IsVisible="{Binding IsNew}" />
                       <Button Content="{l:T 'Hủy'}" Command="{Binding CancelCommand}" IsVisible="{Binding IsDownloading}" />
                       <Button Content="{l:T 'Mở'}" Command="{Binding OpenCommand}" IsVisible="{Binding CanOpen}" />
-                      <Button Command="{Binding OpenFolderCommand}" IsVisible="{Binding CanOpen}" AutomationProperties.Name="{l:T 'Mở thư mục'}">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                          <PathIcon Data="{StaticResource Icon.FolderOpen}" Width="16" Height="16" />
-                          <TextBlock Text="{l:T 'Mở thư mục'}" />
-                        </StackPanel>
+                      <Button Command="{Binding OpenFolderCommand}" IsVisible="{Binding CanOpen}" Padding="9,7"
+                              ToolTip.Tip="{l:T 'Mở thư mục'}" AutomationProperties.Name="{l:T 'Mở thư mục'}">
+                        <PathIcon Data="{StaticResource Icon.FolderOpen}" Width="16" Height="16" />
                       </Button>
                       <Button Padding="9,7" ToolTip.Tip="{l:T 'Thêm'}" AutomationProperties.Name="{l:T 'Thêm'}">
                         <PathIcon Data="{StaticResource Icon.More}" Width="16" Height="16" />
@@ -1099,6 +1129,7 @@
                     </StackPanel>
                   </Grid>
                 </Border>
+                </StackPanel>
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
@@ -1122,22 +1153,25 @@
             <TextBlock Text="{l:T 'Bạn chưa gửi gì.'}" FontWeight="SemiBold" HorizontalAlignment="Center" />
             <TextBlock Classes="muted" Text="{l:T 'Kéo file vào một người ở trang Xóm để gửi.'}" HorizontalAlignment="Center" />
           </StackPanel>
+          <TextBlock Classes="muted" IsVisible="{Binding Sent.HasNoMatch}" Text="{l:T 'Không có mục nào khớp.'}" HorizontalAlignment="Center" Margin="0,30" />
           <ItemsControl x:Name="SentList" ItemsSource="{Binding Sent.Items}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:SentItemViewModel">
+                <StackPanel IsVisible="{Binding IsShown}">
+                <TextBlock Classes="dayhead" Text="{Binding DayText}" IsVisible="{Binding HasDay}" />
                 <Border Classes="panel offer" Classes.picked="{Binding IsSelected}" Classes.leaving="{Binding IsLeaving}">
                   <Grid ColumnDefinitions="Auto,Auto,*,Auto">
                     <CheckBox Classes="pick" IsChecked="{Binding IsSelected}" IsVisible="{Binding Owner.IsSelecting}" VerticalAlignment="Center" MinWidth="0" Width="24" Padding="0" Margin="0,0,10,0"
                               AutomationProperties.Name="{l:T 'Chọn'}" />
-                    <Border Grid.Column="1" Classes="tile" Width="56" Height="56" VerticalAlignment="Top">
+                    <Border Grid.Column="1" Classes="tile" Width="40" Height="40" CornerRadius="8" VerticalAlignment="Center">
                         <Panel>
-                          <PathIcon Data="{StaticResource Icon.Document}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Files}}" Width="24" Height="24" />
-                          <PathIcon Data="{StaticResource Icon.Image}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Images}}" Width="24" Height="24" />
-                          <PathIcon Data="{StaticResource Icon.FolderOpen}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Folder}}" Width="24" Height="24" />
+                          <PathIcon Data="{StaticResource Icon.Document}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Files}}" Width="20" Height="20" />
+                          <PathIcon Data="{StaticResource Icon.Image}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Images}}" Width="20" Height="20" />
+                          <PathIcon Data="{StaticResource Icon.FolderOpen}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Folder}}" Width="20" Height="20" />
                         </Panel>
                       </Border>
 
-                    <StackPanel Grid.Column="2" Margin="14,0,12,0" Spacing="3" VerticalAlignment="Center">
+                    <StackPanel Grid.Column="2" Margin="12,0,12,0" Spacing="2" VerticalAlignment="Center">
                       <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                       <!-- "app.zip + 2 mục" names only the first: the button opens the whole list. -->
                       <StackPanel DataContext="{Binding Contents}" x:DataType="vm:OfferContents" IsVisible="{Binding CanExpand}" Spacing="2">
@@ -1160,7 +1194,7 @@
                         <Run Text=" · " />
                         <Run Text="{Binding StatusText}" />
                       </TextBlock>
-                      <ItemsControl ItemsSource="{Binding Recipients}" Margin="0,4,0,0">
+                      <ItemsControl ItemsSource="{Binding Recipients}" Margin="0,2,0,0">
                         <ItemsControl.ItemsPanel>
                           <ItemsPanelTemplate>
                             <WrapPanel />
@@ -1196,6 +1230,7 @@
                     </StackPanel>
                   </Grid>
                 </Border>
+                </StackPanel>
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>

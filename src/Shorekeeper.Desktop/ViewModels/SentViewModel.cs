@@ -29,6 +29,27 @@ public sealed partial class SentViewModel : ObservableObject
 
     public ObservableCollection<SentItemViewModel> Items { get; } = [];
 
+    /// <summary>There are offers, but the filter or the search keeps none.</summary>
+    public bool HasNoMatch => Items.Count > 0 && !Items.Any(i => i.IsShown);
+
+    private FileFilter filter;
+    private string query = "";
+
+    /// <summary>The Files page's filter and search box (docs/17-ui-cleanup.md §4).</summary>
+    internal void SetView(FileFilter value, string text)
+    {
+        filter = value;
+        query = text;
+        UpdateView();
+    }
+
+    private void UpdateView()
+    {
+        TransferText.ApplyView(Items, filter, query, TimeProvider.GetUtcNow());
+        OnPropertyChanged(nameof(HasNoMatch));
+        SelectionChanged();
+    }
+
     internal PeerNames Names { get; }
 
     internal TimeProvider TimeProvider { get; }
@@ -43,6 +64,8 @@ public sealed partial class SentViewModel : ObservableObject
 
     public int SelectedCount => Items.Count(i => i.IsSelected);
 
+    private int ShownCount => Items.Count(i => i.IsShown);
+
     public bool HasSelection => SelectedCount > 0;
 
     public string SelectedText => L.F("Đã chọn {0}", SelectedCount);
@@ -50,11 +73,12 @@ public sealed partial class SentViewModel : ObservableObject
     /// <summary>"Chọn tất cả": checked when all are, empty when none, in between otherwise.</summary>
     public bool? AllSelected
     {
-        get => SelectedCount == 0 ? false : SelectedCount == Items.Count ? true : null;
+        get => SelectedCount == 0 ? false : SelectedCount == ShownCount ? true : null;
         set
         {
-            bool select = SelectedCount < Items.Count;
-            foreach (SentItemViewModel item in Items)
+            // Only what the filter shows: nothing hidden gets deleted by surprise.
+            bool select = SelectedCount < ShownCount;
+            foreach (SentItemViewModel item in Items.Where(i => i.IsShown))
             {
                 item.IsSelected = select;
             }
@@ -141,15 +165,33 @@ public sealed partial class SentViewModel : ObservableObject
 
             item.Update(current[i]);
         }
+
+        UpdateView();
     }
 }
 
 /// <summary>One recipient of a sent offer, as a chip.</summary>
 public sealed record SentRecipientItem(string Name, string State, bool IsDone, bool IsFailed);
 
-public sealed partial class SentItemViewModel(string offerId, SentViewModel owner) : ObservableObject
+public sealed partial class SentItemViewModel(string offerId, SentViewModel owner) : ObservableObject, IFileRow
 {
     public string OfferId { get; } = offerId;
+
+    public DateTimeOffset At { get; private set; }
+
+    IEnumerable<string> IFileRow.SearchFields => [.. Paths, .. Recipients.Select(r => r.Name)];
+
+    /// <summary>Kept by the Files page's filter and search box.</summary>
+    [ObservableProperty]
+    public partial bool IsShown { get; set; } = true;
+
+    partial void OnIsShownChanged(bool value) => IsSelected &= value;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasDay))]
+    public partial string? DayText { get; set; }
+
+    public bool HasDay => DayText is not null;
 
     /// <summary>For the check box shown while "Đã gửi" is in "Chọn".</summary>
     public SentViewModel Owner => owner;
@@ -197,6 +239,7 @@ public sealed partial class SentItemViewModel(string offerId, SentViewModel owne
     public void Update(SentOffer offer)
     {
         DateTimeOffset now = owner.TimeProvider.GetUtcNow();
+        At = offer.CreatedAt;
         Paths = offer.Paths;
         Title = TransferText.Summary(offer.Paths);
         Contents.Update(offer.Paths);

@@ -1,6 +1,6 @@
 # 17 — Dọn giao diện (U5 → U7)
 
-> Trạng thái: **đang làm** (2026-10-29): U5, U6 xong. Nối tiếp đợt đổi giao diện U1–U4 (2026-10-16, [12](12-roadmap.md)). Làm theo thứ tự U5 → U6 → U7: U5 đổi bố cục chung, làm sau thì phải sửa lại nhiều chỗ.
+> Trạng thái: **đang làm** (2026-10-29): U5, U6, U7a xong. Nối tiếp đợt đổi giao diện U1–U4 (2026-10-16, [12](12-roadmap.md)). Làm theo thứ tự U5 → U6 → U7: U5 đổi bố cục chung, làm sau thì phải sửa lại nhiều chỗ.
 
 ## 1. Vì sao
 
@@ -47,8 +47,9 @@ Chưa xem tận mắt: các offer như vậy trên PC thử đều nằm trong h
 
 **U7a. Danh sách File**
 - Hàng gọn (~64 px): biểu tượng hay ảnh nhỏ, tên, một dòng "người · dung lượng · trạng thái", nút chính, [⋯].
-- Chia theo ngày: **Hôm nay**, **Hôm qua**, **Tuần này**, **Trước đó**.
-- Lọc nhanh: **Tất cả · Ảnh · File · Thư mục**, và ô tìm theo tên người hay tên file (bỏ dấu, như Ctrl+K). Lọc và tìm áp dụng cho tab đang mở.
+- Chia theo ngày: **Hôm nay**, **Hôm qua**, **7 ngày qua**, **Trước đó**.
+- Lọc nhanh: **Tất cả · Ảnh · File · Thư mục**, và ô tìm theo tên người hay tên file (bỏ dấu, như Ctrl+K). Lọc và tìm dùng chung cho hai tab. "Chọn tất cả" chỉ chọn những mục đang hiện; mục bị lọc ẩn thì bỏ chọn. Chọn một kết quả Ctrl+K thì bỏ lọc để thấy nó.
+- Thử thật (2026-10-29, PC): hàng cao ~70 px (trước ~110); "bao cao" tìm ra "Báo cáo tháng 9.pdf"; "Ảnh" ở Đã gửi hiện "Không có mục nào khớp."
 
 **U7b. Bớt chữ**
 - Hướng dẫn cuối trang Xóm, Nhóm: còn một dòng; phần dài vào tooltip của biểu tượng (i).
