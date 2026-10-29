@@ -151,8 +151,8 @@ public sealed partial class InboxViewModel : ObservableObject
         if (deleteFiles || chosen.Count > 1)
         {
             string message = deleteFiles
-                ? L.F("Xóa {0} mục khỏi Hộp nhận và xóa luôn file đã nhận của chúng? File bị xóa hẳn khỏi máy, không vào Thùng rác.", chosen.Count)
-                : L.F("Xóa {0} mục khỏi Hộp nhận? File đã nhận vẫn giữ nguyên.", chosen.Count);
+                ? L.F("Xóa {0} mục khỏi danh sách đã nhận và xóa luôn file đã nhận của chúng? File bị xóa hẳn khỏi máy, không vào Thùng rác.", chosen.Count)
+                : L.F("Xóa {0} mục khỏi danh sách đã nhận? File đã nhận vẫn giữ nguyên.", chosen.Count);
             if (await DialogService.ChooseAsync(L.T("Xóa"), message, [L.T("Xóa"), L.T("Hủy")]) != 0)
             {
                 return;

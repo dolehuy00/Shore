@@ -521,8 +521,8 @@ public sealed partial class MainViewModel : ObservableObject
         Question = new QuestionViewModel(
             L.T("Xóa"),
             deleteFiles
-                ? L.F("Xóa {0} mục khỏi Hộp nhận và xóa luôn file đã nhận của chúng? File bị xóa hẳn khỏi máy.", chosen.Count)
-                : L.F("Xóa {0} mục khỏi Hộp nhận? File đã nhận vẫn giữ nguyên.", chosen.Count),
+                ? L.F("Xóa {0} mục khỏi danh sách đã nhận và xóa luôn file đã nhận của chúng? File bị xóa hẳn khỏi máy.", chosen.Count)
+                : L.F("Xóa {0} mục khỏi danh sách đã nhận? File đã nhận vẫn giữ nguyên.", chosen.Count),
             L.T("Xóa"), null, _ => RemoveAsync(), this);
     }
 
@@ -556,8 +556,8 @@ public sealed partial class MainViewModel : ObservableObject
         Question = new QuestionViewModel(
             L.T("Xóa"),
             chosen.Any(o => o.CanWithdraw)
-                ? L.F("Xóa {0} mục khỏi Đã gửi? Mục còn đang mở sẽ bị thu hồi: người nhận chưa tải sẽ không tải được nữa. File gốc của bạn vẫn giữ nguyên.", chosen.Count)
-                : L.F("Xóa {0} mục khỏi Đã gửi? File gốc của bạn vẫn giữ nguyên.", chosen.Count),
+                ? L.F("Xóa {0} mục khỏi danh sách đã gửi? Mục còn đang mở sẽ bị thu hồi: người nhận chưa tải sẽ không tải được nữa. File gốc của bạn vẫn giữ nguyên.", chosen.Count)
+                : L.F("Xóa {0} mục khỏi danh sách đã gửi? File gốc của bạn vẫn giữ nguyên.", chosen.Count),
             L.T("Xóa"), null, _ => RemoveAsync(), this);
     }
 

@@ -1036,7 +1036,7 @@ public sealed partial class ChatViewModel : ObservableObject
         if (Current is not { } person
             || (Confirm is { } confirm && !await confirm(
                 L.T("Xóa hội thoại"),
-                L.F("Xóa mọi tin nhắn với {0} trên máy này? Máy kia vẫn giữ tin của nó. File đã gửi, đã nhận vẫn ở Hộp nhận và Đã gửi.", person.Name),
+                L.F("Xóa mọi tin nhắn với {0} trên máy này? Máy kia vẫn giữ tin của nó. File đã gửi, đã nhận vẫn ở trang File.", person.Name),
                 L.T("Xóa"))))
         {
             return;

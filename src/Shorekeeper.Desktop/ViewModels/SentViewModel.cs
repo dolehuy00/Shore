@@ -121,8 +121,8 @@ public sealed partial class SentViewModel : ObservableObject
         if (chosen.Count > 1 || chosen.Any(i => i.CanWithdraw))
         {
             string message = chosen.Any(i => i.CanWithdraw)
-                ? L.F("Xóa {0} mục khỏi Đã gửi? Mục còn đang mở sẽ bị thu hồi: người nhận chưa tải sẽ không tải được nữa. File gốc của bạn vẫn giữ nguyên.", chosen.Count)
-                : L.F("Xóa {0} mục khỏi Đã gửi? File gốc của bạn vẫn giữ nguyên.", chosen.Count);
+                ? L.F("Xóa {0} mục khỏi danh sách đã gửi? Mục còn đang mở sẽ bị thu hồi: người nhận chưa tải sẽ không tải được nữa. File gốc của bạn vẫn giữ nguyên.", chosen.Count)
+                : L.F("Xóa {0} mục khỏi danh sách đã gửi? File gốc của bạn vẫn giữ nguyên.", chosen.Count);
             if (await DialogService.ChooseAsync(L.T("Xóa"), message, [L.T("Xóa"), L.T("Hủy")]) != 0)
             {
                 return;

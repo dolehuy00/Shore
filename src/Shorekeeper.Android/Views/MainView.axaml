@@ -1422,7 +1422,7 @@
               <CheckBox IsChecked="{Binding Other}" Content="{l:T 'Ảnh, video khác (tải về, Zalo, Messenger…)'}" />
               <TextBlock Text="{Binding Status}" IsVisible="{Binding IsOn}" FontSize="13" TextWrapping="Wrap" />
               <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
-                         Text="{l:T 'Chỉ gửi những gì có từ lúc bật, mỗi khi máy tính online; chạy nền khi bật Luôn nhận file. Trên máy tính, bật Tự nhận file cho điện thoại này (menu ⋮ ở Xóm) để ảnh tự vào thư mục Ảnh từ (tên điện thoại); không thì chúng chờ ở Hộp nhận.'}" />
+                         Text="{l:T 'Chỉ gửi những gì có từ lúc bật, mỗi khi máy tính online; chạy nền khi bật Luôn nhận file. Trên máy tính, bật Tự nhận file cho điện thoại này (menu ⋮ ở Xóm) để ảnh tự vào thư mục Ảnh từ (tên điện thoại); không thì chúng chờ ở trang File của máy tính.'}" />
             </StackPanel>
 
             <TextBlock Classes="h3" Text="{l:T 'Sao lưu danh tính'}" />
