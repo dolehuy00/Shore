@@ -93,14 +93,26 @@ public partial class MainView : UserControl
                 }
             };
             // The keyboard is drawn over the app, which keeps its size: lift the content above it (the message box),
-            // and hide the tab strip meanwhile, as other apps do.
+            // and hide the tab strip meanwhile, as other apps do. Avalonia pads this view clear of the system bars; that
+            // padding comes back when the keyboard goes, or the tabs would sit under the navigation buttons.
             if (top.InputPane is { } keyboard)
             {
+                Thickness? resting = null;
                 keyboard.StateChanged += (_, change) =>
                 {
                     double covered = change.NewState == InputPaneState.Open ? Math.Max(0, Bounds.Height - change.EndRect.Top) : 0;
                     LayoutLog.Event($"keyboard {change.NewState} {change.EndRect} covers {covered:0}");
-                    Padding = new Thickness(0, 0, 0, covered);
+                    if (covered > 0)
+                    {
+                        Thickness rest = resting ??= Padding;
+                        Padding = new Thickness(rest.Left, rest.Top, rest.Right, Math.Max(covered, rest.Bottom));
+                    }
+                    else if (resting is { } restore)
+                    {
+                        Padding = restore;
+                        resting = null;
+                    }
+
                     Tabs.IsVisible = covered == 0;
                 };
             }
