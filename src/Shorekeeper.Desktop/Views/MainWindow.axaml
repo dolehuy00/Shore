@@ -807,7 +807,7 @@
                           <ContextMenu>
                             <MenuItem Header="{l:T 'Thu hồi'}" Command="{Binding RecallCommand}" IsVisible="{Binding CanRecall}" />
                             <MenuItem Header="{l:T 'Ngừng chia sẻ'}" Command="{Binding WithdrawCommand}" IsVisible="{Binding CanStopSharing}" />
-                            <MenuItem Header="{l:T 'Sao chép'}" Command="{Binding CopyCommand}" IsVisible="{Binding IsText}" />
+                            <MenuItem Header="{l:T 'Sao chép'}" Command="{Binding CopyCommand}" IsVisible="{Binding CanCopy}" />
                             <MenuItem Header="Xem" Command="{Binding ShowCommand}" IsVisible="{Binding IsFiles}" />
                           </ContextMenu>
                         </Border.ContextMenu>
@@ -869,13 +869,14 @@
                           </Border>
                           <StackPanel Grid.Column="1" Margin="10,0,0,0" Spacing="2">
                             <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" MaxLines="3" IsVisible="{Binding IsFiles}" />
-                            <SelectableTextBlock Text="{Binding Text}" TextWrapping="Wrap" IsVisible="{Binding IsText}" />
+                            <SelectableTextBlock Text="{Binding Text}" TextWrapping="Wrap" IsVisible="{Binding CanCopy}" />
+                            <TextBlock Classes="muted" Text="{Binding Text}" FontStyle="Italic" IsVisible="{Binding IsEmptyText}" />
                             <TextBlock Classes="muted" Text="{Binding StatusText}" FontSize="12" TextWrapping="Wrap" />
                             <ProgressBar Value="{Binding Progress}" Maximum="100" IsVisible="{Binding IsDownloading}" MinWidth="0" Margin="0,4" />
                             <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
                               <Button Classes="accent" Content="{l:T 'Tải'}" Command="{Binding DownloadCommand}" IsVisible="{Binding CanDownload}" Padding="12,4" />
                               <Button Content="Xem" Command="{Binding ShowCommand}" Padding="12,4" IsVisible="{Binding IsFiles}" />
-                              <Button Content="{l:T 'Sao chép'}" Command="{Binding CopyCommand}" Padding="12,4" IsVisible="{Binding IsText}" />
+                              <Button Content="{l:T 'Sao chép'}" Command="{Binding CopyCommand}" Padding="12,4" IsVisible="{Binding CanCopy}" />
                               <Button Content="{l:T 'Mở'}" Command="{Binding OpenLinkCommand}" Padding="12,4" IsVisible="{Binding IsLink}" />
                             </StackPanel>
                           </StackPanel>

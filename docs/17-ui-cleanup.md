@@ -1,6 +1,6 @@
 # 17 — Dọn giao diện (U5 → U7)
 
-> Trạng thái: **đang làm** (2026-10-29): U5 xong. Nối tiếp đợt đổi giao diện U1–U4 (2026-10-16, [12](12-roadmap.md)). Làm theo thứ tự U5 → U6 → U7: U5 đổi bố cục chung, làm sau thì phải sửa lại nhiều chỗ.
+> Trạng thái: **đang làm** (2026-10-29): U5, U6 xong. Nối tiếp đợt đổi giao diện U1–U4 (2026-10-16, [12](12-roadmap.md)). Làm theo thứ tự U5 → U6 → U7: U5 đổi bố cục chung, làm sau thì phải sửa lại nhiều chỗ.
 
 ## 1. Vì sao
 
@@ -39,7 +39,9 @@ Thử thật U5b–d (2026-10-29, PC): thanh bên 6 mục; File mở tab Nhận,
 
 ## 3. U6 — Văn bản trống
 
-Offer văn bản không có chữ (chỉ có ở dữ liệu cũ) hiện **"(Không có nội dung)"** in nghiêng, màu nhạt, trong thẻ hội thoại và dòng xem trước của danh sách hội thoại, thay vì một dòng trống. Không sửa DB.
+Offer văn bản không có chữ (chỉ có ở dữ liệu cũ) hiện **"(Không có nội dung)"** in nghiêng, màu nhạt, trong thẻ hội thoại và dòng xem trước của danh sách hội thoại, thay vì một dòng trống; thẻ đó không có [Sao chép]. Không sửa DB.
+
+Chưa xem tận mắt: các offer như vậy trên PC thử đều nằm trong hội thoại với OPPO, còn tin thoại chưa nghe nên không mở.
 
 ## 4. U7 — Làm gọn từng trang (PC)
 

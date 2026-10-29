@@ -907,9 +907,12 @@ public sealed partial class ChatViewModel : ObservableObject
 
     /// <summary>"[Ảnh]", "[3 ảnh]", the words of "Gửi văn bản", or "app.zip + 2 mục".</summary>
     private static string FileText(string? note, IReadOnlyList<string> paths, bool pictures) =>
-        paths.Count == 0 ? note ?? ""
+        paths.Count == 0 ? string.IsNullOrWhiteSpace(note) ? NoContent : note
         : pictures ? paths.Count == 1 ? L.T("[Ảnh]") : L.F("[{0} ảnh]", paths.Count)
         : TransferText.Summary(paths);
+
+    /// <summary>Text alone with no words: only in old data (docs/17-ui-cleanup.md §3).</summary>
+    internal static string NoContent => L.T("(Không có nội dung)");
 
     /// <summary>Takes a message out of this conversation, here only.</summary>
     internal async Task DeleteAsync(ChatBubbleViewModel bubble)
@@ -1832,6 +1835,13 @@ public sealed partial class ChatFileViewModel(string id, ChatViewModel owner) : 
     [ObservableProperty]
     public partial string Text { get; set; } = "";
 
+    /// <summary>Text alone with no words (old data): "(Không có nội dung)", dimmed, nothing to copy.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanCopy))]
+    public partial bool IsEmptyText { get; set; }
+
+    public bool CanCopy => IsText && !IsEmptyText;
+
     [ObservableProperty]
     public partial bool IsLink { get; set; }
 
@@ -1935,9 +1945,11 @@ public sealed partial class ChatFileViewModel(string id, ChatViewModel owner) : 
     private void SetContent(bool isText, string? note, IReadOnlyList<string> paths)
     {
         IsText = isText;
-        Text = isText ? note ?? "" : "";
-        IsLink = TransferText.LinkOf(Text) is not null;
+        IsEmptyText = isText && string.IsNullOrWhiteSpace(note);
+        Text = IsEmptyText ? ChatViewModel.NoContent : isText ? note! : "";
+        IsLink = !IsEmptyText && TransferText.LinkOf(Text) is not null;
         Title = isText ? TransferText.Preview(Text, 200) : TransferText.Summary(paths);
+        OnPropertyChanged(nameof(CanCopy));
     }
 
     /// <summary>Ours to a group: how many have it ("2/3 đã nhận"), else how far it got.</summary>
