@@ -95,7 +95,7 @@ internal static class Notifications
         var key = new OfferKey(offer.SenderId, offer.OfferId);
         if (offer.Files.Count == 0 && offer.Note is { } text)
         {
-            ShowText(context, key, text, senderName);
+            ShowText(context, key, text, senderName, offer.GroupId);
             return;
         }
 
@@ -113,16 +113,22 @@ internal static class Notifications
         Manager(context).Notify(Tag(key), OfferNotificationId, notification);
     }
 
-    /// <summary>"Huy gửi cho bạn · https://…" with [Sao chép] and, for a link, [Mở].</summary>
-    private static void ShowText(Context context, OfferKey key, string text, string senderName)
+    /// <summary>
+    /// "Huy gửi cho bạn · https://…" with [Sao chép] and, for a link, [Mở]. Tapping it opens the conversation, the text's
+    /// only place (docs/17-ui-cleanup.md §2).
+    /// </summary>
+    private static void ShowText(Context context, OfferKey key, string text, string senderName, string? groupId)
     {
+        Intent conversation = groupId is not null
+            ? new Intent(context, typeof(MainActivity)).PutExtra(MainActivity.ExtraChatGroup, groupId)!.SetData(AndroidUri.Parse($"shorekeeper://chat-group/{groupId}"))!
+            : new Intent(context, typeof(MainActivity)).PutExtra(MainActivity.ExtraChat, key.SenderId.Value)!.SetData(AndroidUri.Parse($"shorekeeper://chat/{key.SenderId.Value}"))!;
         Notification.Builder builder = new Notification.Builder(context, OffersChannel)
             .SetContentTitle(L.F("{0} gửi cho bạn", senderName))!
             .SetContentText(TransferText.Preview(text, 200))!
             .SetStyle(new Notification.BigTextStyle().BigText(text.Length > 1000 ? text[..1000] + "…" : text))!
             .SetSmallIcon(Resource.Drawable.ic_stat_shorekeeper)!
             .SetAutoCancel(true)!
-            .SetContentIntent(OpenApp(context, tab: 1))!
+            .SetContentIntent(PendingIntent.GetActivity(context, Tag(key).GetHashCode(), conversation, PendingIntentFlags.Immutable | PendingIntentFlags.UpdateCurrent))!
             .AddAction(Action(context, L.T("Sao chép"), TransferService.ActionCopy, key))!;
         if (TextActions.ViewIntent(text) is { } view)
         {

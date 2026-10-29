@@ -12,7 +12,10 @@ using Shorekeeper.Engine.Transfers;
 
 namespace Shorekeeper.Desktop.ViewModels;
 
-/// <summary>"Hộp nhận" (docs/10-ux.md §4): offers sent to us; the user decides whether to download.</summary>
+/// <summary>
+/// "Hộp nhận" (docs/10-ux.md §4): offers sent to us; the user decides whether to download. Text alone is not here: it
+/// lives in the conversation (docs/17-ui-cleanup.md §2).
+/// </summary>
 public sealed partial class InboxViewModel : ObservableObject
 {
     private readonly InboxService inbox;
@@ -174,7 +177,7 @@ public sealed partial class InboxViewModel : ObservableObject
 
     private void RefreshAll()
     {
-        IReadOnlyList<ReceivedOffer> offers = inbox.GetOffers();
+        ReceivedOffer[] offers = [.. inbox.GetOffers().Where(HasFiles)];
         foreach (ReceivedOffer offer in offers)
         {
             Apply(offer);
@@ -194,7 +197,7 @@ public sealed partial class InboxViewModel : ObservableObject
 
     private void Refresh(OfferKey key)
     {
-        if (inbox.Get(key) is { } offer)
+        if (inbox.Get(key) is { } offer && HasFiles(offer))
         {
             Apply(offer);
             NewCount = Items.Count(i => i.IsNew);
@@ -206,6 +209,8 @@ public sealed partial class InboxViewModel : ObservableObject
             RefreshAll();
         }
     }
+
+    private static bool HasFiles(ReceivedOffer offer) => offer.Files.Count > 0;
 
     private void UpdateRecent()
     {
@@ -347,32 +352,8 @@ public sealed partial class InboxItemViewModel(OfferKey key, InboxViewModel owne
 
     public bool HasNote => Note is not null;
 
-    /// <summary>Text alone ("Gửi văn bản"): shown on the card, with [Sao chép] and [Mở] for a link.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsFiles))]
-    public partial bool IsText { get; set; }
-
-    public bool IsFiles => !IsText;
-
-    [ObservableProperty]
-    public partial string Text { get; set; } = "";
-
-    [ObservableProperty]
-    public partial bool IsLink { get; set; }
-
     [ObservableProperty]
     public partial string CopyText { get; set; } = L.T("Sao chép");
-
-    [RelayCommand]
-    private async Task CopyAsync()
-    {
-        await DialogService.CopyTextAsync(Text);
-        CopyText = L.T("Đã chép");
-        DispatcherTimer.RunOnce(() => CopyText = L.T("Sao chép"), TimeSpan.FromSeconds(2));
-    }
-
-    [RelayCommand]
-    private void OpenLink() => DialogService.OpenLink(Text);
 
     /// <summary>"Sao chép" on a received picture: the picture itself, to paste into a chat or a document.</summary>
     [ObservableProperty]
@@ -411,18 +392,8 @@ public sealed partial class InboxItemViewModel(OfferKey key, InboxViewModel owne
         Kind = TransferText.KindOf([.. value.Files.Where(f => !f.IsDirectory).Select(f => f.RelativePath)]);
         IsCompleted = value.State == InboxState.Completed;
         LoadThumbnail(value);
-        IsText = value.Files.Count == 0;
-        Text = IsText ? value.Note ?? "" : "";
-        IsLink = TransferText.LinkOf(Text) is not null;
-        Note = value.Note is null || IsText ? null : $"\"{value.Note}\"";
+        Note = value.Note is null ? null : $"\"{value.Note}\"";
         OnPropertyChanged(nameof(HasNote));
-        if (IsText)
-        {
-            Title = TransferText.Preview(Text);
-            Summary = Title;
-            Details = L.T("Văn bản");
-            Kind = TransferKind.Text;
-        }
 
         IsNew = value.State == InboxState.New && open;
         IsDownloading = value.State == InboxState.Downloading;

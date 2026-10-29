@@ -1,6 +1,6 @@
 # 17 — Dọn giao diện (U5 → U7)
 
-> Trạng thái: **kế hoạch** (2026-10-29). Nối tiếp đợt đổi giao diện U1–U4 (2026-10-16, [12](12-roadmap.md)). Làm theo thứ tự U5 → U6 → U7: U5 đổi bố cục chung, làm sau thì phải sửa lại nhiều chỗ.
+> Trạng thái: **đang làm** (2026-10-29): U5a xong. Nối tiếp đợt đổi giao diện U1–U4 (2026-10-16, [12](12-roadmap.md)). Làm theo thứ tự U5 → U6 → U7: U5 đổi bố cục chung, làm sau thì phải sửa lại nhiều chỗ.
 
 ## 1. Vì sao
 
@@ -25,6 +25,8 @@ Xem lại cả 6 trang của app PC (2026-10-29): rối chủ yếu vì **một 
 - Gửi xong văn bản (Gửi nhanh, Ctrl+V chữ, "Gửi văn bản…"): một người hay một nhóm thì mở hội thoại đó; nhiều người thì ở yên, không nhảy sang Đã gửi như trước.
 - Cửa sổ nhỏ báo văn bản đến: [Xem] mở hội thoại với người gửi (hay hội thoại nhóm), không mở Hộp nhận.
 - Ô tìm Ctrl+K không còn trả về văn bản (nó tìm trong Hộp nhận / Đã gửi). Tìm trong tin nhắn là việc khác, để sau.
+- Thẻ văn bản trong hội thoại hiện đủ chữ (trước đây 200 ký tự, 3 dòng), chọn được, với [Sao chép] và [Mở] cho link; không còn [Xem]. Thông báo văn bản đến trên điện thoại mở hội thoại.
+- Thử thật (2026-10-29, PC): Hộp nhận và Đã gửi chỉ còn offer có file; Gửi nhanh một đoạn chữ cho "Mai (máy thử)" mở hội thoại với Mai, thẻ có đủ chữ và [Sao chép].
 - Offer có cả file lẫn chữ thì vẫn ở trang File, chữ là ghi chú như cũ.
 
 **U5b. Trang File** (PC): Hộp nhận và Đã gửi thành một mục **File** trên thanh bên, hai tab **Nhận | Đã gửi** đầu trang, như điện thoại. Huy hiệu của mục File là số file mới nhận. Mọi chỗ trước đây mở Hộp nhận / Đã gửi (thẻ trong hội thoại, cửa sổ file đến, kết quả tìm, gửi xong) mở đúng tab. Thanh bên còn 6 mục.

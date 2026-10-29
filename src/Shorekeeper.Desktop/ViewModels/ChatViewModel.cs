@@ -1822,8 +1822,24 @@ public sealed partial class ChatFileViewModel(string id, ChatViewModel owner) : 
     [ObservableProperty]
     public partial string Title { get; set; } = "";
 
+    /// <summary>Text alone: shown whole here, its only place (docs/17-ui-cleanup.md §2), with [Sao chép] and [Mở] for a link.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsFiles))]
     public partial bool IsText { get; set; }
+
+    public bool IsFiles => !IsText;
+
+    [ObservableProperty]
+    public partial string Text { get; set; } = "";
+
+    [ObservableProperty]
+    public partial bool IsLink { get; set; }
+
+    [RelayCommand]
+    private void Copy() => owner.CopyText?.Invoke(Text);
+
+    [RelayCommand]
+    private void OpenLink() => owner.OpenLink?.Invoke(Text);
 
     /// <summary>"12,4 MB · Đã nhận", "Bạn gửi · chưa mở".</summary>
     [ObservableProperty]
@@ -1857,8 +1873,7 @@ public sealed partial class ChatFileViewModel(string id, ChatViewModel owner) : 
         key = null;
         offerId = offer.OfferId;
         CanWithdraw = offer.State == OfferState.Open && !offer.Recalled;
-        IsText = offer.Paths.Count == 0;
-        Title = IsText ? TransferText.Preview(offer.Note ?? "", 200) : TransferText.Summary(offer.Paths);
+        SetContent(offer.Paths.Count == 0, offer.Note, offer.Paths);
         IReadOnlyList<SentRecipient> to = peer is { } one ? [.. offer.Recipients.Where(r => r.DeviceId == one)] : offer.Recipients;
         SentRecipient? recipient = to.Count > 0 ? to[0] : null;
         IsRecalled = offer.Recalled;
@@ -1898,8 +1913,7 @@ public sealed partial class ChatFileViewModel(string id, ChatViewModel owner) : 
         CanRecall = false;
         IsRecalled = offer.Recalled;
         RecalledText = ChatViewModel.RecalledText(offer.Files.Count > 0 && offer.Files.All(f => !f.IsDirectory && StorageReport.IsPicture(f.RelativePath)));
-        IsText = offer.Files.Count == 0;
-        Title = IsText ? TransferText.Preview(offer.Note ?? "", 200) : TransferText.Summary(offer.Files.Select(f => f.RelativePath));
+        SetContent(offer.Files.Count == 0, offer.Note, [.. offer.Files.Select(f => f.RelativePath)]);
         string state = offer.State switch
         {
             InboxState.New when offer.ExpiresAt <= DateTimeOffset.UtcNow => L.T("Đã hết hạn"),
@@ -1916,6 +1930,14 @@ public sealed partial class ChatFileViewModel(string id, ChatViewModel owner) : 
         StatusText = offer.Recalled ? Time(offer.SentAt) : Status(offer.SentAt, offer.TotalBytes, state);
         CanDownload = !offer.Recalled && offer.State == InboxState.New && senderOnline && offer.ExpiresAt > DateTimeOffset.UtcNow;
         Progress = offer.State == InboxState.Downloading && offer.TotalBytes > 0 ? 100.0 * offer.BytesReceived / offer.TotalBytes : -1;
+    }
+
+    private void SetContent(bool isText, string? note, IReadOnlyList<string> paths)
+    {
+        IsText = isText;
+        Text = isText ? note ?? "" : "";
+        IsLink = TransferText.LinkOf(Text) is not null;
+        Title = isText ? TransferText.Preview(Text, 200) : TransferText.Summary(paths);
     }
 
     /// <summary>Ours to a group: how many have it ("2/3 đã nhận"), else how far it got.</summary>

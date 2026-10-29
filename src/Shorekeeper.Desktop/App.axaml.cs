@@ -68,6 +68,7 @@ public partial class App : Application
                 }
             });
             dialogs.PageRequested += (_, _) => ShowMainWindow();
+            dialogs.ChatRequested += (_, _) => ShowMainWindow();
 
             // Messages: a toast unless "Bận" or the conversation is open in front (docs/15-chat.md §6.1).
             var chat = Services.GetRequiredService<ChatService>();

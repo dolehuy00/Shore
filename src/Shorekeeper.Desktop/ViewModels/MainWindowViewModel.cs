@@ -162,6 +162,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
         Search = new SearchViewModel(neighborhood, groups, inbox, sent, Reveal);
         dialogs.OfferSent += (_, _) => SelectedNavItem = Nav(NavPage.Sent);
         dialogs.PageRequested += (_, page) => SelectedNavItem = Nav(page);
+        dialogs.TextSent += (_, target) => OpenChat(target);
+        dialogs.ChatRequested += (_, target) => OpenChat(target);
         audio.Notice += (_, message) => dialogs.Ask(L.T("Âm thanh"), [message], [], NavPage.Audio, _ => { });
         audio.AskPassword = question => question.Masked
             ? DialogService.PromptPasswordAsync(question.Title, question.Label, question.OkText, confirm: false, _ => Task.FromResult<string?>(null))
@@ -275,6 +277,18 @@ public sealed partial class MainWindowViewModel : ObservableObject
     {
         Chat.Open(peer);
         ShowPage(NavPage.Messages);
+    }
+
+    private void OpenChat(ChatTarget target)
+    {
+        if (target.GroupId is { } groupId)
+        {
+            OpenGroupChat(groupId);
+        }
+        else
+        {
+            OpenChat(target.Peer);
+        }
     }
 
     /// <summary>"Nhắn tin" on a group, or a group message's toast.</summary>

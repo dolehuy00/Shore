@@ -121,7 +121,8 @@ public sealed partial class SentViewModel : ObservableObject
 
     private void Refresh()
     {
-        IReadOnlyList<SentOffer> current = offers.GetOffers();
+        // Text alone lives in the conversation (docs/17-ui-cleanup.md §2).
+        SentOffer[] current = [.. offers.GetOffers().Where(o => o.Paths.Count > 0)];
         HashSet<string> present = [.. current.Select(o => o.OfferId)];
         foreach (SentItemViewModel gone in Items.Where(i => !present.Contains(i.OfferId)).ToList())
         {
@@ -129,7 +130,7 @@ public sealed partial class SentViewModel : ObservableObject
             SelectionChanged();
         }
 
-        for (int i = 0; i < current.Count; i++)
+        for (int i = 0; i < current.Length; i++)
         {
             SentItemViewModel? item = Items.FirstOrDefault(x => x.OfferId == current[i].OfferId);
             if (item is null)
@@ -203,13 +204,6 @@ public sealed partial class SentItemViewModel(string offerId, SentViewModel owne
         string[] files = [.. offer.Paths.Where(p => !p.EndsWith('/'))];
         Details = $"{TransferText.FileCount(files.Length)} · {TransferText.Size(offer.TotalBytes)} · {TransferText.Ago(offer.CreatedAt, now)}";
         Kind = TransferText.KindOf(files);
-        if (offer.Paths.Count == 0 && offer.Note is { } text)
-        {
-            Title = TransferText.Preview(text);
-            Summary = Title;
-            Details = $"{L.T("Văn bản")} · {TransferText.Ago(offer.CreatedAt, now)}";
-            Kind = TransferKind.Text;
-        }
 
         CanWithdraw = offer.State == OfferState.Open;
         HasChangedFiles = offer.HasChangedFiles && offer.State == OfferState.Open;

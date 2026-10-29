@@ -10,9 +10,6 @@ public enum TransferKind
     Files,
     Images,
     Folder,
-
-    /// <summary>Text alone ("Gửi văn bản"): a link or a few lines, no files.</summary>
-    Text,
 }
 
 /// <summary>Wording shared by the inbox, the sent list and the incoming-offer popup.</summary>

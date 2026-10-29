@@ -417,14 +417,23 @@ public sealed partial class MainViewModel : ObservableObject
         {
             if (text is not null)
             {
-                foreach (var batch in recipients.GroupBy(r => r.GroupId))
+                var batches = recipients.GroupBy(r => r.GroupId).ToList();
+                foreach (var batch in batches)
                 {
                     await offers.CreateAsync(new PreparedOffer([], []), [.. batch.Select(r => r.Id)], text, snapshotLocked: false, groupId: batch.Key, CancellationToken.None);
                 }
 
-                if (showSent)
+                // Text shows in the conversation, not in File (docs/17-ui-cleanup.md §2): one person or one group, open it.
+                if (showSent && batches is [{ } only])
                 {
-                    ShowSentFiles();
+                    if (only.Key is { } groupId)
+                    {
+                        OpenGroupChat(groupId);
+                    }
+                    else if (only.Count() == 1)
+                    {
+                        OpenChat(only.First().Id);
+                    }
                 }
             }
 
@@ -673,7 +682,8 @@ public sealed partial class MainViewModel : ObservableObject
     private void RefreshOffers()
     {
         IReadOnlyList<ReceivedOffer> current = inbox.GetOffers();
-        Sync(Offers, current.OrderByDescending(o => o.ReceivedAt), o => new OfferKey(o.SenderId, o.OfferId), item => item.Key,
+        // Text alone lives in the conversation (docs/17-ui-cleanup.md §2).
+        Sync(Offers, current.Where(o => o.Files.Count > 0).OrderByDescending(o => o.ReceivedAt), o => new OfferKey(o.SenderId, o.OfferId), item => item.Key,
             o => new OfferItemViewModel(o, this), (item, o) => item.Update(o, NameOf(o.SenderId)));
 
         progressTimer.IsEnabled = current.Any(o => o.State == InboxState.Downloading)
@@ -685,7 +695,7 @@ public sealed partial class MainViewModel : ObservableObject
     private void RefreshSent()
     {
         IReadOnlyList<SentOffer> current = offers.GetOffers();
-        Sync(Sent, current.OrderByDescending(o => o.CreatedAt), o => o.OfferId, item => item.OfferId,
+        Sync(Sent, current.Where(o => o.Paths.Count > 0).OrderByDescending(o => o.CreatedAt), o => o.OfferId, item => item.OfferId,
             o => new SentItemViewModel(o, this), (item, o) => item.Update(o));
 
         progressTimer.IsEnabled |= current.Any(o => o.Recipients.Any(r => r.State == RecipientState.Downloading));
@@ -948,31 +958,12 @@ public sealed partial class OfferItemViewModel(ReceivedOffer offer, MainViewMode
     [ObservableProperty]
     public partial bool HasFiles { get; set; }
 
-    public string? Note { get; } = offer.Files.Count == 0 ? null : offer.Note;
+    public string? Note { get; } = offer.Note;
 
     public bool HasNote => Note is not null;
 
     public OfferContents Contents { get; } = new([]);
 
-    /// <summary>Text alone ("Gửi văn bản"): shown on the card, with [Sao chép] and [Mở] for a link.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsFiles))]
-    public partial bool IsText { get; set; }
-
-    public bool IsFiles => !IsText;
-
-    [ObservableProperty]
-    public partial string Text { get; set; } = "";
-
-    [ObservableProperty]
-    public partial bool IsLink { get; set; }
-
-    /// <summary>Android 13+ confirms the copy itself, so no notice of ours.</summary>
-    [RelayCommand]
-    private void Copy() => TextActions.Copy(global::Android.App.Application.Context, Text);
-
-    [RelayCommand]
-    private void OpenLink() => TextActions.Open(global::Android.App.Application.Context, Text);
 
     [ObservableProperty]
     public partial string Title { get; set; } = "";
@@ -1041,15 +1032,6 @@ public sealed partial class OfferItemViewModel(ReceivedOffer offer, MainViewMode
         HasFiles = value.Files.Any(f => !f.IsDirectory && f.State == InboxFileState.Completed) && !allGone;
         CanDownload = value.State is InboxState.New or InboxState.Failed or InboxState.Partial or InboxState.Cancelled;
         CanDecline = value.State == InboxState.New;
-        IsText = value.Files.Count == 0;
-        Text = IsText ? value.Note ?? "" : "";
-        IsLink = TransferText.LinkOf(Text) is not null;
-        if (IsText)
-        {
-            Summary = L.T("Văn bản");
-            Kind = TransferKind.Text;
-            Status = L.T("Đã nhận");
-        }
     }
 
     [RelayCommand]
@@ -1165,11 +1147,6 @@ public sealed partial class SentItemViewModel(SentOffer offer, MainViewModel own
         Contents.Update(value.Paths);
         Recipients = string.Join("\n", value.Recipients.Select(r => $"{owner.NameOf(r.DeviceId)}: {State(r.State)}"));
         Kind = TransferText.KindOf([.. value.Paths.Where(p => !p.EndsWith('/'))]);
-        if (value.Paths.Count == 0 && value.Note is { } text)
-        {
-            Summary = TransferText.Preview(text);
-            Kind = TransferKind.Text;
-        }
         Status = value.State switch
         {
             OfferState.Open => value.HasChangedFiles ? L.T("Đang mở · có file đã bị sửa") : L.T("Đang mở"),

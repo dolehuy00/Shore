@@ -37,6 +37,15 @@ public sealed class DialogService(
     /// <summary>The user pressed "Xem" on a popup or clicked a toast: the main window shows that page.</summary>
     public event EventHandler<NavPage>? PageRequested;
 
+    /// <summary>
+    /// Text alone was sent to one person or one group: the main window opens that conversation, where the text shows
+    /// (docs/17-ui-cleanup.md §2). Several people: nothing to open.
+    /// </summary>
+    public event EventHandler<ChatTarget>? TextSent;
+
+    /// <summary>"Xem" on text that arrived: the main window comes up with the conversation it is in.</summary>
+    public event EventHandler<ChatTarget>? ChatRequested;
+
     /// <summary>Sends files/folders to contacts, or to members of <paramref name="groupId"/> (docs/06-file-transfer.md §6).</summary>
     public Task SendAsync(IReadOnlyList<string> paths, IReadOnlyList<(DeviceId Id, string Name)> recipients, string? groupId = null, string? text = null) =>
         SendAsync(paths, [new OfferBatch([.. recipients.Select(r => r.Id)], groupId)], text);
@@ -69,9 +78,9 @@ public sealed class DialogService(
                 await offers.CreateAsync(new PreparedOffer([], []), batch.Recipients, text, snapshotLocked: false, batch.GroupId, CancellationToken.None);
             }
 
-            if (showSent)
+            if (showSent && batches is [{ } only] && (only.GroupId is not null || only.Recipients.Count == 1))
             {
-                OfferSent?.Invoke(this, EventArgs.Empty);
+                TextSent?.Invoke(this, new ChatTarget(only.Recipients[0], only.GroupId));
             }
 
             return;
@@ -268,7 +277,17 @@ public sealed class DialogService(
     public void ShowIncomingOffer(ReceivedOffer offer, string senderName)
     {
         var key = new OfferKey(offer.SenderId, offer.OfferId);
-        var viewModel = new IncomingOfferViewModel(offer, senderName, () => inbox.Download(key), () => inbox.DeclineAsync(key), () => PageRequested?.Invoke(this, NavPage.Inbox));
+        var viewModel = new IncomingOfferViewModel(offer, senderName, () => inbox.Download(key), () => inbox.DeclineAsync(key), () =>
+        {
+            if (offer.Files.Count == 0)
+            {
+                ChatRequested?.Invoke(this, new ChatTarget(offer.SenderId, offer.GroupId));
+            }
+            else
+            {
+                PageRequested?.Invoke(this, NavPage.Inbox);
+            }
+        });
         string[] lines = viewModel.IsText ? [TransferText.Preview(viewModel.Text, 200)]
             : viewModel.Note is { } note ? [viewModel.Summary, note]
             : [viewModel.Summary];
@@ -481,3 +500,6 @@ public sealed class DialogService(
 
 /// <summary>Recipients of one offer; <see cref="GroupId"/> is set when they get it as fellow members of that group.</summary>
 public sealed record OfferBatch(IReadOnlyList<DeviceId> Recipients, string? GroupId);
+
+/// <summary>A conversation: the group's when <see cref="GroupId"/> is set, otherwise the one with <see cref="Peer"/>.</summary>
+public sealed record ChatTarget(DeviceId Peer, string? GroupId);
