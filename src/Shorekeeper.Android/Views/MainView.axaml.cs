@@ -23,6 +23,9 @@ namespace Shorekeeper.Android.Views;
 public partial class MainView : UserControl
 {
     private long lastRemeasure;
+
+    /// <summary>The padding Avalonia gave this view (clear of the system bars) while the keyboard lifts it; null otherwise.</summary>
+    private Thickness? resting;
     private ChatScroll? chatScroll;
 
     /// <summary>When a message or card was last held: letting go is not a tap on the picture or link under the finger.</summary>
@@ -97,7 +100,6 @@ public partial class MainView : UserControl
             // padding comes back when the keyboard goes, or the tabs would sit under the navigation buttons.
             if (top.InputPane is { } keyboard)
             {
-                Thickness? resting = null;
                 keyboard.StateChanged += (_, change) =>
                 {
                     double covered = change.NewState == InputPaneState.Open ? Math.Max(0, Bounds.Height - change.EndRect.Top) : 0;
@@ -118,6 +120,21 @@ public partial class MainView : UserControl
             }
         }
     }
+
+    /// <summary>
+    /// Back from the task switcher with the keyboard gone, Avalonia does not say it closed (layout.log, 2026-10-29): the
+    /// content stayed lifted over the keyboard and the tabs hidden. Called on focus when Android says no keyboard shows.
+    /// </summary>
+    public void KeyboardGone() => Dispatcher.UIThread.Post(() =>
+    {
+        if (resting is { } restore)
+        {
+            LayoutLog.Event("keyboard gone without a Closed event, putting the content back");
+            Padding = restore;
+            resting = null;
+            Tabs.IsVisible = true;
+        }
+    });
 
     /// <summary>
     /// Rarely, back from the background, the header and the tab strip are 0 high while the window keeps its size, so the

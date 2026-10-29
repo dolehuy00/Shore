@@ -2,6 +2,7 @@ using Android.Content;
 using Android.Content.PM;
 using Android.Content.Res;
 using Android.Views;
+using AndroidX.Core.View;
 using Avalonia.Android;
 using Shorekeeper.Android.Platform;
 using AndroidUri = Android.Net.Uri;
@@ -94,6 +95,11 @@ public sealed class MainActivity : AvaloniaMainActivity
         if (hasFocus)
         {
             LayoutLog.View?.RemeasureIfCollapsed();
+            if (Window?.DecorView is { } decor && ViewCompat.GetRootWindowInsets(decor)?.IsVisible(WindowInsetsCompat.Type.Ime()) != true)
+            {
+                LayoutLog.View?.KeyboardGone();
+            }
+
             if (sendCopiedOnFocus)
             {
                 sendCopiedOnFocus = false;
