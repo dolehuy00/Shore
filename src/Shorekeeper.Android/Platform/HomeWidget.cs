@@ -96,7 +96,7 @@ public sealed class HomeWidget : AppWidgetProvider
     }
 
     internal static string NameOf(IServiceProvider services, DeviceId id, PeerInfo? live = null) =>
-        services.GetRequiredService<TrustStore>().Get(id)?.ShownName ?? live?.DisplayName ?? id.ShortForm;
+        services.GetRequiredService<PeerNaming>().Of(id, live?.DisplayName);
 
     private static void Update(Context context)
     {

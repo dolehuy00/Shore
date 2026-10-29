@@ -80,6 +80,7 @@ public sealed partial class AudioViewModel : ObservableObject
     private readonly AudioService audio;
     private readonly PeerDirectory directory;
     private readonly TrustStore trust;
+    private readonly PeerNaming naming;
     private readonly SettingsService settings;
     private readonly IBluetoothAudioReceiver? bluetooth;
     private readonly IAudioOutputDevices? outputDevices;
@@ -89,9 +90,10 @@ public sealed partial class AudioViewModel : ObservableObject
     /// <param name="bluetooth">Null where the platform cannot receive Bluetooth audio (Android, Linux, macOS).</param>
     /// <param name="outputDevices">Null where "Nghe" always plays on the default device (Android).</param>
     public AudioViewModel(
-        AudioService audio, PeerDirectory directory, TrustStore trust, SettingsService settings,
+        AudioService audio, PeerDirectory directory, TrustStore trust, SettingsService settings, PeerNaming naming,
         IBluetoothAudioReceiver? bluetooth = null, IAudioOutputDevices? outputDevices = null)
     {
+        this.naming = naming;
         this.audio = audio;
         this.directory = directory;
         this.trust = trust;
@@ -497,6 +499,5 @@ public sealed partial class AudioViewModel : ObservableObject
             ? live.Os.Equals("android", StringComparison.OrdinalIgnoreCase)
             : trust.Get(id)?.IsPhone == true;
 
-    private string NameOf(DeviceId id, PeerInfo? live) =>
-        trust.Get(id)?.ShownName ?? (live ?? directory.Snapshot().FirstOrDefault(p => p.DeviceId == id))?.DisplayName ?? id.ShortForm;
+    private string NameOf(DeviceId id, PeerInfo? live) => naming.Of(id, live?.DisplayName);
 }

@@ -24,13 +24,13 @@ public sealed record StatsKind(string Name, string Text, double Share);
 public sealed partial class StatsViewModel : ObservableObject
 {
     private readonly UsageStatsService usage;
-    private readonly TrustStore trust;
+    private readonly PeerNaming naming;
     private readonly SettingsService settings;
 
-    public StatsViewModel(UsageStatsService usage, TrustStore trust, SettingsService settings)
+    public StatsViewModel(UsageStatsService usage, PeerNaming naming, SettingsService settings)
     {
         this.usage = usage;
-        this.trust = trust;
+        this.naming = naming;
         this.settings = settings;
         usage.Changed += (_, _) => Dispatcher.UIThread.Post(RefreshCounts);
         RefreshCounts();
@@ -119,7 +119,7 @@ public sealed partial class StatsViewModel : ObservableObject
             Period(L.T("Tổng"), summary.Total),
         ];
         Peers = [.. summary.Peers.Select(p => new StatsPeer(
-            trust.Get(p.PeerId)?.ShownName ?? p.PeerId.ShortForm,
+            naming.Of(p.PeerId),
             L.F("Gửi {0} · nhận {1}", Amount(p.SentFiles, p.SentBytes), Amount(p.ReceivedFiles, p.ReceivedBytes))))];
         SoundWeek = L.F("7 ngày: nghe {0} · phát {1}", Duration(summary.Week.ListenSeconds), Duration(summary.Week.PlaySeconds));
         SoundTotal = L.F("Tổng: nghe {0} · phát {1}", Duration(summary.Total.ListenSeconds), Duration(summary.Total.PlaySeconds));

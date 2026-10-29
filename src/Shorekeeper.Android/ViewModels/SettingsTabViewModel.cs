@@ -59,7 +59,7 @@ public sealed partial class SettingsTabViewModel : ObservableObject
         paths = services.GetRequiredService<AppPaths>();
         Blocked = new BlockedPeersViewModel(services.GetRequiredService<TrustStore>());
         Stats = new StatsViewModel(
-            services.GetRequiredService<UsageStatsService>(), services.GetRequiredService<TrustStore>(), services.GetRequiredService<SettingsService>());
+            services.GetRequiredService<UsageStatsService>(), services.GetRequiredService<PeerNaming>(), services.GetRequiredService<SettingsService>());
         PhotoBackup = new PhotoBackupViewModel(
             services.GetRequiredService<PhotoBackupService>(), services.GetRequiredService<TrustStore>(), directory, main);
         this.main = main;

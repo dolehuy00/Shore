@@ -59,7 +59,7 @@ public sealed partial class MainViewModel : ObservableObject
         finder = services.GetRequiredService<ManualPeerFinder>();
         Groups = new GroupsTabViewModel(services, this);
         Audio = new AudioViewModel(
-            services.GetRequiredService<AudioService>(), directory, trust, settings)
+            services.GetRequiredService<AudioService>(), directory, trust, settings, services.GetRequiredService<PeerNaming>())
         {
             AllowPlaying = () => MainActivity.Current is { } activity
                 ? PlaybackCapture.RequestAsync(activity, settings.Current.AudioFromMicrophone)
@@ -71,7 +71,7 @@ public sealed partial class MainViewModel : ObservableObject
         Settings = new SettingsTabViewModel(services, this);
         Chat = new ChatViewModel(
             services.GetRequiredService<ChatService>(), services.GetRequiredService<GroupChatService>(), services.GetRequiredService<GroupStore>(),
-            trust, directory, offers, inbox, settings, external,
+            trust, directory, offers, inbox, settings, services.GetRequiredService<PeerNaming>(), external,
             services.GetService<IMicrophone>(), services.GetService<IVoicePlayer>())
         {
             AllowRecording = AllowRecordingAsync,
@@ -319,8 +319,10 @@ public sealed partial class MainViewModel : ObservableObject
             L.T("Máy này sẽ không gửi được yêu cầu kết nối hay file cho bạn nữa. Bỏ chặn trong Cài đặt."), L.T("Chặn"), null,
             _ => trust.BlockAsync(peer.DeviceId, peer.Name, peer.Host), this);
 
-    internal string NameOf(DeviceId id) =>
-        trust.Get(id)?.ShownName ?? directory.Snapshot().FirstOrDefault(p => p.DeviceId == id)?.DisplayName ?? id.ShortForm;
+    internal string NameOf(DeviceId id) => Chat.NameOf(id);
+
+    /// <param name="fallback">The name to use when nothing else knows it, e.g. its name in a group.</param>
+    internal string NameOf(DeviceId id, string fallback) => Chat.NameOf(id, fallback);
 
     /// <param name="invite">From the computer's QR code: it connects without the code being compared.</param>
     internal async Task ConnectAsync(DeviceId peer, string name, string? invite = null)

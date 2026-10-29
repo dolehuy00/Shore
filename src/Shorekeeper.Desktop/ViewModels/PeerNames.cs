@@ -4,13 +4,13 @@ using Shorekeeper.Engine.Trust;
 
 namespace Shorekeeper.Desktop.ViewModels;
 
-/// <summary>How a peer is named in the UI: the alias or contact name, else its presence name.</summary>
-public sealed class PeerNames(TrustStore trust, PeerDirectory directory)
+/// <summary>How a peer is named in the UI (<see cref="PeerNaming"/>: told apart from anyone with the same name).</summary>
+public sealed class PeerNames(TrustStore trust, PeerDirectory directory, PeerNaming naming)
 {
-    public string Of(DeviceId id) =>
-        trust.Get(id)?.ShownName
-        ?? directory.Snapshot().FirstOrDefault(p => p.DeviceId == id)?.DisplayName
-        ?? id.ShortForm;
+    public string Of(DeviceId id) => naming.Of(id);
+
+    /// <param name="fallback">The name to use when nothing else knows it, e.g. its name in a group.</param>
+    public string Of(DeviceId id, string fallback) => naming.Of(id, fallback);
 
     public bool IsOnline(DeviceId id) => directory.Snapshot().Any(p => p.DeviceId == id && p.State == PeerState.Online);
 

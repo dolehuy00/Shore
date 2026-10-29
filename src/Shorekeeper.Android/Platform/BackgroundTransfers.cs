@@ -21,7 +21,7 @@ internal static class BackgroundTransfers
     private static Context? context;
     private static InboxService? inbox;
     private static OfferService? offers;
-    private static TrustStore? trust;
+    private static PeerNaming? naming;
     private static ILogger? logger;
     private static TransferService? service;
 
@@ -41,7 +41,7 @@ internal static class BackgroundTransfers
         context = appContext;
         inbox = services.GetRequiredService<InboxService>();
         offers = services.GetRequiredService<OfferService>();
-        trust = services.GetRequiredService<TrustStore>();
+        naming = services.GetRequiredService<PeerNaming>();
         logger = services.GetRequiredService<ILoggerFactory>().CreateLogger(nameof(BackgroundTransfers));
         Notifications.CreateChannels(appContext);
 
@@ -50,7 +50,7 @@ internal static class BackgroundTransfers
             // Auto-accepted offers are already downloading; nothing to ask. Text arrives received, with [Sao chép].
             if (offer.State == InboxState.New || offer.Files.Count == 0)
             {
-                Notifications.ShowOffer(appContext, offer, trust.Get(offer.SenderId)?.ShownName ?? offer.SenderId.ShortForm);
+                Notifications.ShowOffer(appContext, offer, naming.Of(offer.SenderId));
             }
 
             Recheck();

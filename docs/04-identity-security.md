@@ -133,7 +133,7 @@ shorekeeper://pair?id=<DeviceId máy tính>&a=<ip:port>,<ip:port>&k=<lời mời
 | Giả mạo presence UDP | ⚠️ | Chỉ là gợi ý; danh tính xác minh khi handshake TLS |
 | MITM | ⚠️ | Mã 6 số để đối chiếu (không bắt buộc); kết nối bằng mã QR thì DeviceId trong mã được kiểm tra (§4.4) |
 | Ảnh chụp mã QR kết nối bị lộ | ⚠️ | Lời mời dùng một lần, chỉ trong lúc cửa sổ mã mở (tối đa 10 phút mỗi mã) |
-| Giả danh bằng tên | ✅ | Tin cậy dựa trên DeviceId; cảnh báo trùng tên |
+| Giả danh bằng tên | ✅ | Tin cậy dựa trên DeviceId; hai người cùng tên thì tên kèm tên máy, hoặc mã ngắn khi tên máy cũng trùng ([10 §2](10-ux.md)) |
 | Host nhóm độc hại | ⚠️ | Có thể thêm người vào nhóm; thành viên vẫn thấy rõ ai gửi và tự quyết định có nhận không |
 | Người không được chọn tải file | ✅ | Người gửi kiểm tra DeviceId có trong danh sách người nhận của offer |
 | Máy bị chiếm quyền | ❌ | Ngoài phạm vi |

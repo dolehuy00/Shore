@@ -284,11 +284,7 @@ public sealed partial class GroupsViewModel : ObservableObject
     }
 
     /// <summary>Alias or presence name when we know the peer, else the name the group gave us.</summary>
-    internal string NameOf(DeviceId id, string fallback)
-    {
-        string name = Names.Of(id);
-        return name == id.ShortForm && fallback.Length > 0 ? fallback : name;
-    }
+    internal string NameOf(DeviceId id, string fallback) => Names.Of(id, fallback);
 
     private PickablePeer Person(DeviceId id, string fallbackName, bool isChecked, string? host = null) =>
         new(id, NameOf(id, fallbackName), Names.IsOnline(id) ? host ?? "online" : "offline", isChecked);

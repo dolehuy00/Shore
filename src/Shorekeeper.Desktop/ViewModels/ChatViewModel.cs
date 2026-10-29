@@ -38,6 +38,7 @@ public sealed partial class ChatViewModel : ObservableObject
     private readonly OfferService offers;
     private readonly InboxService inbox;
     private readonly SettingsService settings;
+    private readonly PeerNaming naming;
     private readonly IExternalFileSource? external;
     private readonly IMicrophone? microphone;
     private readonly IVoicePlayer? player;
@@ -52,8 +53,10 @@ public sealed partial class ChatViewModel : ObservableObject
 
     public ChatViewModel(
         ChatService chat, GroupChatService groupChat, GroupStore groups, TrustStore trust, PeerDirectory directory, OfferService offers,
-        InboxService inbox, SettingsService settings, IExternalFileSource? external = null, IMicrophone? microphone = null, IVoicePlayer? player = null)
+        InboxService inbox, SettingsService settings, PeerNaming naming, IExternalFileSource? external = null, IMicrophone? microphone = null,
+        IVoicePlayer? player = null)
     {
+        this.naming = naming;
         this.chat = chat;
         this.groupChat = groupChat;
         this.groups = groups;
@@ -727,9 +730,15 @@ public sealed partial class ChatViewModel : ObservableObject
     private string AuthorOf(string groupId, GroupChatMessage message) =>
         message.Outgoing ? L.T("Bạn") : NameOf(groupId, message.Author, message.AuthorName);
 
-    /// <summary>A member's name: as a contact, else in the group's member list, else <paramref name="fallback"/>.</summary>
+    /// <summary>
+    /// A member's name: as a contact, else in the group's member list, else <paramref name="fallback"/>; told apart from
+    /// anyone with the same name.
+    /// </summary>
     public string NameOf(string groupId, DeviceId member, string fallback) =>
-        trust.Get(member)?.ShownName ?? groups.Get(groupId)?.Members.FirstOrDefault(m => m.DeviceId == member)?.Name ?? fallback;
+        naming.Of(member, groups.Get(groupId)?.Members.FirstOrDefault(m => m.DeviceId == member)?.Name ?? fallback);
+
+    /// <summary>Someone's name, told apart from anyone with the same name.</summary>
+    internal string NameOf(DeviceId peer, string? fallback = null) => naming.Of(peer, fallback);
 
     /// <summary>A group's name, for a notification.</summary>
     public string GroupNameOf(string groupId) => groupRows.GetValueOrDefault(groupId)?.Name ?? groups.Get(groupId)?.Name ?? "";
@@ -1147,7 +1156,7 @@ public sealed partial class ChatViewModel : ObservableObject
             }
             else
             {
-                person.Refresh(trust.Get(person.Peer), live.GetValueOrDefault(person.Peer));
+                person.Refresh(trust.Get(person.Peer), live.GetValueOrDefault(person.Peer), NameOf(person.Peer));
             }
         }
 
@@ -1206,7 +1215,7 @@ public sealed partial class ChatViewModel : ObservableObject
         if (!people.TryGetValue(peer, out ChatPersonViewModel? person))
         {
             person = new ChatPersonViewModel(peer, this);
-            person.Refresh(trust.Get(peer), directory.Snapshot().FirstOrDefault(p => p.DeviceId == peer));
+            person.Refresh(trust.Get(peer), directory.Snapshot().FirstOrDefault(p => p.DeviceId == peer), NameOf(peer));
             people[peer] = person;
         }
 
@@ -1386,9 +1395,9 @@ public sealed partial class ChatPersonViewModel : ObservableObject
             : L.F("{0} thành viên · {1} online", others.Count + 1, others.Count(m => live.GetValueOrDefault(m.DeviceId) is { State: PeerState.Online }) + 1);
     }
 
-    internal void Refresh(PeerRecord? record, PeerInfo? live)
+    internal void Refresh(PeerRecord? record, PeerInfo? live, string name)
     {
-        Name = record?.ShownName ?? live?.DisplayName ?? Peer.ShortForm;
+        Name = name;
         IsPhone = live is null ? record?.IsPhone == true : live.Os.Equals("android", StringComparison.OrdinalIgnoreCase);
         IsOnline = live is { State: PeerState.Online };
         IsBusy = live?.IsBusy == true;

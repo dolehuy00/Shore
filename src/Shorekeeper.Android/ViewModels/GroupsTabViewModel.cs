@@ -146,7 +146,7 @@ public sealed partial class GroupsTabViewModel : ObservableObject
                 PeerInfo? peer = isMe ? null : live.FirstOrDefault(p => p.DeviceId == m.DeviceId);
                 bool isOnline = isMe || peer?.State == PeerState.Online;
                 return new GroupMemberItem(
-                    isMe ? L.T("Bạn") : main.NameOf(m.DeviceId) is var name && name != m.DeviceId.ShortForm ? name : m.Name,
+                    isMe ? L.T("Bạn") : main.NameOf(m.DeviceId, m.Name),
                     m.IsHost,
                     isMe ? true : peer is not null ? peer.Os.Equals("android", StringComparison.OrdinalIgnoreCase) : trust.Get(m.DeviceId)?.IsPhone == true,
                     isOnline,

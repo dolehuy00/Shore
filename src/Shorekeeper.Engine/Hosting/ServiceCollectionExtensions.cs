@@ -45,6 +45,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<GroupStore>();
         services.AddSingleton<PeerDirectory>();
         services.AddSingleton<AuditLog>();
+        services.AddSingleton<PeerNaming>();
         services.AddSingleton<LocalDevice>();
         services.AddSingleton<ShorekeeperEngine>();
         services.AddHostedService<EngineHostedService>();

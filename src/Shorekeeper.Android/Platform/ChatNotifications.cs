@@ -37,14 +37,14 @@ internal static class ChatNotifications
         var chat = services.GetRequiredService<ChatService>();
         var groupChat = services.GetRequiredService<GroupChatService>();
         var groups = services.GetRequiredService<GroupStore>();
-        var trust = services.GetRequiredService<TrustStore>();
+        var naming = services.GetRequiredService<PeerNaming>();
         Manager(context).CreateNotificationChannel(new NotificationChannel(Channel, L.T("Tin nhắn"), NotificationImportance.High));
 
         chat.Received += (_, message) =>
         {
             if (IsReading?.Invoke(message.Peer) != true)
             {
-                _ = ShowAsync(context, chat, trust.Get(message.Peer)?.ShownName ?? message.Peer.ShortForm, message.Peer);
+                _ = ShowAsync(context, chat, naming.Of(message.Peer), message.Peer);
             }
         };
         // Read here, in the app or on another notification's button: nothing left to show.
@@ -55,13 +55,13 @@ internal static class ChatNotifications
         {
             if (IsReadingGroup?.Invoke(message.GroupId) != true)
             {
-                _ = ShowGroupAsync(context, groupChat, groups, trust, message.GroupId);
+                _ = ShowGroupAsync(context, groupChat, groups, naming, message.GroupId);
             }
         };
         groupChat.Changed += (_, groupId) => _ = CancelGroupIfReadAsync(context, groupChat, groupId);
     }
 
-    private static async Task ShowGroupAsync(Context context, GroupChatService groupChat, GroupStore groups, TrustStore trust, string groupId)
+    private static async Task ShowGroupAsync(Context context, GroupChatService groupChat, GroupStore groups, PeerNaming naming, string groupId)
     {
         if ((await groupChat.GetMutedAsync(CancellationToken.None)).Contains(groupId))
         {
@@ -82,9 +82,7 @@ internal static class ChatNotifications
         style.SetGroupConversation(true);
         foreach (GroupChatMessage message in unread)
         {
-            string author = trust.Get(message.Author)?.ShownName
-                ?? group?.Members.FirstOrDefault(m => m.DeviceId == message.Author)?.Name
-                ?? message.AuthorName;
+            string author = naming.Of(message.Author, group?.Members.FirstOrDefault(m => m.DeviceId == message.Author)?.Name ?? message.AuthorName);
             Person who = new Person.Builder().SetName(author)!.SetKey(message.Author.Value)!.Build()!;
             style.AddMessage(new Notification.MessagingStyle.Message(
                 ChatBubbleViewModel.TextOf(message.Kind, message.Text, message.DurationMs), message.SentAt.ToUnixTimeMilliseconds(), who));
