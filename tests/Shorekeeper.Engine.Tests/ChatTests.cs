@@ -179,6 +179,30 @@ public sealed class ChatTests : IAsyncLifetime
         await WaitUntil(() => State(a, b, sent.Id) == ChatMessageState.Delivered);
     }
 
+    [Fact]
+    public async Task Nobody_can_change_a_voice_message_by_sending_another_with_its_id()
+    {
+        await using TestNode other = await TestNode.StartAsync("Other");
+        await other.ConnectAsync(b);
+        ChatMessage sent = await a.Chat.SendVoiceAsync(b.Id, Voice(seconds: 1), Ct);
+        await WaitUntil(() => b.Chat.GetMessagesAsync(a.Id, Ct).Result.Count == 1);
+        string stored = Assert.Single(await b.Chat.GetMessagesAsync(a.Id, Ct)).VoicePath!;
+        byte[] original = await File.ReadAllBytesAsync(stored, Ct);
+
+        // Another contact, and the sender itself, send other sound under the same id.
+        VoiceNote other2 = Voice(seconds: 2);
+        var forged = new ChatMessageBody(sent.Id, DateTimeOffset.UtcNow, ChatKinds.Voice, null, other2.DurationMs, other2.Wave, other2.Ogg);
+        Assert.Equal(HttpStatusCode.NoContent, await PostAsync(other, b, "chat/messages", forged));
+        Assert.Equal(HttpStatusCode.NoContent, await PostAsync(a, b, "chat/messages", forged));
+
+        ChatMessage kept = Assert.Single(await b.Chat.GetMessagesAsync(a.Id, Ct));
+        Assert.Equal((stored, 1000), (kept.VoicePath, kept.DurationMs));
+        Assert.Equal(original, await File.ReadAllBytesAsync(stored, Ct));
+        Assert.Equal(other2.Ogg, await File.ReadAllBytesAsync(Assert.Single(await b.Chat.GetMessagesAsync(other.Id, Ct)).VoicePath!, Ct));
+        // The resent copy left no file behind: one for each message stored.
+        Assert.Equal(2, Directory.GetFiles(Path.GetDirectoryName(stored)!).Length);
+    }
+
     [Theory]
     [InlineData("no audio")]
     [InlineData("not ogg")]

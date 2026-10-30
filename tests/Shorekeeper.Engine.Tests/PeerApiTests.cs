@@ -120,6 +120,19 @@ public sealed class PeerApiTests : IAsyncLifetime
         Assert.Empty(b.Inbox.GetOffers());
     }
 
+    [Fact(Skip = "Kestrel streams bodies at a minimum rate instead", SkipType = typeof(TestNode), SkipWhen = nameof(TestNode.UseKestrel))]
+    public async Task A_stranger_cannot_send_a_large_body()
+    {
+        // Neither a contact nor in a group: asking to connect is all it may do, in a few hundred bytes.
+        Exception? error = await Record.ExceptionAsync(async () =>
+        {
+            using HttpResponseMessage response = await Send(HttpMethod.Post, "pairing/request", new string('x', MiniHttpServer.MaxStrangerBodyBytes + 1));
+            Assert.Equal(HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
+        });
+
+        Assert.True(error is null or PeerUnreachableException, error?.ToString());
+    }
+
     [Fact]
     public async Task Client_refuses_a_server_with_another_identity()
     {

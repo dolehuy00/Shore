@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using System.Security.Cryptography;
 using Microsoft.Extensions.DependencyInjection;
 using Shorekeeper.Core.Identity;
@@ -504,6 +505,23 @@ public sealed class TransferTests : IAsyncLifetime
         await WaitForOfferAsync(c, offerId);
         await Task.Delay(500, Ct);
         Assert.Equal(InboxState.New, c.Inbox.GetOffers().Single(o => o.OfferId == offerId).State);
+    }
+
+    [Theory]
+    [InlineData(@"\..\..\x1")]
+    [InlineData("../../x1")]
+    [InlineData("short")]
+    public async Task An_offer_id_that_could_name_a_file_elsewhere_is_refused(string offerId)
+    {
+        var manifest = new OfferManifest(
+            offerId, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddHours(1), null, 3, [new OfferFileEntry("f1", "a.txt", 3, null)]);
+
+        using HttpResponseMessage response = await a.Client.SendAsync(
+            b.Id, u => new HttpRequestMessage(HttpMethod.Post, new Uri(u, "inbox/offers")) { Content = JsonContent.Create(manifest) },
+            TimeSpan.FromSeconds(10), Ct);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Empty(b.Inbox.GetOffers());
     }
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;

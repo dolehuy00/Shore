@@ -699,10 +699,17 @@ public sealed class InboxService(
         return candidate;
     }
 
+    /// <summary>
+    /// Letters, digits, '-' and '_' (ours are 32 hex digits): the id names the partial file next to the download, so a
+    /// '' or ".." from the sender could put it outside the download folder.
+    /// </summary>
+    private static bool IsOfferId(string? id) =>
+        id is { Length: >= 8 and <= 64 } && id.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_');
+
     private static bool TryValidate(OfferManifest manifest, out List<FileItem> files)
     {
         files = [];
-        if (manifest.OfferId is not { Length: > 0 and <= 64 }
+        if (!IsOfferId(manifest.OfferId)
             || manifest.Files is not { Count: <= OfferService.MaxEntries }
             || (manifest.Files.Count == 0 && string.IsNullOrWhiteSpace(manifest.Note))
             || manifest.Files.Count(f => !f.RelativePath.EndsWith('/')) > OfferService.MaxFiles

@@ -364,8 +364,10 @@ public sealed class ChatService(
         string? path = null;
         if (voice)
         {
-            // Written before the row, so a stored voice message always has its file; a resent one writes the same bytes.
-            path = VoicePath(id.ToString("N"));
+            // Written before the row, so a stored voice message always has its file. A file of its own, never one
+            // already here: an id is no secret (every member of a group sees its messages' ids), so writing over the
+            // file of the same id would put other words in someone's voice message. Dropped below when not stored.
+            path = ReceivedVoicePath(id.ToString("N"));
             Directory.CreateDirectory(paths.ChatVoiceDirectory);
             await File.WriteAllBytesAsync(path, body.Audio!);
         }
@@ -387,6 +389,10 @@ public sealed class ChatService(
             usage.AddMessage(caller, sent: false);
             Changed?.Invoke(this, caller);
             Received?.Invoke(this, message);
+        }
+        else
+        {
+            DeleteFiles([path]);
         }
 
         return PeerResponse.Empty(HttpStatusCode.NoContent);
@@ -647,6 +653,8 @@ public sealed class ChatService(
         && wave is { Length: <= VoiceRecorder.WaveBars };
 
     private string VoicePath(string id) => Path.Combine(paths.ChatVoiceDirectory, id + ".ogg");
+
+    private string ReceivedVoicePath(string id) => Path.Combine(paths.ChatVoiceDirectory, $"{id}-{Guid.NewGuid():N}.ogg");
 
     private void DeleteFiles(IEnumerable<string?> files)
     {

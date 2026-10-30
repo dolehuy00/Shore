@@ -123,6 +123,11 @@ shorekeeper://pair?id=<DeviceId máy tính>&a=<ip:port>,<ip:port>&k=<lời mời
 | Đầy đĩa | Kiểm tra dung lượng trống ≥ size + 1 GB trước khi tải |
 | Ghi đè | Không bao giờ. Trùng tên thì dùng `ten (1).ext` |
 | Spam offer từ người đã tin cậy | ≤ 10 offer/phút/peer; Chặn bằng 1 click |
+| `offerId` lạ (`\..\x`) đặt file tạm `.skpart` ra ngoài thư mục nhận | `offerId` chỉ gồm chữ, số, `-`, `_`, dài 8–64 ký tự; sai thì `400` |
+| Gửi tin mang `id` của tin thoại người khác (`id` không bí mật: thành viên nhóm đều thấy) để thay tiếng | Tin thoại nhận được luôn ghi vào file mới của riêng nó; tin đã có thì file mới bị xóa, file cũ không bị đụng |
+| App khác trên điện thoại "chia sẻ" một đường dẫn trần hay `file://` (vd. thư mục riêng của app, có khóa thiết bị và tin nhắn) | Chỉ nhận `content://` từ màn hình chia sẻ |
+| Máy lạ làm cạn bộ nhớ hay kết nối (Android) | Máy không phải liên hệ, không cùng nhóm chỉ gửi body ≤ 64 KB; body phải tới trong 60 giây; ≤ 32 kết nối mỗi địa chỉ IP |
+| Máy bên kia trả lời khổng lồ (vd. ảnh đại diện vô tận) | Phản hồi đọc trọn (mọi thứ trừ dữ liệu file) tối đa 16 MB; dữ liệu file không vượt `size` đã báo |
 
 ## 6. Threat model
 

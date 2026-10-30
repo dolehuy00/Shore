@@ -37,6 +37,12 @@ public sealed class PeerClient(
 {
     public const string ApiBasePath = "/api/v1/";
 
+    /// <summary>
+    /// A response read whole (all but file data) is at most this: a peer, even one we only said hello to, cannot make
+    /// us hold gigabytes. The largest real ones, voice messages pulled in a group, are a few MB.
+    /// </summary>
+    public const int MaxResponseBytes = 16 * 1024 * 1024;
+
     private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(3);
     private static readonly TimeSpan RecordEvery = TimeSpan.FromMinutes(5);
 
@@ -73,7 +79,11 @@ public sealed class PeerClient(
     {
         // No overall timeout: file bodies stream for as long as they need; each attempt has its own timeout.
         HttpClient client = clients.GetOrAdd(peer, id =>
-            new HttpClient(CreateHandler(cert => DeviceIdentity.FromCertificate(cert) == id)) { Timeout = Timeout.InfiniteTimeSpan });
+            new HttpClient(CreateHandler(cert => DeviceIdentity.FromCertificate(cert) == id))
+            {
+                Timeout = Timeout.InfiniteTimeSpan,
+                MaxResponseContentBufferSize = MaxResponseBytes,
+            });
 
         Exception? lastError = null;
         bool any = false;
@@ -115,6 +125,7 @@ public sealed class PeerClient(
             return true;
         }));
         client.Timeout = TimeSpan.FromSeconds(5);
+        client.MaxResponseContentBufferSize = MaxResponseBytes;
 
         HelloResponse hello = await client.GetFromJsonAsync<HelloResponse>(new Uri(BaseUri(endpoint), "hello"), cancellationToken)
             ?? throw new PeerApiException(200, ApiErrorCodes.InvalidRequest);

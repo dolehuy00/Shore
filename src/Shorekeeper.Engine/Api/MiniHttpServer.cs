@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Net;
 using System.Net.Security;
@@ -8,9 +9,13 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
 using Shorekeeper.Core.Identity;
+using Shorekeeper.Core.Trust;
+using Shorekeeper.Engine.Groups;
 using Shorekeeper.Engine.Identity;
 using Shorekeeper.Engine.Settings;
+using Shorekeeper.Engine.Trust;
 
 namespace Shorekeeper.Engine.Api;
 
@@ -29,17 +34,31 @@ public sealed class MiniHttpServer(
     /// <summary>Offer manifests list up to 10,000 entries.</summary>
     public const int MaxBodyBytes = 4 * 1024 * 1024;
 
+    /// <summary>
+    /// What a device that is neither a contact nor in a group with us may send: asking to connect or to join takes a
+    /// few hundred bytes, and anything else is refused anyway; it must not get to fill memory first.
+    /// </summary>
+    public const int MaxStrangerBodyBytes = 64 * 1024;
+
     private const int MaxConnections = 256;
+
+    /// <summary>One device cannot take every connection (a computer downloading uses a handful, plus long polls).</summary>
+    private const int MaxConnectionsPerAddress = 32;
+
     private const int CopyBufferBytes = 128 * 1024;
     private static readonly TimeSpan HandshakeTimeout = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan FirstRequestTimeout = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan KeepAliveTimeout = TimeSpan.FromSeconds(130);
+
+    /// <summary>A body that has not arrived by then is not coming: the connection is not held open by a trickle.</summary>
+    private static readonly TimeSpan BodyTimeout = TimeSpan.FromSeconds(60);
 
     private readonly CancellationTokenSource stopping = new();
     private TcpListener? listener;
     private PeerApi? api;
     private Task? acceptLoop;
     private int connections;
+    private readonly ConcurrentDictionary<IPAddress, int> connectionsFrom = new();
 
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
@@ -83,24 +102,39 @@ public sealed class MiniHttpServer(
                 continue;
             }
 
-            if (Interlocked.Increment(ref connections) > MaxConnections)
+            IPAddress from = RemoteOf(socket);
+            if (Interlocked.Increment(ref connections) > MaxConnections
+                | connectionsFrom.AddOrUpdate(from, 1, (_, n) => n + 1) > MaxConnectionsPerAddress)
             {
-                Interlocked.Decrement(ref connections);
+                Release(from);
                 socket.Dispose();
                 continue;
             }
 
-            _ = Task.Run(() => ServeConnectionAsync(socket, token), CancellationToken.None);
+            _ = Task.Run(() => ServeConnectionAsync(socket, from, token), CancellationToken.None);
         }
     }
 
-    private async Task ServeConnectionAsync(Socket socket, CancellationToken token)
+    private static IPAddress RemoteOf(Socket socket)
+    {
+        IPAddress remote = ((IPEndPoint)socket.RemoteEndPoint!).Address;
+        return remote.IsIPv4MappedToIPv6 ? remote.MapToIPv4() : remote;
+    }
+
+    private void Release(IPAddress from)
+    {
+        Interlocked.Decrement(ref connections);
+        if (connectionsFrom.AddOrUpdate(from, 0, (_, n) => n - 1) <= 0)
+        {
+            connectionsFrom.TryRemove(KeyValuePair.Create(from, 0));
+        }
+    }
+
+    private async Task ServeConnectionAsync(Socket socket, IPAddress remote, CancellationToken token)
     {
         try
         {
             socket.NoDelay = true;
-            IPAddress remote = ((IPEndPoint)socket.RemoteEndPoint!).Address;
-            remote = remote.IsIPv4MappedToIPv6 ? remote.MapToIPv4() : remote;
             await using var network = new NetworkStream(socket, ownsSocket: true);
             await using var ssl = new SslStream(network);
             using (var handshake = CancellationTokenSource.CreateLinkedTokenSource(token))
@@ -123,6 +157,8 @@ public sealed class MiniHttpServer(
 
             DeviceId caller = DeviceIdentity.FromCertificate(
                 certificate as X509Certificate2 ?? X509CertificateLoader.LoadCertificate(certificate.GetRawCertData()));
+            var trust = services.GetRequiredService<TrustStore>();
+            var groups = services.GetRequiredService<GroupStore>();
             var reader = new HttpRequestReader(ssl);
             TimeSpan idle = FirstRequestTimeout;
             while (!token.IsCancellationRequested)
@@ -140,7 +176,15 @@ public sealed class MiniHttpServer(
                 }
 
                 idle = KeepAliveTimeout;
-                if (await reader.ReadBodyAsync(head, MaxBodyBytes, token) is not { } body)
+                bool known = trust.GetLevel(caller) == TrustLevel.Trusted || groups.SharesGroup(caller);
+                byte[]? body;
+                using (var wait = CancellationTokenSource.CreateLinkedTokenSource(token))
+                {
+                    wait.CancelAfter(BodyTimeout);
+                    body = await reader.ReadBodyAsync(head, known ? MaxBodyBytes : MaxStrangerBodyBytes, wait.Token);
+                }
+
+                if (body is null)
                 {
                     await WriteAsync(ssl, head, PeerResponse.Problem(HttpStatusCode.RequestEntityTooLarge, ApiErrorCodes.InvalidRequest), token);
                     return;
@@ -161,7 +205,7 @@ public sealed class MiniHttpServer(
         }
         finally
         {
-            Interlocked.Decrement(ref connections);
+            Release(remote);
         }
     }
 

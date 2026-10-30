@@ -611,8 +611,9 @@ public sealed class GroupChatService(
         string? path = null;
         if (voice && !cleared)
         {
-            // Written before the row, so a stored voice message always has its file; a resent one writes the same bytes.
-            path = VoicePath(id);
+            // Written before the row, so a stored voice message always has its file. A file of its own, never one
+            // already here (the same id in another group or conversation): dropped below when not stored.
+            path = ReceivedVoicePath(id);
             Directory.CreateDirectory(paths.ChatVoiceDirectory);
             await File.WriteAllBytesAsync(path, body.Audio!);
         }
@@ -639,6 +640,7 @@ public sealed class GroupChatService(
         // The first statement always changes a row; the message is new only when the second did too.
         if (added < 2 || cleared)
         {
+            DeleteFiles([added < 2 ? path : null]);
             return;
         }
 
@@ -1502,6 +1504,8 @@ public sealed class GroupChatService(
     }
 
     private string VoicePath(string id) => Path.Combine(paths.ChatVoiceDirectory, id + ".ogg");
+
+    private string ReceivedVoicePath(string id) => Path.Combine(paths.ChatVoiceDirectory, $"{id}-{Guid.NewGuid():N}.ogg");
 
     private void DeleteFiles(IEnumerable<string?> files)
     {

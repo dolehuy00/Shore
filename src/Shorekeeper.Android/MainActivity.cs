@@ -282,6 +282,10 @@ public sealed class MainActivity : AvaloniaMainActivity
             locations.AddRange(Streams(intent).Select(uri => uri.ToString()!));
         }
 
+        // Only items another app hands over: a bare path or a file:// URI would be read with this app's own rights,
+        // e.g. its private folder with the device key and the messages, and sent on.
+        locations.RemoveAll(location => !location.StartsWith("content://", StringComparison.Ordinal));
+
         // A link or text shared from a browser, a chat app…: EXTRA_TEXT, alone or with files.
         string? text = intent.GetStringExtra(Intent.ExtraText);
         if (locations.Count > 0 || !string.IsNullOrWhiteSpace(text))
