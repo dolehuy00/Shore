@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Windows.Input;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -41,6 +42,8 @@ public sealed partial class GroupsTabViewModel : ObservableObject
         store.Changed += (_, _) => Dispatcher.UIThread.Post(Refresh);
         groups.Changed += (_, _) => Dispatcher.UIThread.Post(Refresh);
         directory.Changed += (_, _) => Dispatcher.UIThread.Post(Refresh);
+        // Names: a contact renamed itself, or we gave a member a name of our own.
+        trust.Changed += (_, _) => Dispatcher.UIThread.Post(Refresh);
         groups.Notice += (_, notice) => Dispatcher.UIThread.Post(() => AddNotice(notice.Message));
         groups.InvitationReceived += (_, invitation) => Dispatcher.UIThread.Post(() =>
         {
@@ -155,6 +158,7 @@ public sealed partial class GroupsTabViewModel : ObservableObject
                     isMe ? "" : peer is null ? "" : $"{peer.HostName} · {peer.Address}")
                 {
                     IsMe = isMe,
+                    RenameCommand = isMe ? null : new AsyncRelayCommand(() => main.Chat.RenameAsync(m.DeviceId, m.Name)),
                 };
             })
             .OrderByDescending(m => m.IsHost)
@@ -216,6 +220,11 @@ public sealed partial class GroupsTabViewModel : ObservableObject
 public sealed record GroupMemberItem(string Name, bool IsHost, bool IsPhone, bool IsOnline, bool IsBusy, string StatusText, string Detail)
 {
     public bool IsMe { get; init; }
+
+    /// <summary>"Đặt tên gợi nhớ…" for that member, contact or not; null for ourselves.</summary>
+    public ICommand? RenameCommand { get; init; }
+
+    public bool CanRename => RenameCommand is not null;
 
     public bool HasDetail => Detail.Length > 0;
 }

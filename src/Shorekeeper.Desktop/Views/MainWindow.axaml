@@ -633,6 +633,7 @@
               <PathIcon Data="{StaticResource Icon.More}" Width="16" Height="16" />
               <Button.Flyout>
                 <MenuFlyout Placement="BottomEdgeAlignedRight">
+                  <MenuItem Header="{l:T 'Đặt tên gợi nhớ…'}" Command="{Binding RenameCurrentCommand}" IsVisible="{Binding !Current.IsGroup, FallbackValue=False}" />
                   <MenuItem Header="{l:T 'Thành viên'}" Command="{Binding ShowMembersCommand}" IsVisible="{Binding Current.IsGroup, FallbackValue=False}" />
                   <MenuItem Header="{Binding Current.MuteText, FallbackValue=''}" Command="{Binding ToggleMuteCommand}" IsVisible="{Binding Current.IsGroup, FallbackValue=False}" />
                   <MenuItem Header="{l:T 'Xóa hội thoại…'}" Command="{Binding DeleteConversationCommand}" />
@@ -720,13 +721,22 @@
                   <ItemsControl ItemsSource="{Binding Details}">
                     <ItemsControl.ItemTemplate>
                       <DataTemplate x:DataType="vm:ChatMemberViewModel">
-                        <Grid ColumnDefinitions="*,Auto" Margin="0,4">
+                        <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,4">
                           <StackPanel>
                             <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
                             <TextBlock Classes="muted" Text="{Binding StateText}" FontSize="12" />
                           </StackPanel>
                           <Button Grid.Column="1" Content="{l:T 'Gửi lại'}" Command="{Binding RetryCommand}" IsVisible="{Binding CanRetry}"
                                   Padding="8,2" FontSize="11" VerticalAlignment="Center" />
+                          <Button Grid.Column="2" Classes="icon" Width="28" Height="28" IsVisible="{Binding CanRename}" VerticalAlignment="Center"
+                                  ToolTip.Tip="{l:T 'Thêm'}" AutomationProperties.Name="{l:T 'Thêm'}">
+                            <PathIcon Data="{StaticResource Icon.More}" Width="14" Height="14" />
+                            <Button.Flyout>
+                              <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                <MenuItem Header="{l:T 'Đặt tên gợi nhớ…'}" Command="{Binding RenameCommand}" />
+                              </MenuFlyout>
+                            </Button.Flyout>
+                          </Button>
                         </Grid>
                       </DataTemplate>
                     </ItemsControl.ItemTemplate>
@@ -1369,11 +1379,21 @@
                                 <TextBlock Classes="muted" Text="{Binding Detail}" FontSize="12" TextTrimming="CharacterEllipsis" IsVisible="{Binding HasDetail}" />
                               </StackPanel>
                             </StackPanel>
-                            <Button Grid.Column="2" Command="{Binding RemoveCommand}" IsVisible="{Binding CanRemove}" ToolTip.Tip="{l:T 'Loại khỏi nhóm'}"
-                                    Background="Transparent" BorderThickness="0" Padding="6" VerticalAlignment="Center"
-                                    AutomationProperties.Name="{l:T 'Loại khỏi nhóm'}">
-                              <PathIcon Data="{StaticResource Icon.Dismiss}" Width="12" Height="12" />
-                            </Button>
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                              <Button Classes="icon" Width="28" Height="28" IsVisible="{Binding CanRename}" ToolTip.Tip="{l:T 'Thêm'}" AutomationProperties.Name="{l:T 'Thêm'}">
+                                <PathIcon Data="{StaticResource Icon.More}" Width="14" Height="14" />
+                                <Button.Flyout>
+                                  <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                    <MenuItem Header="{l:T 'Đặt tên gợi nhớ…'}" Command="{Binding RenameCommand}" />
+                                  </MenuFlyout>
+                                </Button.Flyout>
+                              </Button>
+                              <Button Command="{Binding RemoveCommand}" IsVisible="{Binding CanRemove}" ToolTip.Tip="{l:T 'Loại khỏi nhóm'}"
+                                      Background="Transparent" BorderThickness="0" Padding="6" VerticalAlignment="Center"
+                                      AutomationProperties.Name="{l:T 'Loại khỏi nhóm'}">
+                                <PathIcon Data="{StaticResource Icon.Dismiss}" Width="12" Height="12" />
+                              </Button>
+                            </StackPanel>
                           </Grid>
                         </DataTemplate>
                       </ItemsControl.ItemTemplate>

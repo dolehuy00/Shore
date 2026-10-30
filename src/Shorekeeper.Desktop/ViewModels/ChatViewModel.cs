@@ -100,6 +100,9 @@ public sealed partial class ChatViewModel : ObservableObject
     /// <summary>Asks before something that cannot be undone: title, question, action; true to go ahead (set by the window).</summary>
     public Func<string, string, string, Task<bool>>? Confirm { get; set; }
 
+    /// <summary>Asks for a line of text: title, label, the text to start with; null when cancelled.</summary>
+    public Func<string, string, string, Task<string?>>? AskText { get; set; }
+
     /// <summary>"Xem" on a file card: the window shows Hộp nhận (true, received) or Đã gửi.</summary>
     public Action<bool>? ShowFiles { get; set; }
 
@@ -783,11 +786,29 @@ public sealed partial class ChatViewModel : ObservableObject
             bool online = me || live.GetValueOrDefault(member.DeviceId) is { State: PeerState.Online };
             string state = online ? "Online" : "Offline";
             Details.Add(new ChatMemberViewModel(
-                me ? L.T("Bạn") : NameOf(groupId, member.DeviceId, member.Name), member.IsHost ? $"{state} · Host" : state, online, null));
+                me ? L.T("Bạn") : NameOf(groupId, member.DeviceId, member.Name), member.IsHost ? $"{state} · Host" : state, online, null,
+                me ? null : () => RenameAsync(member.DeviceId, member.Name)));
         }
 
         DetailsTitle = L.F("{0} thành viên", group.Members.Count);
     }
+
+    /// <summary>
+    /// "Đặt tên gợi nhớ…": our own name for someone, a contact or a member we are not connected with; emptied, they are
+    /// shown by their own name again. <paramref name="knownAs"/> is their name when we have none (a member's name).
+    /// </summary>
+    internal async Task RenameAsync(DeviceId peer, string? knownAs = null)
+    {
+        string current = trust.GetAlias(peer) ?? trust.Get(peer)?.DisplayName ?? knownAs ?? "";
+        if (AskText is { } ask && await ask(L.T("Đặt tên gợi nhớ"), L.F("Tên gợi nhớ cho {0}:", NameOf(peer, knownAs)), current) is { } alias)
+        {
+            await trust.SetAliasAsync(peer, alias);
+        }
+    }
+
+    /// <summary>"Đặt tên gợi nhớ…" in the ⋮ of a conversation with one person.</summary>
+    [RelayCommand]
+    private Task RenameCurrentAsync() => Current is { IsGroup: false } person ? RenameAsync(person.Peer) : Task.CompletedTask;
 
     /// <summary>"Chi tiết" on one of our group messages: where it is with each member, and [Gửi lại] where it failed.</summary>
     internal async Task ShowDetailsAsync(ChatBubbleViewModel bubble)
@@ -808,7 +829,8 @@ public sealed partial class ChatViewModel : ObservableObject
                     await ShowDetailsAsync(bubble);
                 }
                 : null;
-            Details.Add(new ChatMemberViewModel(NameOf(groupId, delivery.Peer, delivery.Peer.ShortForm), DeliveryText(delivery.State), false, retry));
+            Details.Add(new ChatMemberViewModel(
+                NameOf(groupId, delivery.Peer, delivery.Peer.ShortForm), DeliveryText(delivery.State), false, retry, () => RenameAsync(delivery.Peer)));
         }
 
         DetailsTitle = L.T("Chi tiết tin nhắn");
@@ -1986,7 +2008,8 @@ public sealed record ChatPicture(Bitmap Image, string Location);
 public sealed record ChatLastFile(DateTimeOffset At, bool Outgoing, string Text, DeviceId? Author = null);
 
 /// <summary>A member in "Chi tiết" or "Thành viên": who, and where the message is with them or whether they are there.</summary>
-public sealed partial class ChatMemberViewModel(string name, string stateText, bool isOnline, Func<Task>? retry) : ObservableObject
+/// <param name="rename">"Đặt tên gợi nhớ…" for that member; null for ourselves.</param>
+public sealed partial class ChatMemberViewModel(string name, string stateText, bool isOnline, Func<Task>? retry, Func<Task>? rename = null) : ObservableObject
 {
     public string Name { get; } = name;
 
@@ -1999,4 +2022,9 @@ public sealed partial class ChatMemberViewModel(string name, string stateText, b
 
     [RelayCommand]
     private Task RetryAsync() => retry?.Invoke() ?? Task.CompletedTask;
+
+    public bool CanRename => rename is not null;
+
+    [RelayCommand]
+    private Task RenameAsync() => rename?.Invoke() ?? Task.CompletedTask;
 }

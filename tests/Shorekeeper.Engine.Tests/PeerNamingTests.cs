@@ -2,6 +2,7 @@ using System.Net;
 using System.Security.Cryptography;
 using Shorekeeper.Core.Discovery;
 using Shorekeeper.Core.Identity;
+using Shorekeeper.Core.Trust;
 using Shorekeeper.Engine.Settings;
 using Shorekeeper.Engine.Trust;
 
@@ -128,6 +129,41 @@ public sealed class PeerNamingTests : IAsyncLifetime
         await node.Groups.CreateAsync("Build QA", Ct);
 
         Assert.Equal("Huy", Naming.Of(other));
+    }
+
+    [Fact]
+    public async Task Anyone_can_be_given_a_name_of_our_own_and_it_survives_a_restart()
+    {
+        DeviceId member = NewId();
+        await node.Groups.CreateAsync("Build QA", Ct);
+
+        await node.Trust.SetAliasAsync(member, "Anh Tuấn QA", Ct);
+
+        Assert.Equal("Anh Tuấn QA", Naming.Of(member, "tuan"));
+        Assert.Null(node.Trust.Get(member));
+        Assert.Equal(TrustLevel.Unknown, node.Trust.GetLevel(member));
+        await node.Trust.LoadAsync(Ct);
+        Assert.Equal("Anh Tuấn QA", node.Trust.GetAlias(member));
+
+        await node.Trust.SetAliasAsync(member, "  ", Ct);
+        Assert.Equal("tuan", Naming.Of(member, "tuan"));
+        await node.Trust.LoadAsync(Ct);
+        Assert.Null(node.Trust.GetAlias(member));
+    }
+
+    [Fact]
+    public async Task A_name_of_our_own_stays_through_connecting_and_disconnecting()
+    {
+        DeviceId lan = NewId();
+        await node.Trust.SetAliasAsync(lan, "Lan kế toán", Ct);
+
+        await node.Trust.SetTrustedAsync(lan, "Lan", "PC-HR-01", Ct);
+        Assert.Equal("Lan kế toán", node.Trust.Get(lan)!.ShownName);
+
+        await node.Trust.ForgetAsync(lan, Ct);
+        await node.Trust.LoadAsync(Ct);
+        Assert.Equal(TrustLevel.Unknown, node.Trust.GetLevel(lan));
+        Assert.Equal("Lan kế toán", Naming.Of(lan));
     }
 
     private static DeviceId NewId() => DeviceId.FromSubjectPublicKeyInfo(RandomNumberGenerator.GetBytes(32));

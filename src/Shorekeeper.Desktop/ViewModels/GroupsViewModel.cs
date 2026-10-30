@@ -52,6 +52,7 @@ public sealed partial class GroupsViewModel : ObservableObject
         store.Changed += (_, _) => Dispatcher.UIThread.Post(Refresh);
         groups.Changed += (_, _) => Dispatcher.UIThread.Post(Refresh);
         directory.Changed += (_, _) => Dispatcher.UIThread.Post(Refresh);
+        names.Changed += (_, _) => Dispatcher.UIThread.Post(Refresh);
         groups.Notice += (_, notice) => Dispatcher.UIThread.Post(() => AddNotice(notice.Message));
         // Requests and invitations arrive on API threads; the requester waits, so ask even from the tray.
         groups.JoinRequested += (_, request) => Dispatcher.UIThread.Post(() => AskAboutRequest(request));
@@ -467,6 +468,7 @@ public sealed partial class GroupCardViewModel(string id, GroupsViewModel owner)
             member.IsHost, isOnline, IsHost && !isMe, this, owner)
         {
             IsMe = isMe,
+            KnownAs = member.Name,
             IsPhone = !isMe && owner.Names.IsPhone(member.DeviceId),
             IsBusy = live?.IsBusy == true,
             StatusText = isOnline ? live?.IsBusy == true ? L.T("Bận") : "Online" : live is null ? "Offline" : L.T("Mất tín hiệu…"),
@@ -526,8 +528,16 @@ public sealed partial class MemberViewModel(
 
     public bool HasDetail => Detail.Length > 0;
 
+    /// <summary>Their name in the group, offered when we have no name of our own for them.</summary>
+    public string KnownAs { get; init; } = name;
+
+    public bool CanRename => !IsMe;
+
     [RelayCommand]
     private Task RemoveAsync() => owner.RemoveAsync(card, this);
+
+    [RelayCommand]
+    private Task RenameAsync() => owner.Names.AskAliasAsync(DeviceId, KnownAs);
 }
 
 public sealed partial class JoinRequestViewModel(JoinRequest request, GroupsViewModel owner)

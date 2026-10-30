@@ -74,16 +74,20 @@ public sealed class TrustStoreTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Forget_returns_peer_to_unknown_and_drops_alias()
+    public async Task Forget_returns_peer_to_unknown_and_keeps_the_alias()
     {
         TrustStore store = await LoadAsync();
         await store.SetTrustedAsync(Mai, "Mai", "PC-QA-07", Ct);
         await store.SetAliasAsync(Mai, "Mai bên QA", Ct);
 
         await store.ForgetAsync(Mai, Ct);
-        await store.SetTrustedAsync(Mai, "Mai", "PC-QA-07", Ct);
+        TrustStore reloaded = await LoadAsync();
+        Assert.Null(reloaded.Get(Mai));
+        Assert.Equal(TrustLevel.Unknown, reloaded.GetLevel(Mai));
 
-        Assert.Equal("Mai", (await LoadAsync()).Get(Mai)!.ShownName);
+        // "Tên gợi nhớ" is for anyone: connecting again finds it there.
+        await reloaded.SetTrustedAsync(Mai, "Mai", "PC-QA-07", Ct);
+        Assert.Equal("Mai bên QA", (await LoadAsync()).Get(Mai)!.ShownName);
     }
 
     [Fact]

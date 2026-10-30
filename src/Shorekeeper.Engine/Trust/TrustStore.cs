@@ -39,6 +39,9 @@ public sealed class TrustStore(SqliteDatabase database, TimeProvider timeProvide
     private Dictionary<DeviceId, PeerRecord> peers = [];
     private List<string> manualTargets = [];
 
+    /// <summary>"Tên gợi nhớ" of anyone, contact or not (a member of a group, someone we stopped trusting).</summary>
+    private Dictionary<DeviceId, string> aliases = [];
+
     /// <summary>Raised after any change to contacts, blocked peers or manual targets.</summary>
     public event EventHandler? Changed;
 
@@ -55,11 +58,13 @@ public sealed class TrustStore(SqliteDatabase database, TimeProvider timeProvide
         var rows = await connection.QueryAsync<PeerRow>(
             "SELECT DeviceId AS Id, DisplayName, HostName, Alias, TrustLevel AS Level, AutoAcceptMaxBytes, Os FROM Peers WHERE TrustLevel <> 0;");
         var targets = await connection.QueryAsync<string>("SELECT Target FROM ManualTargets ORDER BY Id;");
+        var named = await connection.QueryAsync<(string Id, string Alias)>("SELECT DeviceId, Alias FROM Peers WHERE Alias IS NOT NULL;");
 
         lock (gate)
         {
             peers = rows.Select(r => r.ToRecord()).ToDictionary(r => r.DeviceId);
             manualTargets = [.. targets];
+            aliases = named.Where(a => DeviceId.TryParse(a.Id, out _)).ToDictionary(a => DeviceId.Parse(a.Id), a => a.Alias);
         }
     }
 
@@ -76,6 +81,15 @@ public sealed class TrustStore(SqliteDatabase database, TimeProvider timeProvide
         lock (gate)
         {
             return peers.GetValueOrDefault(id);
+        }
+    }
+
+    /// <summary>The name we gave <paramref name="id"/> ("Tên gợi nhớ"), contact or not; null when none.</summary>
+    public string? GetAlias(DeviceId id)
+    {
+        lock (gate)
+        {
+            return aliases.GetValueOrDefault(id);
         }
     }
 
@@ -101,12 +115,17 @@ public sealed class TrustStore(SqliteDatabase database, TimeProvider timeProvide
     public Task BlockAsync(DeviceId id, string displayName, string hostName, CancellationToken cancellationToken = default) =>
         SetLevelAsync(id, displayName, hostName, TrustLevel.Blocked, cancellationToken);
 
-    /// <summary>Back to Unknown: used for "Ngắt kết nối" and "Bỏ chặn". The alias is forgotten too.</summary>
+    /// <summary>Back to Unknown: used for "Ngắt kết nối" and "Bỏ chặn". A name we gave them stays ("Tên gợi nhớ" is for anyone).</summary>
     public async Task ForgetAsync(DeviceId id, CancellationToken cancellationToken = default)
     {
         await using (SqliteConnection connection = await database.OpenAsync(cancellationToken))
         {
-            await connection.ExecuteAsync("DELETE FROM Peers WHERE DeviceId = @Id;", new { Id = id.Value });
+            await connection.ExecuteAsync(
+                """
+                DELETE FROM Peers WHERE DeviceId = @Id AND Alias IS NULL;
+                UPDATE Peers SET TrustLevel = 0, TrustedAt = NULL, AutoAcceptMaxBytes = NULL WHERE DeviceId = @Id;
+                """,
+                new { Id = id.Value });
         }
 
         PeerRecord? before;
@@ -123,16 +142,36 @@ public sealed class TrustStore(SqliteDatabase database, TimeProvider timeProvide
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>
+    /// "Đặt tên gợi nhớ": our own name for <paramref name="id"/>, a contact or anyone else (a group member); empty or null
+    /// goes back to the name they give themselves.
+    /// </summary>
     public async Task SetAliasAsync(DeviceId id, string? alias, CancellationToken cancellationToken = default)
     {
         alias = string.IsNullOrWhiteSpace(alias) ? null : alias.Trim();
         await using (SqliteConnection connection = await database.OpenAsync(cancellationToken))
         {
-            await connection.ExecuteAsync("UPDATE Peers SET Alias = @alias WHERE DeviceId = @Id;", new { alias, Id = id.Value });
+            // Someone we do not know otherwise has a row only for the name we gave them.
+            await connection.ExecuteAsync(
+                """
+                INSERT INTO Peers (DeviceId, DisplayName, Alias) VALUES (@Id, '', @alias)
+                ON CONFLICT (DeviceId) DO UPDATE SET Alias = excluded.Alias;
+                DELETE FROM Peers WHERE DeviceId = @Id AND TrustLevel = 0 AND Alias IS NULL;
+                """,
+                new { alias, Id = id.Value });
         }
 
         lock (gate)
         {
+            if (alias is null)
+            {
+                aliases.Remove(id);
+            }
+            else
+            {
+                aliases[id] = alias;
+            }
+
             if (peers.TryGetValue(id, out PeerRecord? record))
             {
                 peers[id] = record with { Alias = alias };
@@ -305,7 +344,7 @@ public sealed class TrustStore(SqliteDatabase database, TimeProvider timeProvide
         {
             previous = peers.GetValueOrDefault(id);
             record = peers[id] = new PeerRecord(
-                id, displayName, hostName, previous?.Alias, level, level == TrustLevel.Trusted ? previous?.AutoAcceptMaxBytes : null, previous?.Os);
+                id, displayName, hostName, aliases.GetValueOrDefault(id), level, level == TrustLevel.Trusted ? previous?.AutoAcceptMaxBytes : null, previous?.Os);
         }
 
         if (previous?.TrustLevel != level)

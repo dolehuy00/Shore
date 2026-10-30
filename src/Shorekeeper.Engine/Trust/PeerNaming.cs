@@ -6,7 +6,8 @@ using Shorekeeper.Engine.Groups;
 namespace Shorekeeper.Engine.Trust;
 
 /// <summary>
-/// How a device is named on screen: its alias or contact name, else what it announces, else its name in a group. When
+/// How a device is named on screen: the name we gave it (anyone, contact or not), else its contact name, else what it
+/// announces, else its name in a group. When
 /// someone else we know goes by the same name, " · " and its computer name follow, or its short id when that is the same
 /// too, so two "Huy" can be told apart (docs/10-ux.md §2).
 /// </summary>
@@ -102,7 +103,8 @@ public sealed class PeerNaming
     }
 
     private string? NameOf(DeviceId id, IReadOnlyList<PeerInfo> live) =>
-        NonEmpty(trust.Get(id)?.ShownName)
+        NonEmpty(trust.GetAlias(id))
+        ?? NonEmpty(trust.Get(id)?.DisplayName)
         ?? NonEmpty(live.FirstOrDefault(p => p.DeviceId == id)?.DisplayName)
         ?? NonEmpty(groups.GetAll().SelectMany(g => g.Members).FirstOrDefault(m => m.DeviceId == id)?.Name);
 

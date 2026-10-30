@@ -800,6 +800,7 @@
                 </PathIcon>
                 <Button.Flyout>
                   <MenuFlyout>
+                    <MenuItem Header="{l:T 'Đặt tên gợi nhớ…'}" Command="{Binding RenameCurrentCommand}" IsVisible="{Binding !Current.IsGroup, FallbackValue=False}" />
                     <MenuItem Header="{l:T 'Thành viên'}" Command="{Binding ShowMembersCommand}" IsVisible="{Binding Current.IsGroup, FallbackValue=False}" />
                     <MenuItem Header="{Binding Current.MuteText, FallbackValue=''}" Command="{Binding ToggleMuteCommand}" IsVisible="{Binding Current.IsGroup, FallbackValue=False}" />
                     <MenuItem Header="{l:T 'Xóa hội thoại…'}" Command="{Binding DeleteConversationCommand}" />
@@ -882,13 +883,25 @@
                     <ItemsControl ItemsSource="{Binding Details}">
                       <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="dvm:ChatMemberViewModel">
-                          <Grid ColumnDefinitions="*,Auto" Margin="0,5">
+                          <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,5">
                             <StackPanel>
                               <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
                               <TextBlock Classes="muted" Text="{Binding StateText}" FontSize="12" />
                             </StackPanel>
                             <Button Grid.Column="1" Content="{l:T 'Gửi lại'}" Command="{Binding RetryCommand}" IsVisible="{Binding CanRetry}"
                                     Padding="10,4" FontSize="12" VerticalAlignment="Center" />
+                            <Button Grid.Column="2" Classes="round" IsVisible="{Binding CanRename}" VerticalAlignment="Center" AutomationProperties.Name="{l:T 'Thêm'}">
+                              <PathIcon Data="{StaticResource Icon.More}" Width="16" Height="16">
+                                <PathIcon.RenderTransform>
+                                  <RotateTransform Angle="90" />
+                                </PathIcon.RenderTransform>
+                              </PathIcon>
+                              <Button.Flyout>
+                                <MenuFlyout>
+                                  <MenuItem Header="{l:T 'Đặt tên gợi nhớ…'}" Command="{Binding RenameCommand}" />
+                                </MenuFlyout>
+                              </Button.Flyout>
+                            </Button>
                           </Grid>
                         </DataTemplate>
                       </ItemsControl.ItemTemplate>
@@ -1138,7 +1151,7 @@
                   <ItemsControl ItemsSource="{Binding Members}" Margin="0,6,0,0">
                     <ItemsControl.ItemTemplate>
                       <DataTemplate x:DataType="vm:GroupMemberItem">
-                        <Grid ColumnDefinitions="Auto,*" Margin="0,4">
+                        <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,4">
                           <Border Width="32" Height="32" CornerRadius="8" Background="{DynamicResource Sk.TileBackground}" VerticalAlignment="Center">
                             <Panel>
                               <PathIcon Data="{StaticResource Icon.Laptop}" IsVisible="{Binding !IsPhone}" Width="16" Height="16" />
@@ -1159,6 +1172,19 @@
                                          FontSize="12" TextTrimming="CharacterEllipsis" />
                             </Grid>
                           </StackPanel>
+                          <!-- "Đặt tên gợi nhớ…" for that member, connected with us or not. -->
+                          <Button Grid.Column="2" Classes="round" IsVisible="{Binding CanRename}" VerticalAlignment="Center" AutomationProperties.Name="{l:T 'Thêm'}">
+                            <PathIcon Data="{StaticResource Icon.More}" Width="16" Height="16">
+                              <PathIcon.RenderTransform>
+                                <RotateTransform Angle="90" />
+                              </PathIcon.RenderTransform>
+                            </PathIcon>
+                            <Button.Flyout>
+                              <MenuFlyout>
+                                <MenuItem Header="{l:T 'Đặt tên gợi nhớ…'}" Command="{Binding RenameCommand}" />
+                              </MenuFlyout>
+                            </Button.Flyout>
+                          </Button>
                         </Grid>
                       </DataTemplate>
                     </ItemsControl.ItemTemplate>

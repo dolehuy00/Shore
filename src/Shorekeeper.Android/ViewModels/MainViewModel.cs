@@ -85,6 +85,7 @@ public sealed partial class MainViewModel : ObservableObject
                 Notice = L.T("Đã chép");
             },
             OpenLink = link => TextActions.Open(global::Android.App.Application.Context, link),
+            AskText = AskTextAsync,
             Confirm = (title, question, action) =>
             {
                 var answer = new TaskCompletionSource<bool>();
@@ -304,6 +305,20 @@ public sealed partial class MainViewModel : ObservableObject
         }, this)
         {
             IsPassword = question.Masked,
+            Cancelled = () => answer.TrySetResult(null),
+        };
+        return answer.Task;
+    }
+
+    private Task<string?> AskTextAsync(string title, string label, string text)
+    {
+        var answer = new TaskCompletionSource<string?>();
+        Question = new QuestionViewModel(title, label, L.T("Lưu"), text, typed =>
+        {
+            answer.TrySetResult(typed);
+            return Task.CompletedTask;
+        }, this)
+        {
             Cancelled = () => answer.TrySetResult(null),
         };
         return answer.Task;
