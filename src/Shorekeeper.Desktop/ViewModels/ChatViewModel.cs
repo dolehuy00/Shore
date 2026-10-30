@@ -879,7 +879,9 @@ public sealed partial class ChatViewModel : ObservableObject
             foreach (SentRecipient recipient in sent.Recipients.Where(r => After(cleared, r.DeviceId, sent.CreatedAt)))
             {
                 bool pictures = sent.Paths.Count > 0 && sent.Paths.All(StorageReport.IsPicture);
-                Keep(recipient.DeviceId, new ChatLastFile(sent.CreatedAt, true, sent.Recalled ? RecalledText(pictures) : FileText(sent.Note, sent.Paths, pictures)));
+                Keep(recipient.DeviceId, new ChatLastFile(sent.CreatedAt, true, sent.Recalled
+                    ? RecalledText(pictures, sent.Paths.Count == 0, recipient.State == RecipientState.Pending)
+                    : FileText(sent.Note, sent.Paths, pictures)));
             }
         }
 
@@ -887,7 +889,7 @@ public sealed partial class ChatViewModel : ObservableObject
         {
             string[] paths = [.. received.Files.Select(f => f.RelativePath)];
             bool pictures = received.Files.Count > 0 && received.Files.All(f => !f.IsDirectory && StorageReport.IsPicture(f.RelativePath));
-            Keep(received.SenderId, new ChatLastFile(received.SentAt, false, received.Recalled ? RecalledText(pictures) : FileText(received.Note, paths, pictures)));
+            Keep(received.SenderId, new ChatLastFile(received.SentAt, false, received.Recalled ? RecalledText(pictures, paths.Length == 0) : FileText(received.Note, paths, pictures)));
         }
 
         return last;
@@ -909,7 +911,9 @@ public sealed partial class ChatViewModel : ObservableObject
         foreach (SentOffer sent in offers.GetOffers().Where(o => o.GroupId is { } g && Shown(g, o.CreatedAt)))
         {
             bool pictures = sent.Paths.Count > 0 && sent.Paths.All(StorageReport.IsPicture);
-            Keep(sent.GroupId!, new ChatLastFile(sent.CreatedAt, true, sent.Recalled ? RecalledText(pictures) : FileText(sent.Note, sent.Paths, pictures)));
+            Keep(sent.GroupId!, new ChatLastFile(sent.CreatedAt, true, sent.Recalled
+                ? RecalledText(pictures, sent.Paths.Count == 0, sent.Recipients.All(r => r.State == RecipientState.Pending))
+                : FileText(sent.Note, sent.Paths, pictures)));
         }
 
         foreach (ReceivedOffer received in inbox.GetOffers().Where(o => o.GroupId is { } g && Shown(g, o.ReceivedAt)))
@@ -917,7 +921,7 @@ public sealed partial class ChatViewModel : ObservableObject
             string[] paths = [.. received.Files.Select(f => f.RelativePath)];
             bool pictures = received.Files.Count > 0 && received.Files.All(f => !f.IsDirectory && StorageReport.IsPicture(f.RelativePath));
             Keep(received.GroupId!, new ChatLastFile(
-                received.SentAt, false, received.Recalled ? RecalledText(pictures) : FileText(received.Note, paths, pictures), received.SenderId));
+                received.SentAt, false, received.Recalled ? RecalledText(pictures, paths.Length == 0) : FileText(received.Note, paths, pictures), received.SenderId));
         }
 
         return last;
@@ -934,7 +938,16 @@ public sealed partial class ChatViewModel : ObservableObject
     }
 
     /// <summary>What a file card taken back says, on both sides.</summary>
-    internal static string RecalledText(bool pictures) => pictures ? L.T("Ảnh đã được thu hồi") : L.T("File đã được thu hồi");
+    /// <param name="text">Words alone ("Gửi văn bản"), no file.</param>
+    /// <param name="cancelled">Ours, taken back before it reached anyone ("Hủy gửi"): they never saw it.</param>
+    internal static string RecalledText(bool pictures, bool text = false, bool cancelled = false) =>
+        cancelled ? L.T("Đã hủy gửi")
+        : text ? L.T("Tin nhắn đã được thu hồi")
+        : pictures ? L.T("Ảnh đã được thu hồi")
+        : L.T("File đã được thu hồi");
+
+    /// <summary>"Hủy gửi" while it has reached nobody (any time), "Thu hồi" once it has (within five minutes).</summary>
+    internal static string RecallLabel(bool reachedNobody) => reachedNobody ? L.T("Hủy gửi") : L.T("Thu hồi");
 
     /// <summary>"[Ảnh]", "[3 ảnh]", the words of "Gửi văn bản", or "app.zip + 2 mục".</summary>
     private static string FileText(string? note, IReadOnlyList<string> paths, bool pictures) =>
@@ -1436,6 +1449,10 @@ public abstract partial class ChatEntryViewModel(string id) : ObservableObject
 
     public string Id { get; } = id;
 
+    /// <summary>"Hủy gửi" or "Thu hồi" (<see cref="ChatViewModel.RecallLabel"/>).</summary>
+    [ObservableProperty]
+    public partial string RecallText { get; set; } = "";
+
     /// <summary>Set on the first entry of a day: "Hôm nay", "20/10/2026".</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasDay))]
@@ -1622,8 +1639,8 @@ public sealed partial class ChatBubbleViewModel(string id, ChatViewModel owner) 
                     ? L.F("Đã xem {0}/{1}", all.Count(d => d.State == GroupDeliveryState.Read), all.Count)
                     : L.F("Đã nhận {0}/{1}", all.Count(d => d.State == GroupDeliveryState.Delivered), all.Count)
                 : null;
-        Show(message.Outgoing, message.Kind, TextOf(message.Kind, message.Text, message.DurationMs), message.SentAt, message.State,
-            message.DurationMs, message.Wave, message.VoicePath, state);
+        Show(message.Outgoing, message.Kind, TextOf(message.Kind, message.Text, message.DurationMs, message.Outgoing && message.State == ChatMessageState.Pending),
+            message.SentAt, message.State, message.DurationMs, message.Wave, message.VoicePath, state);
         return this;
     }
 
@@ -1638,6 +1655,7 @@ public sealed partial class ChatBubbleViewModel(string id, ChatViewModel owner) 
         recallUntil = !outgoing || messageKind is not (ChatKinds.Text or ChatKinds.Voice) ? DateTimeOffset.MinValue
             : messageState == ChatMessageState.Pending ? DateTimeOffset.MaxValue
             : sentAt + ChatService.RecallWindow;
+        RecallText = ChatViewModel.RecallLabel(messageState == ChatMessageState.Pending);
         RefreshRecall();
         Text = text;
         // New lists only when the message changed (sent, recalled): every refresh would build the rows again.
@@ -1659,13 +1677,15 @@ public sealed partial class ChatBubbleViewModel(string id, ChatViewModel owner) 
     }
 
     /// <summary>The words, or what stands for them in a list or a notification.</summary>
-    internal static string TextOf(ChatMessage message) => TextOf(message.Kind, message.Text, message.DurationMs);
+    internal static string TextOf(ChatMessage message) =>
+        TextOf(message.Kind, message.Text, message.DurationMs, message.Outgoing && message.State == ChatMessageState.Pending);
 
-    internal static string TextOf(string kind, string? text, int durationMs) => kind switch
+    /// <param name="cancelled">Ours, taken back while still waiting to be sent: it never left ("Đã hủy gửi").</param>
+    internal static string TextOf(string kind, string? text, int durationMs, bool cancelled = false) => kind switch
     {
         ChatKinds.Text => text ?? "",
         ChatKinds.Voice => L.F("Tin nhắn thoại {0}", ChatViewModel.Duration(durationMs)),
-        ChatKinds.Recalled => L.T("Tin nhắn đã được thu hồi"),
+        ChatKinds.Recalled => cancelled ? L.T("Đã hủy gửi") : L.T("Tin nhắn đã được thu hồi"),
         _ => L.T("Tin nhắn này cần bản Shorekeeper mới hơn."),
     };
 }
@@ -1918,9 +1938,11 @@ public sealed partial class ChatFileViewModel(string id, ChatViewModel owner) : 
         IReadOnlyList<SentRecipient> to = peer is { } one ? [.. offer.Recipients.Where(r => r.DeviceId == one)] : offer.Recipients;
         SentRecipient? recipient = to.Count > 0 ? to[0] : null;
         IsRecalled = offer.Recalled;
-        RecalledText = ChatViewModel.RecalledText(offer.Paths.Count > 0 && offer.Paths.All(StorageReport.IsPicture));
+        bool reachedNobody = to.Count > 0 && to.All(r => r.State == RecipientState.Pending);
+        RecalledText = ChatViewModel.RecalledText(offer.Paths.Count > 0 && offer.Paths.All(StorageReport.IsPicture), offer.Paths.Count == 0, reachedNobody);
+        RecallText = ChatViewModel.RecallLabel(reachedNobody);
         recallUntil = offer.Recalled || to.Count == 0 ? DateTimeOffset.MinValue
-            : to.All(r => r.State == RecipientState.Pending) ? DateTimeOffset.MaxValue
+            : reachedNobody ? DateTimeOffset.MaxValue
             : offer.CreatedAt + ChatService.RecallWindow;
         RefreshRecall();
         string state = offer.State switch
@@ -1953,7 +1975,8 @@ public sealed partial class ChatFileViewModel(string id, ChatViewModel owner) : 
         recallUntil = DateTimeOffset.MinValue;
         CanRecall = false;
         IsRecalled = offer.Recalled;
-        RecalledText = ChatViewModel.RecalledText(offer.Files.Count > 0 && offer.Files.All(f => !f.IsDirectory && StorageReport.IsPicture(f.RelativePath)));
+        RecalledText = ChatViewModel.RecalledText(
+            offer.Files.Count > 0 && offer.Files.All(f => !f.IsDirectory && StorageReport.IsPicture(f.RelativePath)), offer.Files.Count == 0);
         SetContent(offer.Files.Count == 0, offer.Note, [.. offer.Files.Select(f => f.RelativePath)]);
         string state = offer.State switch
         {

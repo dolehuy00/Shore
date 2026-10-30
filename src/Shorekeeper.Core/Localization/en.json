@@ -719,5 +719,7 @@
   "Không cho nghe: máy đó không vào lại được cho tới khi bạn tắt rồi bật lại Phát âm thanh.": "Don't let listen: that device cannot come back until you turn Play sound off and on again.",
   "{0} không cho bạn nghe nữa.": "{0} no longer lets you listen.",
   "{0} đã ngừng phát cho bạn.": "{0} stopped playing to you.",
-  "Ngừng phát: ngắt máy đó, máy đó bấm Nghe lại được.": "Stop playing: cuts that device off; it can press Listen again."
+  "Ngừng phát: ngắt máy đó, máy đó bấm Nghe lại được.": "Stop playing: cuts that device off; it can press Listen again.",
+  "Hủy gửi": "Cancel sending",
+  "Đã hủy gửi": "Sending cancelled"
 }

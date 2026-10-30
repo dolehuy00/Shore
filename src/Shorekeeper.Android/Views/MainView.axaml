@@ -936,7 +936,7 @@
                           <FlyoutBase.AttachedFlyout>
                             <MenuFlyout>
                               <MenuItem Header="{l:T 'Sao chép'}" Command="{Binding CopyCommand}" IsVisible="{Binding CanCopy}" />
-                              <MenuItem Header="{l:T 'Thu hồi'}" Command="{Binding RecallCommand}" IsVisible="{Binding CanRecall}" />
+                              <MenuItem Header="{Binding RecallText}" Command="{Binding RecallCommand}" IsVisible="{Binding CanRecall}" />
                               <MenuItem Header="{l:T 'Chi tiết'}" Command="{Binding ShowDetailsCommand}" IsVisible="{Binding CanShowDetails}" />
                               <MenuItem Header="{l:T 'Chọn nhiều'}" Command="{Binding SelectManyCommand}" />
                               <MenuItem Header="{l:T 'Xóa tin nhắn'}" Command="{Binding DeleteCommand}" />
@@ -1007,7 +1007,7 @@
                         <Border Classes="filecard" Classes.mine="{Binding IsMine}" Holding="OnFileCardHolding">
                           <FlyoutBase.AttachedFlyout>
                             <MenuFlyout>
-                              <MenuItem Header="{l:T 'Thu hồi'}" Command="{Binding RecallCommand}" IsVisible="{Binding CanRecall}" />
+                              <MenuItem Header="{Binding RecallText}" Command="{Binding RecallCommand}" IsVisible="{Binding CanRecall}" />
                               <MenuItem Header="{l:T 'Ngừng chia sẻ'}" Command="{Binding WithdrawCommand}" IsVisible="{Binding CanStopSharing}" />
                               <MenuItem Header="{l:T 'Sao chép'}" Command="{Binding CopyCommand}" IsVisible="{Binding CanCopy}" />
                               <MenuItem Header="Xem" Command="{Binding ShowCommand}" IsVisible="{Binding IsFiles}" />
