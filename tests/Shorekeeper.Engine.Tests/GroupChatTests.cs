@@ -102,9 +102,8 @@ public sealed class GroupChatTests : IAsyncLifetime
     [Fact]
     public async Task Messages_wait_for_an_offline_member_and_arrive_in_order()
     {
-        Offline(tuan);
         // Nor from Mai, who would pass them on.
-        Apart(mai, tuan);
+        await OfflineAsync(tuan, mai);
         string[] texts = ["một", "hai", "ba"];
         foreach (string text in texts)
         {
@@ -204,7 +203,8 @@ public sealed class GroupChatTests : IAsyncLifetime
     [Fact]
     public async Task A_removed_member_gets_nothing_more_and_is_refused()
     {
-        Offline(tuan);
+        // Nor from Mai, who would pass it on before she hears he is out.
+        await OfflineAsync(tuan, mai);
         GroupChatMessage sent = await host.GroupChat.SendTextAsync(groupId, "một", Ct);
         Assert.Equal(GroupDeliveryState.Pending, Delivery(host, sent.Id, tuan));
 
@@ -227,7 +227,7 @@ public sealed class GroupChatTests : IAsyncLifetime
             IPAddress.Loopback,
             discoveryPort: 47470);
         // Nor through Mai, who would pass it on.
-        Apart(mai, tuan);
+        await ApartAsync(mai, tuan);
 
         GroupChatMessage sent = await host.GroupChat.SendTextAsync(groupId, "một", Ct);
 
@@ -269,7 +269,8 @@ public sealed class GroupChatTests : IAsyncLifetime
         lanTime.Offset = GroupChatService.NotMemberGrace + TimeSpan.FromSeconds(1);
         Reappear(lan, tuan);
         await WaitUntil(() => Delivery(lan, sent.Id, tuan) == GroupDeliveryState.Failed);
-        Assert.Equal(GroupDeliveryState.Delivered, Delivery(lan, sent.Id, mai));
+        // Mai's copy goes its own way: it may still be on it.
+        await WaitUntil(() => Delivery(lan, sent.Id, mai) == GroupDeliveryState.Delivered);
 
         // "Gửi lại" once the lists agree.
         await tuan.GroupStore.SaveAsync(caughtUp, Ct);
@@ -365,6 +366,9 @@ public sealed class GroupChatTests : IAsyncLifetime
         await CutOffFromHostAsync(mai);
         Assert.InRange(mai.GroupStore.GetHostOffset(groupId), TimeSpan.FromSeconds(119), TimeSpan.FromSeconds(121));
         Assert.Equal(HttpStatusCode.NoContent, (await PostAsync(tuan, mai, $"chat/groups/{groupId}/messages", Signed(tuan, "trước khi bị loại"))).Status);
+        // Mai knows Huy's clock only to within a round trip, which a busy machine stretches: well apart, so the order
+        // of the message and the removal is plain whatever the round trip was.
+        await Task.Delay(2000, Ct);
         await host.Groups.RemoveMemberAsync(groupId, tuan.Id);
         Assert.Equal(HttpStatusCode.NoContent, (await PostAsync(tuan, mai, $"chat/groups/{groupId}/messages", Signed(tuan, "sau khi bị loại"))).Status);
 
@@ -539,9 +543,8 @@ public sealed class GroupChatTests : IAsyncLifetime
     [Fact]
     public async Task A_message_changed_by_whoever_passes_it_on_is_dropped()
     {
-        Offline(tuan);
         // Tuấn must not get it from Mai before she changes it.
-        Apart(mai, tuan);
+        await OfflineAsync(tuan, mai);
         GroupChatMessage sent = await host.GroupChat.SendTextAsync(groupId, "3 giờ", Ct);
         await WaitUntil(() => Messages(mai).Count == 1);
         using (SqliteConnection connection = await mai.Get<SqliteDatabase>().OpenAsync(Ct))
@@ -691,6 +694,36 @@ public sealed class GroupChatTests : IAsyncLifetime
     /// that once worked. Others still reach both.
     /// </summary>
     private void Offline(TestNode member) => Apart(host, member);
+
+    /// <summary>
+    /// <see cref="Offline"/>, and out of reach of <paramref name="relays"/> too (members who would pass messages on). A
+    /// request still on its way from setting up can note an address again as it ends, so once those are done the
+    /// addresses are forgotten once more: the member is really out of reach, however busy the machine.
+    /// </summary>
+    private async Task OfflineAsync(TestNode member, params TestNode[] relays)
+    {
+        for (int round = 0; round < 2; round++)
+        {
+            Offline(member);
+            foreach (TestNode relay in relays)
+            {
+                Apart(relay, member);
+            }
+
+            if (round == 0)
+            {
+                await Task.Delay(500, Ct);
+            }
+        }
+    }
+
+    /// <summary><see cref="Apart"/>, made to last as <see cref="OfflineAsync"/> does.</summary>
+    private static async Task ApartAsync(TestNode one, TestNode other)
+    {
+        Apart(one, other);
+        await Task.Delay(500, Ct);
+        Apart(one, other);
+    }
 
     private void Online(TestNode member) => Together(host, member);
 

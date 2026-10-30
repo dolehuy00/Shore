@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using Shorekeeper.Core.Discovery;
 using Shorekeeper.Core.Identity;
@@ -149,13 +150,15 @@ public sealed class GroupTests : IAsyncLifetime
     public async Task Removed_member_loses_the_group_and_its_permissions()
     {
         Group group = await GroupWithMaiAndTuanAsync();
-        var notices = new List<GroupNotice>();
-        tuan.Groups.Notice += (_, notice) => notices.Add(notice);
+        var notices = new ConcurrentQueue<GroupNotice>();
+        tuan.Groups.Notice += (_, notice) => notices.Enqueue(notice);
 
         await host.Groups.RemoveMemberAsync(group.Id, tuan.Id);
 
         await WaitUntil(() => tuan.GroupStore.Get(group.Id) is null);
-        // "Bạn đã vào nhóm" may still arrive late from the setup; exactly one removal notice is what matters.
+        // The notice comes just after the group is gone. "Bạn đã vào nhóm" may still arrive late from the setup;
+        // exactly one removal notice is what matters.
+        await WaitUntil(() => notices.Any(n => n.Message.Contains("không còn", StringComparison.Ordinal)));
         Assert.Single(notices, n => n.Message.Contains("không còn", StringComparison.Ordinal));
         await WaitUntil(() => !mai.GroupStore.IsMember(group.Id, tuan.Id));
         Assert.False(mai.GroupStore.CanExchangeFiles(tuan.Id, group.Id));
