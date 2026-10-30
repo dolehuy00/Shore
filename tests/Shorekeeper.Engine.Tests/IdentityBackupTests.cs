@@ -17,6 +17,8 @@ public sealed class IdentityBackupTests : IDisposable
 
     private static readonly DeviceId Mai = DeviceId.Parse(new string('a', DeviceId.Length));
     private static readonly DeviceId Spammer = DeviceId.Parse(new string('b', DeviceId.Length));
+    private static readonly DeviceId Tuan = DeviceId.Parse(new string('d', DeviceId.Length));
+    private static readonly DeviceId Stranger = DeviceId.Parse(new string('e', DeviceId.Length));
 
     private readonly TempAppFolder oldPc = new();
     private readonly TempAppFolder newPc = new();
@@ -40,6 +42,7 @@ public sealed class IdentityBackupTests : IDisposable
             await trust.SetAliasAsync(Mai, "Mai QA", Ct);
             await trust.SetAutoAcceptAsync(Mai, 1024, Ct);
             await trust.BlockAsync(Spammer, "Spam", "PC-X", Ct);
+            await trust.SetAliasAsync(Tuan, "Tuấn bên kho", Ct);
             await host.Get<GroupStore>().SaveAsync(
                 new Group(new string('c', 32), "Build QA", original, GroupRole.Host, [new GroupMember(original, "Huy", true), new GroupMember(Mai, "Mai", false)]), Ct);
 
@@ -48,6 +51,8 @@ public sealed class IdentityBackupTests : IDisposable
 
         await using (EngineHost host = await EngineHost.StartAsync(newPc))
         {
+            // What this computer had before is replaced, names we gave people included.
+            await host.Get<TrustStore>().SetAliasAsync(Stranger, "Ai đó", Ct);
             Assert.NotEqual(original, host.DeviceId);
             OpenedBackup backup = IdentityBackup.Open(await File.ReadAllBytesAsync(file, Ct), Password);
             Assert.Equal(new BackupSummary(original, "Huy", backup.Summary.CreatedAt, 2, 1), backup.Summary);
@@ -62,6 +67,9 @@ public sealed class IdentityBackupTests : IDisposable
             var trust = restarted.Get<TrustStore>();
             Assert.Equal(new PeerRecord(Mai, "Mai", "PC-QA-07", "Mai QA", TrustLevel.Trusted, 1024), trust.Get(Mai));
             Assert.Equal(TrustLevel.Blocked, trust.GetLevel(Spammer));
+            Assert.Equal("Tuấn bên kho", trust.GetAlias(Tuan));
+            Assert.Equal(TrustLevel.Unknown, trust.GetLevel(Tuan));
+            Assert.Null(trust.GetAlias(Stranger));
 
             Group group = Assert.Single(restarted.Get<GroupStore>().GetAll());
             Assert.Equal(("Build QA", GroupRole.Host, 2), (group.Name, group.Role, group.Members.Count));

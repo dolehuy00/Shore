@@ -73,7 +73,9 @@ public sealed class IdentityBackup(
                 displayName,
                 Convert.ToBase64String(pkcs12),
                 [.. trust.GetAll(TrustLevel.Trusted).Concat(trust.GetAll(TrustLevel.Blocked)).Select(BackupContact.From)],
-                [.. groups.GetAll().Select(BackupGroup.From)]);
+                [.. groups.GetAll().Select(BackupGroup.From)],
+                // Contacts carry theirs; these are for the others (members of a group we are not connected with).
+                [.. trust.GetAliases().Where(a => trust.Get(a.Key) is null).Select(a => new BackupAlias(a.Key.Value, a.Value))]);
         }
         finally
         {
@@ -151,6 +153,12 @@ public sealed class IdentityBackup(
                 await trust.ForgetAsync(record.DeviceId, cancellationToken);
             }
 
+            // Forgetting keeps a name we gave someone; the names of the identity being replaced go too.
+            foreach (DeviceId named in trust.GetAliases().Keys)
+            {
+                await trust.SetAliasAsync(named, null, cancellationToken);
+            }
+
             foreach (Group group in groups.GetAll())
             {
                 await groups.RemoveAsync(group.Id, cancellationToken);
@@ -179,6 +187,15 @@ public sealed class IdentityBackup(
                 if (group.ToGroup() is { } restored)
                 {
                     await groups.SaveAsync(restored, cancellationToken);
+                }
+            }
+
+            // Backups made before these were kept have none.
+            foreach (BackupAlias alias in payload.Aliases ?? [])
+            {
+                if (DeviceId.TryParse(alias.DeviceId, out DeviceId id))
+                {
+                    await trust.SetAliasAsync(id, alias.Alias, cancellationToken);
                 }
             }
 
@@ -280,7 +297,11 @@ internal sealed record BackupPayload(
     string DisplayName,
     string Identity,
     IReadOnlyList<BackupContact> Contacts,
-    IReadOnlyList<BackupGroup> Groups);
+    IReadOnlyList<BackupGroup> Groups,
+    IReadOnlyList<BackupAlias>? Aliases = null);
+
+/// <summary>"Tên gợi nhớ" of someone who is not a contact (a group member we are not connected with).</summary>
+internal sealed record BackupAlias(string DeviceId, string Alias);
 
 internal sealed record BackupContact(string DeviceId, string DisplayName, string HostName, string? Alias, long? AutoAcceptMaxBytes, bool Blocked)
 {

@@ -93,6 +93,15 @@ public sealed class TrustStore(SqliteDatabase database, TimeProvider timeProvide
         }
     }
 
+    /// <summary>Every name we gave someone, contact or not.</summary>
+    public IReadOnlyDictionary<DeviceId, string> GetAliases()
+    {
+        lock (gate)
+        {
+            return new Dictionary<DeviceId, string>(aliases);
+        }
+    }
+
     public IReadOnlyList<PeerRecord> GetAll(TrustLevel level)
     {
         lock (gate)

@@ -19,9 +19,9 @@
 
 ### 1.1 Sao lưu & khôi phục (M6b)
 
-- Cài đặt → **Sao lưu danh tính…**: đặt mật khẩu (≥ 8 ký tự, nhập 2 lần), lưu file `.skbackup`. File gồm khóa thiết bị, liên hệ (tên gợi nhớ, tự nhận file), máy đã chặn và các nhóm (Host / thành viên / đang chờ duyệt). Không gồm lịch sử gửi/nhận và cài đặt.
+- Cài đặt → **Sao lưu danh tính…**: đặt mật khẩu (≥ 8 ký tự, nhập 2 lần), lưu file `.skbackup`. File gồm khóa thiết bị, liên hệ (tên gợi nhớ, tự nhận file), máy đã chặn, các nhóm (Host / thành viên / đang chờ duyệt) và tên gợi nhớ đặt cho người chưa kết nối (thành viên nhóm). File cũ không có phần tên gợi nhớ này vẫn khôi phục được. Không gồm lịch sử gửi/nhận và cài đặt.
 - Mã hóa: PBKDF2-SHA256 (600.000 vòng) → khóa AES-256-GCM. Sai mật khẩu hoặc file bị sửa thì không mở được.
-- **Khôi phục…**: chọn file, nhập mật khẩu, xem tóm tắt (DeviceId, tên, số liên hệ/nhóm) rồi xác nhận. Bản sao lưu được ghi tạm (mã hóa như khóa thiết bị) và áp dụng **ở lần khởi động sau**, trước khi app dùng danh tính; app tự khởi động lại. Danh tính, liên hệ và nhóm hiện có bị thay; file khóa cũ được giữ lại (`identity.pfx.dpapi.replaced-…`).
+- **Khôi phục…**: chọn file, nhập mật khẩu, xem tóm tắt (DeviceId, tên, số liên hệ/nhóm) rồi xác nhận. Bản sao lưu được ghi tạm (mã hóa như khóa thiết bị) và áp dụng **ở lần khởi động sau**, trước khi app dùng danh tính; app tự khởi động lại. Danh tính, liên hệ, nhóm và tên gợi nhớ hiện có bị thay; file khóa cũ được giữ lại (`identity.pfx.dpapi.replaced-…`).
 - Ai có file **và** mật khẩu có thể giả làm máy này. Không chạy cùng một danh tính trên hai máy cùng lúc.
 - Android: dữ liệu app (khóa, liên hệ, tin nhắn) không đi vào sao lưu của hệ thống hay sang điện thoại mới (`allowBackup="false"`, `dataExtractionRules`); đổi điện thoại thì dùng bản sao lưu có mật khẩu ở trên.
 
