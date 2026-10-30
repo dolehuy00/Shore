@@ -8,6 +8,7 @@ using Shorekeeper.Core.Audio;
 using Shorekeeper.Core.Identity;
 using Shorekeeper.Core.Localization;
 using Shorekeeper.Core.Platform;
+using Shorekeeper.Core.Settings;
 using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Settings;
@@ -83,6 +84,9 @@ public sealed class AudioService : IDisposable
     private readonly Dictionary<DeviceId, (int Count, long Since)> wrongPasswords = [];
     private Broadcast? broadcast;
     private Listening? listening;
+
+    /// <summary>A level set while listening, saved on the next tick: a slider being dragged does not write each step.</summary>
+    private (DeviceId Source, int Percent)? unsavedVolume;
 
     public AudioService(
         PeerClient client,
@@ -363,7 +367,11 @@ public sealed class AudioService : IDisposable
         }
 
         string name = NameOf(peer);
-        var session = new Listening(peer, name, settings.Current.AudioLatency);
+        var session = new Listening(peer, name, settings.Current.AudioLatency)
+        {
+            // Left at 0 last time: pressing "Nghe" means to hear it, so it starts at full rather than silent.
+            Volume = settings.Current.ListenVolumes.GetValueOrDefault(peer.Value, 100) is > 0 and var level ? level : 100,
+        };
         lock (gate)
         {
             if (listening is not null)
@@ -409,6 +417,34 @@ public sealed class AudioService : IDisposable
 
         logger.LogInformation("Listening to {Peer}", peer);
         Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>"Âm lượng" of the sound we listen to, in percent: this device's own level, remembered per source.</summary>
+    public int ListenVolume
+    {
+        get
+        {
+            lock (gate)
+            {
+                return listening?.Volume ?? 100;
+            }
+        }
+    }
+
+    /// <summary>Sets <see cref="ListenVolume"/> at once (0 to <see cref="EffectiveSettings.MaxListenVolume"/>); nothing while not listening.</summary>
+    public void SetListenVolume(int percent)
+    {
+        percent = Math.Clamp(percent, 0, EffectiveSettings.MaxListenVolume);
+        lock (gate)
+        {
+            if (listening is not { } session)
+            {
+                return;
+            }
+
+            session.Volume = percent;
+            unsavedVolume = (session.PeerId, percent);
+        }
     }
 
     /// <summary>"Điều khiển": presses <paramref name="key"/> on the device we listen to.</summary>
@@ -484,6 +520,7 @@ public sealed class AudioService : IDisposable
     public void Dispose()
     {
         timer.Dispose();
+        SaveVolume();
         Broadcast? ended;
         Listening? session;
         lock (gate)
@@ -498,6 +535,7 @@ public sealed class AudioService : IDisposable
 
     private void OnTick()
     {
+        SaveVolume();
         RemoveListener(l => l.SilentFor > ListenerGone);
 
         Listening? session;
@@ -553,6 +591,35 @@ public sealed class AudioService : IDisposable
     }
 
     /// <returns>False when the session had already ended.</returns>
+    private void SaveVolume()
+    {
+        (DeviceId Source, int Percent)? pending;
+        lock (gate)
+        {
+            (pending, unsavedVolume) = (unsavedVolume, null);
+        }
+
+        if (pending is not { } volume)
+        {
+            return;
+        }
+
+        settings.Update(s =>
+        {
+            var volumes = new Dictionary<string, int>(s.ListenVolumes ?? new(), StringComparer.Ordinal);
+            if (volume.Percent == 100)
+            {
+                volumes.Remove(volume.Source.Value);
+            }
+            else
+            {
+                volumes[volume.Source.Value] = volume.Percent;
+            }
+
+            return s with { ListenVolumes = volumes.Count == 0 ? null : volumes };
+        });
+    }
+
     private bool EndListening(Listening session)
     {
         lock (gate)
@@ -868,6 +935,10 @@ public sealed class AudioService : IDisposable
         private int gapFrames;
         private long lastHeard = Stopwatch.GetTimestamp();
         private volatile bool disposed;
+        private int volume = 100;
+
+        // Only on the output's thread: the level the last frame ended at, for the next one to glide from.
+        private int playedVolume = -1;
 
         public Listening(DeviceId peer, string name, AudioLatency latency)
         {
@@ -895,6 +966,13 @@ public sealed class AudioService : IDisposable
         public int Port { get; }
 
         public AudioLatency Latency { get; }
+
+        /// <summary>In percent; read for each frame on the output's thread.</summary>
+        public int Volume
+        {
+            get => Volatile.Read(ref volume);
+            set => Volatile.Write(ref volume, value);
+        }
 
         public TimeSpan SilentFor => Stopwatch.GetElapsedTime(Interlocked.Read(ref lastHeard));
 
@@ -936,7 +1014,16 @@ public sealed class AudioService : IDisposable
         public void Play(IAudioOutput output, string title, Action stopRequested, Action<MediaKey>? keyRequested, string? device)
         {
             Interlocked.Exchange(ref lastHeard, Stopwatch.GetTimestamp());
-            playing = output.Start(decoder.Read, title, stopRequested, keyRequested, device);
+            playing = output.Start(Read, title, stopRequested, keyRequested, device);
+        }
+
+        private void Read(Span<short> pcm)
+        {
+            decoder.Read(pcm);
+            int to = Volume;
+            // The first frame starts at the remembered level rather than gliding up to it.
+            AudioGain.Apply(pcm, playedVolume < 0 ? to : playedVolume, to);
+            playedVolume = to;
         }
 
         /// <summary>Tells the source we still listen; also opens the way back through the source's firewall.</summary>

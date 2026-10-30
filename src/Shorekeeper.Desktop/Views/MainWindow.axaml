@@ -1501,6 +1501,23 @@
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
 
+              <!-- Âm lượng: this computer's own level for what it listens to, apart from Windows' and the source's. -->
+              <StackPanel Spacing="4" IsVisible="{Binding Audio.IsListening}">
+                <TextBlock Text="{l:T 'Âm lượng trên máy này'}" />
+                <Grid ColumnDefinitions="Auto,*,48">
+                  <Panel VerticalAlignment="Center">
+                    <PathIcon Data="{StaticResource Icon.Speaker}" IsVisible="{Binding !Audio.IsListenMuted}" Width="16" Height="16" />
+                    <PathIcon Data="{StaticResource Icon.SpeakerOff}" IsVisible="{Binding Audio.IsListenMuted}" Width="16" Height="16" />
+                  </Panel>
+                  <Slider Grid.Column="1" Minimum="0" Maximum="150" TickFrequency="5" IsSnapToTickEnabled="True" SmallChange="5" LargeChange="10"
+                          Value="{Binding Audio.ListenVolume}" Margin="10,0" VerticalAlignment="Center"
+                          AutomationProperties.Name="{l:T 'Âm lượng trên máy này'}" />
+                  <TextBlock Grid.Column="2" Text="{Binding Audio.ListenVolumeText}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                </Grid>
+                <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
+                           Text="{l:T 'Chỉ đổi tiếng ở máy này, nhớ riêng cho từng máy phát; máy phát và người khác đang nghe không bị ảnh hưởng.'}" />
+              </StackPanel>
+
             </StackPanel>
           </Border>
 

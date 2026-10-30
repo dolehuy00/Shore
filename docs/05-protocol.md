@@ -183,6 +183,7 @@ Máy phát có thể đặt **mật khẩu nghe** (tùy chọn, nhớ lâu dài)
 - Máy phát trả lời mỗi keep-alive bằng `0xA3 · cùng counter (4) · 1 byte niêm phong · tag` (nonce loại 3): máy nghe đo thời gian khứ hồi để hiện **Ping**. Máy phát cũ không trả lời thì Ping hiện "—".
 - **Xin gửi lại** (mọi mức trễ): khi gói mới hơn đã tới mà một khung vẫn thiếu (và không có bản sao trong gói sau), máy nghe gửi `0xA2 · counter (4) · sequence (4) × 1..64 · tag` (niêm phong với nonce loại 2, counter riêng) tới cổng nguồn; hỏi lại một khung sau 30 ms nếu chưa tới. Máy phát giữ 300 gói đã niêm phong gần nhất (3 s) cho từng máy nghe và gửi lại nguyên văn những gói còn giữ.
 - Máy tính giữ Wi-Fi ở media streaming mode và tắt background scan khi đang thu hay đang nghe (`WlanSetInterface`).
+- **Âm lượng trên máy này** (máy nghe): 0–150 %, nhân vào tiếng đã giải mã ngay trước khi ra loa, đổi mượt trong một khung 10 ms, tiếng to quá thì giữ ở mức tối đa. Không đụng âm lượng hệ thống hay máy phát (khác "Nhỏ đi / To lên" của Điều khiển, là phím âm lượng của máy phát). Nhớ riêng theo từng máy phát (`listenVolumes` trong settings.json, ghi sau tối đa 1 giây); để 0 % thì lần nghe sau bắt đầu lại ở 100 %.
 
 ### 4.8 Tin nhắn ([15](15-chat.md))
 

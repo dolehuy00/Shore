@@ -7,6 +7,7 @@ using Shorekeeper.Core.Platform;
 using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Audio;
 using Shorekeeper.Engine.Discovery;
+using Shorekeeper.Engine.Settings;
 
 namespace Shorekeeper.Engine.Tests;
 
@@ -43,6 +44,39 @@ public sealed class AudioTests : IAsyncLifetime
         Assert.Equal(phone.Id, Assert.Single(pc.Audio.Listeners).PeerId);
         Assert.Equal(pc.Id, phone.Audio.ListeningTo);
         Assert.True(speakers.IsRunning);
+    }
+
+    [Fact]
+    public async Task The_listener_sets_its_own_volume_and_it_is_remembered_for_that_source()
+    {
+        await pc.ConnectAsync(phone);
+        pc.Audio.SetPlaying(true);
+        await phone.Audio.ListenAsync(pc.Id, cancellationToken: Ct);
+        await WaitUntil(() => headphones.Peak > 8000);
+        int full = headphones.Peak;
+
+        phone.Audio.SetListenVolume(50);
+
+        Assert.Equal(50, phone.Audio.ListenVolume);
+        await WaitUntil(() => headphones.Peak is > 0 and < 6000);
+        Assert.InRange(headphones.Peak, full * 4 / 10, full * 6 / 10);
+        // The source plays on as before: only this device hears it softer.
+        Assert.True(speakers.IsRunning);
+
+        // Saved within a second, and used the next time this source is heard.
+        await WaitUntil(() => phone.Get<SettingsService>().Current.ListenVolumes.GetValueOrDefault(pc.Id.Value) == 50);
+        await phone.Audio.StopListeningAsync();
+        await phone.Audio.ListenAsync(pc.Id, cancellationToken: Ct);
+        Assert.Equal(50, phone.Audio.ListenVolume);
+
+        phone.Audio.SetListenVolume(0);
+        await WaitUntil(() => headphones.Peak == 0);
+
+        // Silent is not kept for next time: listening again is meant to be heard.
+        await WaitUntil(() => phone.Get<SettingsService>().Current.ListenVolumes.GetValueOrDefault(pc.Id.Value) == 0);
+        await phone.Audio.StopListeningAsync();
+        await phone.Audio.ListenAsync(pc.Id, cancellationToken: Ct);
+        Assert.Equal(100, phone.Audio.ListenVolume);
     }
 
     [Fact]
@@ -347,10 +381,14 @@ public sealed class AudioTests : IAsyncLifetime
     {
         private volatile bool running;
         private int soundFrames;
+        private int peak;
 
         public bool IsRunning => running;
 
         public int SoundFrames => Volatile.Read(ref soundFrames);
+
+        /// <summary>The loudest sample of the last frame played.</summary>
+        public int Peak => Volatile.Read(ref peak);
 
         public IDisposable Start(AudioFrameReader read, string title, Action stopRequested, Action<MediaKey>? keyRequested = null, string? device = null)
         {
@@ -361,6 +399,7 @@ public sealed class AudioTests : IAsyncLifetime
                 while (running)
                 {
                     read(pcm);
+                    Volatile.Write(ref peak, pcm.Max(v => Math.Abs((int)v)));
                     if (pcm.Any(v => Math.Abs((int)v) > 1000))
                     {
                         Interlocked.Increment(ref soundFrames);

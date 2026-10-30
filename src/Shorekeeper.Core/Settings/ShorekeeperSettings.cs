@@ -40,6 +40,9 @@ public sealed record ShorekeeperSettings
     /// <summary>"Phát ra" (computer): the device "Nghe" plays on, by its system id; null for the default one.</summary>
     public string? AudioOutputDevice { get; init; }
 
+    /// <summary>"Âm lượng" while listening, in percent by source device id; a source not here plays at 100.</summary>
+    public Dictionary<string, int>? ListenVolumes { get; init; }
+
     /// <summary>"Nguồn tiếng" (phone): "mic" plays the microphone, anything else what apps play.</summary>
     public string? AudioSource { get; init; }
 

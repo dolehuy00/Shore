@@ -167,6 +167,31 @@ public sealed partial class AudioViewModel : ObservableObject
 
     public bool CanControl => ControlTitle is not null;
 
+    /// <summary>
+    /// "Âm lượng trên máy này" while listening, in percent: how loud this device plays that source, apart from the
+    /// system volume and from the source itself (others listening hear no change). Remembered per source.
+    /// </summary>
+    public double ListenVolume
+    {
+        get => audio.ListenVolume;
+        set
+        {
+            audio.SetListenVolume((int)Math.Round(value));
+            OnListenVolumeChanged();
+        }
+    }
+
+    public string ListenVolumeText => $"{audio.ListenVolume}%";
+
+    public bool IsListenMuted => audio.ListenVolume == 0;
+
+    private void OnListenVolumeChanged()
+    {
+        OnPropertyChanged(nameof(ListenVolume));
+        OnPropertyChanged(nameof(ListenVolumeText));
+        OnPropertyChanged(nameof(IsListenMuted));
+    }
+
     /// <summary>"Nguồn tiếng" is shown: the phone can play its microphone instead of what apps play (Android).</summary>
     public bool CanChooseSource { get; init; }
 
@@ -424,6 +449,7 @@ public sealed partial class AudioViewModel : ObservableObject
         Listeners = [.. audio.Listeners.Select(l => new AudioListenerItem(NameOf(l.PeerId, null), IsPhone(l.PeerId)))];
         ListeningText = audio.ListeningTo is { } peer ? L.F("Đang nghe âm thanh từ {0}", NameOf(peer, null)) : null;
         ControlTitle = audio.ListeningTo is { } source && audio.CanControlListened ? L.F("Điều khiển {0}", NameOf(source, null)) : null;
+        OnListenVolumeChanged();
         if (!IsListening)
         {
             Stats = [];

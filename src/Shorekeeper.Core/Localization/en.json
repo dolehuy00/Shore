@@ -709,5 +709,7 @@
   "Tự tải ảnh máy đã kết nối gửi (đến 20 MB) để hiện ngay trong Tin nhắn": "Download pictures from connected devices (up to 20 MB) to show them right in Messages",
   "Mở file chạy được?": "Open a file that runs?",
   "“{0}” là file chạy được (chương trình, script hoặc lối tắt): mở nó là chạy nó trên máy này với quyền của bạn. Chỉ mở khi bạn biết rõ file này là gì và ai gửi.": "“{0}” is a file that runs (a program, a script or a shortcut): opening it runs it on this computer with your rights. Open it only if you know what it is and who sent it.",
-  "Vẫn mở": "Open anyway"
+  "Vẫn mở": "Open anyway",
+  "Âm lượng trên máy này": "Volume on this device",
+  "Chỉ đổi tiếng ở máy này, nhớ riêng cho từng máy phát; máy phát và người khác đang nghe không bị ảnh hưởng.": "Changes the sound on this device only, remembered for each source; the source and others listening are not affected."
 }

@@ -1293,6 +1293,27 @@
               </ItemsControl.ItemTemplate>
             </ItemsControl>
 
+            <!-- Âm lượng: this phone's own level for what it listens to, apart from the system's and the source's. -->
+            <StackPanel IsVisible="{Binding IsListening}">
+              <TextBlock Classes="h3" Text="{l:T 'Âm lượng trên máy này'}" />
+              <Border Classes="card">
+                <StackPanel Spacing="6">
+                  <Grid ColumnDefinitions="Auto,*,52">
+                    <Panel VerticalAlignment="Center">
+                      <PathIcon Data="{StaticResource Icon.Speaker}" IsVisible="{Binding !IsListenMuted}" Width="20" Height="20" />
+                      <PathIcon Data="{StaticResource Icon.SpeakerOff}" IsVisible="{Binding IsListenMuted}" Width="20" Height="20" />
+                    </Panel>
+                    <Slider Grid.Column="1" Minimum="0" Maximum="150" TickFrequency="5" IsSnapToTickEnabled="True" SmallChange="5" LargeChange="10"
+                            Value="{Binding ListenVolume}" Margin="12,0" VerticalAlignment="Center"
+                            AutomationProperties.Name="{l:T 'Âm lượng trên máy này'}" />
+                    <TextBlock Grid.Column="2" Text="{Binding ListenVolumeText}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                  </Grid>
+                  <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
+                             Text="{l:T 'Chỉ đổi tiếng ở máy này, nhớ riêng cho từng máy phát; máy phát và người khác đang nghe không bị ảnh hưởng.'}" />
+                </StackPanel>
+              </Border>
+            </StackPanel>
+
             <!-- Điều khiển: the source's media keys, when it lets us (a computer). -->
             <StackPanel IsVisible="{Binding CanControl}">
               <TextBlock Classes="h3" Text="{Binding ControlTitle}" />
