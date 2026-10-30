@@ -9,13 +9,9 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.DependencyInjection;
 using Shorekeeper.Core.Identity;
-using Shorekeeper.Core.Trust;
-using Shorekeeper.Engine.Groups;
 using Shorekeeper.Engine.Identity;
 using Shorekeeper.Engine.Settings;
-using Shorekeeper.Engine.Trust;
 
 namespace Shorekeeper.Engine.Api;
 
@@ -40,10 +36,10 @@ public sealed class MiniHttpServer(
     /// </summary>
     public const int MaxStrangerBodyBytes = 64 * 1024;
 
-    private const int MaxConnections = 256;
+    public const int MaxConnections = 256;
 
     /// <summary>One device cannot take every connection (a computer downloading uses a handful, plus long polls).</summary>
-    private const int MaxConnectionsPerAddress = 32;
+    public const int MaxConnectionsPerAddress = 32;
 
     private const int CopyBufferBytes = 128 * 1024;
     private static readonly TimeSpan HandshakeTimeout = TimeSpan.FromSeconds(10);
@@ -157,8 +153,6 @@ public sealed class MiniHttpServer(
 
             DeviceId caller = DeviceIdentity.FromCertificate(
                 certificate as X509Certificate2 ?? X509CertificateLoader.LoadCertificate(certificate.GetRawCertData()));
-            var trust = services.GetRequiredService<TrustStore>();
-            var groups = services.GetRequiredService<GroupStore>();
             var reader = new HttpRequestReader(ssl);
             TimeSpan idle = FirstRequestTimeout;
             while (!token.IsCancellationRequested)
@@ -176,7 +170,7 @@ public sealed class MiniHttpServer(
                 }
 
                 idle = KeepAliveTimeout;
-                bool known = trust.GetLevel(caller) == TrustLevel.Trusted || groups.SharesGroup(caller);
+                bool known = api!.IsKnown(caller);
                 byte[]? body;
                 using (var wait = CancellationTokenSource.CreateLinkedTokenSource(token))
                 {

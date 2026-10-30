@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Net.Sockets;
 using System.Security.Cryptography;
 using Shorekeeper.Core.Trust;
 using Shorekeeper.Engine.Api;
@@ -120,7 +121,7 @@ public sealed class PeerApiTests : IAsyncLifetime
         Assert.Empty(b.Inbox.GetOffers());
     }
 
-    [Fact(Skip = "Kestrel streams bodies at a minimum rate instead", SkipType = typeof(TestNode), SkipWhen = nameof(TestNode.UseKestrel))]
+    [Fact]
     public async Task A_stranger_cannot_send_a_large_body()
     {
         // Neither a contact nor in a group: asking to connect is all it may do, in a few hundred bytes.
@@ -131,6 +132,59 @@ public sealed class PeerApiTests : IAsyncLifetime
         });
 
         Assert.True(error is null or PeerUnreachableException, error?.ToString());
+    }
+
+    [Fact]
+    public async Task One_address_cannot_take_every_connection()
+    {
+        await using TestNode c = await TestNode.StartAsync("C");
+        var held = new List<TcpClient>();
+        try
+        {
+            // Connections that never start TLS, all from 127.0.0.1: the server keeps them until the handshake times out.
+            for (int i = 0; i < MiniHttpServer.MaxConnectionsPerAddress; i++)
+            {
+                var client = new TcpClient();
+                await client.ConnectAsync(IPAddress.Loopback, c.ApiPort, Ct);
+                held.Add(client);
+            }
+
+            await Task.Delay(300, Ct);
+            using var extra = new TcpClient();
+            await extra.ConnectAsync(IPAddress.Loopback, c.ApiPort, Ct);
+
+            Assert.True(await IsClosedAsync(extra), "The connection over the limit should be closed at once.");
+            Assert.False(await IsClosedAsync(held[^1]), "Connections within the limit stay open.");
+        }
+        finally
+        {
+            held.ForEach(client => client.Dispose());
+        }
+
+        // Once they are gone, the address gets in again.
+        await Task.Delay(300, Ct);
+        using var again = new TcpClient();
+        await again.ConnectAsync(IPAddress.Loopback, c.ApiPort, Ct);
+        Assert.False(await IsClosedAsync(again));
+    }
+
+    /// <summary>Whether the server hung up: it sends nothing before the client's TLS hello, so open means a read that waits.</summary>
+    private static async Task<bool> IsClosedAsync(TcpClient client)
+    {
+        using var wait = CancellationTokenSource.CreateLinkedTokenSource(Ct);
+        wait.CancelAfter(TimeSpan.FromSeconds(1));
+        try
+        {
+            return await client.GetStream().ReadAsync(new byte[1], wait.Token) == 0;
+        }
+        catch (OperationCanceledException) when (!Ct.IsCancellationRequested)
+        {
+            return false;
+        }
+        catch (IOException)
+        {
+            return true;
+        }
     }
 
     [Fact]

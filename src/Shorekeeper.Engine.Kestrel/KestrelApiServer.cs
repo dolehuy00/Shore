@@ -1,13 +1,17 @@
+using System.Collections.Concurrent;
 using System.Net;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Connections;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.AspNetCore.Server.Kestrel.Https;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Net.Http.Headers;
+using Shorekeeper.Core.Identity;
 using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Identity;
 using Shorekeeper.Engine.Settings;
@@ -26,6 +30,7 @@ public sealed class KestrelApiServer(
     ILoggerFactory loggerFactory,
     ILogger<KestrelApiServer> logger) : ApiServer(settings, logger), IAsyncDisposable
 {
+    private readonly ConcurrentDictionary<IPAddress, int> connectionsFrom = new();
     private WebApplication? app;
 
     public override async Task StopAsync(CancellationToken cancellationToken)
@@ -57,9 +62,12 @@ public sealed class KestrelApiServer(
         {
             kestrel.AddServerHeader = false;
             kestrel.Limits.MaxRequestBodySize = MiniHttpServer.MaxBodyBytes;
+            kestrel.Limits.MaxConcurrentConnections = MiniHttpServer.MaxConnections;
             kestrel.Listen(options.BindAddress, port, listen =>
             {
                 listen.Protocols = HttpProtocols.Http1;
+                // Before TLS, as MiniHttpServer: one device cannot take every connection.
+                listen.Use(next => connection => ServeLimitedAsync(next, connection));
                 listen.UseHttps(https =>
                 {
                     https.ServerCertificate = engine.Identity.Certificate;
@@ -88,6 +96,34 @@ public sealed class KestrelApiServer(
         return new Uri(webApp.Urls.First()).Port;
     }
 
+    private async Task ServeLimitedAsync(ConnectionDelegate next, ConnectionContext connection)
+    {
+        if (connection.RemoteEndPoint is not IPEndPoint { Address: var remote })
+        {
+            await next(connection);
+            return;
+        }
+
+        IPAddress from = remote.IsIPv4MappedToIPv6 ? remote.MapToIPv4() : remote;
+        try
+        {
+            if (connectionsFrom.AddOrUpdate(from, 1, (_, n) => n + 1) > MiniHttpServer.MaxConnectionsPerAddress)
+            {
+                connection.Abort();
+                return;
+            }
+
+            await next(connection);
+        }
+        finally
+        {
+            if (connectionsFrom.AddOrUpdate(from, 0, (_, n) => n - 1) <= 0)
+            {
+                connectionsFrom.TryRemove(KeyValuePair.Create(from, 0));
+            }
+        }
+    }
+
     /// <param name="stopping">
     /// Stopping waits for the requests in flight: long polls (a member's group state, up to 20 s) end here instead,
     /// as with <see cref="MiniHttpServer"/>.
@@ -100,18 +136,30 @@ public sealed class KestrelApiServer(
         PeerResponse response;
         try
         {
-            response = context.Connection.ClientCertificate is not { } certificate
-                ? PeerResponse.Problem(HttpStatusCode.Unauthorized, ApiErrorCodes.NotTrusted)
-                : await api.HandleAsync(new PeerRequest
+            if (context.Connection.ClientCertificate is not { } certificate)
+            {
+                response = PeerResponse.Problem(HttpStatusCode.Unauthorized, ApiErrorCodes.NotTrusted);
+            }
+            else
+            {
+                DeviceId caller = DeviceIdentity.FromCertificate(certificate);
+                // As MiniHttpServer: a device we have nothing to do with only asks, in a few hundred bytes.
+                if (!api.IsKnown(caller) && context.Features.Get<IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } limit)
+                {
+                    limit.MaxRequestBodySize = MiniHttpServer.MaxStrangerBodyBytes;
+                }
+
+                response = await api.HandleAsync(new PeerRequest
                 {
                     Method = context.Request.Method,
                     Path = path.StartsWith(basePath + "/", StringComparison.OrdinalIgnoreCase) ? path[basePath.Length..] : "",
                     Query = context.Request.Query.ToDictionary(q => q.Key, q => q.Value.ToString(), StringComparer.OrdinalIgnoreCase),
-                    Caller = DeviceIdentity.FromCertificate(certificate),
+                    Caller = caller,
                     RemoteAddress = context.Connection.RemoteIpAddress ?? IPAddress.None,
                     Body = context.Request.Body,
                     Aborted = aborted.Token,
                 });
+            }
         }
         catch (OperationCanceledException) when (stopping.IsCancellationRequested)
         {

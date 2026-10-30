@@ -1,4 +1,5 @@
 using System.Net;
+using Shorekeeper.Core.Identity;
 using Shorekeeper.Core.Trust;
 using Shorekeeper.Engine.Groups;
 using Shorekeeper.Engine.Trust;
@@ -54,6 +55,10 @@ public sealed class PeerApi(TrustStore trust, GroupStore groups)
 
         return Task.FromResult(PeerResponse.Problem(HttpStatusCode.Forbidden, ApiErrorCodes.NotTrusted));
     }
+
+    /// <summary>A contact, or in a group with us: may send large bodies (offers, voice messages). Anyone else only asks.</summary>
+    public bool IsKnown(DeviceId caller) =>
+        trust.GetLevel(caller) == TrustLevel.Trusted || groups.SharesGroup(caller);
 
     private bool IsAllowed(PeerRequest request, RequiredAccess access)
     {
