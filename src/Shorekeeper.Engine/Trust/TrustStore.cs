@@ -164,7 +164,31 @@ public sealed class TrustStore(SqliteDatabase database, TimeProvider timeProvide
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Remembers where a peer was reachable so it can be found again after a restart, even in another subnet.</summary>
+    /// <summary>
+    /// The name and computer name a contact (or blocked peer) now goes by, as the device itself said over mutual TLS
+    /// (<see cref="ContactNames"/>); an alias still wins where it is shown.
+    /// </summary>
+    public async Task RecordNameAsync(DeviceId id, string displayName, string hostName, CancellationToken cancellationToken = default)
+    {
+        lock (gate)
+        {
+            if (!peers.TryGetValue(id, out PeerRecord? record) || (record.DisplayName == displayName && record.HostName == hostName))
+            {
+                return;
+            }
+
+            peers[id] = record with { DisplayName = displayName, HostName = hostName };
+        }
+
+        await using (SqliteConnection connection = await database.OpenAsync(cancellationToken))
+        {
+            await connection.ExecuteAsync(
+                "UPDATE Peers SET DisplayName = @displayName, HostName = @hostName WHERE DeviceId = @Id;", new { displayName, hostName, Id = id.Value });
+        }
+
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
     /// <summary>Remembers the OS a contact (or blocked peer) announces, so its icon is right while it is offline.</summary>
     public async Task RecordOsAsync(DeviceId id, string os, CancellationToken cancellationToken = default)
     {
@@ -186,6 +210,7 @@ public sealed class TrustStore(SqliteDatabase database, TimeProvider timeProvide
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>Remembers where a peer was reachable so it can be found again after a restart, even in another subnet.</summary>
     public async Task RecordEndpointAsync(DeviceId id, IPEndPoint endpoint, string source, CancellationToken cancellationToken = default)
     {
         long now = timeProvider.GetUtcNow().ToUnixTimeMilliseconds();

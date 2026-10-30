@@ -1,5 +1,8 @@
+using System.Net;
 using System.Security.Cryptography;
+using Shorekeeper.Core.Discovery;
 using Shorekeeper.Core.Identity;
+using Shorekeeper.Engine.Settings;
 using Shorekeeper.Engine.Trust;
 
 namespace Shorekeeper.Engine.Tests;
@@ -14,6 +17,56 @@ public sealed class PeerNamingTests : IAsyncLifetime
     public async ValueTask DisposeAsync() => await node.DisposeAsync();
 
     private PeerNaming Naming => node.Get<PeerNaming>();
+
+    [Fact]
+    public async Task A_contact_that_renames_itself_is_shown_by_its_new_name()
+    {
+        await using TestNode mai = await TestNode.StartAsync("Mai");
+        await node.ConnectAsync(mai);
+        Assert.Equal("peer", Naming.Of(mai.Id));
+
+        mai.Get<SettingsService>().Update(s => s with { DisplayName = "Mai kế toán" });
+        node.Directory.Observe(
+            new PresencePacket { Type = PresencePacketTypes.Heartbeat, Id = mai.Id.Value, Name = "Mai kế toán", Port = mai.ApiPort },
+            IPAddress.Loopback);
+
+        await WaitUntil(() => Naming.Of(mai.Id) == "Mai kế toán");
+        Assert.Equal("Mai kế toán", node.Trust.Get(mai.Id)!.DisplayName);
+    }
+
+    [Fact]
+    public async Task A_name_announced_by_someone_else_for_a_contact_is_not_taken()
+    {
+        await using TestNode mai = await TestNode.StartAsync("Mai");
+        await node.ConnectAsync(mai);
+        await using TestNode impostor = await TestNode.StartAsync("Impostor");
+
+        // A packet with Mai's id and another name, pointing at a device that is not Mai: its certificate gives it away.
+        node.Directory.Observe(
+            new PresencePacket { Type = PresencePacketTypes.Heartbeat, Id = mai.Id.Value, Name = "Giám đốc", Port = impostor.ApiPort },
+            IPAddress.Loopback);
+        await Task.Delay(1500, Ct);
+
+        // Only what Mai's own device says is kept: never the name in the forged packet.
+        Assert.NotEqual("Giám đốc", node.Trust.Get(mai.Id)!.DisplayName);
+        Assert.NotEqual("Giám đốc", Naming.Of(mai.Id));
+    }
+
+    [Fact]
+    public async Task An_alias_still_wins_over_the_name_a_contact_gives_itself()
+    {
+        await using TestNode mai = await TestNode.StartAsync("Mai");
+        await node.ConnectAsync(mai);
+        await node.Trust.SetAliasAsync(mai.Id, "Mai phòng nhân sự", Ct);
+
+        mai.Get<SettingsService>().Update(s => s with { DisplayName = "Mai mới" });
+        node.Directory.Observe(
+            new PresencePacket { Type = PresencePacketTypes.Heartbeat, Id = mai.Id.Value, Name = "Mai mới", Port = mai.ApiPort },
+            IPAddress.Loopback);
+
+        await WaitUntil(() => node.Trust.Get(mai.Id)!.DisplayName == "Mai mới");
+        Assert.Equal("Mai phòng nhân sự", Naming.Of(mai.Id));
+    }
 
     [Fact]
     public async Task A_name_nobody_else_has_stays_as_it_is()
@@ -78,6 +131,16 @@ public sealed class PeerNamingTests : IAsyncLifetime
     }
 
     private static DeviceId NewId() => DeviceId.FromSubjectPublicKeyInfo(RandomNumberGenerator.GetBytes(32));
+
+    private static async Task WaitUntil(Func<bool> condition)
+    {
+        DateTime deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
+        while (!condition())
+        {
+            Assert.True(DateTime.UtcNow < deadline, "Condition not met in time.");
+            await Task.Delay(50, Ct);
+        }
+    }
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 }

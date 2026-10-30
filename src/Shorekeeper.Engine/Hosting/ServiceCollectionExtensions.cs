@@ -96,6 +96,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ProbeHints>();
         services.AddSingleton<BridgeRegistry>();
         services.AddSingleton<PeerAvatars>();
+        services.AddSingleton<ContactNames>();
         services.AddSingleton<BridgeClient>();
         services.AddHostedService(sp => sp.GetRequiredService<BridgeClient>());
         services.AddSingleton<PexService>();

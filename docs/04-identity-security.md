@@ -14,7 +14,7 @@
 
 - DeviceId gắn chặt với khóa. Muốn mạo danh thì phải có private key.
 - Cài lại Windows sẽ sinh DeviceId mới, và phải kết nối lại (có cảnh báo, xem §4.3), trừ khi khôi phục từ bản sao lưu (§1.1).
-- **Tên hiển thị** mặc định = tên tài khoản Windows + tên máy; máy trong domain thì là tên thật trong AD ([13](13-active-directory.md) §2). Đổi được. Tên **không phải** định danh.
+- **Tên hiển thị** mặc định = tên tài khoản Windows + tên máy; máy trong domain thì là tên thật trong AD ([13](13-active-directory.md) §2). Đổi được. Tên **không phải** định danh. Đổi tên thì liên hệ thấy tên mới (trừ khi họ đặt tên gợi nhớ): presence báo tên khác tên đã lưu thì máy kia hỏi lại chính máy đó qua `GET /hello` (mutual TLS) và chỉ lưu câu trả lời, vì presence UDP ai cũng giả được (§6).
 - Linux/macOS (bản chuẩn bị port): chưa có kho khóa của hệ điều hành; khóa nằm trong thư mục dữ liệu quyền `700` (chỉ chủ sở hữu đọc được), như khóa SSH (ADR-014).
 
 ### 1.1 Sao lưu & khôi phục (M6b)
