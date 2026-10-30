@@ -35,8 +35,24 @@ public partial class MainView : UserControl
     private Point micStart;
     private bool micHeld;
 
+    /// <summary>Menus and drop-down lists open now, the newest last, and when one last closed.</summary>
+    private static readonly List<Popup> openPopups = [];
+    private static long popupClosedAt;
+
     static MainView()
     {
+        Popup.IsOpenProperty.Changed.AddClassHandler<Popup>((popup, _) =>
+        {
+            openPopups.Remove(popup);
+            if (popup.IsOpen)
+            {
+                openPopups.Add(popup);
+            }
+            else
+            {
+                popupClosedAt = Environment.TickCount64;
+            }
+        });
         // An open ComboBox focuses its selected item, and on Android its drop-down lives in the same visual tree as the
         // pages: the item's request to be brought into view reached the page's ScrollViewer, which scrolled the page
         // under the drop-down each time one opened. The drop-down is never part of a page, so the page ignores it.
@@ -79,12 +95,23 @@ public partial class MainView : UserControl
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
-        // Android's Back closes "Chi tiết" / "Thành viên", then an open conversation, before it leaves the app.
+        // Android's Back closes an open menu or drop-down list, then "Chi tiết" / "Thành viên", then an open
+        // conversation, before it leaves the app.
         if (TopLevel.GetTopLevel(this) is { } top)
         {
             top.BackRequested += (_, back) =>
             {
-                if (DataContext is MainViewModel { IsChatTab: true, Chat.HasDetails: true } shown)
+                if (openPopups.LastOrDefault() is { } popup)
+                {
+                    popup.Close();
+                    back.Handled = true;
+                }
+                else if (Environment.TickCount64 - popupClosedAt < 250)
+                {
+                    // The Back key closes the menu itself just before Back gets here (layout.log, 2026-10-30): it is spent.
+                    back.Handled = true;
+                }
+                else if (DataContext is MainViewModel { IsChatTab: true, Chat.HasDetails: true } shown)
                 {
                     shown.Chat.CloseDetailsCommand.Execute(null);
                     back.Handled = true;

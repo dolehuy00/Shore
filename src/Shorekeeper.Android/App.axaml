@@ -21,5 +21,21 @@
     <FluentTheme />
     <!-- Popups, menus and drop-downs open with a short animation (linked from Shorekeeper.Desktop/Themes). -->
     <StyleInclude Source="/Themes/Motion.axaml" />
+    <StyleInclude Source="/Themes/Menus.axaml" />
+    <!--
+      Touch: menus and drop-down lists float over the page with a shadow, their items as tall as other controls. The
+      popup is as big as what it holds, so the margins leave the shadow room (and keep a menu off the screen's edge).
+    -->
+    <Style Selector="MenuFlyoutPresenter /template/ Border#LayoutRoot">
+      <Setter Property="Margin" Value="8,0,8,12" />
+      <Setter Property="BoxShadow" Value="0 4 12 0 #26000000" />
+    </Style>
+    <Style Selector="ComboBox /template/ Border#PopupBorder">
+      <Setter Property="Margin" Value="0,0,0,12" />
+      <Setter Property="BoxShadow" Value="0 6 10 -6 #33000000" />
+    </Style>
+    <Style Selector="MenuFlyoutPresenter MenuItem, ComboBoxItem">
+      <Setter Property="Padding" Value="14,12" />
+    </Style>
   </Application.Styles>
 </Application>

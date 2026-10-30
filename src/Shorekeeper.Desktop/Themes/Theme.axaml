@@ -16,6 +16,10 @@
   <Thickness x:Key="TextControlThemePadding">10,7,6,6</Thickness>
   <x:Double x:Key="ComboBoxMinHeight">34</x:Double>
   <Thickness x:Key="ComboBoxPadding">12,7,0,7</Thickness>
+  <!-- Menus (⋮, right-click) and drop-down lists float as a card, their items highlighted inside it (Menus.axaml). -->
+  <CornerRadius x:Key="OverlayCornerRadius">8</CornerRadius>
+  <Thickness x:Key="MenuFlyoutPresenterThemePadding">4</Thickness>
+  <Thickness x:Key="ComboBoxDropdownContentMargin">4</Thickness>
 
   <!-- Shared colors (docs/10-ux.md §1), one set per system theme. The accent stays the system accent color. -->
   <ResourceDictionary.ThemeDictionaries>
@@ -46,6 +50,21 @@
       <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="#FFFFFF" />
       <SolidColorBrush x:Key="TextControlBorderBrush" Color="#CDD3DC" />
       <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="#B4BCC8" />
+      <!-- Menus and drop-down lists: the card, an item under the finger or mouse, and the chosen option in a list. -->
+      <SolidColorBrush x:Key="MenuFlyoutPresenterBackground" Color="#FFFFFF" />
+      <SolidColorBrush x:Key="MenuFlyoutPresenterBorderBrush" Color="#DDE2E9" />
+      <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="#FFFFFF" />
+      <SolidColorBrush x:Key="ComboBoxDropDownBorderBrush" Color="#DDE2E9" />
+      <SolidColorBrush x:Key="MenuFlyoutItemBackgroundPointerOver" Color="#F0F3F7" />
+      <SolidColorBrush x:Key="MenuFlyoutItemBackgroundPressed" Color="#E6EBF1" />
+      <SolidColorBrush x:Key="ComboBoxItemBackgroundPointerOver" Color="#F0F3F7" />
+      <SolidColorBrush x:Key="ComboBoxItemBackgroundPressed" Color="#E6EBF1" />
+      <SolidColorBrush x:Key="ComboBoxItemBackgroundSelected" Color="{DynamicResource SystemAccentColor}" Opacity="0.12" />
+      <SolidColorBrush x:Key="ComboBoxItemBackgroundSelectedPointerOver" Color="{DynamicResource SystemAccentColor}" Opacity="0.18" />
+      <SolidColorBrush x:Key="ComboBoxItemBackgroundSelectedPressed" Color="{DynamicResource SystemAccentColor}" Opacity="0.24" />
+      <SolidColorBrush x:Key="ComboBoxItemForegroundSelected" Color="{DynamicResource SystemAccentColorDark1}" />
+      <SolidColorBrush x:Key="ComboBoxItemForegroundSelectedPointerOver" Color="{DynamicResource SystemAccentColorDark1}" />
+      <SolidColorBrush x:Key="ComboBoxItemForegroundSelectedPressed" Color="{DynamicResource SystemAccentColorDark1}" />
     </ResourceDictionary>
     <ResourceDictionary x:Key="Dark">
       <SolidColorBrush x:Key="Sk.WindowBackground" Color="#111419" />
@@ -74,6 +93,21 @@
       <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="#20262E" />
       <SolidColorBrush x:Key="TextControlBorderBrush" Color="#343C48" />
       <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="#444D5A" />
+      <!-- Menus and drop-down lists: the card, an item under the finger or mouse, and the chosen option in a list. -->
+      <SolidColorBrush x:Key="MenuFlyoutPresenterBackground" Color="#232A33" />
+      <SolidColorBrush x:Key="MenuFlyoutPresenterBorderBrush" Color="#343C48" />
+      <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="#232A33" />
+      <SolidColorBrush x:Key="ComboBoxDropDownBorderBrush" Color="#343C48" />
+      <SolidColorBrush x:Key="MenuFlyoutItemBackgroundPointerOver" Color="#2C343F" />
+      <SolidColorBrush x:Key="MenuFlyoutItemBackgroundPressed" Color="#333C48" />
+      <SolidColorBrush x:Key="ComboBoxItemBackgroundPointerOver" Color="#2C343F" />
+      <SolidColorBrush x:Key="ComboBoxItemBackgroundPressed" Color="#333C48" />
+      <SolidColorBrush x:Key="ComboBoxItemBackgroundSelected" Color="{DynamicResource SystemAccentColor}" Opacity="0.22" />
+      <SolidColorBrush x:Key="ComboBoxItemBackgroundSelectedPointerOver" Color="{DynamicResource SystemAccentColor}" Opacity="0.3" />
+      <SolidColorBrush x:Key="ComboBoxItemBackgroundSelectedPressed" Color="{DynamicResource SystemAccentColor}" Opacity="0.38" />
+      <SolidColorBrush x:Key="ComboBoxItemForegroundSelected" Color="{DynamicResource SystemAccentColorLight2}" />
+      <SolidColorBrush x:Key="ComboBoxItemForegroundSelectedPointerOver" Color="{DynamicResource SystemAccentColorLight2}" />
+      <SolidColorBrush x:Key="ComboBoxItemForegroundSelectedPressed" Color="{DynamicResource SystemAccentColorLight2}" />
     </ResourceDictionary>
   </ResourceDictionary.ThemeDictionaries>
 </ResourceDictionary>

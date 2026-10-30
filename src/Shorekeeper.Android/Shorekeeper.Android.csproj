@@ -36,6 +36,7 @@
     <AvaloniaXaml Include="..\Shorekeeper.Desktop\Themes\Theme.axaml" Link="Themes\Theme.axaml" />
     <AvaloniaXaml Include="..\Shorekeeper.Desktop\Themes\Icons.axaml" Link="Themes\Icons.axaml" />
     <AvaloniaXaml Include="..\Shorekeeper.Desktop\Themes\Motion.axaml" Link="Themes\Motion.axaml" />
+    <AvaloniaXaml Include="..\Shorekeeper.Desktop\Themes\Menus.axaml" Link="Themes\Menus.axaml" />
   </ItemGroup>
 
   <ItemGroup>

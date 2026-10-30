@@ -1,0 +1,27 @@
+<!--
+  Menus and drop-down lists of the desktop and Android apps (colors in Theme.axaml). Two kinds, told apart on sight:
+  a menu (⋮, right-click) lists actions and opens with none of them marked; a drop-down list (ComboBox) lists options
+  and opens with the chosen one marked. Android links this file (same /Themes/ path there).
+-->
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!--
+    A menu focuses its first item when it opens, and a focused item shows as selected: the first action looked chosen.
+    Only the finger or mouse on an item, or the arrow keys, mark one now.
+  -->
+  <Style Selector="MenuItem:selected:not(:pointerover):not(:pressed):not(:focus-visible):not(:open) /template/ Border#PART_LayoutRoot">
+    <Setter Property="Background" Value="{DynamicResource MenuFlyoutItemBackground}" />
+  </Style>
+
+  <!-- Highlights sit inside the card with rounded corners, not edge to edge. -->
+  <Style Selector="MenuItem /template/ Border#PART_LayoutRoot">
+    <Setter Property="CornerRadius" Value="{DynamicResource ControlCornerRadius}" />
+  </Style>
+  <Style Selector="ComboBoxItem">
+    <Setter Property="CornerRadius" Value="{DynamicResource ControlCornerRadius}" />
+  </Style>
+  <Style Selector="ComboBoxItem:selected">
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+</Styles>
