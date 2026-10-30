@@ -10,6 +10,7 @@ using Avalonia.Threading;
 using Shorekeeper.Core.Identity;
 using Shorekeeper.Core.Localization;
 using Shorekeeper.Core.Platform;
+using Shorekeeper.Core.Transfers;
 using Shorekeeper.Desktop.ViewModels;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Settings;
@@ -463,6 +464,37 @@ public sealed class DialogService(
     /// <summary>Puts a received picture on the clipboard as a picture, off the UI thread (large photos take a moment).</summary>
     /// <returns>False when the file cannot be read any more.</returns>
     public static Task<bool> CopyImageAsync(string path) => Task.Run(() => ClipboardImage.Copy(path));
+
+    /// <summary>
+    /// Opening a received file that runs (a program, a script, a shortcut…) runs it with the user's rights, so it asks
+    /// first, offering the folder instead (docs/04-identity-security.md §5). Anything else opens at once.
+    /// </summary>
+    /// <returns>True to open it.</returns>
+    public static async Task<bool> ConfirmOpenAsync(string path)
+    {
+        if (!RunnableFiles.Is(path))
+        {
+            return true;
+        }
+
+        int choice = await ChooseAsync(
+            L.T("Mở file chạy được?"),
+            L.F("“{0}” là file chạy được (chương trình, script hoặc lối tắt): mở nó là chạy nó trên máy này với quyền của bạn. Chỉ mở khi bạn biết rõ file này là gì và ai gửi.", Path.GetFileName(path)),
+            [L.T("Mở thư mục"), L.T("Vẫn mở"), L.T("Hủy")]);
+        if (choice == 0)
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = true })?.Dispose();
+            }
+            catch (Win32Exception)
+            {
+                // Explorer not available: nothing opened, which is the safe outcome.
+            }
+        }
+
+        return choice == 1;
+    }
 
     /// <summary>Opens <paramref name="text"/> in the browser when it is a web address; anything else is left alone.</summary>
     public static void OpenLink(string text)

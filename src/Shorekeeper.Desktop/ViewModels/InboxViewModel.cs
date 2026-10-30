@@ -566,7 +566,7 @@ public sealed partial class InboxItemViewModel(OfferKey key, InboxViewModel owne
         {
             await ShowMissingAsync();
         }
-        else
+        else if (await DialogService.ConfirmOpenAsync(received[0]))
         {
             await StartAsync(new ProcessStartInfo(received[0]) { UseShellExecute = true });
         }

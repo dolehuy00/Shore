@@ -152,17 +152,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         chat.Confirm = async (title, question, action) => await DialogService.ChooseAsync(title, question, [action, L.T("Hủy")]) == 0;
         chat.ShowFiles = received => ShowPage(received ? NavPage.Inbox : NavPage.Sent);
         chat.PickFiles = () => DialogService.PickFilesAsync();
-        chat.OpenFile = path =>
-        {
-            try
-            {
-                Process.Start(new ProcessStartInfo(path) { UseShellExecute = true })?.Dispose();
-            }
-            catch (Win32Exception)
-            {
-                // No viewer for it, or blocked by policy: the card stays as it is.
-            }
-        };
+        chat.OpenFile = path => _ = OpenReceivedAsync(path);
         chat.SendFiles = async (recipients, groupId, paths) =>
         {
             // Problems are asked or told by the dialogs themselves.
@@ -331,6 +321,24 @@ public sealed partial class MainWindowViewModel : ObservableObject
     {
         Chat.Open(peer);
         ShowPage(NavPage.Messages);
+    }
+
+    /// <summary>A file from a conversation, in its viewer; one that runs asks first.</summary>
+    private static async Task OpenReceivedAsync(string path)
+    {
+        if (!await DialogService.ConfirmOpenAsync(path))
+        {
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(path) { UseShellExecute = true })?.Dispose();
+        }
+        catch (Win32Exception)
+        {
+            // No viewer for it, or blocked by policy: the card stays as it is.
+        }
     }
 
     private void OpenChat(ChatTarget target)
