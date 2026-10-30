@@ -39,6 +39,17 @@
       <Setter Property="VerticalContentAlignment" Value="Center" />
       <Setter Property="Background" Value="Transparent" />
     </Style>
+    <!-- The same, on and off ("Cho điều khiển"): lit with the accent while on. -->
+    <Style Selector="ToggleButton.round">
+      <Setter Property="Width" Value="40" />
+      <Setter Property="Height" Value="40" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="CornerRadius" Value="20" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
     <Style Selector="Button.round.close">
       <Setter Property="Background" Value="{DynamicResource Sk.TileBackground}" />
       <Setter Property="Foreground" Value="{DynamicResource Sk.MutedText}" />
@@ -1244,16 +1255,46 @@
                   <ItemsControl ItemsSource="{Binding Listeners}">
                     <ItemsControl.ItemTemplate>
                       <DataTemplate x:DataType="dvm:AudioListenerItem">
-                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,2">
-                          <Panel>
+                        <!-- What the host may do, for this listener alone; the buttons under the name on a narrow screen. -->
+                        <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,2">
+                          <Panel VerticalAlignment="Center">
                             <PathIcon Data="{StaticResource Icon.Laptop}" IsVisible="{Binding !IsPhone}" Width="16" Height="16" />
                             <PathIcon Data="{StaticResource Icon.Phone}" IsVisible="{Binding IsPhone}" Width="16" Height="16" />
                           </Panel>
-                          <TextBlock Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                        </StackPanel>
+                          <TextBlock Grid.Column="1" Text="{Binding Name}" Margin="8,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                          <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4">
+                            <ToggleButton Classes="round" IsChecked="{Binding AllowsControl}" IsVisible="{Binding CanOfferControl}"
+                                          AutomationProperties.Name="{l:T 'Cho điều khiển'}">
+                              <PathIcon Data="{StaticResource Icon.PlayPause}" Width="18" Height="18" />
+                            </ToggleButton>
+                            <Button Classes="round" Width="40" Height="40" CornerRadius="20" Command="{Binding StopCommand}"
+                                    AutomationProperties.Name="{l:T 'Ngừng phát'}">
+                              <PathIcon Data="{StaticResource Icon.SpeakerOff}" Width="18" Height="18" />
+                            </Button>
+                            <Button Classes="round" Width="40" Height="40" CornerRadius="20" Command="{Binding KeepOutCommand}"
+                                    AutomationProperties.Name="{l:T 'Không cho nghe'}">
+                              <PathIcon Data="{StaticResource Icon.Block}" Width="18" Height="18" />
+                            </Button>
+                          </StackPanel>
+                        </Grid>
                       </DataTemplate>
                     </ItemsControl.ItemTemplate>
                   </ItemsControl>
+                  <!-- What the icons of each listener do (no tooltips on a phone). -->
+                  <StackPanel Spacing="4" IsVisible="{Binding HasListeners}">
+                    <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding CanOfferControl}">
+                      <PathIcon Data="{StaticResource Icon.PlayPause}" Width="13" Height="13" Opacity="0.7" VerticalAlignment="Top" Margin="0,2,8,0" />
+                      <TextBlock Grid.Column="1" Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{l:T 'Cho điều khiển: máy đó bấm được Phát/Dừng, chuyển bài và âm lượng ở máy này.'}" />
+                    </Grid>
+                    <Grid ColumnDefinitions="Auto,*">
+                      <PathIcon Data="{StaticResource Icon.SpeakerOff}" Width="13" Height="13" Opacity="0.7" VerticalAlignment="Top" Margin="0,2,8,0" />
+                      <TextBlock Grid.Column="1" Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{l:T 'Ngừng phát: ngắt máy đó, máy đó bấm Nghe lại được.'}" />
+                    </Grid>
+                    <Grid ColumnDefinitions="Auto,*">
+                      <PathIcon Data="{StaticResource Icon.Block}" Width="13" Height="13" Opacity="0.7" VerticalAlignment="Top" Margin="0,2,8,0" />
+                      <TextBlock Grid.Column="1" Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{l:T 'Không cho nghe: máy đó không vào lại được cho tới khi bạn tắt rồi bật lại Phát âm thanh.'}" />
+                    </Grid>
+                  </StackPanel>
                 </StackPanel>
               </StackPanel>
             </Border>

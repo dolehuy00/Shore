@@ -40,6 +40,9 @@ public sealed record ShorekeeperSettings
     /// <summary>"Phát ra" (computer): the device "Nghe" plays on, by its system id; null for the default one.</summary>
     public string? AudioOutputDevice { get; init; }
 
+    /// <summary>"Cho điều khiển": listeners (device ids) that may press media keys here; nobody when null.</summary>
+    public List<string>? AudioControllers { get; init; }
+
     /// <summary>"Âm lượng" while listening, in percent by source device id; a source not here plays at 100.</summary>
     public Dictionary<string, int>? ListenVolumes { get; init; }
 

@@ -133,6 +133,21 @@ public sealed record AudioJoinResponse(bool Control);
 /// <summary>Body of <c>POST /api/v1/audio/listeners/{sessionId}/keys</c>: a name from <see cref="Core.Platform.MediaKeyNames"/>.</summary>
 public sealed record AudioKeyBody(string Key);
 
+/// <summary>Body of <c>POST /audio/listening/{sessionId}/ended</c>, optional: <see cref="AudioEndReasons"/>; none means playing was turned off.</summary>
+public sealed record AudioEndedBody(string? Reason = null);
+
+public static class AudioEndReasons
+{
+    /// <summary>The source stopped playing to this device ("Ngừng phát"); it may listen again.</summary>
+    public const string Stopped = "stopped";
+
+    /// <summary>The source no longer lets this device listen ("Không cho nghe"), until it plays again.</summary>
+    public const string Removed = "removed";
+}
+
+/// <summary>Body of <c>POST /audio/listening/{sessionId}/control</c>: the source now lets this listener press media keys, or no longer.</summary>
+public sealed record AudioControlBody(bool Allowed);
+
 /// <summary>
 /// Body of <c>POST /api/v1/chat/messages</c> (docs/15-chat.md §4): one message, its id made by the sender (32 hex digits,
 /// time ordered). A <see cref="ChatKinds.Voice"/> message carries its Ogg Opus file in <paramref name="Audio"/>, how long
@@ -216,5 +231,8 @@ public static class ApiErrorCodes
     public const string Busy = "busy";
     public const string PasswordRequired = "password_required";
     public const string WrongPassword = "wrong_password";
+
+    /// <summary>The source no longer lets this device listen, until it turns playing off and on again.</summary>
+    public const string Removed = "removed";
     public const string Internal = "internal_error";
 }

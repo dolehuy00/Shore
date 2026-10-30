@@ -50,6 +50,9 @@ public sealed record EffectiveSettings
     /// <inheritdoc cref="ShorekeeperSettings.AudioOutputDevice"/>
     public string? AudioOutputDevice { get; init; }
 
+    /// <inheritdoc cref="ShorekeeperSettings.AudioControllers"/>
+    public IReadOnlySet<string> AudioControllers { get; init; } = new HashSet<string>();
+
     /// <summary>"Âm lượng" goes up to this: a quiet source can be heard louder than it plays.</summary>
     public const int MaxListenVolume = 150;
 

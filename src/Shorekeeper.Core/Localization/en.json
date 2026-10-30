@@ -711,5 +711,13 @@
   "“{0}” là file chạy được (chương trình, script hoặc lối tắt): mở nó là chạy nó trên máy này với quyền của bạn. Chỉ mở khi bạn biết rõ file này là gì và ai gửi.": "“{0}” is a file that runs (a program, a script or a shortcut): opening it runs it on this computer with your rights. Open it only if you know what it is and who sent it.",
   "Vẫn mở": "Open anyway",
   "Âm lượng trên máy này": "Volume on this device",
-  "Chỉ đổi tiếng ở máy này, nhớ riêng cho từng máy phát; máy phát và người khác đang nghe không bị ảnh hưởng.": "Changes the sound on this device only, remembered for each source; the source and others listening are not affected."
+  "Chỉ đổi tiếng ở máy này, nhớ riêng cho từng máy phát; máy phát và người khác đang nghe không bị ảnh hưởng.": "Changes the sound on this device only, remembered for each source; the source and others listening are not affected.",
+  "Cho điều khiển": "Allow control",
+  "Ngừng phát": "Stop playing",
+  "Không cho nghe": "Don't let listen",
+  "Cho điều khiển: máy đó bấm được Phát/Dừng, chuyển bài và âm lượng ở máy này.": "Allow control: that device can play/pause, skip and change the volume here.",
+  "Không cho nghe: máy đó không vào lại được cho tới khi bạn tắt rồi bật lại Phát âm thanh.": "Don't let listen: that device cannot come back until you turn Play sound off and on again.",
+  "{0} không cho bạn nghe nữa.": "{0} no longer lets you listen.",
+  "{0} đã ngừng phát cho bạn.": "{0} stopped playing to you.",
+  "Ngừng phát: ngắt máy đó, máy đó bấm Nghe lại được.": "Stop playing: cuts that device off; it can press Listen again."
 }

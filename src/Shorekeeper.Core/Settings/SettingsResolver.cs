@@ -105,6 +105,7 @@ public static class SettingsResolver
                 _ => AudioLatency.Low,
             },
             AudioOutputDevice = string.IsNullOrWhiteSpace(user.AudioOutputDevice) ? null : user.AudioOutputDevice,
+            AudioControllers = new HashSet<string>(user.AudioControllers ?? [], StringComparer.Ordinal),
             ListenVolumes = (user.ListenVolumes ?? new()).ToDictionary(
                 p => p.Key, p => Math.Clamp(p.Value, 0, EffectiveSettings.MaxListenVolume), StringComparer.Ordinal),
             AudioFromMicrophone = string.Equals(user.AudioSource, "mic", StringComparison.OrdinalIgnoreCase),

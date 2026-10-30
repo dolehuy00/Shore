@@ -50,6 +50,9 @@ public enum AudioJoinResult
 
     /// <summary>Too many wrong passwords from this caller lately.</summary>
     TooManyAttempts,
+
+    /// <summary>The source no longer lets this caller listen ("Không cho nghe"), until it plays again.</summary>
+    Removed,
 }
 
 /// <summary>
@@ -57,7 +60,9 @@ public enum AudioJoinResult
 /// with a fresh key and a UDP port of its own, and the source's password when it has one. The sound is captured only while someone listens, encoded once and sealed
 /// for each listener. Listeners prove they are still there every second; either side stops after a few silent seconds.
 /// A listener that misses packets asks for them again, and the source resends what it still has from the last 3 s.
-/// Where the source can press media keys (Windows), its listener may play, pause, skip and change the volume there.
+/// Where the source can press media keys (Windows), a listener it lets ("Cho điều khiển", per listener) may play, pause,
+/// skip and change the volume there. The source can also stop playing to one listener ("Ngừng phát"), or keep one out
+/// until it plays again ("Không cho nghe").
 /// </summary>
 public sealed class AudioService : IDisposable
 {
@@ -84,6 +89,9 @@ public sealed class AudioService : IDisposable
     private readonly Dictionary<DeviceId, (int Count, long Since)> wrongPasswords = [];
     private Broadcast? broadcast;
     private Listening? listening;
+
+    /// <summary>Listeners kept out with "Không cho nghe": they may not listen again until playing is turned off.</summary>
+    private readonly HashSet<DeviceId> removed = [];
 
     /// <summary>A level set while listening, saved on the next tick: a slider being dragged does not write each step.</summary>
     private (DeviceId Source, int Percent)? unsavedVolume;
@@ -124,8 +132,12 @@ public sealed class AudioService : IDisposable
     /// <summary>This device can play its sound for others (it can capture its speakers).</summary>
     public bool CanPlay => capture is not null;
 
-    /// <summary>Our listeners may press media keys here ("Điều khiển").</summary>
+    /// <summary>Media keys can be pressed here, so "Cho điều khiển" can be offered to listeners.</summary>
     public bool CanBeControlled => mediaKeys is not null;
+
+    /// <summary>"Cho điều khiển": <paramref name="listener"/> may press media keys here (remembered per device).</summary>
+    public bool AllowsControl(DeviceId listener) =>
+        mediaKeys is not null && settings.Current.AudioControllers.Contains(listener.Value);
 
     /// <summary>The device we listen to lets us press its media keys (<see cref="PressAsync"/>).</summary>
     public bool CanControlListened
@@ -193,6 +205,7 @@ public sealed class AudioService : IDisposable
             if (!on)
             {
                 (ended, broadcast) = (broadcast, null);
+                removed.Clear();
             }
         }
 
@@ -223,6 +236,64 @@ public sealed class AudioService : IDisposable
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>"Cho điều khiển" for one listener; remembered, and a listener listening now learns at once.</summary>
+    public void SetAllowControl(DeviceId listener, bool allowed)
+    {
+        settings.Update(s =>
+        {
+            var controllers = new HashSet<string>(s.AudioControllers ?? [], StringComparer.Ordinal);
+            if (allowed)
+            {
+                controllers.Add(listener.Value);
+            }
+            else
+            {
+                controllers.Remove(listener.Value);
+            }
+
+            return s with { AudioControllers = controllers.Count == 0 ? null : [.. controllers.Order(StringComparer.Ordinal)] };
+        });
+        logger.LogInformation("{Peer} may control: {Allowed}", listener, allowed);
+        foreach (AudioListener info in Listeners.Where(l => l.PeerId == listener))
+        {
+            _ = TellControlAsync(info, AllowsControl(listener));
+        }
+
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// "Ngừng phát" (<paramref name="keepOut"/> false): stops playing to <paramref name="listener"/>, which may listen again.
+    /// "Không cho nghe" (true): also keeps it out until playing is turned off.
+    /// </summary>
+    public void StopListener(DeviceId listener, bool keepOut)
+    {
+        AudioListener[] stopped;
+        lock (gate)
+        {
+            if (!presence.PlayingAudio)
+            {
+                return;
+            }
+
+            if (keepOut)
+            {
+                removed.Add(listener);
+            }
+
+            stopped = broadcast is null ? [] : [.. broadcast.Listeners.Where(l => l.Info.PeerId == listener).Select(l => l.Info)];
+        }
+
+        RemoveListener(l => l.Info.PeerId == listener);
+        foreach (AudioListener info in stopped)
+        {
+            _ = TellEndedAsync(info, keepOut ? AudioEndReasons.Removed : AudioEndReasons.Stopped);
+        }
+
+        logger.LogInformation("Stopped playing to {Peer} ({How})", listener, keepOut ? "kept out" : "may come back");
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
     internal AudioJoinResult HandleJoin(DeviceId caller, IPAddress address, AudioListenBody body)
     {
         if (!IsValidSessionId(body.SessionId) || body.Port is < 1 or > 65535 || Key(body.Key) is not { } key)
@@ -233,6 +304,14 @@ public sealed class AudioService : IDisposable
         if (!presence.PlayingAudio || capture is null)
         {
             return AudioJoinResult.NotPlaying;
+        }
+
+        lock (gate)
+        {
+            if (removed.Contains(caller))
+            {
+                return AudioJoinResult.Removed;
+            }
         }
 
         if (CheckPassword(caller, body.Password) is { } refused)
@@ -288,13 +367,13 @@ public sealed class AudioService : IDisposable
             listens = broadcast?.Listeners.Any(l => l.Info.PeerId == caller && l.Info.SessionId == sessionId) == true;
         }
 
-        if (!listens || mediaKeys is null)
+        if (!listens || !AllowsControl(caller))
         {
             return false;
         }
 
         logger.LogInformation("{Peer} pressed {Key}", caller, key);
-        mediaKeys.Press(key);
+        mediaKeys!.Press(key);
         return true;
     }
 
@@ -503,7 +582,7 @@ public sealed class AudioService : IDisposable
         }
     }
 
-    internal void HandleEnded(DeviceId caller, string sessionId)
+    internal void HandleEnded(DeviceId caller, string sessionId, string? reason)
     {
         Listening? session;
         lock (gate)
@@ -513,8 +592,29 @@ public sealed class AudioService : IDisposable
 
         if (session is not null && EndListening(session))
         {
-            Notice?.Invoke(this, L.F("{0} đã tắt phát âm thanh.", session.Name));
+            Notice?.Invoke(this, reason switch
+            {
+                AudioEndReasons.Removed => L.F("{0} không cho bạn nghe nữa.", session.Name),
+                AudioEndReasons.Stopped => L.F("{0} đã ngừng phát cho bạn.", session.Name),
+                _ => L.F("{0} đã tắt phát âm thanh.", session.Name),
+            });
         }
+    }
+
+    /// <summary>The source we listen to now lets us press its media keys, or no longer.</summary>
+    internal void HandleControl(DeviceId caller, string sessionId, bool allowed)
+    {
+        lock (gate)
+        {
+            if (listening is not { } current || current.PeerId != caller || current.Id != sessionId || current.CanControl == allowed)
+            {
+                return;
+            }
+
+            current.CanControl = allowed;
+        }
+
+        Changed?.Invoke(this, EventArgs.Empty);
     }
 
     public void Dispose()
@@ -590,7 +690,6 @@ public sealed class AudioService : IDisposable
         return removed;
     }
 
-    /// <returns>False when the session had already ended.</returns>
     private void SaveVolume()
     {
         (DeviceId Source, int Percent)? pending;
@@ -620,6 +719,7 @@ public sealed class AudioService : IDisposable
         });
     }
 
+    /// <returns>False when the session had already ended.</returns>
     private bool EndListening(Listening session)
     {
         lock (gate)
@@ -652,18 +752,43 @@ public sealed class AudioService : IDisposable
         }
     }
 
-    private async Task TellEndedAsync(AudioListener listener)
+    private async Task TellEndedAsync(AudioListener listener, string? reason = null)
     {
         try
         {
             using HttpResponseMessage response = await client.SendAsync(
-                listener.PeerId, b => new HttpRequestMessage(HttpMethod.Post, new Uri(b, $"audio/listening/{listener.SessionId}/ended")),
-                RequestTimeout, CancellationToken.None);
+                listener.PeerId,
+                b => new HttpRequestMessage(HttpMethod.Post, new Uri(b, $"audio/listening/{listener.SessionId}/ended"))
+                {
+                    Content = reason is null ? null : JsonContent.Create(new AudioEndedBody(reason)),
+                },
+                RequestTimeout,
+                CancellationToken.None);
         }
         catch (Exception ex) when (ex is PeerUnreachableException or HttpRequestException or OperationCanceledException)
         {
             // It notices the silence by itself.
             logger.LogDebug(ex, "Could not tell {Peer} the sound stopped", listener.PeerId);
+        }
+    }
+
+    private async Task TellControlAsync(AudioListener listener, bool allowed)
+    {
+        try
+        {
+            using HttpResponseMessage response = await client.SendAsync(
+                listener.PeerId,
+                b => new HttpRequestMessage(HttpMethod.Post, new Uri(b, $"audio/listening/{listener.SessionId}/control"))
+                {
+                    Content = JsonContent.Create(new AudioControlBody(allowed)),
+                },
+                RequestTimeout,
+                CancellationToken.None);
+        }
+        catch (Exception ex) when (ex is PeerUnreachableException or HttpRequestException or OperationCanceledException)
+        {
+            // Its keys are refused anyway; it learns again when it listens next.
+            logger.LogDebug(ex, "Could not tell {Peer} about control", listener.PeerId);
         }
     }
 
@@ -1009,7 +1134,7 @@ public sealed class AudioService : IDisposable
         }
 
         /// <summary>The source said we may press its media keys.</summary>
-        public bool CanControl { get; set; }
+        public volatile bool CanControl;
 
         public void Play(IAudioOutput output, string title, Action stopRequested, Action<MediaKey>? keyRequested, string? device)
         {

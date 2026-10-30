@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.Extensions.DependencyInjection;
@@ -58,8 +59,8 @@ public sealed class AudioTests : IAsyncLifetime
         phone.Audio.SetListenVolume(50);
 
         Assert.Equal(50, phone.Audio.ListenVolume);
-        await WaitUntil(() => headphones.Peak is > 0 and < 6000);
-        Assert.InRange(headphones.Peak, full * 4 / 10, full * 6 / 10);
+        // Past the frame that glides down: about half as loud.
+        await WaitUntil(() => headphones.Peak >= full * 4 / 10 && headphones.Peak <= full * 6 / 10);
         // The source plays on as before: only this device hears it softer.
         Assert.True(speakers.IsRunning);
 
@@ -108,6 +109,7 @@ public sealed class AudioTests : IAsyncLifetime
     {
         await pc.ConnectAsync(phone);
         pc.Audio.SetPlaying(true);
+        pc.Audio.SetAllowControl(phone.Id, true);
         await phone.Audio.ListenAsync(pc.Id, cancellationToken: Ct);
 
         Assert.True(phone.Audio.CanControlListened);
@@ -118,10 +120,76 @@ public sealed class AudioTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_listener_controls_the_source_only_while_the_source_lets_it()
+    {
+        await pc.ConnectAsync(phone);
+        pc.Audio.SetPlaying(true);
+        await phone.Audio.ListenAsync(pc.Id, cancellationToken: Ct);
+        await WaitUntil(() => pc.Audio.Listeners.Count == 1);
+
+        // Off until the source says so, for each listener.
+        Assert.False(phone.Audio.CanControlListened);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => phone.Audio.PressAsync(MediaKey.PlayPause, Ct));
+
+        pc.Audio.SetAllowControl(phone.Id, true);
+        await WaitUntil(() => phone.Audio.CanControlListened);
+        await phone.Audio.PressAsync(MediaKey.Next, Ct);
+        Assert.True(pc.Audio.AllowsControl(phone.Id));
+
+        pc.Audio.SetAllowControl(phone.Id, false);
+        await WaitUntil(() => !phone.Audio.CanControlListened);
+        Assert.Equal([MediaKey.Next], keys.Pressed);
+    }
+
+    [Fact]
+    public async Task The_source_stops_playing_to_one_listener_which_may_listen_again()
+    {
+        await pc.ConnectAsync(phone);
+        pc.Audio.SetPlaying(true);
+        var notices = new ConcurrentQueue<string>();
+        phone.Audio.Notice += (_, notice) => notices.Enqueue(notice);
+        await phone.Audio.ListenAsync(pc.Id, cancellationToken: Ct);
+        await WaitUntil(() => pc.Audio.Listeners.Count == 1);
+
+        pc.Audio.StopListener(phone.Id, keepOut: false);
+
+        Assert.Empty(pc.Audio.Listeners);
+        Assert.True(pc.Audio.IsPlaying);
+        await WaitUntil(() => phone.Audio.ListeningTo is null);
+        await WaitUntil(() => notices.Any(n => n.Contains("ngừng phát cho bạn")));
+        await phone.Audio.ListenAsync(pc.Id, cancellationToken: Ct);
+        Assert.Equal(phone.Id, Assert.Single(pc.Audio.Listeners).PeerId);
+    }
+
+    [Fact]
+    public async Task A_listener_kept_out_cannot_listen_until_the_source_plays_again()
+    {
+        await pc.ConnectAsync(phone);
+        pc.Audio.SetPlaying(true);
+        var notices = new ConcurrentQueue<string>();
+        phone.Audio.Notice += (_, notice) => notices.Enqueue(notice);
+        await phone.Audio.ListenAsync(pc.Id, cancellationToken: Ct);
+        await WaitUntil(() => pc.Audio.Listeners.Count == 1);
+
+        pc.Audio.StopListener(phone.Id, keepOut: true);
+
+        await WaitUntil(() => phone.Audio.ListeningTo is null);
+        await WaitUntil(() => notices.Any(n => n.Contains("không cho bạn nghe nữa")));
+        var refused = await Assert.ThrowsAsync<PeerApiException>(() => phone.Audio.ListenAsync(pc.Id, cancellationToken: Ct));
+        Assert.Equal(ApiErrorCodes.Removed, refused.Code);
+
+        pc.Audio.SetPlaying(false);
+        pc.Audio.SetPlaying(true);
+        await phone.Audio.ListenAsync(pc.Id, cancellationToken: Ct);
+        Assert.Equal(phone.Id, Assert.Single(pc.Audio.Listeners).PeerId);
+    }
+
+    [Fact]
     public async Task Only_a_listener_in_its_session_presses_keys()
     {
         await pc.ConnectAsync(phone);
         pc.Audio.SetPlaying(true);
+        pc.Audio.SetAllowControl(phone.Id, true);
         var client = phone.Get<PeerClient>();
         async Task<HttpStatusCode> PressAsync(string session, string key)
         {

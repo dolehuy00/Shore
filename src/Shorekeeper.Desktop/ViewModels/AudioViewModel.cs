@@ -15,8 +15,37 @@ using Shorekeeper.Engine.Trust;
 
 namespace Shorekeeper.Desktop.ViewModels;
 
-/// <summary>A device listening to ours.</summary>
-public sealed record AudioListenerItem(string Name, bool IsPhone);
+/// <summary>A device listening to ours, and what we may do about it, for that device alone.</summary>
+public sealed partial class AudioListenerItem(AudioViewModel owner, DeviceId deviceId, string name, bool isPhone, bool canOfferControl, bool allowsControl)
+{
+    private bool allowsControl = allowsControl;
+
+    public string Name { get; } = name;
+
+    public bool IsPhone { get; } = isPhone;
+
+    /// <summary>This device can press media keys, so "Cho điều khiển" is offered.</summary>
+    public bool CanOfferControl { get; } = canOfferControl;
+
+    /// <summary>"Cho điều khiển": that listener may play, pause, skip and change the volume here (remembered).</summary>
+    public bool AllowsControl
+    {
+        get => allowsControl;
+        set
+        {
+            allowsControl = value;
+            owner.SetAllowControl(deviceId, value);
+        }
+    }
+
+    /// <summary>"Ngừng phát": the sound stops going there; it may listen again.</summary>
+    [RelayCommand]
+    private void Stop() => owner.StopListener(deviceId, keepOut: false);
+
+    /// <summary>"Không cho nghe": stopped, and kept out until playing is turned off and on.</summary>
+    [RelayCommand]
+    private void KeepOut() => owner.StopListener(deviceId, keepOut: true);
+}
 
 /// <summary>A phone paired over Bluetooth, as "Nhận âm thanh qua Bluetooth" lists it.</summary>
 public sealed partial class BluetoothSourceItem(AudioViewModel owner, BluetoothAudioSource source)
@@ -141,6 +170,9 @@ public sealed partial class AudioViewModel : ObservableObject
     public partial IReadOnlyList<AudioListenerItem> Listeners { get; set; } = [];
 
     public bool HasListeners => Listeners.Count > 0;
+
+    /// <summary>This device can press media keys, so each listener may be given "Cho điều khiển" (Windows).</summary>
+    public bool CanOfferControl => audio.CanBeControlled;
 
     /// <summary>Listeners must give the password (set on this page).</summary>
     [ObservableProperty]
@@ -353,6 +385,10 @@ public sealed partial class AudioViewModel : ObservableObject
         }
     }
 
+    internal void SetAllowControl(DeviceId listener, bool allowed) => audio.SetAllowControl(listener, allowed);
+
+    internal void StopListener(DeviceId listener, bool keepOut) => audio.StopListener(listener, keepOut);
+
     internal async Task ConnectBluetoothAsync(BluetoothAudioSource source)
     {
         try
@@ -396,6 +432,10 @@ public sealed partial class AudioViewModel : ObservableObject
             {
                 await ListenAsync(source, retry);
             }
+        }
+        catch (PeerApiException ex) when (ex.Code == ApiErrorCodes.Removed)
+        {
+            Notice?.Invoke(this, L.F("{0} không cho bạn nghe nữa.", source.Name));
         }
         catch (PeerApiException ex)
         {
@@ -446,7 +486,8 @@ public sealed partial class AudioViewModel : ObservableObject
         IsPlaying = audio.IsPlaying;
         refreshing = false;
         HasPassword = audio.HasPassword;
-        Listeners = [.. audio.Listeners.Select(l => new AudioListenerItem(NameOf(l.PeerId, null), IsPhone(l.PeerId)))];
+        Listeners = [.. audio.Listeners.Select(l => new AudioListenerItem(
+            this, l.PeerId, NameOf(l.PeerId, null), IsPhone(l.PeerId), audio.CanBeControlled, audio.AllowsControl(l.PeerId)))];
         ListeningText = audio.ListeningTo is { } peer ? L.F("Đang nghe âm thanh từ {0}", NameOf(peer, null)) : null;
         ControlTitle = audio.ListeningTo is { } source && audio.CanControlListened ? L.F("Điều khiển {0}", NameOf(source, null)) : null;
         OnListenVolumeChanged();

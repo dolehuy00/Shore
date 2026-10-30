@@ -200,7 +200,8 @@ public static class PeerApiEndpoints
             await request.ReadJsonAsync<AudioListenBody>() is not { } body ? Invalid()
             : audio.HandleJoin(request.Caller, request.RemoteAddress, body) switch
             {
-                AudioJoinResult.Joined => PeerResponse.Json(new AudioJoinResponse(audio.CanBeControlled)),
+                AudioJoinResult.Joined => PeerResponse.Json(new AudioJoinResponse(audio.AllowsControl(request.Caller))),
+                AudioJoinResult.Removed => PeerResponse.Problem(HttpStatusCode.Forbidden, ApiErrorCodes.Removed),
                 AudioJoinResult.NotPlaying => NotFound(),
                 AudioJoinResult.Full => Busy(),
                 AudioJoinResult.PasswordRequired => PeerResponse.Problem(HttpStatusCode.Forbidden, ApiErrorCodes.PasswordRequired),
@@ -222,9 +223,23 @@ public static class PeerApiEndpoints
         });
 
         // On the listener: the sound it listens to was turned off.
-        api.Map("POST", "/audio/listening/{sessionId}/ended", RequiredAccess.Trusted, request =>
+        // An older source sends no body: it turned playing off.
+        api.Map("POST", "/audio/listening/{sessionId}/ended", RequiredAccess.Trusted, async request =>
         {
-            audio.HandleEnded(request.Caller, request.Route("sessionId"));
+            AudioEndedBody? body = await request.ReadJsonAsync<AudioEndedBody>();
+            audio.HandleEnded(request.Caller, request.Route("sessionId"), body?.Reason);
+            return NoContent();
+        });
+
+        // On the listener: the source now lets us press its media keys, or no longer.
+        api.Map("POST", "/audio/listening/{sessionId}/control", RequiredAccess.Trusted, async request =>
+        {
+            if (await request.ReadJsonAsync<AudioControlBody>() is not { } body)
+            {
+                return Invalid();
+            }
+
+            audio.HandleControl(request.Caller, request.Route("sessionId"), body.Allowed);
             return NoContent();
         });
 

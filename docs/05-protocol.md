@@ -164,14 +164,17 @@ Bridge chỉ trả thông tin **vốn đã công khai** qua presence (tên, đ�
 
 Máy (máy tính hay điện thoại) bật **Phát âm thanh** thì presence có capability `audio`; liên hệ thấy và tự bấm **Nghe**. Hai hành động đó là sự đồng ý của hai bên, không có hộp hỏi thêm.
 
+Trong danh sách **Đang nghe**, máy phát làm được ba việc **riêng cho từng máy**: **Cho điều khiển** (mặc định tắt, nhớ theo máy; chỉ máy tính, vì cần bấm phím media), **Ngừng phát** (ngắt máy đó, máy đó bấm Nghe lại được) và **Không cho nghe** (ngắt và từ chối máy đó cho tới khi tắt rồi bật lại Phát âm thanh; danh sách này không lưu).
+
 Máy phát có thể đặt **mật khẩu nghe** (tùy chọn, nhớ lâu dài). Khi đó presence thêm `audio-locked`. Máy phát chỉ lưu `audioPasswordHash` trong settings.json: PBKDF2-SHA256 100 000 vòng, `base64(salt 16 byte · hash 32 byte)`. Máy nghe nhập một lần; mật khẩu dùng được thì lưu theo từng máy phát trong `audio-passwords.bin` (mã hóa bằng `ISecretProtector`), lần sau gửi kèm tự động; bị từ chối thì xóa và hỏi lại. Đổi hay bỏ mật khẩu không ngắt máy đang nghe.
 
 | Method | Path | Quyền | Mô tả |
 |---|---|---|---|
-| POST | `/audio/listeners` | Trusted | Trên máy phát. `{ sessionId, key, port, password? }`: `key` là 32 byte (base64) máy nghe vừa tạo, `port` là cổng UDP máy nghe đang mở ở địa chỉ gọi tới → `200 { control }` (`control`: máy nghe được bấm phím media ở đây; máy phát bản cũ trả `204`, coi như không). Chưa bật phát (hoặc không thu được loa) `404`; có mật khẩu mà không gửi `403 password_required`, sai `403 wrong_password`; sai 5 lần trong một phút thì `429 rate_limited` đến hết phút đó; đủ 4 máy nghe `503 busy`. Gọi lại thì thay phiên cũ |
-| POST | `/audio/listeners/{sessionId}/keys` | Trusted | **Điều khiển**: `{ key }` với `key` là `play-pause`, `next`, `previous`, `volume-up`, `volume-down` hoặc `mute` → `204`, máy phát bấm phím media đó như trên bàn phím (Windows). Chỉ máy đang nghe, đúng phiên của nó: không thì `404`; phím lạ `400` |
+| POST | `/audio/listeners` | Trusted | Trên máy phát. `{ sessionId, key, port, password? }`: `key` là 32 byte (base64) máy nghe vừa tạo, `port` là cổng UDP máy nghe đang mở ở địa chỉ gọi tới → `200 { control }` (`control`: máy phát cho máy nghe này bấm phím media ở đây, xem dưới; máy phát bản cũ trả `204`, coi như không). Chưa bật phát (hoặc không thu được loa) `404`; có mật khẩu mà không gửi `403 password_required`, sai `403 wrong_password`; sai 5 lần trong một phút thì `429 rate_limited` đến hết phút đó; đủ 4 máy nghe `503 busy`; máy phát đã **Không cho nghe** máy này `403 removed` (đến khi tắt rồi bật lại phát). Gọi lại thì thay phiên cũ |
+| POST | `/audio/listeners/{sessionId}/keys` | Trusted | **Điều khiển**: `{ key }` với `key` là `play-pause`, `next`, `previous`, `volume-up`, `volume-down` hoặc `mute` → `204`, máy phát bấm phím media đó như trên bàn phím (Windows). Chỉ máy đang nghe, đúng phiên của nó, và được **Cho điều khiển**: không thì `404`; phím lạ `400` |
 | DELETE | `/audio/listeners/{sessionId}` | Trusted | Máy nghe dừng nghe |
-| POST | `/audio/listening/{sessionId}/ended` | Trusted | Trên máy nghe: máy phát đã tắt phát |
+| POST | `/audio/listening/{sessionId}/ended` | Trusted | Trên máy nghe: phiên đã dừng. Body tùy chọn `{ reason }`: `stopped` (máy phát **Ngừng phát** cho máy này, nghe lại được), `removed` (**Không cho nghe**); không có body là máy phát đã tắt phát |
+| POST | `/audio/listening/{sessionId}/control` | Trusted | Trên máy nghe: `{ allowed }`, máy phát vừa cho (hay thôi cho) máy này điều khiển → `204`. Máy nghe bản cũ trả `403`, máy phát bỏ qua |
 
 **Luồng UDP** (máy phát → máy nghe), mỗi datagram một khung 10 ms:
 
