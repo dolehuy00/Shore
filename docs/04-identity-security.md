@@ -23,6 +23,7 @@
 - Mã hóa: PBKDF2-SHA256 (600.000 vòng) → khóa AES-256-GCM. Sai mật khẩu hoặc file bị sửa thì không mở được.
 - **Khôi phục…**: chọn file, nhập mật khẩu, xem tóm tắt (DeviceId, tên, số liên hệ/nhóm) rồi xác nhận. Bản sao lưu được ghi tạm (mã hóa như khóa thiết bị) và áp dụng **ở lần khởi động sau**, trước khi app dùng danh tính; app tự khởi động lại. Danh tính, liên hệ và nhóm hiện có bị thay; file khóa cũ được giữ lại (`identity.pfx.dpapi.replaced-…`).
 - Ai có file **và** mật khẩu có thể giả làm máy này. Không chạy cùng một danh tính trên hai máy cùng lúc.
+- Android: dữ liệu app (khóa, liên hệ, tin nhắn) không đi vào sao lưu của hệ thống hay sang điện thoại mới (`allowBackup="false"`, `dataExtractionRules`); đổi điện thoại thì dùng bản sao lưu có mật khẩu ở trên.
 
 ## 2. Kênh truyền: mutual TLS
 
@@ -119,14 +120,14 @@ shorekeeper://pair?id=<DeviceId máy tính>&a=<ip:port>,<ip:port>&k=<lời mời
 | Path traversal (`..\..\Windows`) | Chuẩn hóa `relativePath`; từ chối `..`, đường dẫn tuyệt đối, `:` (ADS), ký tự cấm; kiểm tra đích nằm trong thư mục nhận |
 | Tên thiết bị (`CON`, `NUL`…) | Đổi thành `_CON` |
 | Đuôi lừa (`hoa-don.pdf.exe`, ký tự RTL) | Loại ký tự điều khiển Unicode; UI hiển thị rõ đuôi thật |
-| File thực thi độc | Gắn **Mark of the Web** (`Zone.Identifier`) |
+| File thực thi độc | Gắn **Mark of the Web** (`Zone.Identifier`). Mở file chạy được (chương trình, bộ cài, script, lối tắt, ảnh đĩa: `.exe`, `.msi`, `.bat`, `.ps1`, `.js`, `.lnk`, `.iso`…) từ trang File hay Tin nhắn thì hỏi trước: **Mở thư mục** / **Vẫn mở** / **Hủy** |
 | Đầy đĩa | Kiểm tra dung lượng trống ≥ size + 1 GB trước khi tải |
 | Ghi đè | Không bao giờ. Trùng tên thì dùng `ten (1).ext` |
 | Spam offer từ người đã tin cậy | ≤ 10 offer/phút/peer; Chặn bằng 1 click |
 | `offerId` lạ (`\..\x`) đặt file tạm `.skpart` ra ngoài thư mục nhận | `offerId` chỉ gồm chữ, số, `-`, `_`, dài 8–64 ký tự; sai thì `400` |
 | Gửi tin mang `id` của tin thoại người khác (`id` không bí mật: thành viên nhóm đều thấy) để thay tiếng | Tin thoại nhận được luôn ghi vào file mới của riêng nó; tin đã có thì file mới bị xóa, file cũ không bị đụng |
 | App khác trên điện thoại "chia sẻ" một đường dẫn trần hay `file://` (vd. thư mục riêng của app, có khóa thiết bị và tin nhắn) | Chỉ nhận `content://` từ màn hình chia sẻ |
-| Máy lạ làm cạn bộ nhớ hay kết nối (Android) | Máy không phải liên hệ, không cùng nhóm chỉ gửi body ≤ 64 KB; body phải tới trong 60 giây; ≤ 32 kết nối mỗi địa chỉ IP |
+| Máy lạ làm cạn bộ nhớ hay kết nối | Máy không phải liên hệ, không cùng nhóm chỉ gửi body ≤ 64 KB; ≤ 32 kết nối mỗi địa chỉ IP; body phải tới trong 60 giây (Android), hay đủ tốc độ tối thiểu của Kestrel (máy tính) |
 | Máy bên kia trả lời khổng lồ (vd. ảnh đại diện vô tận) | Phản hồi đọc trọn (mọi thứ trừ dữ liệu file) tối đa 16 MB; dữ liệu file không vượt `size` đã báo |
 
 ## 6. Threat model

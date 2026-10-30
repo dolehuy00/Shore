@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
   <!-- Android 10 still needs the legacy flag (and the permission below) to write into Download/ by path. -->
-  <application android:label="Shorekeeper" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:supportsRtl="true" android:requestLegacyExternalStorage="true" />
+  <!-- No system backup of the app's data (messages, contacts, device key): see Resources/xml/data_extraction_rules.xml. -->
+  <application android:label="Shorekeeper" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:supportsRtl="true" android:requestLegacyExternalStorage="true"
+               android:allowBackup="false" android:fullBackupContent="false" android:dataExtractionRules="@xml/data_extraction_rules" />
   <uses-permission android:name="android.permission.INTERNET" />
   <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
   <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />

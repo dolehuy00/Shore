@@ -216,8 +216,8 @@ Giữa các thành viên một nhóm, theo danh sách thành viên của máy đ
 | Cửa sổ kết nối lại | 60 giây (15–300, cấu hình được) |
 | Offer mở tối đa | 24 giờ (cấu hình được) |
 | JSON request tối đa | 1 MB (≤ 10.000 file/offer) |
-| Body từ máy không phải liên hệ, không cùng nhóm (Android) | 64 KB; body phải tới hết trong 60 giây |
-| Kết nối vào API (Android) | 256, tối đa 32 mỗi địa chỉ IP |
+| Body từ máy không phải liên hệ, không cùng nhóm | 64 KB; Android: body phải tới hết trong 60 giây |
+| Kết nối vào API | 256, tối đa 32 mỗi địa chỉ IP |
 | Phản hồi đọc trọn (trừ dữ liệu file) | 16 MB |
 | File song song / người nhận | 4 |
 | Stream đồng thời phía người gửi | 16 |
