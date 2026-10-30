@@ -38,6 +38,7 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly IExternalFileSource external;
     private readonly GroupStore groups;
     private readonly SettingsService settings;
+    private readonly PeerNaming naming;
     private readonly LocalDevice device;
     private readonly AppPaths paths;
     private DispatcherTimer? noticeTimer;
@@ -54,6 +55,8 @@ public sealed partial class MainViewModel : ObservableObject
         external = services.GetRequiredService<IExternalFileSource>();
         groups = services.GetRequiredService<GroupStore>();
         settings = services.GetRequiredService<SettingsService>();
+        // Before the tabs: Nhóm names its members while it is being made, before Chat exists.
+        naming = services.GetRequiredService<PeerNaming>();
         device = services.GetRequiredService<LocalDevice>();
         paths = services.GetRequiredService<AppPaths>();
         finder = services.GetRequiredService<ManualPeerFinder>();
@@ -319,10 +322,10 @@ public sealed partial class MainViewModel : ObservableObject
             L.T("Máy này sẽ không gửi được yêu cầu kết nối hay file cho bạn nữa. Bỏ chặn trong Cài đặt."), L.T("Chặn"), null,
             _ => trust.BlockAsync(peer.DeviceId, peer.Name, peer.Host), this);
 
-    internal string NameOf(DeviceId id) => Chat.NameOf(id);
+    internal string NameOf(DeviceId id) => naming.Of(id);
 
     /// <param name="fallback">The name to use when nothing else knows it, e.g. its name in a group.</param>
-    internal string NameOf(DeviceId id, string fallback) => Chat.NameOf(id, fallback);
+    internal string NameOf(DeviceId id, string fallback) => naming.Of(id, fallback);
 
     /// <param name="invite">From the computer's QR code: it connects without the code being compared.</param>
     internal async Task ConnectAsync(DeviceId peer, string name, string? invite = null)
