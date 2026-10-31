@@ -19,6 +19,9 @@ public sealed partial class ChatBubbleViewModel(string id, ChatViewModel owner) 
     /// <summary>Until when "Thu hồi" is offered: never for theirs, any time for one still waiting.</summary>
     private DateTimeOffset recallUntil;
 
+    /// <summary>Until when "Sửa" is offered: ours in words only, any time for one not delivered yet.</summary>
+    private DateTimeOffset editUntil;
+
     /// <summary>For the check box while choosing.</summary>
     public ChatViewModel Owner => owner;
 
@@ -178,7 +181,18 @@ public sealed partial class ChatBubbleViewModel(string id, ChatViewModel owner) 
     [RelayCommand]
     private Task RecallAsync() => owner.RecallAsync(this);
 
-    internal override void RefreshRecall() => CanRecall = DateTimeOffset.UtcNow <= recallUntil;
+    /// <summary>Ours in words, sent less than fifteen minutes ago or not delivered yet (docs/18-chat-extras.md §5).</summary>
+    [ObservableProperty]
+    public partial bool CanEdit { get; set; }
+
+    [RelayCommand]
+    private void Edit() => owner.StartEdit(this);
+
+    internal override void RefreshRecall()
+    {
+        CanRecall = DateTimeOffset.UtcNow <= recallUntil;
+        CanEdit = DateTimeOffset.UtcNow <= editUntil;
+    }
 
     [RelayCommand]
     private void OpenLink(string link) => owner.OpenLink?.Invoke(link);
@@ -198,7 +212,9 @@ public sealed partial class ChatBubbleViewModel(string id, ChatViewModel owner) 
             _ => null,
         };
         ReplyTo = message.ReplyTo;
-        Show(message.Outgoing, message.Kind, TextOf(message), message.SentAt, message.State, message.DurationMs, message.Wave, message.VoicePath, state);
+        Show(
+            message.Outgoing, message.Kind, TextOf(message), message.SentAt, message.State, message.DurationMs, message.Wave, message.VoicePath, state,
+            message.EditedAt is not null);
         return this;
     }
 
@@ -223,13 +239,14 @@ public sealed partial class ChatBubbleViewModel(string id, ChatViewModel owner) 
                     : L.F("Đã nhận {0}/{1}", all.Count(d => d.State == GroupDeliveryState.Delivered), all.Count)
                 : null;
         Show(message.Outgoing, message.Kind, TextOf(message.Kind, message.Text, message.DurationMs, message.Outgoing && message.State == ChatMessageState.Pending),
-            message.SentAt, message.State, message.DurationMs, message.Wave, message.VoicePath, state);
+            message.SentAt, message.State, message.DurationMs, message.Wave, message.VoicePath, state, message.EditedAt is not null);
         return this;
     }
 
+    /// <param name="edited">Its words changed after it reached someone: "Đã sửa" by the time.</param>
     private void Show(
         bool outgoing, string messageKind, string text, DateTimeOffset sentAt, ChatMessageState messageState, int durationMs, byte[]? wave,
-        string? voicePath, string? state)
+        string? voicePath, string? state, bool edited)
     {
         IsMine = outgoing;
         IsVoice = messageKind == ChatKinds.Voice;
@@ -239,13 +256,17 @@ public sealed partial class ChatBubbleViewModel(string id, ChatViewModel owner) 
         recallUntil = !outgoing || messageKind is not (ChatKinds.Text or ChatKinds.Voice) ? DateTimeOffset.MinValue
             : messageState == ChatMessageState.Pending ? DateTimeOffset.MaxValue
             : sentAt + ChatService.RecallWindow;
+        editUntil = !outgoing || messageKind != ChatKinds.Text ? DateTimeOffset.MinValue
+            : messageState is ChatMessageState.Pending or ChatMessageState.Failed ? DateTimeOffset.MaxValue
+            : sentAt + ChatService.EditWindow;
         RecallText = ChatViewModel.RecallLabel(messageState == ChatMessageState.Pending);
         RefreshRecall();
+        // New lists only when the message changed (sent, recalled, edited): every refresh would build the rows again.
+        bool newWords = text != Text;
         Text = text;
-        // New lists only when the message changed (sent, recalled): every refresh would build the rows again.
         bool changed = messageKind != kind;
         kind = messageKind;
-        if (changed)
+        if (changed || newWords)
         {
             Links = messageKind == ChatKinds.Text ? TransferText.LinksIn(Text) : [];
         }
@@ -257,6 +278,7 @@ public sealed partial class ChatBubbleViewModel(string id, ChatViewModel owner) 
         }
         IsFailed = messageState == ChatMessageState.Failed;
         string time = sentAt.ToLocalTime().ToString("HH:mm", L.Culture);
+        time = edited ? $"{time} · {L.T("Đã sửa")}" : time;
         StatusText = state is null ? time : $"{time} · {state}";
     }
 

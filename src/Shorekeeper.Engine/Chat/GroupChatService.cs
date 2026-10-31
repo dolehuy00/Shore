@@ -39,10 +39,11 @@ public enum GroupDeliveryState
 /// <param name="OutOfGroup">Came while its author was out of the group, before this device knew (docs/16-group-chat.md §3.6).</param>
 /// <param name="ReplyTo">The message answered (<see cref="ChatReplies"/>).</param>
 /// <param name="Mentions">Members named with "@", or <see cref="ChatReplies.Everyone"/>.</param>
+/// <param name="EditedAt">When its words last changed after it reached someone ("Đã sửa"), on the author's clock.</param>
 public sealed record GroupChatMessage(
     string GroupId, string Id, DeviceId Author, string AuthorName, bool Outgoing, string Kind, string? Text, DateTimeOffset SentAt,
     ChatMessageState State, int DurationMs = 0, byte[]? Wave = null, string? VoicePath = null, bool OutOfGroup = false,
-    string? ReplyTo = null, IReadOnlyList<string>? Mentions = null);
+    string? ReplyTo = null, IReadOnlyList<string>? Mentions = null, DateTimeOffset? EditedAt = null);
 
 public sealed record GroupDelivery(DeviceId Peer, GroupDeliveryState State);
 
@@ -90,7 +91,7 @@ public sealed partial class GroupChatService : BackgroundService
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(15);
 
     private const string Columns =
-        "GroupId, Id, AuthorId, AuthorName, AuthorKey, Outgoing, Kind, Text, SentAt, State, DurationMs, Wave, VoicePath, Sig, OutOfGroup, ReplyTo, Mentions";
+        "GroupId, Id, AuthorId, AuthorName, AuthorKey, Outgoing, Kind, Text, SentAt, State, DurationMs, Wave, VoicePath, Sig, OutOfGroup, ReplyTo, Mentions, EditedAt, EditSig";
 
     private readonly Lock gate = new();
     private readonly HashSet<DeviceId> sending = [];
@@ -168,18 +169,7 @@ public sealed partial class GroupChatService : BackgroundService
     public async Task<GroupChatMessage> SendTextAsync(
         string groupId, string text, CancellationToken cancellationToken, string? replyTo = null, IReadOnlyList<string>? mentions = null)
     {
-        text = text.Trim();
-        if (text.Length == 0)
-        {
-            throw new ArgumentException("Nothing to send.", nameof(text));
-        }
-
-        if (text.Length > ChatService.MaxTextLength)
-        {
-            throw new ArgumentException(L.F("Tin nhắn dài tối đa {0:N0} ký tự.", ChatService.MaxTextLength), nameof(text));
-        }
-
-        return await StoreAndSendAsync(groupId, ChatKinds.Text, text, null, replyTo, mentions is { Count: > 0 } ? mentions : null, cancellationToken);
+        return await StoreAndSendAsync(groupId, ChatKinds.Text, ChatService.CheckText(text), null, replyTo, mentions is { Count: > 0 } ? mentions : null, cancellationToken);
     }
 
     /// <summary>Stores a recorded voice message, then sends it like a text.</summary>
@@ -439,6 +429,75 @@ public sealed partial class GroupChatService : BackgroundService
 
         DeleteFiles(files);
         Changed?.Invoke(this, groupId);
+    }
+
+    /// <summary>
+    /// "Sửa" (docs/18-chat-extras.md §5): new words for one of our text messages. One that reached nobody yet is signed
+    /// again and goes with them, not marked as edited. Otherwise, within <see cref="ChatService.EditWindow"/> of sending:
+    /// a signed edit, told to the members who have it and passed on with the message to all the others.
+    /// </summary>
+    /// <returns>False when it can no longer be edited (too late, taken back, or not one of our text messages).</returns>
+    /// <exception cref="ArgumentException">Empty, or longer than <see cref="ChatService.MaxTextLength"/>.</exception>
+    public async Task<bool> EditAsync(string groupId, string id, string text, CancellationToken cancellationToken)
+    {
+        text = ChatService.CheckText(text);
+        List<string> told;
+        await using (SqliteConnection connection = await database.OpenAsync(cancellationToken))
+        {
+            var found = (await connection.QueryAsync<MessageRow>(
+                $"SELECT {Columns} FROM ChatGroupMessages WHERE GroupId = @groupId AND Id = @id AND Outgoing = 1 AND Kind = 'text' AND Deleted = 0;",
+                new { groupId, id })).ToList();
+            if (found is not [var message])
+            {
+                return false;
+            }
+
+            told = [.. await connection.QueryAsync<string>(
+                "SELECT PeerId FROM ChatGroupDeliveries WHERE GroupId = @groupId AND Id = @id AND State IN ('delivered', 'read');", new { groupId, id })];
+            // Edited before: its signed edit goes with it, whoever has it now.
+            bool reached = told.Count > 0 || message.EditSig is not null;
+            if (reached && timeProvider.GetUtcNow().ToUnixTimeMilliseconds() - message.SentAt > (long)ChatService.EditWindow.TotalMilliseconds)
+            {
+                return false;
+            }
+
+            await SetWordsAsync(connection, message, text, edited: reached);
+            await connection.ExecuteAsync(
+                "INSERT OR IGNORE INTO ChatGroupEdits (GroupId, PeerId, Id) VALUES (@groupId, @peer, @id);", told.Select(peer => new { groupId, peer, id }));
+        }
+
+        Changed?.Invoke(this, groupId);
+        foreach (string peer in told)
+        {
+            Kick(DeviceId.Parse(peer));
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// New words for our <paramref name="message"/>: <paramref name="edited"/>, with a signed edit newer than any before
+    /// and a new place in Seq, so members pulling learn; otherwise the message signed again, as if sent so.
+    /// </summary>
+    private async Task SetWordsAsync(SqliteConnection connection, MessageRow message, string text, bool edited)
+    {
+        var content = new GroupChatContent(
+            message.GroupId, message.Id, engine.Identity.DeviceId, message.SentAt, ChatKinds.Text, text, 0, null, null,
+            message.ReplyTo, ChatReplies.Split(message.Mentions));
+        long editedAt = Math.Max(timeProvider.GetUtcNow().ToUnixTimeMilliseconds(), (message.EditedAt ?? 0) + 1);
+        using ECDsa privateKey = engine.Identity.Certificate.GetECDsaPrivateKey()!;
+        if (edited)
+        {
+            await connection.ExecuteAsync(
+                $"UPDATE ChatGroupMessages SET Text = @text, EditedAt = @editedAt, EditSig = @sig, Seq = {NextSeq} WHERE GroupId = @GroupId AND Id = @Id;",
+                new { text, editedAt, sig = GroupChatSignature.SignEdit(privateKey, content, editedAt), message.GroupId, message.Id });
+        }
+        else
+        {
+            await connection.ExecuteAsync(
+                "UPDATE ChatGroupMessages SET Text = @text, Sig = @sig WHERE GroupId = @GroupId AND Id = @Id;",
+                new { text, sig = GroupChatSignature.SignMessage(privateKey, content), message.GroupId, message.Id });
+        }
     }
 
     /// <summary>

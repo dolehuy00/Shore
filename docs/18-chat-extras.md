@@ -1,6 +1,6 @@
 # 18 — Tin nhắn: tìm, trả lời, @nhắc tên, sửa, cảm xúc (C6)
 
-> Trạng thái: **C6a, C6b xong** (2026-10-31); C6c–C6d theo kế hoạch đã chốt (§8). Nối tiếp [15](15-chat.md) (1-1) và [16](16-group-chat.md) (nhóm), lúc đó để sau: "@nhắc tên, cảm xúc, trả lời trích dẫn, sửa tin", và "tìm trong tin nhắn" ([17](17-ui-cleanup.md) U5a).
+> Trạng thái: **C6a, C6b, C6c xong** (2026-10-31); C6d theo kế hoạch đã chốt (§8). Nối tiếp [15](15-chat.md) (1-1) và [16](16-group-chat.md) (nhóm), lúc đó để sau: "@nhắc tên, cảm xúc, trả lời trích dẫn, sửa tin", và "tìm trong tin nhắn" ([17](17-ui-cleanup.md) U5a).
 
 ## 1. Mục tiêu
 
@@ -17,7 +17,7 @@ Thứ tự làm: **C6a tìm** (không đổi giao thức) → **C6b trả lời 
 ## 2. Tương thích bản cũ
 
 - Presence thêm `caps: "chat2"`. Máy không có `chat2` vẫn nhắn được như hiện nay; những gì mới chỉ đi tới máy có `chat2`.
-- **1-1**: máy cũ bỏ qua trường lạ ([15 §4](15-chat.md)), nên tin có `replyTo` vẫn tới, chỉ không hiện phần trích. Lệnh sửa và cảm xúc đi route mới, chỉ gửi cho máy có `chat2`; máy cũ vẫn thấy chữ cũ, không thấy cảm xúc.
+- **1-1**: máy cũ bỏ qua trường lạ ([15 §4](15-chat.md)), nên tin có `replyTo` vẫn tới, chỉ không hiện phần trích. Lệnh sửa và cảm xúc đi route mới; máy cũ từ chối route lạ nên lệnh bị bỏ, và nó vẫn thấy chữ cũ, không thấy cảm xúc.
 - **Nhóm**: chữ ký là chuỗi byte cố định có tiền tố phiên bản ([16 §3.5](16-group-chat.md)). Tin có trường mới ký bằng `shorekeeper-group-chat/2`, gồm thêm `replyTo` và `mentions`; tin không có trường mới vẫn ký `/1`. Máy cũ không kiểm được `/2` nên sẽ bỏ tin. Vì vậy tin `/2` không gửi cho thành viên chưa có `chat2`, và với người đó tin mang trạng thái `old` ("Máy này chưa cập nhật"), như máy chưa có chat nhóm hiện nay.
 
 ## 3. C6a — Tìm theo nội dung tin nhắn ✅ (2026-10-31)
@@ -79,17 +79,55 @@ Thứ tự làm: **C6a tìm** (không đổi giao thức) → **C6b trả lời 
   - Chưa thử: thông báo khi nhóm đã Tắt thông báo (code đã có trên cả hai app).
 - Chỗ chưa đẹp: trên bong bóng của mình (nền màu nhấn), vạch màu của khung trích lẫn vào nền.
 
-## 5. C6c — Sửa tin
+## 5. C6c — Sửa tin ✅ (2026-10-31)
 
-- Chỉ sửa được **tin chữ của mình**, trong **15 phút** sau khi tới được người nhận (§8 Q1). Tin còn chờ gửi thì sửa lúc nào cũng được (như Hủy gửi): tin đi với chữ mới, không có dấu "đã sửa". Không sửa được tin thoại hay thẻ file.
-- Bong bóng ghi "· Đã sửa" cạnh giờ. Chỉ giữ chữ mới nhất, không giữ lịch sử các lần sửa.
-- **1-1**: `POST /chat/edits` `{ id, text, editedAt }`. Chờ gửi như thu hồi (`ChatEdits`, mới nhất thắng); chỉ gửi cho máy có `chat2`.
-- **Nhóm**:
-  - Lệnh sửa ký `shorekeeper-group-edit/1` (`groupId`, `id`, `authorId`, `sentAt` của tin, `text`, `editedAt`).
-  - Gửi tới các thành viên như thu hồi, và **được chuyển hộ**: sửa thì `Seq` của tin tăng, nên `index` / `fetch` đưa bản mới kèm lệnh sửa đã ký. Máy offline lúc sửa vẫn nhận được chữ mới.
-  - Chỉ tác giả sửa được: chữ ký phải khớp `authorId` của tin gốc.
-- Thu hồi sau khi sửa được, sửa sau khi thu hồi thì không. Phần trích (C6b) hiện chữ mới nhất của tin gốc. `SearchText` (C6a) đổi theo.
-- **Xong khi**: test Engine (1-1, nhóm, chuyển hộ bản sửa, người khác giả lệnh sửa thì bị bỏ, quá 15 phút thì từ chối, sửa khi còn chờ gửi); test UI "Đã sửa"; thử thật PC ↔ điện thoại.
+**Ai sửa được gì**
+- Chỉ **tin chữ của mình**. Không sửa được tin thoại, thẻ file, hay tin đã thu hồi; thu hồi sau khi sửa thì vẫn được.
+- **Thời hạn:**
+  - Tin đã tới ai đó: trong **15 phút** tính từ lúc gửi (`ChatService.EditWindow`). Lấy mốc giờ gửi như thu hồi, vì không lưu lúc tin tới. Như vậy tin chờ gửi lâu rồi mới tới thì còn ít thời gian sửa.
+  - Tin chưa tới ai (1-1: chờ gửi hay không gửi được; nhóm: chưa tới thành viên nào): **lúc nào cũng được**. Tin đi luôn với chữ mới và **không** có dấu "Đã sửa" (nhóm: tin được ký lại).
+- Thời hạn do **máy người gửi** giữ. Máy nhận không kiểm, vì đồng hồ hai máy có thể lệch.
+- Chỉ giữ chữ mới nhất, không giữ lịch sử. Phần trích (C6b), tìm kiếm (C6a) và dòng xem trước trong danh sách đều theo chữ mới. Tin sửa thì không có thông báo mới.
+
+**Giao diện**
+- Mục **Sửa** trong menu chuột phải (PC) hay nhấn giữ (điện thoại) của tin. Chữ cũ hiện vào ô soạn, phía trên có dải "Sửa tin nhắn" với ✕. Gửi thì thay chữ; ✕, mở hội thoại khác, hay bấm Trả lời thì thôi sửa và xóa ô soạn.
+- Bong bóng ghi "· Đã sửa" ngay sau giờ, trước trạng thái: "22:06 · Đã sửa · Đã xem".
+- Quá hạn trong lúc đang sửa thì gửi không được, và hiện "Tin nhắn này không còn sửa được.".
+
+**1-1**
+- `POST /chat/edits` `{ id, text, editedAt }`. Máy nhận đổi chữ nếu `editedAt` mới hơn lần sửa đang có: lệnh sửa cũ tới sau không đè được lệnh mới.
+- Hàng đợi `ChatEdits` chỉ giữ id; lúc gửi mới đọc chữ mới nhất, nên sửa nhiều lần khi người kia offline chỉ gửi một lần. Bản cũ không có route này thì từ chối, và lệnh sửa bị bỏ.
+
+**Nhóm**
+- Lệnh sửa ký `shorekeeper-group-edit/1`. Phần ký gồm `groupId`, `id`, tác giả, `sentAt`, **chữ mới**, `replyTo`, `mentions` và `editedAt`, tức mọi thứ chữ ký của tin gốc che, chỉ thay chữ.
+  - Vì thế khi chuyển hộ, tin đã sửa **tự đứng được bằng chữ ký sửa**. `GroupChatMessageBody` mang thêm `editedAt` và `editSig`; máy nhận kiểm chữ ký sửa thay cho chữ ký gốc (chữ ký gốc ký chữ cũ). Không phải giữ chữ cũ để chuyển hộ.
+  - Chỉ tác giả sửa được: lệnh sửa phải ký bằng đúng khóa đi kèm tin.
+- Thành viên đã có tin được báo qua `POST /chat/groups/{id}/edits`, hàng đợi `ChatGroupEdits`. Thành viên chưa nhận tin thì nhận luôn tin đã sửa.
+- **Chuyển hộ:** sửa thì `Seq` của tin tăng, và mục lục có thêm `editedAt`. Máy kéo thấy bản sửa mới hơn bản mình có thì tải lại tin đó. Máy offline lúc sửa vẫn nhận được chữ mới từ bất kỳ thành viên nào.
+- Thành viên chưa có `chat2` mà còn chờ nhận tin đã sửa thì mang trạng thái `old`, như tin có trả lời hay nhắc tên.
+- **Sửa đúng lúc tin đang trên đường đi** (máy kia nhận chữ cũ): sau khi gửi xong, máy gửi thấy chữ đã khác thì báo thêm một lệnh sửa bình thường cho máy đó. Tin nhóm ký lại khi chưa tới ai thì đổi thành tin đã sửa có ký. Cả hai bên ghi "Đã sửa".
+- Lệnh sửa không đổi `mentions`: xóa chữ "@Tên" khi sửa thì người đó vẫn được tính là bị nhắc.
+
+**Engine và lưu trữ**
+- `ChatService.EditAsync` và `GroupChatService.EditAsync` trả `false` khi không còn sửa được.
+- `ChatMessage.EditedAt` và `GroupChatMessage.EditedAt`.
+- Migration `0018_chat_edits.sql`: `EditedAt` cho hai bảng tin, `EditSig` cho tin nhóm, và hai bảng hàng đợi.
+
+**Đã kiểm**:
+- Test Engine:
+  - 1-1: sửa tới máy kia và tìm theo chữ mới; tin còn chờ gửi thì đi với chữ mới, không có dấu; quá 15 phút, tin thoại, chữ rỗng hay tin đã thu hồi thì không sửa được; người nhận không sửa được tin của người gửi; lệnh sửa cũ không đè lệnh mới.
+  - Nhóm:
+    - lệnh sửa tới mọi thành viên, `mentions` vẫn giữ;
+    - người mới vào nhận tin đã sửa kèm chữ ký sửa;
+    - thành viên có tin từ người khác vẫn kéo được bản sửa;
+    - người chuyển hộ sửa chữ thì tin bị bỏ;
+    - tin chưa tới ai thì đi với chữ mới, không có dấu;
+    - chỉ tác giả sửa được, và trong 15 phút.
+  - Thử ngược: bỏ kiểm chữ ký sửa ở cả hai chỗ, bỏ điều kiện kéo bản sửa mới, hay bỏ nhánh tin còn chờ gửi thì các test tương ứng báo lỗi.
+- Test UI: "Sửa" chỉ có trên tin chữ của mình trong 15 phút (hay khi chưa tới ai); "Đã sửa" cạnh giờ; đường link theo chữ mới.
+- Thử thật PC và Nubia (2026-10-31):
+  - 1-1: PC sửa "C6c hop luc 3 gio" thành "…4 gio nhe", Nubia hiện chữ mới và "Đã sửa". Ngược lại, Nubia sửa tin của mình, PC hiện chữ mới và "Đã sửa".
+  - Nhóm tạm: Nubia sửa tin nhóm đã tới PC; PC hiện chữ mới và "Đã sửa", tức chữ ký sửa được kiểm qua.
 
 ## 6. C6d — Thả cảm xúc
 

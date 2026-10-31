@@ -294,6 +294,76 @@ public sealed class ChatTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task An_edited_message_has_its_new_words_on_both_sides()
+    {
+        ChatMessage sent = await a.Chat.SendTextAsync(b.Id, "họp 3 giờ", Ct);
+        await WaitUntil(() => State(a, b, sent.Id) == ChatMessageState.Delivered);
+
+        Assert.True(await a.Chat.EditAsync(b.Id, sent.Id, " họp 4 giờ ", Ct));
+
+        ChatMessage mine = Assert.Single(await a.Chat.GetMessagesAsync(b.Id, Ct));
+        Assert.Equal("họp 4 giờ", mine.Text);
+        Assert.NotNull(mine.EditedAt);
+        await WaitUntil(() => b.Chat.GetMessagesAsync(a.Id, Ct).Result.Single().Text == "họp 4 giờ");
+        Assert.Equal(mine.EditedAt, (await b.Chat.GetMessagesAsync(a.Id, Ct)).Single().EditedAt);
+        Assert.Equal([sent.Id], (await b.Chat.FindAsync("4 gio", 50, Ct)).Select(m => m.Id));
+        Assert.Empty(await b.Chat.FindAsync("3 gio", 50, Ct));
+    }
+
+    [Fact]
+    public async Task A_message_still_waiting_goes_with_its_new_words_unmarked()
+    {
+        a.Directory.Remove(b.Id);
+        ChatMessage sent = await a.Chat.SendTextAsync(b.Id, "họp 3 giờ", Ct);
+        Assert.True(await a.Chat.EditAsync(b.Id, sent.Id, "họp 4 giờ", Ct));
+
+        a.Sees(b);
+
+        await WaitUntil(() => b.Chat.GetMessagesAsync(a.Id, Ct).Result.Count == 1);
+        Assert.Equal(("họp 4 giờ", null), ((await b.Chat.GetMessagesAsync(a.Id, Ct)).Single().Text, (await b.Chat.GetMessagesAsync(a.Id, Ct)).Single().EditedAt));
+        Assert.Null((await a.Chat.GetMessagesAsync(b.Id, Ct)).Single().EditedAt);
+    }
+
+    [Fact]
+    public async Task A_message_can_be_edited_only_within_fifteen_minutes_and_only_as_text()
+    {
+        var time = new OffsetTime();
+        await using TestNode sender = await TestNode.StartAsync("Sender", services: s => s.AddSingleton<TimeProvider>(time));
+        await sender.ConnectAsync(b);
+        ChatMessage sent = await sender.Chat.SendTextAsync(b.Id, "đã lâu rồi", Ct);
+        ChatMessage voice = await sender.Chat.SendVoiceAsync(b.Id, Voice(seconds: 1), Ct);
+        await WaitUntil(() => State(sender, b, voice.Id) == ChatMessageState.Delivered);
+
+        Assert.False(await sender.Chat.EditAsync(b.Id, voice.Id, "chữ", Ct));
+        time.Offset = ChatService.EditWindow + TimeSpan.FromSeconds(1);
+        Assert.False(await sender.Chat.EditAsync(b.Id, sent.Id, "sửa muộn", Ct));
+        await Assert.ThrowsAsync<ArgumentException>(() => sender.Chat.EditAsync(b.Id, sent.Id, "  ", Ct));
+
+        Assert.Equal("đã lâu rồi", (await sender.Chat.GetMessagesAsync(b.Id, Ct)).Single(m => m.Id == sent.Id).Text);
+    }
+
+    [Fact]
+    public async Task Only_the_sender_edits_and_an_older_edit_never_replaces_a_newer_one()
+    {
+        ChatMessage mine = await a.Chat.SendTextAsync(b.Id, "của A", Ct);
+        await WaitUntil(() => b.Chat.GetMessagesAsync(a.Id, Ct).Result.Count == 1);
+
+        Assert.False(await b.Chat.EditAsync(a.Id, mine.Id, "B sửa", Ct));
+        Assert.Equal(HttpStatusCode.NoContent, await PostAsync(b, a, "chat/edits", new ChatEditBody(mine.Id, "B sửa", DateTimeOffset.UtcNow)));
+        Assert.Equal("của A", Assert.Single(await a.Chat.GetMessagesAsync(b.Id, Ct)).Text);
+
+        Assert.True(await a.Chat.EditAsync(b.Id, mine.Id, "mới", Ct));
+        await WaitUntil(() => b.Chat.GetMessagesAsync(a.Id, Ct).Result.Single().Text == "mới");
+        Assert.Equal(HttpStatusCode.NoContent, await PostAsync(a, b, "chat/edits", new ChatEditBody(mine.Id, "cũ", DateTimeOffset.UtcNow.AddMinutes(-1))));
+        Assert.Equal("mới", Assert.Single(await b.Chat.GetMessagesAsync(a.Id, Ct)).Text);
+        Assert.Equal(HttpStatusCode.BadRequest, await PostAsync(a, b, "chat/edits", new ChatEditBody(mine.Id, " ", DateTimeOffset.UtcNow)));
+
+        // Taken back, it is no longer edited.
+        await a.Chat.RecallAsync(b.Id, [mine.Id], Ct);
+        Assert.False(await a.Chat.EditAsync(b.Id, mine.Id, "sau thu hồi", Ct));
+    }
+
+    [Fact]
     public async Task A_reply_says_which_message_or_file_card_it_answers()
     {
         ChatMessage question = await a.Chat.SendTextAsync(b.Id, "Mấy giờ họp?", Ct);

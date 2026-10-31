@@ -731,5 +731,9 @@
   "Trả lời {0}: {1}": "Replying to {0}: {1}",
   "Tin nhắn không còn": "Message no longer here",
   "mọi người": "everyone",
-  "Có tin nhắc tới bạn": "You were mentioned"
+  "Có tin nhắc tới bạn": "You were mentioned",
+  "Sửa": "Edit",
+  "Sửa tin nhắn": "Editing message",
+  "Đã sửa": "Edited",
+  "Tin nhắn này không còn sửa được.": "This message can no longer be edited."
 }

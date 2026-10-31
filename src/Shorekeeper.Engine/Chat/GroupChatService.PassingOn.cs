@@ -31,7 +31,7 @@ public sealed partial class GroupChatService
         await using SqliteConnection connection = await database.OpenAsync();
         List<IndexRow> rows = [.. await connection.QueryAsync<IndexRow>(
             """
-            SELECT Seq, Id, AuthorId, SentAt, Kind FROM ChatGroupMessages
+            SELECT Seq, Id, AuthorId, SentAt, Kind, EditedAt FROM ChatGroupMessages
             WHERE GroupId = @groupId AND Seq > @after AND Deleted = 0 AND OutOfGroup = 0 AND SentAt >= @since
               AND (Kind <> 'recalled' OR RecallSig IS NOT NULL)
               AND Id IN (SELECT Id FROM ChatGroupMessages WHERE GroupId = @groupId AND Deleted = 0 ORDER BY SentAt DESC, Id DESC LIMIT @history)
@@ -48,7 +48,8 @@ public sealed partial class GroupChatService
         long next = more ? rows[^1].Seq
             : Math.Max(after, await connection.ExecuteScalarAsync<long?>("SELECT MAX(Seq) FROM ChatGroupMessages WHERE GroupId = @groupId;", new { groupId }) ?? 0);
         return PeerResponse.Json(new GroupChatIndexResponse(
-            [.. rows.Select(r => new GroupChatIndexEntry(r.Seq, r.Id, r.AuthorId, FromMs(r.SentAt), r.Kind == ChatKinds.Recalled))], next, more));
+            [.. rows.Select(r => new GroupChatIndexEntry(
+                r.Seq, r.Id, r.AuthorId, FromMs(r.SentAt), r.Kind == ChatKinds.Recalled, r.EditedAt is { } at ? FromMs(at) : null))], next, more));
     }
 
     /// <summary>The messages asked for, as their authors signed them; those taken back as their signed recalls.</summary>
@@ -111,9 +112,7 @@ public sealed partial class GroupChatService
                 bytes += audio.Length;
             }
 
-            messages.Add(new GroupChatMessageBody(
-                row.Id, row.AuthorId, row.AuthorName, row.AuthorKey, FromMs(row.SentAt), row.Kind, row.Sig, row.Text, (int?)row.DurationMs, row.Wave, audio,
-                row.ReplyTo, ChatReplies.Split(row.Mentions)));
+            messages.Add(row.ToBody(audio));
         }
 
         return PeerResponse.Json(new GroupChatFetchResponse(messages, recalled));
@@ -222,22 +221,23 @@ public sealed partial class GroupChatService
 
     /// <summary>
     /// Of what a member holds, what we lack: messages not here (nor deleted here, nor ours, nor from before "Xóa hội
-    /// thoại"), and recalls of messages we still show.
+    /// thoại"), recalls of messages we still show, and newer words for them.
     /// </summary>
     private async Task<List<string>> WantedAsync(string groupId, IReadOnlyList<GroupChatIndexEntry> entries)
     {
         string me = engine.Identity.DeviceId.Value;
         string[] ids = [.. entries.Select(e => e.Id).Where(id => Guid.TryParseExact(id, "N", out _))];
         await using SqliteConnection connection = await database.OpenAsync();
-        Dictionary<string, (string Kind, long Deleted)> here = (await connection.QueryAsync<(string Id, string Kind, long Deleted)>(
-                "SELECT Id, Kind, Deleted FROM ChatGroupMessages WHERE GroupId = @groupId AND Id IN @ids;", new { groupId, ids }))
-            .ToDictionary(r => r.Id, r => (r.Kind, r.Deleted));
+        Dictionary<string, (string Kind, long Deleted, long? EditedAt)> here = (await connection.QueryAsync<(string Id, string Kind, long Deleted, long? EditedAt)>(
+                "SELECT Id, Kind, Deleted, EditedAt FROM ChatGroupMessages WHERE GroupId = @groupId AND Id IN @ids;", new { groupId, ids }))
+            .ToDictionary(r => r.Id, r => (r.Kind, r.Deleted, r.EditedAt));
         long clearedAt = await connection.ExecuteScalarAsync<long?>(
             "SELECT ClearedAt FROM ChatGroups WHERE GroupId = @groupId;", new { groupId }) ?? long.MinValue;
         return
         [
             .. entries.Where(e => ids.Contains(e.Id) && e.AuthorId != me && (here.TryGetValue(e.Id, out var local)
-                ? local.Deleted == 0 && e.Recalled && local.Kind != ChatKinds.Recalled
+                ? local.Deleted == 0 && local.Kind != ChatKinds.Recalled
+                  && (e.Recalled || e.EditedAt?.ToUnixTimeMilliseconds() > (local.EditedAt ?? long.MinValue))
                 : e.SentAt.ToUnixTimeMilliseconds() > clearedAt))
                 .Select(e => e.Id),
         ];

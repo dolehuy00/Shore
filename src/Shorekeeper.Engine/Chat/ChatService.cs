@@ -30,9 +30,10 @@ public enum ChatMessageState
 /// <param name="SentAt">On the sender's clock (received ones never later than when they came): it orders the conversation.</param>
 /// <param name="VoicePath">A voice message's Ogg Opus file; <paramref name="DurationMs"/> and <paramref name="Wave"/> come with it.</param>
 /// <param name="ReplyTo">The message answered, or "offer:" and a file card's offer (<see cref="ChatReplies"/>).</param>
+/// <param name="EditedAt">When its words last changed after it reached the peer ("Đã sửa"), on the author's clock.</param>
 public sealed record ChatMessage(
     DeviceId Peer, string Id, bool Outgoing, string Kind, string? Text, DateTimeOffset SentAt, ChatMessageState State,
-    int DurationMs = 0, byte[]? Wave = null, string? VoicePath = null, string? ReplyTo = null);
+    int DurationMs = 0, byte[]? Wave = null, string? VoicePath = null, string? ReplyTo = null, DateTimeOffset? EditedAt = null);
 
 /// <summary>A conversation in the list: its newest message and how many from the peer are unread.</summary>
 public sealed record ChatConversation(DeviceId Peer, ChatMessage Last, int Unread);
@@ -67,11 +68,14 @@ public sealed class ChatService(
     /// <summary>How long after sending a message or file can be taken back ("Thu hồi"); one not delivered yet, any time.</summary>
     public static readonly TimeSpan RecallWindow = TimeSpan.FromMinutes(5);
 
+    /// <summary>How long after sending a text message can be edited ("Sửa"); one not delivered yet, any time.</summary>
+    public static readonly TimeSpan EditWindow = TimeSpan.FromMinutes(15);
+
     /// <summary>Waiting messages are tried again this often while their peer is online (it may have been busy).</summary>
     private static readonly TimeSpan RetryEvery = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(15);
 
-    private const string Columns = "PeerId, Id, Outgoing, Kind, Text, SentAt, State, DurationMs, Wave, VoicePath, ReplyTo";
+    private const string Columns = "PeerId, Id, Outgoing, Kind, Text, SentAt, State, DurationMs, Wave, VoicePath, ReplyTo, EditedAt";
 
     private readonly Lock gate = new();
     private readonly HashSet<DeviceId> sending = [];
@@ -97,17 +101,7 @@ public sealed class ChatService(
             throw new ArgumentException("Not a message to answer.", nameof(replyTo));
         }
 
-        text = text.Trim();
-        if (text.Length == 0)
-        {
-            throw new ArgumentException("Nothing to send.", nameof(text));
-        }
-
-        if (text.Length > MaxTextLength)
-        {
-            throw new ArgumentException(L.F("Tin nhắn dài tối đa {0:N0} ký tự.", MaxTextLength), nameof(text));
-        }
-
+        text = CheckText(text);
         DateTimeOffset now = NextSentAt();
         var message = new ChatMessage(
             peer, Guid.CreateVersion7(now).ToString("N"), true, ChatKinds.Text, text, FromMs(now.ToUnixTimeMilliseconds()), ChatMessageState.Pending,
@@ -120,6 +114,24 @@ public sealed class ChatService(
         Changed?.Invoke(this, peer);
         Kick(peer);
         return message;
+    }
+
+    /// <summary>The words of a text message, trimmed.</summary>
+    /// <exception cref="ArgumentException">Empty, or longer than <see cref="MaxTextLength"/>.</exception>
+    internal static string CheckText(string text)
+    {
+        text = text.Trim();
+        if (text.Length == 0)
+        {
+            throw new ArgumentException("Nothing to send.", nameof(text));
+        }
+
+        if (text.Length > MaxTextLength)
+        {
+            throw new ArgumentException(L.F("Tin nhắn dài tối đa {0:N0} ký tự.", MaxTextLength), nameof(text));
+        }
+
+        return text;
     }
 
     /// <summary>
@@ -239,6 +251,43 @@ public sealed class ChatService(
         DeleteFiles(files);
         Changed?.Invoke(this, peer);
         Kick(peer);
+    }
+
+    /// <summary>
+    /// "Sửa" (docs/18-chat-extras.md §5): new words for one of our text messages, here at once and on the peer's device
+    /// as soon as it is told. One still waiting just goes with them, not marked as edited; one delivered only within
+    /// <see cref="EditWindow"/> of sending.
+    /// </summary>
+    /// <returns>False when it can no longer be edited (too late, taken back, or not one of our text messages).</returns>
+    /// <exception cref="ArgumentException">Empty, or longer than <see cref="MaxTextLength"/>.</exception>
+    public async Task<bool> EditAsync(DeviceId peer, string id, string text, CancellationToken cancellationToken)
+    {
+        text = CheckText(text);
+        long now = timeProvider.GetUtcNow().ToUnixTimeMilliseconds();
+        await using (SqliteConnection connection = await database.OpenAsync(cancellationToken))
+        {
+            // Not delivered yet: the peer gets the new words with the message.
+            if (await connection.ExecuteAsync(
+                    "UPDATE ChatMessages SET Text = @text WHERE PeerId = @peer AND Id = @id AND Outgoing = 1 AND Kind = 'text' AND State IN ('pending', 'failed');",
+                    new { peer = peer.Value, id, text }) == 0)
+            {
+                // Never older than an edit before it, whatever the clock did.
+                if (await connection.ExecuteAsync(
+                        """
+                        UPDATE ChatMessages SET Text = @text, EditedAt = MAX(@now, COALESCE(EditedAt, 0) + 1)
+                        WHERE PeerId = @peer AND Id = @id AND Outgoing = 1 AND Kind = 'text' AND SentAt >= @since;
+                        INSERT OR IGNORE INTO ChatEdits (PeerId, Id) SELECT @peer, @id WHERE changes() > 0;
+                        """,
+                        new { peer = peer.Value, id, text, now, since = now - (long)EditWindow.TotalMilliseconds }) == 0)
+                {
+                    return false;
+                }
+            }
+        }
+
+        Changed?.Invoke(this, peer);
+        Kick(peer);
+        return true;
     }
 
     /// <summary>
@@ -482,6 +531,34 @@ public sealed class ChatService(
         return PeerResponse.Empty(HttpStatusCode.NoContent);
     }
 
+    internal async Task<PeerResponse> HandleEditAsync(DeviceId caller, ChatEditBody body)
+    {
+        if (!TakeRate(caller))
+        {
+            return PeerResponse.Problem(HttpStatusCode.TooManyRequests, ApiErrorCodes.RateLimited);
+        }
+
+        string? text = body.Text?.Trim();
+        if (!Guid.TryParseExact(body.Id, "N", out Guid id) || text is not { Length: > 0 and <= MaxTextLength })
+        {
+            return PeerResponse.Problem(HttpStatusCode.BadRequest, ApiErrorCodes.InvalidRequest);
+        }
+
+        // Not here (deleted, or taken back): nothing to change. The window is the sender's to keep: clocks differ.
+        if (await WriteAsync(
+                """
+                UPDATE ChatMessages SET Text = @text, EditedAt = @editedAt
+                WHERE PeerId = @peer AND Id = @id AND Outgoing = 0 AND Kind = 'text' AND (EditedAt IS NULL OR EditedAt < @editedAt);
+                """,
+                new { peer = caller.Value, id = id.ToString("N"), text, editedAt = body.EditedAt.ToUnixTimeMilliseconds() },
+                CancellationToken.None) > 0)
+        {
+            Changed?.Invoke(this, caller);
+        }
+
+        return PeerResponse.Empty(HttpStatusCode.NoContent);
+    }
+
     internal async Task<PeerResponse> HandleReceiptAsync(DeviceId caller, ChatReceiptBody body)
     {
         if (!Guid.TryParseExact(body.ReadUpTo, "N", out Guid upTo))
@@ -539,7 +616,7 @@ public sealed class ChatService(
             waiting = await connection.QueryAsync<string>(
                 """
                 SELECT PeerId FROM ChatMessages WHERE Outgoing = 1 AND State = 'pending' AND Kind <> 'recalled'
-                UNION SELECT PeerId FROM ChatReceipts UNION SELECT PeerId FROM ChatRecalls;
+                UNION SELECT PeerId FROM ChatReceipts UNION SELECT PeerId FROM ChatRecalls UNION SELECT PeerId FROM ChatEdits;
                 """);
         }
 
@@ -599,6 +676,7 @@ public sealed class ChatService(
         List<MessageRow> pending;
         string? receipt;
         List<(string Id, long IsOffer)> recalls;
+        List<(string Id, string? Text, long? EditedAt)> edits;
         await using (SqliteConnection connection = await database.OpenAsync(cancellationToken))
         {
             // A recalled message that never left stays here.
@@ -609,6 +687,14 @@ public sealed class ChatService(
                 "SELECT ReadUpTo FROM ChatReceipts WHERE PeerId = @peer;", new { peer = peer.Value });
             recalls = [.. await connection.QueryAsync<(string, long)>(
                 "SELECT Id, IsOffer FROM ChatRecalls WHERE PeerId = @peer LIMIT @max;", new { peer = peer.Value, max = MaxRecall })];
+            // The newest words; none when the message is gone or taken back since.
+            edits = [.. await connection.QueryAsync<(string, string?, long?)>(
+                """
+                SELECT e.Id, m.Text, m.EditedAt FROM ChatEdits e
+                LEFT JOIN ChatMessages m ON m.PeerId = e.PeerId AND m.Id = e.Id AND m.Kind = 'text'
+                WHERE e.PeerId = @peer;
+                """,
+                new { peer = peer.Value })];
         }
 
         foreach (MessageRow row in pending)
@@ -622,10 +708,19 @@ public sealed class ChatService(
                 return;
             }
 
-            // A receipt may have come first and made it read.
+            // A receipt may have come first and made it read. Edited while on its way: the peer has the words before, and
+            // is told like after any edit.
             await WriteAsync(
-                "UPDATE ChatMessages SET State = @state WHERE PeerId = @peer AND Id = @Id AND State = 'pending';",
-                new { peer = peer.Value, row.Id, state = delivered.Value ? "delivered" : "failed" },
+                """
+                UPDATE ChatMessages SET State = @state WHERE PeerId = @peer AND Id = @Id AND State = 'pending';
+                UPDATE ChatMessages SET EditedAt = @now WHERE PeerId = @peer AND Id = @Id AND @delivered AND Kind = 'text' AND Text IS NOT @Text;
+                INSERT OR IGNORE INTO ChatEdits (PeerId, Id) SELECT @peer, @Id WHERE changes() > 0;
+                """,
+                new
+                {
+                    peer = peer.Value, row.Id, state = delivered.Value ? "delivered" : "failed", delivered = delivered.Value, row.Text,
+                    now = timeProvider.GetUtcNow().ToUnixTimeMilliseconds(),
+                },
                 cancellationToken);
             if (delivered.Value)
             {
@@ -648,6 +743,16 @@ public sealed class ChatService(
         {
             string[] done = [.. recalls.Select(r => r.Id)];
             await WriteAsync("DELETE FROM ChatRecalls WHERE PeerId = @peer AND Id IN @done;", new { peer = peer.Value, done }, cancellationToken);
+        }
+
+        // The same for edits: a version without them answers like for a route it does not have.
+        foreach ((string id, string? text, long? editedAt) in edits)
+        {
+            if (text is null
+                || await PostAsync(peer, "chat/edits", new ChatEditBody(id, text, FromMs(editedAt ?? timeProvider.GetUtcNow().ToUnixTimeMilliseconds())), cancellationToken) is not null)
+            {
+                await WriteAsync("DELETE FROM ChatEdits WHERE PeerId = @peer AND Id = @id;", new { peer = peer.Value, id }, cancellationToken);
+            }
         }
     }
 
@@ -755,9 +860,11 @@ public sealed class ChatService(
 
         public string? ReplyTo { get; init; }
 
+        public long? EditedAt { get; init; }
+
         public ChatMessage ToMessage() => new(
             DeviceId.Parse(PeerId), Id, Outgoing != 0, Kind, Text, FromMs(SentAt), Enum.Parse<ChatMessageState>(State, ignoreCase: true),
-            (int)(DurationMs ?? 0), Wave, VoicePath, ReplyTo);
+            (int)(DurationMs ?? 0), Wave, VoicePath, ReplyTo, EditedAt is { } at ? FromMs(at) : null);
     }
 
     private sealed class ConversationRow : MessageRow

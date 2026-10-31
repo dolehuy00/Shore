@@ -110,6 +110,14 @@
                 <PathIcon Data="{StaticResource Icon.Dismiss}" Width="12" Height="12" />
               </Button>
             </Grid>
+            <!-- Changing the words of our message (docs/18-chat-extras.md §5): ✕ to stop. -->
+            <Grid ColumnDefinitions="Auto,*,Auto" IsVisible="{Binding IsEditing}">
+              <Border Width="3" CornerRadius="2" Background="{DynamicResource AccentButtonBackground}" Margin="4,2,8,2" />
+              <TextBlock Grid.Column="1" Text="{l:T 'Sửa tin nhắn'}" FontSize="12" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+              <Button Grid.Column="2" Classes="icon" Command="{Binding CancelEditCommand}" AutomationProperties.Name="{l:T 'Hủy'}">
+                <PathIcon Data="{StaticResource Icon.Dismiss}" Width="12" Height="12" />
+              </Button>
+            </Grid>
             <!-- "@" typed in a group: members to name. -->
             <ItemsControl ItemsSource="{Binding MentionCandidates}" IsVisible="{Binding HasMentionCandidates}">
               <ItemsControl.ItemsPanel>
@@ -222,6 +230,7 @@
                       <Border.ContextMenu>
                         <ContextMenu>
                           <MenuItem Header="{l:T 'Trả lời'}" Command="{Binding ReplyCommand}" IsVisible="{Binding CanReply}" />
+                          <MenuItem Header="{l:T 'Sửa'}" Command="{Binding EditCommand}" IsVisible="{Binding CanEdit}" />
                           <MenuItem Header="{l:T 'Sao chép'}" Command="{Binding CopyCommand}" IsVisible="{Binding CanCopy}" />
                           <MenuItem Header="{Binding RecallText}" Command="{Binding RecallCommand}" IsVisible="{Binding CanRecall}" />
                           <MenuItem Header="{l:T 'Chi tiết'}" Command="{Binding ShowDetailsCommand}" IsVisible="{Binding CanShowDetails}" />

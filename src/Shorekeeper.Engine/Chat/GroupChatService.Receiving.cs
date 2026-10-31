@@ -63,9 +63,14 @@ public sealed partial class GroupChatService
             return false;
         }
 
-        if (!GroupChatSignature.VerifyMessage(body.AuthorKey, body.Sig, new GroupChatContent(
-                groupId, body.Id, author, body.SentAt.ToUnixTimeMilliseconds(), body.Kind, body.Text, body.DurationMs ?? 0, body.Wave, body.Audio,
-                body.ReplyTo, body.Mentions)))
+        var content = new GroupChatContent(
+            groupId, body.Id, author, body.SentAt.ToUnixTimeMilliseconds(), body.Kind, body.Text, body.DurationMs ?? 0, body.Wave, body.Audio,
+            body.ReplyTo, body.Mentions);
+        // Edited (docs/18-chat-extras.md §5): its signed edit stands for it; the message's own signature had the words before.
+        if (body.EditSig is not null
+                ? body.Kind != ChatKinds.Text || body.EditedAt is not { } editedAt
+                  || !GroupChatSignature.VerifyEdit(body.AuthorKey, body.EditSig, content, editedAt.ToUnixTimeMilliseconds())
+                : !GroupChatSignature.VerifyMessage(body.AuthorKey, body.Sig, content))
         {
             logger.LogWarning("Group message {Id} from {Peer} has no valid signature of its author {Author}", body.Id, from, author);
             return false;
@@ -89,6 +94,12 @@ public sealed partial class GroupChatService
         if (await connection.ExecuteScalarAsync<long>(
                 "SELECT COUNT(*) FROM ChatGroupMessages WHERE GroupId = @groupId AND Id = @id;", new { groupId, id }) > 0)
         {
+            // Here already: passed on again because its words changed since.
+            if (body.EditSig is not null && await ApplyEditAsync(connection, groupId, id, author, body.Text!, body.EditedAt!.Value, body.EditSig))
+            {
+                Changed?.Invoke(this, groupId);
+            }
+
             return;
         }
 
@@ -110,23 +121,24 @@ public sealed partial class GroupChatService
         var message = new GroupChatMessage(
             groupId, id, author, name, false, body.Kind, cleared ? null : body.Text, body.SentAt,
             cleared || history ? ChatMessageState.Read : ChatMessageState.Unread, cleared ? 0 : body.DurationMs ?? 0, cleared ? null : body.Wave, path,
-            ReplyTo: body.ReplyTo, Mentions: body.Mentions);
+            ReplyTo: body.ReplyTo, Mentions: body.Mentions, EditedAt: body.EditSig is null ? null : body.EditedAt);
         // As it came (duration and waveform of any kind): a member pulling it from here checks the same signature.
         int added = await connection.ExecuteAsync(
             $"""
             INSERT INTO ChatGroups (GroupId, Name) VALUES (@groupId, @groupName) ON CONFLICT (GroupId) DO UPDATE SET Name = excluded.Name;
             INSERT OR IGNORE INTO ChatGroupMessages
               (GroupId, Id, AuthorId, AuthorName, AuthorKey, Outgoing, Kind, Text, SentAt, ReceivedAt, State, DurationMs, Wave, VoicePath, Sig, Seq, Deleted,
-               ReplyTo, Mentions)
+               ReplyTo, Mentions, EditedAt, EditSig)
             VALUES (@groupId, @Id, @author, @AuthorName, @key, 0, @Kind, @Text, @sentAt, @now, @state, @durationMs, @Wave, @VoicePath, @sig, {NextSeq}, @cleared,
-                    @ReplyTo, @mentions);
+                    @ReplyTo, @mentions, @editedAt, @editSig);
             """,
             new
             {
                 groupId, groupName = groups.Get(groupId)?.Name ?? groupId, message.Id, author = author.Value, message.AuthorName,
                 key = body.AuthorKey, message.Kind, message.Text, sentAt, now, state = message.State == ChatMessageState.Read ? "read" : "unread",
                 durationMs = cleared ? null : body.DurationMs, message.Wave, message.VoicePath, sig = body.Sig, cleared, message.ReplyTo,
-                mentions = ChatReplies.Join(body.Mentions),
+                mentions = ChatReplies.Join(body.Mentions), editedAt = body.EditSig is null ? null : body.EditedAt?.ToUnixTimeMilliseconds(),
+                editSig = body.EditSig,
             });
 
         // The first statement always changes a row; the message is new only when the second did too.
@@ -142,6 +154,64 @@ public sealed partial class GroupChatService
         {
             Received?.Invoke(this, message);
         }
+    }
+
+    internal async Task<PeerResponse> HandleEditAsync(DeviceId caller, string groupId, GroupChatEditBody body)
+    {
+        if (Refusal(caller, groupId) is { } refusal)
+        {
+            return refusal;
+        }
+
+        if (!chat.TakeRate(caller))
+        {
+            return PeerResponse.Problem(HttpStatusCode.TooManyRequests, ApiErrorCodes.RateLimited);
+        }
+
+        string? text = body.Text?.Trim();
+        if (!Guid.TryParseExact(body.Id, "N", out Guid id) || text is not { Length: > 0 and <= ChatService.MaxTextLength } || body.Sig is null)
+        {
+            return PeerResponse.Problem(HttpStatusCode.BadRequest, ApiErrorCodes.InvalidRequest);
+        }
+
+        bool changed;
+        await using (SqliteConnection connection = await database.OpenAsync())
+        {
+            // Signed over the words as they came, untrimmed.
+            changed = await ApplyEditAsync(connection, groupId, id.ToString("N"), caller, body.Text!, body.EditedAt, body.Sig);
+        }
+
+        if (changed)
+        {
+            Changed?.Invoke(this, groupId);
+        }
+
+        return PeerResponse.Empty(HttpStatusCode.NoContent);
+    }
+
+    /// <summary>
+    /// New words for a message here by its author's edit, signed with the key the message came with; false when it is not
+    /// here as a text message, the edit is not the author's, or not newer than the one here. Moves up in Seq, so members
+    /// pulling learn. The window is the author's to keep: clocks differ.
+    /// </summary>
+    private static async Task<bool> ApplyEditAsync(
+        SqliteConnection connection, string groupId, string id, DeviceId author, string text, DateTimeOffset editedAt, byte[] sig)
+    {
+        var found = (await connection.QueryAsync<MessageRow>(
+            $"SELECT {Columns} FROM ChatGroupMessages WHERE GroupId = @groupId AND Id = @id AND Outgoing = 0 AND Kind = 'text' AND Deleted = 0;",
+            new { groupId, id })).ToList();
+        long at = editedAt.ToUnixTimeMilliseconds();
+        if (found is not [var message] || message.AuthorId != author.Value || at <= (message.EditedAt ?? long.MinValue)
+            || !GroupChatSignature.VerifyEdit(message.AuthorKey, sig, new GroupChatContent(
+                groupId, id, author, message.SentAt, ChatKinds.Text, text, 0, null, null, message.ReplyTo, ChatReplies.Split(message.Mentions)), at))
+        {
+            return false;
+        }
+
+        await connection.ExecuteAsync(
+            $"UPDATE ChatGroupMessages SET Text = @text, EditedAt = @at, EditSig = @sig, Seq = {NextSeq} WHERE GroupId = @groupId AND Id = @id;",
+            new { groupId, id, text, at, sig });
+        return true;
     }
 
     internal async Task<PeerResponse> HandleReceiptAsync(DeviceId caller, string groupId, ChatReceiptBody body)

@@ -155,6 +155,34 @@ public class ChatTests
     }
 
     [Fact]
+    public void Ours_in_words_is_edited_within_fifteen_minutes_or_while_it_reached_nobody()
+    {
+        Assert.True(Bubble(Ours("mới", ChatMessageState.Delivered, DateTimeOffset.UtcNow.AddMinutes(-14)), first: true, reached: null).CanEdit);
+        Assert.False(Bubble(Ours("cũ", ChatMessageState.Delivered, DateTimeOffset.UtcNow.AddMinutes(-16)), first: true, reached: null).CanEdit);
+        Assert.True(Bubble(Ours("chờ", ChatMessageState.Pending, DateTimeOffset.UtcNow.AddHours(-1)), first: true, reached: null).CanEdit);
+        GroupChatMessage voice = Ours(null, ChatMessageState.Delivered, DateTimeOffset.UtcNow) with { Kind = ChatKinds.Voice, DurationMs = 1_000 };
+        Assert.False(Bubble(voice, first: true, reached: null).CanEdit);
+        GroupChatMessage theirs = new("g", "m3", Mai, "Mai", Outgoing: false, ChatKinds.Text, "của Mai", DateTimeOffset.UtcNow, ChatMessageState.Read);
+        Assert.False(Bubble(theirs, first: true, reached: null, author: "Mai").CanEdit);
+    }
+
+    [Fact]
+    public void An_edited_message_says_so_by_its_time_with_its_new_links()
+    {
+        GroupChatMessage message = new(
+            "g", "m4", Mai, "Mai", Outgoing: false, ChatKinds.Text, "xem https://example.com/b", DateTimeOffset.UtcNow, ChatMessageState.Read);
+        ChatBubbleViewModel bubble = Bubble(message, first: true, reached: null, author: "Mai");
+        Assert.DoesNotContain("Đã sửa", bubble.StatusText);
+
+        bubble.Update(message with { Text = "xem https://example.com/c", EditedAt = DateTimeOffset.UtcNow }, "Mai", first: true, reached: null);
+
+        Assert.EndsWith("· Đã sửa", bubble.StatusText);
+        Assert.Equal(["https://example.com/c"], bubble.Links);
+        ChatMessage oneToOne = new(Mai, "c2", Outgoing: true, ChatKinds.Text, "đã sửa", DateTimeOffset.UtcNow, ChatMessageState.Read, EditedAt: DateTimeOffset.UtcNow);
+        Assert.EndsWith("· Đã sửa · Đã xem", new ChatBubbleViewModel("c2", null!).Update(oneToOne, lastMine: true).StatusText);
+    }
+
+    [Fact]
     public void Each_member_keeps_one_color()
     {
         Assert.Same(ChatBubbleViewModel.BrushOf(Mai), ChatBubbleViewModel.BrushOf(Mai));

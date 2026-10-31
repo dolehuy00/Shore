@@ -29,6 +29,7 @@ internal static class GroupChatSignature
     /// <summary>Version 1 and then the reply and the mentions; a message with neither is still signed as version 1.</summary>
     private const string MessagePurpose2 = "shorekeeper-group-chat/2";
     private const string RecallPurpose = "shorekeeper-group-recall/1";
+    private const string EditPurpose = "shorekeeper-group-edit/1";
     private const string RosterPurpose = "shorekeeper-group-roster/1";
 
     public static byte[] SignMessage(ECDsa key, GroupChatContent content) =>
@@ -43,6 +44,16 @@ internal static class GroupChatSignature
 
     public static bool VerifyRecall(byte[] authorKey, byte[] sig, string groupId, string id, DeviceId author, long sentAtMs) =>
         Verify(authorKey, sig, author, RecallBytes(groupId, id, author, sentAtMs));
+
+    /// <summary>
+    /// Signs new words for a text message (docs/18-chat-extras.md §5): with everything else its own signature covers, so
+    /// the edited message stands on this alone when passed on.
+    /// </summary>
+    public static byte[] SignEdit(ECDsa key, GroupChatContent content, long editedAtMs) =>
+        key.SignData(EditBytes(content, editedAtMs), HashAlgorithmName.SHA256);
+
+    public static bool VerifyEdit(byte[] authorKey, byte[] sig, GroupChatContent content, long editedAtMs) =>
+        Verify(authorKey, sig, content.Author, EditBytes(content, editedAtMs));
 
     /// <summary>Signs the member list as the Host: <paramref name="roster"/> with its <see cref="GroupRoster.Sig"/> left out.</summary>
     public static byte[] SignRoster(ECDsa key, GroupRoster roster) => key.SignData(RosterBytes(roster), HashAlgorithmName.SHA256);
@@ -98,6 +109,26 @@ internal static class GroupChatSignature
             }
         }
 
+        return stream.ToArray();
+    }
+
+    private static byte[] EditBytes(GroupChatContent c, long editedAtMs)
+    {
+        using var stream = new MemoryStream();
+        Write(stream, EditPurpose);
+        Write(stream, c.GroupId);
+        Write(stream, c.Id);
+        Write(stream, c.Author.Value);
+        Write(stream, c.SentAtMs);
+        Write(stream, c.Text ?? "");
+        Write(stream, c.ReplyTo ?? "");
+        Write(stream, (long)(c.Mentions?.Count ?? 0));
+        foreach (string mention in c.Mentions ?? [])
+        {
+            Write(stream, mention);
+        }
+
+        Write(stream, editedAtMs);
         return stream.ToArray();
     }
 

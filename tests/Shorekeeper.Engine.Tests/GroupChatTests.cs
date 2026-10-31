@@ -583,6 +583,108 @@ public sealed class GroupChatTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task An_edit_reaches_every_member_and_a_new_member_gets_it_signed()
+    {
+        GroupChatMessage sent = await host.GroupChat.SendTextAsync(groupId, "họp 3 giờ", Ct, mentions: [mai.Id.Value]);
+        await WaitUntil(() => Delivery(host, sent.Id, mai) == GroupDeliveryState.Delivered && Delivery(host, sent.Id, tuan) == GroupDeliveryState.Delivered);
+
+        Assert.True(await host.GroupChat.EditAsync(groupId, sent.Id, "họp 4 giờ", Ct));
+
+        DateTimeOffset? editedAt = Messages(host).Single().EditedAt;
+        Assert.NotNull(editedAt);
+        foreach (TestNode member in (TestNode[])[mai, tuan])
+        {
+            await WaitUntil(() => Messages(member).Single().Text == "họp 4 giờ");
+            Assert.Equal(editedAt, Messages(member).Single().EditedAt);
+            Assert.Equal([mai.Id.Value], Messages(member).Single().Mentions);
+        }
+
+        // Lan gets it from the members with the edit, which stands for the signature of the words before.
+        await using TestNode lan = await TestNode.StartAsync("Lan");
+        await JoinAsync(lan);
+        await WaitUntil(() => Messages(lan).Any(m => m.Id == sent.Id));
+        Assert.Equal(("họp 4 giờ", editedAt), (Messages(lan).Single().Text, Messages(lan).Single().EditedAt));
+    }
+
+    [Fact]
+    public async Task An_edit_reaches_a_member_who_got_the_message_from_someone_else()
+    {
+        Offline(tuan);
+        GroupChatMessage sent = await host.GroupChat.SendTextAsync(groupId, "họp 3 giờ", Ct);
+        await WaitUntil(() => Messages(mai).Count == 1);
+        await tuan.GroupChat.PullAllAsync(Ct);
+        Assert.Equal("họp 3 giờ", Messages(tuan).Single().Text);
+
+        Assert.True(await host.GroupChat.EditAsync(groupId, sent.Id, "họp 4 giờ", Ct));
+        await WaitUntil(() => Messages(mai).Single().Text == "họp 4 giờ");
+        await tuan.GroupChat.PullAllAsync(Ct);
+
+        Assert.Equal("họp 4 giờ", Messages(tuan).Single().Text);
+        Assert.NotNull(Messages(tuan).Single().EditedAt);
+    }
+
+    [Fact]
+    public async Task An_edit_changed_by_whoever_passes_it_on_is_dropped()
+    {
+        Offline(tuan);
+        GroupChatMessage sent = await host.GroupChat.SendTextAsync(groupId, "họp 3 giờ", Ct);
+        await WaitUntil(() => Messages(mai).Count == 1);
+        await tuan.GroupChat.PullAllAsync(Ct);
+        Assert.Equal("họp 3 giờ", Messages(tuan).Single().Text);
+        // Tuấn must not get the edit from Mai before she changes it.
+        await OfflineAsync(tuan, mai);
+        Assert.True(await host.GroupChat.EditAsync(groupId, sent.Id, "họp 4 giờ", Ct));
+        await WaitUntil(() => Messages(mai).Single().Text == "họp 4 giờ");
+        using (SqliteConnection connection = await mai.Get<SqliteDatabase>().OpenAsync(Ct))
+        {
+            await connection.ExecuteAsync("UPDATE ChatGroupMessages SET Text = 'họp 5 giờ' WHERE Id = @Id;", new { sent.Id });
+        }
+
+        Together(mai, tuan);
+        await PulledAllAsync(tuan, mai);
+
+        Assert.Equal(("họp 3 giờ", null), (Messages(tuan).Single().Text, Messages(tuan).Single().EditedAt));
+    }
+
+    [Fact]
+    public async Task A_message_that_reached_nobody_goes_with_its_new_words_unmarked()
+    {
+        await OfflineAsync(mai, tuan);
+        await OfflineAsync(tuan, mai);
+        GroupChatMessage sent = await host.GroupChat.SendTextAsync(groupId, "họp 3 giờ", Ct);
+        Assert.True(await host.GroupChat.EditAsync(groupId, sent.Id, "họp 4 giờ", Ct));
+
+        Online(mai);
+        Online(tuan);
+
+        foreach (TestNode member in (TestNode[])[mai, tuan])
+        {
+            await WaitUntil(() => Messages(member).Count == 1);
+            Assert.Equal(("họp 4 giờ", null), (Messages(member).Single().Text, Messages(member).Single().EditedAt));
+        }
+
+        Assert.Null(Messages(host).Single().EditedAt);
+    }
+
+    [Fact]
+    public async Task Only_the_author_edits_within_fifteen_minutes()
+    {
+        GroupChatMessage sent = await host.GroupChat.SendTextAsync(groupId, "của Huy", Ct);
+        await WaitUntil(() => Messages(mai).Count == 1 && Messages(tuan).Count == 1);
+
+        Assert.False(await mai.GroupChat.EditAsync(groupId, sent.Id, "Mai sửa", Ct));
+        // Mai cannot sign for Huy: an edit not signed with the message's key changes nothing.
+        GroupChatMessageBody forged = Signed(mai, "Mai sửa");
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await PostToTuanAsync(new GroupChatEditBody(sent.Id, "Mai sửa", DateTimeOffset.UtcNow, forged.Sig))).Status);
+        Assert.Equal("của Huy", Messages(tuan).Single().Text);
+
+        hostTime.Offset = ChatService.EditWindow + TimeSpan.FromSeconds(1);
+        Assert.False(await host.GroupChat.EditAsync(groupId, sent.Id, "sửa muộn", Ct));
+        Assert.Equal("của Huy", Messages(host).Single().Text);
+    }
+
+    [Fact]
     public async Task Search_finds_group_messages_but_not_deleted_ones()
     {
         GroupChatMessage holiday = await tuan.GroupChat.SendTextAsync(groupId, "Tuần sau nghỉ lễ 2 ngày", Ct);
@@ -861,6 +963,9 @@ public sealed class GroupChatTests : IAsyncLifetime
     }
 
     /// <summary>Tuấn, removed or not, posts straight to Mai, who takes it if her list still has him.</summary>
+    private async Task<(HttpStatusCode Status, string Body)> PostToTuanAsync(GroupChatEditBody edit) =>
+        await PostAsync(mai, tuan, $"chat/groups/{groupId}/edits", edit);
+
     private async Task PostToMaiAsync(string text) =>
         Assert.Equal(HttpStatusCode.NoContent, (await PostAsync(tuan, mai, $"chat/groups/{groupId}/messages", Signed(tuan, text))).Status);
 

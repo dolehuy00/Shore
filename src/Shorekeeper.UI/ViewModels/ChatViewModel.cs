@@ -564,10 +564,44 @@ public sealed partial class ChatViewModel : ObservableObject
     /// <summary>"Trả lời Mai: Mấy giờ họp?" above the box.</summary>
     public string ReplyingText => ReplyingTo is { } entry ? L.F("Trả lời {0}: {1}", QuoteAuthor(entry), QuoteText(entry)) : "";
 
-    internal void StartReply(ChatEntryViewModel entry) => ReplyingTo = entry;
+    internal void StartReply(ChatEntryViewModel entry)
+    {
+        StopEditing();
+        ReplyingTo = entry;
+    }
 
     [RelayCommand]
     private void CancelReply() => ReplyingTo = null;
+
+    // ───────────── Editing (docs/18-chat-extras.md §5) ─────────────
+
+    /// <summary>Our text message whose words are in the box: what is sent next replaces them.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsEditing))]
+    public partial ChatBubbleViewModel? Editing { get; set; }
+
+    public bool IsEditing => Editing is not null;
+
+    /// <summary>"Sửa": its words in the box, to change and send.</summary>
+    internal void StartEdit(ChatBubbleViewModel bubble)
+    {
+        ReplyingTo = null;
+        Editing = bubble;
+        Draft = bubble.Text;
+    }
+
+    [RelayCommand]
+    private void CancelEdit() => StopEditing();
+
+    /// <summary>The box no longer holds a message's words to change: emptied.</summary>
+    private void StopEditing()
+    {
+        if (Editing is not null)
+        {
+            Editing = null;
+            Draft = "";
+        }
+    }
 
     /// <summary>Clicked on what a reply answers: the conversation goes to it.</summary>
     internal void ShowQuote(ChatBubbleViewModel bubble)
@@ -696,6 +730,20 @@ public sealed partial class ChatViewModel : ObservableObject
         }
 
         string text = Draft;
+        if (Editing is { } edited)
+        {
+            StopEditing();
+            mentioned.Clear();
+            if (!(person.GroupId is { } group
+                    ? await groupChat.EditAsync(group, edited.Id, text, CancellationToken.None)
+                    : await chat.EditAsync(person.Peer, edited.Id, text, CancellationToken.None)))
+            {
+                Notice = L.T("Tin nhắn này không còn sửa được.");
+            }
+
+            return;
+        }
+
         string? replyTo = ReplyingTo is { } answered ? ReplyIdOf(answered) : null;
         List<string>? mentions = MentionsIn(text);
         Draft = "";
@@ -720,6 +768,7 @@ public sealed partial class ChatViewModel : ObservableObject
     {
         StopPlaying();
         ReplyingTo = null;
+        StopEditing();
         mentioned.Clear();
         IsSelecting = false;
         CloseDetails();

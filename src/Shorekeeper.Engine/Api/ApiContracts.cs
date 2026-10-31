@@ -166,6 +166,12 @@ public sealed record ChatReceiptBody(string ReadUpTo);
 public sealed record ChatRecallBody(IReadOnlyList<string> Ids, IReadOnlyList<string>? Offers = null);
 
 /// <summary>
+/// Body of <c>POST /api/v1/chat/edits</c> (docs/18-chat-extras.md §5): the caller changed the words of a text message it
+/// sent; <paramref name="EditedAt"/> is on its clock, and an older edit never replaces a newer one.
+/// </summary>
+public sealed record ChatEditBody(string Id, string Text, DateTimeOffset EditedAt);
+
+/// <summary>
 /// Body of <c>POST /api/v1/chat/groups/{groupId}/messages</c> (docs/16-group-chat.md §4): a message of
 /// <see cref="ChatMessageBody"/> to a whole group, signed by its author (the caller) with its device key
 /// (<paramref name="AuthorKey"/>, a SubjectPublicKeyInfo whose hash is <paramref name="AuthorId"/>), so it stays the
@@ -173,10 +179,17 @@ public sealed record ChatRecallBody(IReadOnlyList<string> Ids, IReadOnlyList<str
 /// </summary>
 /// <param name="ReplyTo">As in <see cref="ChatMessageBody"/>; signed (docs/18-chat-extras.md §2).</param>
 /// <param name="Mentions">DeviceIds named with "@", or "all"; signed.</param>
+/// <param name="EditSig">
+/// An edited text message (docs/18-chat-extras.md §5) is checked by its author's signed edit of
+/// <paramref name="EditedAt"/>, not by <paramref name="Sig"/>, which signed the words before.
+/// </param>
 public sealed record GroupChatMessageBody(
     string Id, string AuthorId, string AuthorName, byte[] AuthorKey, DateTimeOffset SentAt, string Kind, byte[] Sig,
     string? Text = null, int? DurationMs = null, byte[]? Wave = null, byte[]? Audio = null, string? ReplyTo = null,
-    IReadOnlyList<string>? Mentions = null);
+    IReadOnlyList<string>? Mentions = null, DateTimeOffset? EditedAt = null, byte[]? EditSig = null);
+
+/// <summary>Body of <c>POST /api/v1/chat/groups/{groupId}/edits</c>: the caller's new words for its message, signed.</summary>
+public sealed record GroupChatEditBody(string Id, string Text, DateTimeOffset EditedAt, byte[] Sig);
 
 /// <summary>Body of <c>POST /api/v1/chat/groups/{groupId}/recalls</c>: messages taken back, each with its signed recall.</summary>
 /// <param name="Offers">The caller's offers to the group taken back from the conversation (docs/16-group-chat.md §6.3).</param>
@@ -191,7 +204,8 @@ public sealed record GroupChatRecall(string Id, byte[] Sig);
 /// </summary>
 public sealed record GroupChatIndexResponse(IReadOnlyList<GroupChatIndexEntry> Entries, long Next, bool More);
 
-public sealed record GroupChatIndexEntry(long Seq, string Id, string AuthorId, DateTimeOffset SentAt, bool Recalled);
+/// <param name="EditedAt">When its words last changed: a member holding an older edit, or none, asks for it again.</param>
+public sealed record GroupChatIndexEntry(long Seq, string Id, string AuthorId, DateTimeOffset SentAt, bool Recalled, DateTimeOffset? EditedAt = null);
 
 /// <summary>Body of <c>POST /api/v1/chat/groups/{groupId}/fetch</c>: messages wanted from the index.</summary>
 public sealed record GroupChatFetchBody(IReadOnlyList<string> Ids);

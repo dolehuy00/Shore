@@ -127,7 +127,7 @@ public sealed partial class GroupChatService
             waiting = await connection.QueryAsync<string>(
                 """
                 SELECT PeerId FROM ChatGroupDeliveries WHERE State = 'pending'
-                UNION SELECT AuthorId FROM ChatGroupReceipts UNION SELECT PeerId FROM ChatGroupRecalls;
+                UNION SELECT AuthorId FROM ChatGroupReceipts UNION SELECT PeerId FROM ChatGroupRecalls UNION SELECT PeerId FROM ChatGroupEdits;
                 """);
         }
 
@@ -187,6 +187,7 @@ public sealed partial class GroupChatService
         List<DeliveryRow> pending;
         List<(string GroupId, string ReadUpTo)> receipts;
         List<(string GroupId, string Id, byte[] Sig, long IsOffer)> recalls;
+        List<EditRow> edits;
         await using (SqliteConnection connection = await database.OpenAsync(cancellationToken))
         {
             pending = [.. await connection.QueryAsync<DeliveryRow>(
@@ -201,6 +202,14 @@ public sealed partial class GroupChatService
                 "SELECT GroupId, ReadUpTo FROM ChatGroupReceipts WHERE AuthorId = @peer;", new { peer = peer.Value })];
             recalls = [.. await connection.QueryAsync<(string, string, byte[], long)>(
                 "SELECT GroupId, Id, Sig, IsOffer FROM ChatGroupRecalls WHERE PeerId = @peer;", new { peer = peer.Value })];
+            // The newest signed edit; none when the message is gone or taken back since.
+            edits = [.. await connection.QueryAsync<EditRow>(
+                """
+                SELECT e.GroupId, e.Id, m.Text, m.EditedAt, m.EditSig FROM ChatGroupEdits e
+                LEFT JOIN ChatGroupMessages m ON m.GroupId = e.GroupId AND m.Id = e.Id AND m.Kind = 'text' AND m.Deleted = 0
+                WHERE e.PeerId = @peer;
+                """,
+                new { peer = peer.Value })];
         }
 
         // Heard directly without the capability: a version without group messages, which would only refuse them; or one
@@ -217,7 +226,7 @@ public sealed partial class GroupChatService
                 continue;
             }
 
-            if (old || (before2 && (row.ReplyTo is not null || row.Mentions is not null)))
+            if (old || (before2 && (row.ReplyTo is not null || row.Mentions is not null || row.EditSig is not null)))
             {
                 await SetDeliveryAsync(row, peer, GroupDeliveryState.Old, cancellationToken);
                 continue;
@@ -231,9 +240,7 @@ public sealed partial class GroupChatService
                 continue;
             }
 
-            var body = new GroupChatMessageBody(
-                row.Id, row.AuthorId, row.AuthorName, row.AuthorKey, FromMs(row.SentAt), row.Kind, row.Sig, row.Text, (int?)row.DurationMs, row.Wave, audio,
-                row.ReplyTo, ChatReplies.Split(row.Mentions));
+            GroupChatMessageBody body = row.ToBody(audio);
             bool? taken;
             string? code;
             if (audio is null)
@@ -261,6 +268,7 @@ public sealed partial class GroupChatService
             if (taken.Value)
             {
                 await SetDeliveryAsync(row, peer, GroupDeliveryState.Delivered, cancellationToken);
+                await EditedOnTheWayAsync(row, peer, cancellationToken);
             }
             else if (code == ApiErrorCodes.HostOffline)
             {
@@ -320,6 +328,47 @@ public sealed partial class GroupChatService
                     cancellationToken);
             }
         }
+
+        // The same for edits: a version without them answers like for a route it does not have.
+        foreach (EditRow e in edits)
+        {
+            if (e.EditSig is null
+                || (await PostAsync(peer, $"chat/groups/{e.GroupId}/edits", new GroupChatEditBody(e.Id, e.Text!, FromMs(e.EditedAt ?? 0), e.EditSig), cancellationToken))
+                    .Taken is not null)
+            {
+                await WriteAsync(
+                    "DELETE FROM ChatGroupEdits WHERE GroupId = @GroupId AND PeerId = @peer AND Id = @Id;", new { e.GroupId, peer = peer.Value, e.Id }, cancellationToken);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Our message reached <paramref name="peer"/> with words since changed here: it is told like after any edit, and
+    /// an edit made when the message had reached nobody becomes one.
+    /// </summary>
+    private async Task EditedOnTheWayAsync(DeliveryRow sent, DeviceId peer, CancellationToken cancellationToken)
+    {
+        if (sent.Outgoing == 0 || sent.Kind != ChatKinds.Text)
+        {
+            return;
+        }
+
+        await using SqliteConnection connection = await database.OpenAsync(cancellationToken);
+        var found = (await connection.QueryAsync<MessageRow>(
+            $"SELECT {Columns} FROM ChatGroupMessages WHERE GroupId = @GroupId AND Id = @Id AND Kind = 'text' AND Deleted = 0;", new { sent.GroupId, sent.Id })).ToList();
+        if (found is not [var now] || (now.Text == sent.Text && now.EditedAt == sent.EditedAt))
+        {
+            return;
+        }
+
+        if (now.EditSig is null)
+        {
+            await SetWordsAsync(connection, now, now.Text!, edited: true);
+        }
+
+        await connection.ExecuteAsync(
+            "INSERT OR IGNORE INTO ChatGroupEdits (GroupId, PeerId, Id) VALUES (@GroupId, @peer, @Id);", new { sent.GroupId, peer = peer.Value, sent.Id });
+        Kick(peer);
     }
 
     /// <summary>Where the message now is with <paramref name="peer"/>; null drops it, never to be sent there.</summary>
