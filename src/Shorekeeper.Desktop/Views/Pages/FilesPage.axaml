@@ -1,0 +1,241 @@
+<!-- File: "Nhận | Đã gửi", as on the phone (docs/17-ui-cleanup.md §2). -->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:l="using:Shorekeeper.Desktop.Localization"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Shorekeeper.Desktop.ViewModels"
+             x:Class="Shorekeeper.Desktop.Views.Pages.FilesPage"
+             x:DataType="vm:MainWindowViewModel">
+  <StackPanel Spacing="18">
+    <Grid IsVisible="{Binding IsFilesVisible}" ColumnDefinitions="*,Auto" MaxWidth="860" HorizontalAlignment="Stretch">
+      <TextBlock Classes="h2" Text="{l:T 'File'}" VerticalAlignment="Center" />
+      <Border Grid.Column="1" Classes="segments" Width="240">
+        <Grid ColumnDefinitions="*,*">
+          <Button Classes="segment" Classes.on="{Binding !IsSentTab}" Command="{Binding ShowPageCommand}" CommandParameter="{x:Static vm:NavPage.Inbox}"
+                  Content="{l:T 'Nhận'}" />
+          <Button Grid.Column="1" Classes="segment" Classes.on="{Binding IsSentTab}" Command="{Binding ShowPageCommand}" CommandParameter="{x:Static vm:NavPage.Sent}"
+                  Content="{l:T 'Đã gửi'}" />
+        </Grid>
+      </Border>
+    </Grid>
+    <!-- What the tab shows: a kind, and who or which files (docs/17-ui-cleanup.md §4). -->
+    <Grid IsVisible="{Binding IsFilesVisible}" ColumnDefinitions="Auto,*" MaxWidth="860" HorizontalAlignment="Stretch" Margin="0,-6,0,0">
+      <Border Classes="segments" Width="340">
+        <Grid ColumnDefinitions="*,*,*,*">
+          <Button Classes="segment" Classes.on="{Binding FilesFilter, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:FileFilter.All}}"
+                  Command="{Binding SetFilesFilterCommand}" CommandParameter="{x:Static vm:FileFilter.All}" Content="{l:T 'Tất cả'}" />
+          <Button Grid.Column="1" Classes="segment" Classes.on="{Binding FilesFilter, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:FileFilter.Images}}"
+                  Command="{Binding SetFilesFilterCommand}" CommandParameter="{x:Static vm:FileFilter.Images}" Content="{l:T 'Ảnh'}" />
+          <Button Grid.Column="2" Classes="segment" Classes.on="{Binding FilesFilter, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:FileFilter.Files}}"
+                  Command="{Binding SetFilesFilterCommand}" CommandParameter="{x:Static vm:FileFilter.Files}" Content="{l:T 'File'}" />
+          <Button Grid.Column="3" Classes="segment" Classes.on="{Binding FilesFilter, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:FileFilter.Folders}}"
+                  Command="{Binding SetFilesFilterCommand}" CommandParameter="{x:Static vm:FileFilter.Folders}" Content="{l:T 'Thư mục'}" />
+        </Grid>
+      </Border>
+      <TextBox Grid.Column="1" Text="{Binding FilesQuery}" PlaceholderText="{l:T 'Tìm theo người hoặc tên file'}" Width="260" HorizontalAlignment="Right" Margin="12,0,0,0"
+               VerticalContentAlignment="Center" />
+    </Grid>
+
+    <!-- Hộp nhận -->
+    <StackPanel Classes="page" IsVisible="{Binding IsInboxVisible}" Spacing="14" MaxWidth="860" HorizontalAlignment="Stretch">
+      <!-- "Chọn nhiều" (⋮ on an offer): check boxes on the offers, and what to do with the checked ones. -->
+      <Border Classes="panel selectionbar" IsVisible="{Binding Inbox.IsSelecting}" Padding="14,8">
+        <Grid ColumnDefinitions="Auto,*,Auto">
+          <CheckBox IsChecked="{Binding Inbox.AllSelected}" Content="{l:T 'Chọn tất cả'}" VerticalAlignment="Center" />
+          <TextBlock Grid.Column="1" Classes="muted" Text="{Binding Inbox.SelectedText}" FontSize="12" Margin="12,0" VerticalAlignment="Center" />
+          <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6">
+            <Button Content="{l:T 'Xóa khỏi lịch sử'}" Command="{Binding Inbox.RemoveSelectedCommand}" IsEnabled="{Binding Inbox.HasSelection}" />
+            <Button Content="{l:T 'Xóa kèm file đã nhận…'}" Command="{Binding Inbox.RemoveSelectedWithFilesCommand}" IsEnabled="{Binding Inbox.HasSelection}" />
+            <Button Content="{l:T 'Xong'}" Command="{Binding Inbox.StopSelectingCommand}" Classes="accent" />
+          </StackPanel>
+        </Grid>
+      </Border>
+      <StackPanel IsVisible="{Binding Inbox.IsEmpty}" Spacing="6" Margin="0,40" HorizontalAlignment="Center">
+        <PathIcon Data="{StaticResource Icon.Download}" Width="40" Height="40" Opacity="0.5" HorizontalAlignment="Center" />
+        <TextBlock Text="{l:T 'Chưa có ai gửi gì cho bạn.'}" FontWeight="SemiBold" HorizontalAlignment="Center" />
+      </StackPanel>
+      <TextBlock Classes="muted" IsVisible="{Binding Inbox.HasNoMatch}" Text="{l:T 'Không có mục nào khớp.'}" HorizontalAlignment="Center" Margin="0,30" />
+      <ItemsControl x:Name="InboxList" ItemsSource="{Binding Inbox.Items}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:InboxItemViewModel">
+            <StackPanel IsVisible="{Binding IsShown}">
+            <TextBlock Classes="dayhead" Text="{Binding DayText}" IsVisible="{Binding HasDay}" />
+            <Border Classes="panel offer" Classes.picked="{Binding IsSelected}" Classes.leaving="{Binding IsLeaving}">
+              <Grid ColumnDefinitions="Auto,Auto,*,Auto">
+                <CheckBox Classes="pick" IsChecked="{Binding IsSelected}" IsVisible="{Binding Owner.IsSelecting}" VerticalAlignment="Center" MinWidth="0" Width="24" Padding="0" Margin="0,0,10,0"
+                          AutomationProperties.Name="{l:T 'Chọn'}" />
+                <Panel Grid.Column="1" VerticalAlignment="Center">
+                  <Border Classes="tile" Width="40" Height="40" CornerRadius="8">
+                    <Panel>
+                      <PathIcon Data="{StaticResource Icon.Document}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Files}}" Width="20" Height="20" />
+                      <PathIcon Data="{StaticResource Icon.Image}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Images}}" Width="20" Height="20" />
+                      <PathIcon Data="{StaticResource Icon.FolderOpen}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Folder}}" Width="20" Height="20" />
+                    </Panel>
+                  </Border>
+                  <Border Width="40" Height="40" CornerRadius="8" ClipToBounds="True" IsVisible="{Binding HasThumbnail}">
+                    <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" />
+                  </Border>
+                </Panel>
+
+                <!-- Two lines: the files, then who · size · state · when. -->
+                <StackPanel Grid.Column="2" Margin="12,0,12,0" Spacing="2" VerticalAlignment="Center">
+                  <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                  <!-- "app.zip + 2 mục" names only the first: the button opens the whole list. -->
+                  <StackPanel DataContext="{Binding Contents}" x:DataType="vm:OfferContents" IsVisible="{Binding CanExpand}" Spacing="2">
+                    <Button Content="{Binding ToggleText}" Command="{Binding ToggleCommand}" Padding="0,2" FontSize="12" HorizontalAlignment="Left"
+                            Background="Transparent" BorderThickness="0" Foreground="{DynamicResource AccentButtonBackground}" />
+                    <ItemsControl ItemsSource="{Binding Items}" IsVisible="{Binding IsExpanded}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="x:String">
+                          <!-- The bullet keeps its own column, so a long name wraps under itself, not below the bullet. -->
+                          <Grid ColumnDefinitions="Auto,*">
+                            <TextBlock Text="•" FontSize="13" Margin="0,0,6,0" />
+                            <TextBlock Grid.Column="1" Text="{Binding}" FontSize="13" TextWrapping="Wrap" />
+                          </Grid>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
+                  <TextBlock Text="{Binding Note}" IsVisible="{Binding HasNote}" FontStyle="Italic" Opacity="0.75" TextWrapping="Wrap" />
+                  <WrapPanel>
+                    <TextBlock Classes="muted" Text="{Binding SenderName, StringFormat='{}{0} · '}" FontSize="12" VerticalAlignment="Center" />
+                    <TextBlock Classes="muted" Text="{Binding Details}" FontSize="12" Margin="0,0,10,0" VerticalAlignment="Center" />
+                    <PathIcon Classes="done" Data="{StaticResource Icon.CheckCircle}" IsVisible="{Binding IsCompleted}" Width="14" Height="14" Margin="0,0,5,0" VerticalAlignment="Center" />
+                    <TextBlock Classes="muted" Classes.error="{Binding IsError}" Text="{Binding StatusText}" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" />
+                    <TextBlock Classes="muted" Text="{Binding Ago, StringFormat=' · {0}'}" FontSize="12" VerticalAlignment="Center" />
+                  </WrapPanel>
+                  <ProgressBar Value="{Binding Progress}" Maximum="100" IsVisible="{Binding IsDownloading}" MinWidth="0" Margin="0,4,0,0" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                  <Button Content="{Binding DownloadText}" Command="{Binding DownloadCommand}" IsVisible="{Binding CanDownload}" Classes="accent" />
+                  <Button Content="{Binding CopyText}" Command="{Binding CopyImageCommand}" IsVisible="{Binding CanCopyImage}"
+                          ToolTip.Tip="{l:T 'Chép ảnh để dán vào Zalo, Word…'}" />
+                  <Button Content="{l:T 'Chọn file…'}" Command="{Binding PickFilesCommand}" IsVisible="{Binding CanPick}" />
+                  <Button Content="{l:T 'Bỏ qua'}" Command="{Binding DeclineCommand}" IsVisible="{Binding IsNew}" />
+                  <Button Content="{l:T 'Hủy'}" Command="{Binding CancelCommand}" IsVisible="{Binding IsDownloading}" />
+                  <Button Content="{l:T 'Mở'}" Command="{Binding OpenCommand}" IsVisible="{Binding CanOpen}" />
+                  <Button Command="{Binding OpenFolderCommand}" IsVisible="{Binding CanOpen}" Padding="9,7"
+                          ToolTip.Tip="{l:T 'Mở thư mục'}" AutomationProperties.Name="{l:T 'Mở thư mục'}">
+                    <PathIcon Data="{StaticResource Icon.FolderOpen}" Width="16" Height="16" />
+                  </Button>
+                  <Button Padding="9,7" ToolTip.Tip="{l:T 'Thêm'}" AutomationProperties.Name="{l:T 'Thêm'}">
+                    <PathIcon Data="{StaticResource Icon.More}" Width="16" Height="16" />
+                    <Button.Flyout>
+                      <MenuFlyout>
+                        <MenuItem Header="{l:T 'Chọn nhiều'}" Command="{Binding SelectManyCommand}" />
+                        <MenuItem Header="{l:T 'Xóa khỏi lịch sử (giữ file)'}" Command="{Binding RemoveCommand}" IsEnabled="{Binding !IsDownloading}" />
+                        <MenuItem Header="{l:T 'Xóa kèm file đã nhận…'}" Command="{Binding RemoveWithFilesCommand}" IsVisible="{Binding HasFiles}" IsEnabled="{Binding !IsDownloading}" />
+                      </MenuFlyout>
+                    </Button.Flyout>
+                  </Button>
+                </StackPanel>
+              </Grid>
+            </Border>
+            </StackPanel>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </StackPanel>
+
+    <!-- Đã gửi -->
+    <StackPanel Classes="page" IsVisible="{Binding IsSentVisible}" Spacing="14" MaxWidth="860" HorizontalAlignment="Stretch">
+      <!-- "Chọn nhiều" (⋮ on an offer): check boxes on the offers, and what to do with the checked ones. -->
+      <Border Classes="panel selectionbar" IsVisible="{Binding Sent.IsSelecting}" Padding="14,8">
+        <Grid ColumnDefinitions="Auto,*,Auto">
+          <CheckBox IsChecked="{Binding Sent.AllSelected}" Content="{l:T 'Chọn tất cả'}" VerticalAlignment="Center" />
+          <TextBlock Grid.Column="1" Classes="muted" Text="{Binding Sent.SelectedText}" FontSize="12" Margin="12,0" VerticalAlignment="Center" />
+          <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6">
+            <Button Content="{l:T 'Xóa khỏi lịch sử'}" Command="{Binding Sent.RemoveSelectedCommand}" IsEnabled="{Binding Sent.HasSelection}" />
+            <Button Content="{l:T 'Xong'}" Command="{Binding Sent.StopSelectingCommand}" Classes="accent" />
+          </StackPanel>
+        </Grid>
+      </Border>
+      <StackPanel IsVisible="{Binding !Sent.Items.Count}" Spacing="6" Margin="0,40" HorizontalAlignment="Center">
+        <PathIcon Data="{StaticResource Icon.Upload}" Width="40" Height="40" Opacity="0.5" HorizontalAlignment="Center" />
+        <TextBlock Text="{l:T 'Bạn chưa gửi gì.'}" FontWeight="SemiBold" HorizontalAlignment="Center" />
+        <TextBlock Classes="muted" Text="{l:T 'Kéo file vào một người ở trang Xóm để gửi.'}" HorizontalAlignment="Center" />
+      </StackPanel>
+      <TextBlock Classes="muted" IsVisible="{Binding Sent.HasNoMatch}" Text="{l:T 'Không có mục nào khớp.'}" HorizontalAlignment="Center" Margin="0,30" />
+      <ItemsControl x:Name="SentList" ItemsSource="{Binding Sent.Items}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:SentItemViewModel">
+            <StackPanel IsVisible="{Binding IsShown}">
+            <TextBlock Classes="dayhead" Text="{Binding DayText}" IsVisible="{Binding HasDay}" />
+            <Border Classes="panel offer" Classes.picked="{Binding IsSelected}" Classes.leaving="{Binding IsLeaving}">
+              <Grid ColumnDefinitions="Auto,Auto,*,Auto">
+                <CheckBox Classes="pick" IsChecked="{Binding IsSelected}" IsVisible="{Binding Owner.IsSelecting}" VerticalAlignment="Center" MinWidth="0" Width="24" Padding="0" Margin="0,0,10,0"
+                          AutomationProperties.Name="{l:T 'Chọn'}" />
+                <Border Grid.Column="1" Classes="tile" Width="40" Height="40" CornerRadius="8" VerticalAlignment="Center">
+                    <Panel>
+                      <PathIcon Data="{StaticResource Icon.Document}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Files}}" Width="20" Height="20" />
+                      <PathIcon Data="{StaticResource Icon.Image}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Images}}" Width="20" Height="20" />
+                      <PathIcon Data="{StaticResource Icon.FolderOpen}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Folder}}" Width="20" Height="20" />
+                    </Panel>
+                  </Border>
+
+                <StackPanel Grid.Column="2" Margin="12,0,12,0" Spacing="2" VerticalAlignment="Center">
+                  <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                  <!-- "app.zip + 2 mục" names only the first: the button opens the whole list. -->
+                  <StackPanel DataContext="{Binding Contents}" x:DataType="vm:OfferContents" IsVisible="{Binding CanExpand}" Spacing="2">
+                    <Button Content="{Binding ToggleText}" Command="{Binding ToggleCommand}" Padding="0,2" FontSize="12" HorizontalAlignment="Left"
+                            Background="Transparent" BorderThickness="0" Foreground="{DynamicResource AccentButtonBackground}" />
+                    <ItemsControl ItemsSource="{Binding Items}" IsVisible="{Binding IsExpanded}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="x:String">
+                          <!-- The bullet keeps its own column, so a long name wraps under itself, not below the bullet. -->
+                          <Grid ColumnDefinitions="Auto,*">
+                            <TextBlock Text="•" FontSize="13" Margin="0,0,6,0" />
+                            <TextBlock Grid.Column="1" Text="{Binding}" FontSize="13" TextWrapping="Wrap" />
+                          </Grid>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
+                  <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap">
+                    <Run Text="{Binding Details}" />
+                    <Run Text=" · " />
+                    <Run Text="{Binding StatusText}" />
+                  </TextBlock>
+                  <ItemsControl ItemsSource="{Binding Recipients}" Margin="0,2,0,0">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <WrapPanel />
+                      </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:SentRecipientItem">
+                        <Border Classes="chip">
+                          <StackPanel Orientation="Horizontal" Spacing="5">
+                            <PathIcon Classes="done" Data="{StaticResource Icon.CheckCircle}" IsVisible="{Binding IsDone}" Width="13" Height="13" />
+                            <TextBlock Text="{Binding Name}" FontSize="12" FontWeight="SemiBold" />
+                            <TextBlock Classes="muted" Classes.error="{Binding IsFailed}" Text="{Binding State}" FontSize="12" />
+                          </StackPanel>
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                  <TextBlock IsVisible="{Binding HasChangedFiles}" Classes="error" FontSize="12" TextWrapping="Wrap"
+                             Text="{l:T 'File gốc đã bị sửa sau khi gửi: ai chưa tải sẽ không tải được bản cũ. Hãy gửi lại.'}" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                  <Button Content="{l:T 'Thu hồi'}" Command="{Binding WithdrawCommand}" IsVisible="{Binding CanWithdraw}" />
+                  <Button Padding="9,7" ToolTip.Tip="{l:T 'Thêm'}" AutomationProperties.Name="{l:T 'Thêm'}">
+                    <PathIcon Data="{StaticResource Icon.More}" Width="16" Height="16" />
+                    <Button.Flyout>
+                      <MenuFlyout>
+                        <MenuItem Header="{l:T 'Chọn nhiều'}" Command="{Binding SelectManyCommand}" />
+                        <MenuItem Header="{l:T 'Xóa khỏi lịch sử'}" Command="{Binding RemoveCommand}" />
+                      </MenuFlyout>
+                    </Button.Flyout>
+                  </Button>
+                </StackPanel>
+              </Grid>
+            </Border>
+            </StackPanel>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </StackPanel>
+  </StackPanel>
+</UserControl>

@@ -1,0 +1,191 @@
+<!-- Nhóm: my groups and the groups seen on the network. -->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:l="using:Shorekeeper.Desktop.Localization"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Shorekeeper.Desktop.ViewModels"
+             x:Class="Shorekeeper.Desktop.Views.Pages.GroupsPage"
+             x:DataType="vm:MainWindowViewModel">
+  <StackPanel Classes="page" IsVisible="{Binding IsGroupsVisible}" Spacing="14" MaxWidth="860" HorizontalAlignment="Stretch">
+    <Grid ColumnDefinitions="*,Auto">
+      <TextBlock Classes="h2" Text="{l:T 'Nhóm'}" VerticalAlignment="Center" />
+      <Button Grid.Column="1" Classes="accent" Command="{Binding Groups.CreateCommand}" IsVisible="{Binding Groups.IsEnabled}"
+              AutomationProperties.Name="{l:T 'Tạo nhóm'}">
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <PathIcon Data="{StaticResource Icon.Add}" Width="16" Height="16" />
+          <TextBlock Text="{l:T 'Tạo nhóm'}" />
+        </StackPanel>
+      </Button>
+    </Grid>
+
+    <TextBlock Classes="muted" IsVisible="{Binding !Groups.IsEnabled}" Text="{l:T 'Quản trị viên đã tắt tính năng nhóm trên máy này.'}" />
+
+    <!-- What happened lately -->
+    <ItemsControl ItemsSource="{Binding Groups.Notices}">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="vm:NoticeViewModel">
+          <Border Classes="panel" Background="#143B82F6">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Text="{Binding Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
+              <Button Grid.Column="1" Content="✕" Command="{Binding DismissCommand}" Padding="8,2" Background="Transparent" BorderThickness="0"
+                      AutomationProperties.Name="{l:T 'Đóng'}" />
+            </Grid>
+          </Border>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+
+    <ItemsControl ItemsSource="{Binding Groups.Invitations}">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="vm:InvitationViewModel">
+          <Border Classes="panel">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Text="{Binding Text}" TextWrapping="Wrap" VerticalAlignment="Center" FontWeight="SemiBold" />
+              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                <Button Content="{l:T 'Đồng ý'}" Command="{Binding AcceptCommand}" Classes="accent" />
+                <Button Content="{l:T 'Từ chối'}" Command="{Binding DeclineCommand}" />
+              </StackPanel>
+            </Grid>
+          </Border>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+
+    <TextBlock Classes="section" Text="{l:T 'Nhóm của tôi'}" IsVisible="{Binding Groups.HasMyGroups}" />
+    <StackPanel IsVisible="{Binding !Groups.HasMyGroups}" Spacing="6" Margin="0,24" HorizontalAlignment="Center">
+      <PathIcon Data="{StaticResource Icon.Team}" Width="40" Height="40" Opacity="0.5" HorizontalAlignment="Center" />
+      <TextBlock Text="{l:T 'Bạn chưa ở trong nhóm nào.'}" FontWeight="SemiBold" HorizontalAlignment="Center" />
+      <TextBlock Classes="muted" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="520"
+                 Text="{l:T 'Tạo nhóm, hoặc xin vào một nhóm trong mạng: thành viên cùng nhóm gửi file cho nhau được mà không cần Kết nối từng người.'}" />
+    </StackPanel>
+    <ItemsControl x:Name="MyGroupsList" ItemsSource="{Binding Groups.MyGroups}">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="vm:GroupCardViewModel">
+          <Border Classes="panel" Classes.droptarget="{Binding IsDropTarget}" DragDrop.AllowDrop="True">
+            <StackPanel Spacing="8">
+              <Grid ColumnDefinitions="Auto,*,Auto">
+                <Border Classes="tile">
+                  <PathIcon Data="{StaticResource Icon.Team}" Width="22" Height="22" />
+                </Border>
+                <StackPanel Grid.Column="1" Spacing="2" Margin="14,0,12,0" VerticalAlignment="Center">
+                  <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                  <TextBlock Classes="muted" Text="{Binding Subtitle}" FontSize="12" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                  <Button Command="{Binding ChatCommand}" IsVisible="{Binding CanDrop}" Padding="9,7" ToolTip.Tip="{l:T 'Nhắn tin'}" AutomationProperties.Name="{l:T 'Nhắn tin'}">
+                    <PathIcon Data="{StaticResource Icon.Chat}" Width="16" Height="16" />
+                  </Button>
+                  <Button Command="{Binding SendFilesCommand}" Classes="accent" IsVisible="{Binding CanDrop}" AutomationProperties.Name="{l:T 'Gửi file cho nhóm'}">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                      <PathIcon Data="{StaticResource Icon.Send}" Width="16" Height="16" />
+                      <TextBlock Text="{l:T 'Gửi file cho nhóm'}" />
+                    </StackPanel>
+                  </Button>
+                  <Button Content="{l:T 'Mời…'}" Command="{Binding InviteCommand}" IsVisible="{Binding IsHost}" />
+                  <Button Padding="9,7" ToolTip.Tip="{l:T 'Thêm'}" AutomationProperties.Name="{l:T 'Thêm'}">
+                    <PathIcon Data="{StaticResource Icon.More}" Width="16" Height="16" />
+                    <Button.Flyout>
+                      <MenuFlyout>
+                        <MenuItem Header="{l:T 'Gửi thư mục cho nhóm…'}" Command="{Binding SendFolderCommand}" IsVisible="{Binding CanDrop}" />
+                        <MenuItem Header="{l:T 'Gửi văn bản cho nhóm…'}" Command="{Binding SendTextCommand}" IsVisible="{Binding CanDrop}" />
+                        <MenuItem Header="{l:T 'Sửa nhóm…'}" Command="{Binding EditCommand}" IsVisible="{Binding IsHost}" />
+                        <MenuItem Header="{l:T 'Đóng nhóm…'}" Command="{Binding CloseCommand}" IsVisible="{Binding IsHost}" />
+                        <MenuItem Header="{Binding LeaveText}" Command="{Binding LeaveCommand}" IsVisible="{Binding CanLeave}" />
+                      </MenuFlyout>
+                    </Button.Flyout>
+                  </Button>
+                </StackPanel>
+              </Grid>
+
+              <TextBlock Classes="muted" Text="{Binding StatusText}" IsVisible="{Binding HasStatus}" FontSize="12" TextWrapping="Wrap" />
+
+              <!-- One row per member: device, name, Host/Bạn, status and where they are on the network. -->
+              <ItemsControl ItemsSource="{Binding Members}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:MemberViewModel">
+                    <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,3">
+                      <Border Width="32" Height="32" CornerRadius="6" Background="{DynamicResource Sk.TileBackground}" VerticalAlignment="Center">
+                        <Panel>
+                          <PathIcon Data="{StaticResource Icon.Laptop}" IsVisible="{Binding !IsPhone}" Width="16" Height="16" />
+                          <PathIcon Data="{StaticResource Icon.Phone}" IsVisible="{Binding IsPhone}" Width="16" Height="16" />
+                        </Panel>
+                      </Border>
+                      <StackPanel Grid.Column="1" Margin="10,0" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                          <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                          <Border Classes="tag" IsVisible="{Binding IsHost}" VerticalAlignment="Center">
+                            <TextBlock Text="Host" FontSize="11" />
+                          </Border>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                          <Ellipse Classes="dot" Classes.busy="{Binding IsBusy}" Classes.muted="{Binding !IsOnline}" Width="8" Height="8" />
+                          <TextBlock Classes="muted" Text="{Binding StatusText}" FontSize="12" />
+                          <TextBlock Classes="muted" Text="·" FontSize="12" IsVisible="{Binding HasDetail}" />
+                          <TextBlock Classes="muted" Text="{Binding Detail}" FontSize="12" TextTrimming="CharacterEllipsis" IsVisible="{Binding HasDetail}" />
+                        </StackPanel>
+                      </StackPanel>
+                      <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button Classes="icon" Width="28" Height="28" IsVisible="{Binding CanRename}" ToolTip.Tip="{l:T 'Thêm'}" AutomationProperties.Name="{l:T 'Thêm'}">
+                          <PathIcon Data="{StaticResource Icon.More}" Width="14" Height="14" />
+                          <Button.Flyout>
+                            <MenuFlyout Placement="BottomEdgeAlignedRight">
+                              <MenuItem Header="{l:T 'Đặt tên gợi nhớ…'}" Command="{Binding RenameCommand}" />
+                            </MenuFlyout>
+                          </Button.Flyout>
+                        </Button>
+                        <Button Command="{Binding RemoveCommand}" IsVisible="{Binding CanRemove}" ToolTip.Tip="{l:T 'Loại khỏi nhóm'}"
+                                Background="Transparent" BorderThickness="0" Padding="6" VerticalAlignment="Center"
+                                AutomationProperties.Name="{l:T 'Loại khỏi nhóm'}">
+                          <PathIcon Data="{StaticResource Icon.Dismiss}" Width="12" Height="12" />
+                        </Button>
+                      </StackPanel>
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+
+              <ItemsControl ItemsSource="{Binding Requests}" IsVisible="{Binding HasRequests}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:JoinRequestViewModel">
+                    <Grid ColumnDefinitions="*,Auto" Margin="0,2">
+                      <TextBlock Text="{Binding Text}" TextWrapping="Wrap" VerticalAlignment="Center" FontSize="12" />
+                      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" IsVisible="{Binding !IsInvited}">
+                        <Button Content="{l:T 'Duyệt'}" Command="{Binding ApproveCommand}" Padding="10,3" />
+                        <Button Content="{l:T 'Từ chối'}" Command="{Binding DeclineCommand}" Padding="10,3" />
+                      </StackPanel>
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </Border>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+
+    <TextBlock Classes="section" Text="{l:T 'Nhóm trong mạng'}" IsVisible="{Binding Groups.HasNetworkGroups}" />
+    <ItemsControl x:Name="NetworkGroupsList" ItemsSource="{Binding Groups.NetworkGroups}">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="vm:NetworkGroupViewModel">
+          <Border Classes="panel">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+              <Border Classes="tile">
+                <PathIcon Data="{StaticResource Icon.Team}" Width="22" Height="22" />
+              </Border>
+              <StackPanel Grid.Column="1" Spacing="2" Margin="14,0,12,0" VerticalAlignment="Center">
+                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                <TextBlock Classes="muted" Text="{Binding Detail}" FontSize="12" />
+              </StackPanel>
+              <Button Grid.Column="2" Content="{l:T 'Xin vào'}" Command="{Binding JoinCommand}" VerticalAlignment="Center" />
+            </Grid>
+          </Border>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+
+    <!-- One line; the rest on hover (docs/17-ui-cleanup.md §4). -->
+    <StackPanel Orientation="Horizontal" Spacing="6" Background="Transparent" ToolTip.Tip="{l:T 'Kéo file vào một nhóm để gửi cho các thành viên (chọn được từng người). Thành viên vẫn gửi file cho nhau được khi Host offline.'}">
+      <PathIcon Data="{StaticResource Icon.Info}" Width="14" Height="14" Opacity="0.7" VerticalAlignment="Center" />
+      <TextBlock Classes="muted" FontSize="12" Text="{l:T 'Kéo file vào một nhóm để gửi cho các thành viên.'}" VerticalAlignment="Center" />
+    </StackPanel>
+  </StackPanel>
+</UserControl>

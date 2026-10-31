@@ -17,7 +17,6 @@ public partial class MainWindow : Window
     private IFileDropTarget? highlighted;
 
     private ChatDropTarget? chatDrop;
-    private ChatScroll? chatScroll;
 
     public MainWindow()
     {
@@ -33,8 +32,6 @@ public partial class MainWindow : Window
         // Ctrl+K from anywhere; ↑/↓/Enter/Esc while searching.
         AddHandler(KeyDownEvent, OnSearchShortcut, RoutingStrategies.Tunnel);
         SearchBox.AddHandler(KeyDownEvent, OnSearchKeyDown, RoutingStrategies.Tunnel);
-        // Enter sends a message, Shift+Enter starts a new line.
-        ChatBox.AddHandler(KeyDownEvent, OnChatKeyDown, RoutingStrategies.Tunnel);
         // Back from Explorer, where received files may have just been deleted ("Đã xóa file").
         Activated += (_, _) =>
         {
@@ -60,8 +57,6 @@ public partial class MainWindow : Window
             if (DataContext is MainWindowViewModel main)
             {
                 main.RevealRequested += (_, item) => Dispatcher.UIThread.Post(() => Reveal(item), DispatcherPriority.Loaded);
-                chatScroll = new ChatScroll(ChatScroller);
-                main.Chat.ScrollToEndRequested += (_, _) => chatScroll?.ToEnd();
                 // Pages share the scroller: a new page starts at its top, not where the last one was left.
                 main.PropertyChanged += (_, e) =>
                 {
@@ -128,17 +123,6 @@ public partial class MainWindow : Window
         await target.DropAsync(paths);
     }
 
-    /// <summary>"…" on a person: the same menu as a right-click on the row.</summary>
-    private void OnPeerMore(object? sender, RoutedEventArgs e)
-    {
-        // A context menu only opens on the control it belongs to; it shows at the pointer, which is on the button.
-        if (sender is Control button
-            && button.GetVisualAncestors().OfType<Control>().FirstOrDefault(c => c.ContextMenu is not null) is { ContextMenu: { } menu } row)
-        {
-            menu.Open(row);
-        }
-    }
-
     private void OnSearchShortcut(object? sender, KeyEventArgs e)
     {
         if (e.Key == Key.K && e.KeyModifiers.HasFlag(KeyModifiers.Control))
@@ -194,7 +178,12 @@ public partial class MainWindow : Window
     /// <summary>Scrolls to the row of a chosen search result and outlines it for a moment.</summary>
     private void Reveal(object item)
     {
-        foreach (ItemsControl list in (ItemsControl[])[ContactsList, OthersList, InboxList, SentList, MyGroupsList, NetworkGroupsList])
+        ItemsControl[] lists =
+        [
+            NeighborhoodView.ContactsList, NeighborhoodView.OthersList, FilesView.InboxList, FilesView.SentList,
+            GroupsView.MyGroupsList, GroupsView.NetworkGroupsList,
+        ];
+        foreach (ItemsControl list in lists)
         {
             if (list.ContainerFromItem(item) is not { } row)
             {
@@ -247,64 +236,6 @@ public partial class MainWindow : Window
         {
             await DialogService.ChooseAsync(L.T("Chưa chọn người nhận"), L.T("Click vào thẻ một người đã kết nối rồi nhấn Ctrl+V."), [L.T("Đóng")]);
         }
-    }
-
-    /// <summary>"+N ảnh" / "Thu gọn": the card changes size where it is, its top kept in place.</summary>
-    private void OnMorePictures(object? sender, RoutedEventArgs e)
-    {
-        if (sender is Control button)
-        {
-            chatScroll?.Hold(button);
-        }
-    }
-
-    /// <summary>While choosing messages, a click on a row checks or unchecks it; its buttons and check box do their own job.</summary>
-    private void OnChatRowTapped(object? sender, TappedEventArgs e)
-    {
-        if (sender is Control { DataContext: ChatBubbleViewModel { Owner.IsSelecting: true } bubble }
-            && !((e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<Button>().Any() ?? false))
-        {
-            bubble.IsSelected = !bubble.IsSelected;
-            e.Handled = true;
-        }
-    }
-
-    private void OnChatKeyDown(object? sender, KeyEventArgs e)
-    {
-        // Ctrl+V: copied files, or a picture copied as a picture, go to this person; text is pasted as usual.
-        if (e.Key == Key.V && e.KeyModifiers.HasFlag(KeyModifiers.Control) && DataContext is MainWindowViewModel { Chat.CanAttach: true } chat
-            && Clipboard is { } clipboard)
-        {
-            e.Handled = true;
-            _ = PasteIntoChatAsync(chat, clipboard);
-            return;
-        }
-
-        if (e.Key == Key.Enter && !e.KeyModifiers.HasFlag(KeyModifiers.Shift) && DataContext is MainWindowViewModel main)
-        {
-            e.Handled = true;
-            if (main.Chat.SendCommand.CanExecute(null))
-            {
-                main.Chat.SendCommand.Execute(null);
-            }
-        }
-    }
-
-    private async Task PasteIntoChatAsync(MainWindowViewModel main, IClipboard clipboard)
-    {
-        string[] paths = [.. (await clipboard.TryGetFilesAsync() ?? []).Select(f => f.TryGetLocalPath()).OfType<string>()];
-        if (paths.Length == 0 && !string.IsNullOrEmpty(await clipboard.TryGetTextAsync()))
-        {
-            ChatBox.Paste();
-            return;
-        }
-
-        if (paths.Length == 0 && await ClipboardImage.SaveAsync(clipboard, main.ClipboardDirectory) is { } picture)
-        {
-            paths = [picture];
-        }
-
-        await main.Chat.AttachAsync(paths);
     }
 
     private void Highlight(IFileDropTarget? target)
