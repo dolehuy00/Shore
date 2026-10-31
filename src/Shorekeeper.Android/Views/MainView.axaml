@@ -1,8 +1,8 @@
 <UserControl xmlns="https://github.com/avaloniaui"
-             xmlns:l="using:Shorekeeper.Desktop.Localization"
+             xmlns:l="using:Shorekeeper.UI.Localization"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Shorekeeper.Android.ViewModels"
-             xmlns:dvm="using:Shorekeeper.Desktop.ViewModels"
+             xmlns:ui="using:Shorekeeper.UI.ViewModels"
              xmlns:p="using:Shorekeeper.Android.Views.Pages"
              x:Class="Shorekeeper.Android.Views.MainView"
              x:DataType="vm:MainViewModel"
@@ -568,7 +568,7 @@
 
     <!-- "Tự nhận file…" on a contact. -->
     <Border Classes="overlay" IsVisible="{Binding HasAutoAccept}">
-      <Border Classes="dialog" DataContext="{Binding AutoAccept}" x:DataType="dvm:AutoAcceptChoiceViewModel">
+      <Border Classes="dialog" DataContext="{Binding AutoAccept}" x:DataType="ui:AutoAcceptChoiceViewModel">
         <StackPanel Spacing="10">
           <TextBlock Text="{Binding Title}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
           <TextBlock Classes="muted" Text="{l:T 'File gửi đến từ máy này, nếu không quá giới hạn, sẽ tự tải về mà không hỏi.'}" FontSize="13" TextWrapping="Wrap" />

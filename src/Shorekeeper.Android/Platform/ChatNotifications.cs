@@ -2,7 +2,7 @@ using Android.Content;
 using Android.Graphics.Drawables;
 using Microsoft.Extensions.DependencyInjection;
 using Shorekeeper.Core.Localization;
-using Shorekeeper.Desktop.ViewModels;
+using Shorekeeper.UI.ViewModels;
 using Shorekeeper.Engine.Chat;
 using Shorekeeper.Engine.Groups;
 using Shorekeeper.Engine.Trust;

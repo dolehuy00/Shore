@@ -13,6 +13,7 @@ using Shorekeeper.Engine.Groups;
 using Shorekeeper.Engine.Settings;
 using Shorekeeper.Engine.Transfers;
 using Shorekeeper.Engine.Trust;
+using Shorekeeper.UI.ViewModels;
 
 namespace Shorekeeper.Desktop.Views;
 

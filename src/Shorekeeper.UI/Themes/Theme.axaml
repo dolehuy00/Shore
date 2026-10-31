@@ -1,6 +1,6 @@
 <!--
   Shared look of the desktop and Android apps (docs/10-ux.md §1): icons, control sizes, and colors per theme.
-  Android links this file and Icons.axaml (both keep the same /Themes/ path there).
+  Both apps include it as avares://Shorekeeper.UI/Themes/Theme.axaml (App.axaml).
 -->
 <ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">

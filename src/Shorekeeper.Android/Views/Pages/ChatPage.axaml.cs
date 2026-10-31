@@ -6,8 +6,8 @@ using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using Shorekeeper.Android.ViewModels;
 using Shorekeeper.Core.Localization;
-using Shorekeeper.Desktop.ViewModels;
-using Shorekeeper.Desktop.Views;
+using Shorekeeper.UI.ViewModels;
+using Shorekeeper.UI.Views;
 using Button = Avalonia.Controls.Button;
 using FeedbackConstants = Android.Views.FeedbackConstants;
 

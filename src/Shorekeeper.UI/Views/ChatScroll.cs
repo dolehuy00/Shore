@@ -2,7 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.VisualTree;
 
-namespace Shorekeeper.Desktop.Views;
+namespace Shorekeeper.UI.Views;
 
 /// <summary>
 /// Keeps a conversation at its newest message: scrolled there before the next frame is drawn (a long conversation would

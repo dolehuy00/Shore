@@ -11,6 +11,7 @@ using Shorekeeper.Desktop.Views;
 using Shorekeeper.Engine;
 using Shorekeeper.Engine.Hosting;
 using Shorekeeper.Engine.Kestrel;
+using Shorekeeper.UI.ViewModels;
 #if WINDOWS
 using Shorekeeper.Platform.Windows;
 #else

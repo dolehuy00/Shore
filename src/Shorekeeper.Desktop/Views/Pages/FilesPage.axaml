@@ -1,8 +1,9 @@
 <!-- File: "Nhận | Đã gửi", as on the phone (docs/17-ui-cleanup.md §2). -->
 <UserControl xmlns="https://github.com/avaloniaui"
-             xmlns:l="using:Shorekeeper.Desktop.Localization"
+             xmlns:l="using:Shorekeeper.UI.Localization"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Shorekeeper.Desktop.ViewModels"
+             xmlns:ui="using:Shorekeeper.UI.ViewModels"
              x:Class="Shorekeeper.Desktop.Views.Pages.FilesPage"
              x:DataType="vm:MainWindowViewModel">
   <StackPanel Spacing="18">
@@ -21,14 +22,14 @@
     <Grid IsVisible="{Binding IsFilesVisible}" ColumnDefinitions="Auto,*" MaxWidth="860" HorizontalAlignment="Stretch" Margin="0,-6,0,0">
       <Border Classes="segments" Width="340">
         <Grid ColumnDefinitions="*,*,*,*">
-          <Button Classes="segment" Classes.on="{Binding FilesFilter, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:FileFilter.All}}"
-                  Command="{Binding SetFilesFilterCommand}" CommandParameter="{x:Static vm:FileFilter.All}" Content="{l:T 'Tất cả'}" />
-          <Button Grid.Column="1" Classes="segment" Classes.on="{Binding FilesFilter, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:FileFilter.Images}}"
-                  Command="{Binding SetFilesFilterCommand}" CommandParameter="{x:Static vm:FileFilter.Images}" Content="{l:T 'Ảnh'}" />
-          <Button Grid.Column="2" Classes="segment" Classes.on="{Binding FilesFilter, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:FileFilter.Files}}"
-                  Command="{Binding SetFilesFilterCommand}" CommandParameter="{x:Static vm:FileFilter.Files}" Content="{l:T 'File'}" />
-          <Button Grid.Column="3" Classes="segment" Classes.on="{Binding FilesFilter, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:FileFilter.Folders}}"
-                  Command="{Binding SetFilesFilterCommand}" CommandParameter="{x:Static vm:FileFilter.Folders}" Content="{l:T 'Thư mục'}" />
+          <Button Classes="segment" Classes.on="{Binding FilesFilter, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static ui:FileFilter.All}}"
+                  Command="{Binding SetFilesFilterCommand}" CommandParameter="{x:Static ui:FileFilter.All}" Content="{l:T 'Tất cả'}" />
+          <Button Grid.Column="1" Classes="segment" Classes.on="{Binding FilesFilter, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static ui:FileFilter.Images}}"
+                  Command="{Binding SetFilesFilterCommand}" CommandParameter="{x:Static ui:FileFilter.Images}" Content="{l:T 'Ảnh'}" />
+          <Button Grid.Column="2" Classes="segment" Classes.on="{Binding FilesFilter, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static ui:FileFilter.Files}}"
+                  Command="{Binding SetFilesFilterCommand}" CommandParameter="{x:Static ui:FileFilter.Files}" Content="{l:T 'File'}" />
+          <Button Grid.Column="3" Classes="segment" Classes.on="{Binding FilesFilter, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static ui:FileFilter.Folders}}"
+                  Command="{Binding SetFilesFilterCommand}" CommandParameter="{x:Static ui:FileFilter.Folders}" Content="{l:T 'Thư mục'}" />
         </Grid>
       </Border>
       <TextBox Grid.Column="1" Text="{Binding FilesQuery}" PlaceholderText="{l:T 'Tìm theo người hoặc tên file'}" Width="260" HorizontalAlignment="Right" Margin="12,0,0,0"
@@ -66,9 +67,9 @@
                 <Panel Grid.Column="1" VerticalAlignment="Center">
                   <Border Classes="tile" Width="40" Height="40" CornerRadius="8">
                     <Panel>
-                      <PathIcon Data="{StaticResource Icon.Document}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Files}}" Width="20" Height="20" />
-                      <PathIcon Data="{StaticResource Icon.Image}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Images}}" Width="20" Height="20" />
-                      <PathIcon Data="{StaticResource Icon.FolderOpen}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Folder}}" Width="20" Height="20" />
+                      <PathIcon Data="{StaticResource Icon.Document}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static ui:TransferKind.Files}}" Width="20" Height="20" />
+                      <PathIcon Data="{StaticResource Icon.Image}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static ui:TransferKind.Images}}" Width="20" Height="20" />
+                      <PathIcon Data="{StaticResource Icon.FolderOpen}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static ui:TransferKind.Folder}}" Width="20" Height="20" />
                     </Panel>
                   </Border>
                   <Border Width="40" Height="40" CornerRadius="8" ClipToBounds="True" IsVisible="{Binding HasThumbnail}">
@@ -80,7 +81,7 @@
                 <StackPanel Grid.Column="2" Margin="12,0,12,0" Spacing="2" VerticalAlignment="Center">
                   <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                   <!-- "app.zip + 2 mục" names only the first: the button opens the whole list. -->
-                  <StackPanel DataContext="{Binding Contents}" x:DataType="vm:OfferContents" IsVisible="{Binding CanExpand}" Spacing="2">
+                  <StackPanel DataContext="{Binding Contents}" x:DataType="ui:OfferContents" IsVisible="{Binding CanExpand}" Spacing="2">
                     <Button Content="{Binding ToggleText}" Command="{Binding ToggleCommand}" Padding="0,2" FontSize="12" HorizontalAlignment="Left"
                             Background="Transparent" BorderThickness="0" Foreground="{DynamicResource AccentButtonBackground}" />
                     <ItemsControl ItemsSource="{Binding Items}" IsVisible="{Binding IsExpanded}">
@@ -167,16 +168,16 @@
                           AutomationProperties.Name="{l:T 'Chọn'}" />
                 <Border Grid.Column="1" Classes="tile" Width="40" Height="40" CornerRadius="8" VerticalAlignment="Center">
                     <Panel>
-                      <PathIcon Data="{StaticResource Icon.Document}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Files}}" Width="20" Height="20" />
-                      <PathIcon Data="{StaticResource Icon.Image}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Images}}" Width="20" Height="20" />
-                      <PathIcon Data="{StaticResource Icon.FolderOpen}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:TransferKind.Folder}}" Width="20" Height="20" />
+                      <PathIcon Data="{StaticResource Icon.Document}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static ui:TransferKind.Files}}" Width="20" Height="20" />
+                      <PathIcon Data="{StaticResource Icon.Image}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static ui:TransferKind.Images}}" Width="20" Height="20" />
+                      <PathIcon Data="{StaticResource Icon.FolderOpen}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static ui:TransferKind.Folder}}" Width="20" Height="20" />
                     </Panel>
                   </Border>
 
                 <StackPanel Grid.Column="2" Margin="12,0,12,0" Spacing="2" VerticalAlignment="Center">
                   <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                   <!-- "app.zip + 2 mục" names only the first: the button opens the whole list. -->
-                  <StackPanel DataContext="{Binding Contents}" x:DataType="vm:OfferContents" IsVisible="{Binding CanExpand}" Spacing="2">
+                  <StackPanel DataContext="{Binding Contents}" x:DataType="ui:OfferContents" IsVisible="{Binding CanExpand}" Spacing="2">
                     <Button Content="{Binding ToggleText}" Command="{Binding ToggleCommand}" Padding="0,2" FontSize="12" HorizontalAlignment="Left"
                             Background="Transparent" BorderThickness="0" Foreground="{DynamicResource AccentButtonBackground}" />
                     <ItemsControl ItemsSource="{Binding Items}" IsVisible="{Binding IsExpanded}">

@@ -13,7 +13,7 @@ using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Settings;
 using Shorekeeper.Engine.Trust;
 
-namespace Shorekeeper.Desktop.ViewModels;
+namespace Shorekeeper.UI.ViewModels;
 
 /// <summary>A device listening to ours, and what we may do about it, for that device alone.</summary>
 public sealed partial class AudioListenerItem(AudioViewModel owner, DeviceId deviceId, string name, bool isPhone, bool canOfferControl, bool allowsControl)

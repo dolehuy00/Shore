@@ -1,13 +1,13 @@
 <!-- Tin nhắn (docs/15-chat.md §6.2): the list, or one conversation over it; ← and the Back button return to the list. -->
 <UserControl xmlns="https://github.com/avaloniaui"
-             xmlns:l="using:Shorekeeper.Desktop.Localization"
+             xmlns:l="using:Shorekeeper.UI.Localization"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Shorekeeper.Android.ViewModels"
-             xmlns:dvm="using:Shorekeeper.Desktop.ViewModels"
+             xmlns:ui="using:Shorekeeper.UI.ViewModels"
              x:Class="Shorekeeper.Android.Views.Pages.ChatPage"
              x:DataType="vm:MainViewModel">
   <Panel Classes="page" IsVisible="{Binding IsChatTab}">
-  <Panel DataContext="{Binding Chat}" x:DataType="dvm:ChatViewModel">
+  <Panel DataContext="{Binding Chat}" x:DataType="ui:ChatViewModel">
     <Panel IsVisible="{Binding !IsOpen}">
       <StackPanel IsVisible="{Binding !HasConversations}" Spacing="6" Margin="16,48" HorizontalAlignment="Center">
         <PathIcon Data="{StaticResource Icon.Chat}" Width="40" Height="40" Opacity="0.5" HorizontalAlignment="Center" />
@@ -16,7 +16,7 @@
       <ScrollViewer>
         <ItemsControl ItemsSource="{Binding Conversations}">
           <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="dvm:ChatPersonViewModel">
+            <DataTemplate x:DataType="ui:ChatPersonViewModel">
               <Button Classes="person" Command="{Binding OpenCommand}" AutomationProperties.Name="{Binding Name}">
                 <Grid ColumnDefinitions="Auto,*,Auto">
                   <Panel>
@@ -74,7 +74,7 @@
                 AutomationProperties.Name="{l:T 'Quay lại'}">
           <PathIcon Data="{StaticResource Icon.ArrowLeft}" Width="20" Height="20" />
         </Button>
-        <StackPanel Grid.Column="1" DataContext="{Binding Current}" x:DataType="dvm:ChatPersonViewModel" VerticalAlignment="Center">
+        <StackPanel Grid.Column="1" DataContext="{Binding Current}" x:DataType="ui:ChatPersonViewModel" VerticalAlignment="Center">
           <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
           <StackPanel Orientation="Horizontal" Spacing="6">
             <Ellipse Classes="dot" Classes.busy="{Binding IsBusy}" Classes.muted="{Binding !IsOnline}" IsVisible="{Binding !IsGroup}" />
@@ -145,7 +145,7 @@
             <ScrollViewer>
               <ItemsControl ItemsSource="{Binding Details}">
                 <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="dvm:ChatMemberViewModel">
+                  <DataTemplate x:DataType="ui:ChatMemberViewModel">
                     <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,5">
                       <StackPanel>
                         <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
@@ -181,7 +181,7 @@
               </ItemsPanelTemplate>
             </ItemsControl.ItemsPanel>
             <ItemsControl.DataTemplates>
-              <DataTemplate DataType="{x:Type dvm:ChatBubbleViewModel}" x:DataType="dvm:ChatBubbleViewModel">
+              <DataTemplate DataType="{x:Type ui:ChatBubbleViewModel}" x:DataType="ui:ChatBubbleViewModel">
                 <StackPanel>
                   <TextBlock Classes="muted" Text="{Binding DayText}" IsVisible="{Binding HasDay}" FontSize="12" HorizontalAlignment="Center" Margin="0,10,0,6" />
                   <!-- While choosing, a tap anywhere on the row checks or unchecks the message. -->
@@ -211,7 +211,7 @@
                       <ItemsControl ItemsSource="{Binding Links}" IsVisible="{Binding HasLinks}">
                         <ItemsControl.ItemTemplate>
                           <DataTemplate x:DataType="x:String">
-                            <Button Classes="link" Command="{Binding $parent[ItemsControl].((dvm:ChatBubbleViewModel)DataContext).OpenLinkCommand}" CommandParameter="{Binding}">
+                            <Button Classes="link" Command="{Binding $parent[ItemsControl].((ui:ChatBubbleViewModel)DataContext).OpenLinkCommand}" CommandParameter="{Binding}">
                               <TextBlock Text="{Binding}" FontSize="13" TextTrimming="CharacterEllipsis" />
                             </Button>
                           </DataTemplate>
@@ -238,7 +238,7 @@
                             </ItemsControl.ItemTemplate>
                           </ItemsControl>
                           <Panel Width="{Binding PlayedWidth}" HorizontalAlignment="Left" ClipToBounds="True">
-                            <ItemsControl ItemsSource="{Binding Bars}" Width="{x:Static dvm:ChatBubbleViewModel.WaveWidth}" HorizontalAlignment="Left">
+                            <ItemsControl ItemsSource="{Binding Bars}" Width="{x:Static ui:ChatBubbleViewModel.WaveWidth}" HorizontalAlignment="Left">
                               <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
                                   <StackPanel Orientation="Horizontal" Spacing="2" />
@@ -268,7 +268,7 @@
                   </Grid>
                 </StackPanel>
               </DataTemplate>
-              <DataTemplate DataType="{x:Type dvm:ChatFileViewModel}" x:DataType="dvm:ChatFileViewModel">
+              <DataTemplate DataType="{x:Type ui:ChatFileViewModel}" x:DataType="ui:ChatFileViewModel">
                 <StackPanel>
                   <TextBlock Classes="muted" Text="{Binding DayText}" IsVisible="{Binding HasDay}" FontSize="12" HorizontalAlignment="Center" Margin="0,10,0,6" />
                   <!-- Long press: take back what we sent (five minutes), then only stop sharing it; copy text, or see files in File. -->
@@ -298,8 +298,8 @@
                           </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
-                          <DataTemplate x:DataType="dvm:ChatPicture">
-                            <Button Classes="picture" Command="{Binding $parent[ItemsControl].((dvm:ChatFileViewModel)DataContext).OpenPictureCommand}" CommandParameter="{Binding}">
+                          <DataTemplate x:DataType="ui:ChatPicture">
+                            <Button Classes="picture" Command="{Binding $parent[ItemsControl].((ui:ChatFileViewModel)DataContext).OpenPictureCommand}" CommandParameter="{Binding}">
                               <Border CornerRadius="10" ClipToBounds="True">
                                 <Image Source="{Binding Image}" MaxWidth="260" MaxHeight="300" Stretch="Uniform" />
                               </Border>
@@ -314,8 +314,8 @@
                           </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
-                          <DataTemplate x:DataType="dvm:ChatPicture">
-                            <Button Classes="picture" Command="{Binding $parent[ItemsControl].((dvm:ChatFileViewModel)DataContext).OpenPictureCommand}" CommandParameter="{Binding}">
+                          <DataTemplate x:DataType="ui:ChatPicture">
+                            <Button Classes="picture" Command="{Binding $parent[ItemsControl].((ui:ChatFileViewModel)DataContext).OpenPictureCommand}" CommandParameter="{Binding}">
                               <Border CornerRadius="6" ClipToBounds="True">
                                 <Image Source="{Binding Image}" Width="84" Height="84" Stretch="UniformToFill" />
                               </Border>

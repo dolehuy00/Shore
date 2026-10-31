@@ -6,12 +6,13 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Shorekeeper.Core.Localization;
 using Shorekeeper.Core.Settings;
-using Shorekeeper.Desktop.Localization;
+using Shorekeeper.UI.Localization;
 using Shorekeeper.Desktop.Views;
 using Shorekeeper.Engine;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Identity;
 using Shorekeeper.Engine.Settings;
+using Shorekeeper.UI.ViewModels;
 
 namespace Shorekeeper.Desktop.ViewModels;
 

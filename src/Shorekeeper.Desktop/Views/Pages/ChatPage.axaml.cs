@@ -6,6 +6,8 @@ using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Avalonia.VisualTree;
 using Shorekeeper.Desktop.ViewModels;
+using Shorekeeper.UI.ViewModels;
+using Shorekeeper.UI.Views;
 
 namespace Shorekeeper.Desktop.Views.Pages;
 

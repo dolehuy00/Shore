@@ -4,7 +4,7 @@ using Shorekeeper.Core.Localization;
 using Shorekeeper.Core.Settings;
 using Shorekeeper.Engine.Trust;
 
-namespace Shorekeeper.Desktop.ViewModels;
+namespace Shorekeeper.UI.ViewModels;
 
 /// <summary>
 /// "Tự nhận file" for one contact: off, up to the limit in Settings, or up to its own limit in GB.

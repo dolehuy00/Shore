@@ -1,5 +1,5 @@
 using Android.Content;
-using Shorekeeper.Desktop.ViewModels;
+using Shorekeeper.UI.ViewModels;
 using Shorekeeper.Engine.Transfers;
 using AndroidUri = Android.Net.Uri;
 

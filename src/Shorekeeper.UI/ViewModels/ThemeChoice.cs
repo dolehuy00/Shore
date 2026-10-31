@@ -2,7 +2,7 @@ using Avalonia.Styling;
 using Shorekeeper.Core.Localization;
 using Application = Avalonia.Application;
 
-namespace Shorekeeper.Desktop.ViewModels;
+namespace Shorekeeper.UI.ViewModels;
 
 /// <summary>An entry of "Giao diện" in Settings (desktop and Android).</summary>
 /// <param name="Code">"light", "dark", or null for the system's.</param>

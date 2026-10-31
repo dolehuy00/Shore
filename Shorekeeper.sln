@@ -23,6 +23,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Shorekeeper.Platform.Window
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Shorekeeper.Engine.Kestrel", "src\Shorekeeper.Engine.Kestrel\Shorekeeper.Engine.Kestrel.csproj", "{EE8C449F-A852-4DE5-A20F-BE7290F8F620}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Shorekeeper.UI", "src\Shorekeeper.UI\Shorekeeper.UI.csproj", "{84832C12-3AA4-4232-B714-BFBF3E0F34E9}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -129,6 +131,18 @@ Global
 		{EE8C449F-A852-4DE5-A20F-BE7290F8F620}.Release|x64.Build.0 = Release|Any CPU
 		{EE8C449F-A852-4DE5-A20F-BE7290F8F620}.Release|x86.ActiveCfg = Release|Any CPU
 		{EE8C449F-A852-4DE5-A20F-BE7290F8F620}.Release|x86.Build.0 = Release|Any CPU
+		{84832C12-3AA4-4232-B714-BFBF3E0F34E9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{84832C12-3AA4-4232-B714-BFBF3E0F34E9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{84832C12-3AA4-4232-B714-BFBF3E0F34E9}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{84832C12-3AA4-4232-B714-BFBF3E0F34E9}.Debug|x64.Build.0 = Debug|Any CPU
+		{84832C12-3AA4-4232-B714-BFBF3E0F34E9}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{84832C12-3AA4-4232-B714-BFBF3E0F34E9}.Debug|x86.Build.0 = Debug|Any CPU
+		{84832C12-3AA4-4232-B714-BFBF3E0F34E9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{84832C12-3AA4-4232-B714-BFBF3E0F34E9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{84832C12-3AA4-4232-B714-BFBF3E0F34E9}.Release|x64.ActiveCfg = Release|Any CPU
+		{84832C12-3AA4-4232-B714-BFBF3E0F34E9}.Release|x64.Build.0 = Release|Any CPU
+		{84832C12-3AA4-4232-B714-BFBF3E0F34E9}.Release|x86.ActiveCfg = Release|Any CPU
+		{84832C12-3AA4-4232-B714-BFBF3E0F34E9}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -142,5 +156,6 @@ Global
 		{445CCBB4-3D26-4FFB-B894-9B3C8BB85890} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{99F06D8D-2E6B-42EF-B4A5-CAE0152C4243} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{EE8C449F-A852-4DE5-A20F-BE7290F8F620} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{84832C12-3AA4-4232-B714-BFBF3E0F34E9} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 EndGlobal

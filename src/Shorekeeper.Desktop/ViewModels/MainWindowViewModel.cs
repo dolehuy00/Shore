@@ -15,6 +15,7 @@ using Shorekeeper.Engine;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Settings;
 using Shorekeeper.Engine.Transfers;
+using Shorekeeper.UI.ViewModels;
 
 namespace Shorekeeper.Desktop.ViewModels;
 

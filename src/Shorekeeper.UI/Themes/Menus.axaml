@@ -1,7 +1,7 @@
 <!--
   Menus and drop-down lists of the desktop and Android apps (colors in Theme.axaml). Two kinds, told apart on sight:
   a menu (⋮, right-click) lists actions and opens with none of them marked; a drop-down list (ComboBox) lists options
-  and opens with the chosen one marked. Android links this file (same /Themes/ path there).
+  and opens with the chosen one marked.
 -->
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">

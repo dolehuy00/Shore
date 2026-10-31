@@ -1,6 +1,6 @@
 <!-- Nhóm: my groups and the groups seen on the network. -->
 <UserControl xmlns="https://github.com/avaloniaui"
-             xmlns:l="using:Shorekeeper.Desktop.Localization"
+             xmlns:l="using:Shorekeeper.UI.Localization"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Shorekeeper.Desktop.ViewModels"
              x:Class="Shorekeeper.Desktop.Views.Pages.GroupsPage"

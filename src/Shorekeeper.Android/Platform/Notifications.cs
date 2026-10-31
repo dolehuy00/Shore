@@ -2,7 +2,7 @@ using Android.Content;
 using Android.Graphics.Drawables;
 using Shorekeeper.Core.Localization;
 using Shorekeeper.Core.Platform;
-using Shorekeeper.Desktop.ViewModels;
+using Shorekeeper.UI.ViewModels;
 using Shorekeeper.Engine.Transfers;
 using AndroidResource = Android.Resource;
 using AndroidUri = Android.Net.Uri;

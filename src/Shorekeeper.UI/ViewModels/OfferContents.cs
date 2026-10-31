@@ -2,7 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Shorekeeper.Core.Localization;
 
-namespace Shorekeeper.Desktop.ViewModels;
+namespace Shorekeeper.UI.ViewModels;
 
 /// <summary>
 /// "Xem cả 3 mục": every file and folder at the top of an offer, as the title ("app.zip + 2 mục") names only the first.

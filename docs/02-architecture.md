@@ -49,7 +49,10 @@ Shorekeeper/
 │   ├── Shorekeeper.Engine/            ← discovery, API (PeerApi, MiniHttpServer), transfers, groups, bridge, storage
 │   ├── Shorekeeper.Engine.Kestrel/    ← peer API trên Kestrel (desktop)
 │   ├── Shorekeeper.Platform.Windows/  ← DPAPI, firewall, MOTW, toast, auto-start, AD
-│   └── Shorekeeper.Desktop/           ← Avalonia app (MVVM), composition root
+│   ├── Shorekeeper.UI/                ← phần giao diện dùng chung desktop và Android: view model của Tin nhắn, Âm thanh,
+│   │                                     Thống kê…, Themes (màu, icon, menu, chuyển động), dịch AXAML, chọn ngôn ngữ / giao diện
+│   ├── Shorekeeper.Desktop/           ← Avalonia app (MVVM), composition root
+│   └── Shorekeeper.Android/           ← Avalonia.Android (docs/14-android.md); không nằm trong .sln (cần workload android)
 ├── tests/
 │   ├── Shorekeeper.Core.Tests/
 │   ├── Shorekeeper.Engine.Tests/
@@ -60,9 +63,12 @@ Shorekeeper/
 ```
 
 ```text
-Desktop ──► Engine ──► Core ◄── Platform.Windows
-   └──────────────────────────────► Platform.Windows (đăng ký DI)
+Desktop ──► UI ──► Engine ──► Core ◄── Platform.Windows
+Android ──► UI
+   Desktop ─────────────────────────► Platform.Windows (đăng ký DI)
 ```
+
+- `UI` là thư viện Avalonia (2026-10-31): những gì hai app trước đây chép chung bằng link từng file. Code chỉ của một app (cửa sổ, dịch vụ hộp thoại, tab Android…) vẫn nằm ở app đó.
 
 - `Core` không tham chiếu ASP.NET Core và không tham chiếu Windows.
 - `Engine` không tham chiếu ASP.NET Core (để chạy được trên Android); chỉ `Engine.Kestrel` tham chiếu `Microsoft.AspNetCore.App`.

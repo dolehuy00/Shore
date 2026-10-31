@@ -9,6 +9,7 @@ using Shorekeeper.Core.Localization;
 using Shorekeeper.Desktop.Views;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Transfers;
+using Shorekeeper.UI.ViewModels;
 
 namespace Shorekeeper.Desktop.ViewModels;
 

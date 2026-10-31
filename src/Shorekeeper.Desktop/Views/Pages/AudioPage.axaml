@@ -1,8 +1,9 @@
 <!-- Âm thanh: this computer's sound for contacts, and the contacts' sound here. -->
 <UserControl xmlns="https://github.com/avaloniaui"
-             xmlns:l="using:Shorekeeper.Desktop.Localization"
+             xmlns:l="using:Shorekeeper.UI.Localization"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Shorekeeper.Desktop.ViewModels"
+             xmlns:ui="using:Shorekeeper.UI.ViewModels"
              x:Class="Shorekeeper.Desktop.Views.Pages.AudioPage"
              x:DataType="vm:MainWindowViewModel">
   <StackPanel Classes="page" IsVisible="{Binding IsAudioVisible}" Spacing="14" MaxWidth="860" HorizontalAlignment="Stretch">
@@ -42,7 +43,7 @@
           <TextBlock Classes="muted" Text="{l:T 'Chưa ai nghe'}" IsVisible="{Binding !Audio.HasListeners}" FontSize="12" />
           <ItemsControl ItemsSource="{Binding Audio.Listeners}">
             <ItemsControl.ItemTemplate>
-              <DataTemplate x:DataType="vm:AudioListenerItem">
+              <DataTemplate x:DataType="ui:AudioListenerItem">
                 <!-- What the host may do, for this listener alone. -->
                 <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,2">
                   <Panel VerticalAlignment="Center">
@@ -96,7 +97,7 @@
         <TextBlock Classes="muted" Text="{l:T 'Chưa máy nào đang phát.'}" IsVisible="{Binding Audio.HasNoSources}" FontSize="12" />
         <ItemsControl ItemsSource="{Binding Audio.Sources}">
           <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="vm:AudioSourceItem">
+            <DataTemplate x:DataType="ui:AudioSourceItem">
               <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,2">
                 <Panel VerticalAlignment="Center">
                   <PathIcon Data="{StaticResource Icon.Laptop}" IsVisible="{Binding !IsPhone}" Width="16" Height="16" />
@@ -149,7 +150,7 @@
         </StackPanel>
         <ItemsControl ItemsSource="{Binding Audio.Stats}">
           <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="vm:AudioStatItem">
+            <DataTemplate x:DataType="ui:AudioStatItem">
               <Grid ColumnDefinitions="220,*" Margin="0,2">
                 <TextBlock Classes="muted" Text="{Binding Label}" />
                 <TextBlock Grid.Column="1" Text="{Binding Value}" TextWrapping="Wrap" />
@@ -199,7 +200,7 @@
         <TextBlock Classes="muted" Text="{l:T 'Chưa có điện thoại nào ghép đôi Bluetooth với máy này.'}" IsVisible="{Binding Audio.HasNoBluetoothSources}" FontSize="12" />
         <ItemsControl ItemsSource="{Binding Audio.BluetoothSources}">
           <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="vm:BluetoothSourceItem">
+            <DataTemplate x:DataType="ui:BluetoothSourceItem">
               <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,2">
                 <PathIcon Data="{StaticResource Icon.Phone}" Width="16" Height="16" VerticalAlignment="Center" />
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="8,0" VerticalAlignment="Center">

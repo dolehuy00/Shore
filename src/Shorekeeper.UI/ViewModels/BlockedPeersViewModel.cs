@@ -4,7 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using Shorekeeper.Core.Trust;
 using Shorekeeper.Engine.Trust;
 
-namespace Shorekeeper.Desktop.ViewModels;
+namespace Shorekeeper.UI.ViewModels;
 
 public sealed record BlockedPeerItem(string Name, string HostName, IAsyncRelayCommand UnblockCommand);
 

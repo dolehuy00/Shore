@@ -6,7 +6,7 @@ using Shorekeeper.Engine.Monitoring;
 using Shorekeeper.Engine.Settings;
 using Shorekeeper.Engine.Trust;
 
-namespace Shorekeeper.Desktop.ViewModels;
+namespace Shorekeeper.UI.ViewModels;
 
 /// <summary>A row of "Thống kê": a period, then what was sent and received in it.</summary>
 public sealed record StatsPeriod(string Label, string Sent, string Received);

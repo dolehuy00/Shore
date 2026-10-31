@@ -1,6 +1,6 @@
 using Shorekeeper.Core.Localization;
 
-namespace Shorekeeper.Desktop.Localization;
+namespace Shorekeeper.UI.Localization;
 
 /// <summary>Translated text in AXAML: <c>Content="{l:T 'Gửi file…'}"</c> (see <see cref="L"/>).</summary>
 public sealed class TExtension(string text)

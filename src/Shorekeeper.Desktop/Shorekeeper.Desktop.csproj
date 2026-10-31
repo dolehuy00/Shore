@@ -32,6 +32,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Shorekeeper.Engine\Shorekeeper.Engine.csproj" />
     <ProjectReference Include="..\Shorekeeper.Engine.Kestrel\Shorekeeper.Engine.Kestrel.csproj" />
+    <ProjectReference Include="..\Shorekeeper.UI\Shorekeeper.UI.csproj" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(ShorekeeperWindows)' == 'true'">

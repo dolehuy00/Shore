@@ -9,7 +9,7 @@ using Shorekeeper.Core.Identity;
 using Shorekeeper.Core.Localization;
 using Shorekeeper.Core.Platform;
 using Shorekeeper.Core.Trust;
-using Shorekeeper.Desktop.ViewModels;
+using Shorekeeper.UI.ViewModels;
 using Shorekeeper.Engine;
 using Shorekeeper.Engine.Audio;
 using Shorekeeper.Engine.Chat;

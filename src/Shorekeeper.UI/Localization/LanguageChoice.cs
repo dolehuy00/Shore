@@ -1,6 +1,6 @@
 using Shorekeeper.Core.Localization;
 
-namespace Shorekeeper.Desktop.Localization;
+namespace Shorekeeper.UI.Localization;
 
 /// <summary>An entry of "Ngôn ngữ" in Settings (desktop and Android).</summary>
 /// <param name="Code">"vi", "en", or null for the system language.</param>

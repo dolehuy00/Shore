@@ -3,7 +3,7 @@ using Shorekeeper.Core.Localization;
 using Shorekeeper.Core.Text;
 using Shorekeeper.Engine.Transfers;
 
-namespace Shorekeeper.Desktop.ViewModels;
+namespace Shorekeeper.UI.ViewModels;
 
 /// <summary>What an offer mostly holds, for its icon.</summary>
 public enum TransferKind

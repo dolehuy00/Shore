@@ -19,7 +19,7 @@ using Shorekeeper.Engine.Settings;
 using Shorekeeper.Engine.Transfers;
 using Shorekeeper.Engine.Trust;
 
-namespace Shorekeeper.Desktop.ViewModels;
+namespace Shorekeeper.UI.ViewModels;
 
 /// <summary>
 /// "Tin nhắn" (docs/15-chat.md §6), on the desktop and the phone: conversations, newest first, then contacts not

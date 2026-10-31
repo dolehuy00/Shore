@@ -1,7 +1,7 @@
 <!--
   Shared motion of the desktop and Android apps, applied to every control of its kind, so new popups, menus and
   drop-downs get it without anything to add. Like short CSS transitions: only opacity and a transform, which the GPU
-  composes without laying anything out again. Android links this file (same /Themes/ path there).
+  composes without laying anything out again.
 -->
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">

@@ -1,9 +1,9 @@
 <!-- File (docs/15-chat.md §6.2): "Nhận" and "Đã gửi" share one tab, so "Tin nhắn" has room in the tab strip. -->
 <UserControl xmlns="https://github.com/avaloniaui"
-             xmlns:l="using:Shorekeeper.Desktop.Localization"
+             xmlns:l="using:Shorekeeper.UI.Localization"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Shorekeeper.Android.ViewModels"
-             xmlns:dvm="using:Shorekeeper.Desktop.ViewModels"
+             xmlns:ui="using:Shorekeeper.UI.ViewModels"
              x:Class="Shorekeeper.Android.Views.Pages.FilesPage"
              x:DataType="vm:MainViewModel">
   <DockPanel IsVisible="{Binding IsFilesTab}">
@@ -62,16 +62,16 @@
               <Grid ColumnDefinitions="Auto,*,Auto">
                 <Border Classes="tile">
                   <Panel>
-                    <PathIcon Data="{StaticResource Icon.Document}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static dvm:TransferKind.Files}}" Width="22" Height="22" />
-                    <PathIcon Data="{StaticResource Icon.Image}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static dvm:TransferKind.Images}}" Width="22" Height="22" />
-                    <PathIcon Data="{StaticResource Icon.FolderOpen}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static dvm:TransferKind.Folder}}" Width="22" Height="22" />
+                    <PathIcon Data="{StaticResource Icon.Document}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static ui:TransferKind.Files}}" Width="22" Height="22" />
+                    <PathIcon Data="{StaticResource Icon.Image}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static ui:TransferKind.Images}}" Width="22" Height="22" />
+                    <PathIcon Data="{StaticResource Icon.FolderOpen}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static ui:TransferKind.Folder}}" Width="22" Height="22" />
                   </Panel>
                 </Border>
                 <StackPanel Grid.Column="1" Spacing="3" Margin="12,0,0,0">
                   <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
                   <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" />
                   <!-- "app.zip + 2 mục" names only the first: the button opens the whole list. -->
-                  <StackPanel DataContext="{Binding Contents}" x:DataType="dvm:OfferContents" IsVisible="{Binding CanExpand}" Spacing="2">
+                  <StackPanel DataContext="{Binding Contents}" x:DataType="ui:OfferContents" IsVisible="{Binding CanExpand}" Spacing="2">
                     <Button Content="{Binding ToggleText}" Command="{Binding ToggleCommand}" Padding="0,2" FontSize="13" HorizontalAlignment="Left"
                             Background="Transparent" BorderThickness="0" Foreground="{DynamicResource AccentButtonBackground}" />
                     <ItemsControl ItemsSource="{Binding Items}" IsVisible="{Binding IsExpanded}">
@@ -171,15 +171,15 @@
               <Grid ColumnDefinitions="Auto,*,Auto">
                 <Border Classes="tile">
                   <Panel>
-                    <PathIcon Data="{StaticResource Icon.Document}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static dvm:TransferKind.Files}}" Width="22" Height="22" />
-                    <PathIcon Data="{StaticResource Icon.Image}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static dvm:TransferKind.Images}}" Width="22" Height="22" />
-                    <PathIcon Data="{StaticResource Icon.FolderOpen}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static dvm:TransferKind.Folder}}" Width="22" Height="22" />
+                    <PathIcon Data="{StaticResource Icon.Document}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static ui:TransferKind.Files}}" Width="22" Height="22" />
+                    <PathIcon Data="{StaticResource Icon.Image}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static ui:TransferKind.Images}}" Width="22" Height="22" />
+                    <PathIcon Data="{StaticResource Icon.FolderOpen}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static ui:TransferKind.Folder}}" Width="22" Height="22" />
                   </Panel>
                 </Border>
                 <StackPanel Grid.Column="1" Spacing="3" Margin="12,0,0,0">
                   <TextBlock Text="{Binding Summary}" FontWeight="SemiBold" TextWrapping="Wrap" />
                   <!-- "app.zip + 2 mục" names only the first: the button opens the whole list. -->
-                  <StackPanel DataContext="{Binding Contents}" x:DataType="dvm:OfferContents" IsVisible="{Binding CanExpand}" Spacing="2">
+                  <StackPanel DataContext="{Binding Contents}" x:DataType="ui:OfferContents" IsVisible="{Binding CanExpand}" Spacing="2">
                     <Button Content="{Binding ToggleText}" Command="{Binding ToggleCommand}" Padding="0,2" FontSize="13" HorizontalAlignment="Left"
                             Background="Transparent" BorderThickness="0" Foreground="{DynamicResource AccentButtonBackground}" />
                     <ItemsControl ItemsSource="{Binding Items}" IsVisible="{Binding IsExpanded}">

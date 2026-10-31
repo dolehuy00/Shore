@@ -1,8 +1,9 @@
 <!-- Cài đặt: one section at a time (docs/17-ui-cleanup.md §4). -->
 <UserControl xmlns="https://github.com/avaloniaui"
-             xmlns:l="using:Shorekeeper.Desktop.Localization"
+             xmlns:l="using:Shorekeeper.UI.Localization"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Shorekeeper.Desktop.ViewModels"
+             xmlns:ui="using:Shorekeeper.UI.ViewModels"
              xmlns:v="using:Shorekeeper.Desktop.Views"
              x:Class="Shorekeeper.Desktop.Views.Pages.SettingsPage"
              x:DataType="vm:MainWindowViewModel">
@@ -88,9 +89,9 @@
 
             <!-- Applies at once, unlike the fields above. -->
             <TextBlock Classes="muted" Grid.Row="4" Text="{l:T 'Giao diện'}" VerticalAlignment="Center" Margin="0,0,12,0" />
-            <ComboBox Grid.Row="4" Grid.Column="1" ItemsSource="{x:Static vm:ThemeChoice.All}" SelectedItem="{Binding Settings.Theme}" MinWidth="140">
+            <ComboBox Grid.Row="4" Grid.Column="1" ItemsSource="{x:Static ui:ThemeChoice.All}" SelectedItem="{Binding Settings.Theme}" MinWidth="140">
               <ComboBox.ItemTemplate>
-                <DataTemplate x:DataType="vm:ThemeChoice">
+                <DataTemplate x:DataType="ui:ThemeChoice">
                   <TextBlock Text="{Binding Label}" />
                 </DataTemplate>
               </ComboBox.ItemTemplate>
@@ -182,7 +183,7 @@
                  Text="{l:T 'Chưa có. Dùng nút Thêm máy khác ở trang Xóm để thêm máy ở mạng khác.'}" />
       <ItemsControl ItemsSource="{Binding Blocked.ManualTargets}">
         <ItemsControl.ItemTemplate>
-          <DataTemplate x:DataType="vm:ManualTargetItem">
+          <DataTemplate x:DataType="ui:ManualTargetItem">
             <Grid ColumnDefinitions="*,Auto" Margin="0,4">
               <TextBlock Text="{Binding Target}" VerticalAlignment="Center" FontFamily="Consolas,monospace" />
               <Button Grid.Column="1" Content="{l:T 'Xóa'}" Command="{Binding RemoveCommand}" />
@@ -207,7 +208,7 @@
       <TextBlock Classes="muted" IsVisible="{Binding !Blocked.Items.Count}" Text="{l:T 'Chưa chặn ai.'}" />
       <ItemsControl ItemsSource="{Binding Blocked.Items}">
         <ItemsControl.ItemTemplate>
-          <DataTemplate x:DataType="vm:BlockedPeerItem">
+          <DataTemplate x:DataType="ui:BlockedPeerItem">
             <Grid ColumnDefinitions="*,Auto" Margin="0,4">
               <TextBlock VerticalAlignment="Center">
                 <Run Text="{Binding Name}" FontWeight="SemiBold" />
@@ -227,7 +228,7 @@
         <Button Grid.Column="1" Content="{l:T 'Làm mới'}" Command="{Binding Stats.RefreshCommand}" />
       </Grid>
       <Border Padding="18,14" CornerRadius="8" BorderThickness="1" BorderBrush="{DynamicResource Sk.CardBorder}" Background="{DynamicResource Sk.CardBackground}"
-              DataContext="{Binding Stats}" x:DataType="vm:StatsViewModel">
+              DataContext="{Binding Stats}" x:DataType="ui:StatsViewModel">
         <StackPanel Spacing="14">
           <Grid ColumnDefinitions="110,*,*">
             <TextBlock Grid.Column="1" Classes="muted" Text="{l:T 'Đã gửi'}" FontSize="12" />
@@ -235,7 +236,7 @@
           </Grid>
           <ItemsControl ItemsSource="{Binding Periods}" Margin="0,-8,0,0">
             <ItemsControl.ItemTemplate>
-              <DataTemplate x:DataType="vm:StatsPeriod">
+              <DataTemplate x:DataType="ui:StatsPeriod">
                 <Grid ColumnDefinitions="110,*,*" Margin="0,3">
                   <TextBlock Text="{Binding Label}" FontWeight="SemiBold" />
                   <TextBlock Grid.Column="1" Text="{Binding Sent}" />
@@ -261,7 +262,7 @@
             <TextBlock Text="{l:T 'Theo máy'}" FontWeight="SemiBold" />
             <ItemsControl ItemsSource="{Binding Peers}">
               <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="vm:StatsPeer">
+                <DataTemplate x:DataType="ui:StatsPeer">
                   <Grid ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" Margin="0,0,12,0" />
                     <TextBlock Grid.Column="1" Classes="muted" Text="{Binding Text}" TextWrapping="Wrap" />
@@ -281,7 +282,7 @@
             <TextBlock Text="{Binding FolderText}" />
             <ItemsControl ItemsSource="{Binding Kinds}">
               <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="vm:StatsKind">
+                <DataTemplate x:DataType="ui:StatsKind">
                   <Grid ColumnDefinitions="140,120,*" Margin="0,3">
                     <TextBlock Text="{Binding Name}" />
                     <ProgressBar Grid.Column="1" Value="{Binding Share}" Maximum="100" MinWidth="0" VerticalAlignment="Center" Margin="0,0,12,0" />

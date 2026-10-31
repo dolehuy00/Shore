@@ -5,8 +5,8 @@
   <Application.Resources>
     <ResourceDictionary>
       <ResourceDictionary.MergedDictionaries>
-        <!-- The desktop's look (linked from Shorekeeper.Desktop/Themes). -->
-        <ResourceInclude Source="/Themes/Theme.axaml" />
+        <!-- The desktop's look (Shorekeeper.UI/Themes). -->
+        <ResourceInclude Source="avares://Shorekeeper.UI/Themes/Theme.axaml" />
       </ResourceDictionary.MergedDictionaries>
 
       <!-- Touch: taller controls than on the desktop. -->
@@ -19,9 +19,9 @@
 
   <Application.Styles>
     <FluentTheme />
-    <!-- Popups, menus and drop-downs open with a short animation (linked from Shorekeeper.Desktop/Themes). -->
-    <StyleInclude Source="/Themes/Motion.axaml" />
-    <StyleInclude Source="/Themes/Menus.axaml" />
+    <!-- Popups, menus and drop-downs open with a short animation (Shorekeeper.UI/Themes). -->
+    <StyleInclude Source="avares://Shorekeeper.UI/Themes/Motion.axaml" />
+    <StyleInclude Source="avares://Shorekeeper.UI/Themes/Menus.axaml" />
     <!--
       Touch: menus and drop-down lists float over the page with a shadow, their items as tall as other controls. The
       popup is as big as what it holds, so the margins leave the shadow room (and keep a menu off the screen's edge).

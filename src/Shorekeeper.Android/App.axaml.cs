@@ -7,7 +7,7 @@ using Shorekeeper.Android.Platform;
 using Shorekeeper.Android.ViewModels;
 using Shorekeeper.Core.Identity;
 using Shorekeeper.Android.Views;
-using Shorekeeper.Desktop.ViewModels;
+using Shorekeeper.UI.ViewModels;
 using Application = Avalonia.Application;
 
 namespace Shorekeeper.Android;

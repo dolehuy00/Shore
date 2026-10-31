@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    What the desktop and Android apps share (docs/02-architecture.md): view models of the pages that look the same on
+    both, the look (Themes), and the AXAML translation and language and theme choices.
+  -->
+  <PropertyGroup>
+    <RootNamespace>Shorekeeper.UI</RootNamespace>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Shorekeeper.Engine\Shorekeeper.Engine.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Both apps (assemblies Shorekeeper and Shorekeeper.Android) call what the view models keep internal. -->
+    <InternalsVisibleTo Include="Shorekeeper" />
+    <InternalsVisibleTo Include="Shorekeeper.Android" />
+  </ItemGroup>
+
+</Project>

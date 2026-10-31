@@ -8,6 +8,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Shorekeeper.Core.Localization;
 using Shorekeeper.Desktop.ViewModels;
+using Shorekeeper.UI.ViewModels;
 
 namespace Shorekeeper.Desktop.Views;
 

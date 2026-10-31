@@ -1,11 +1,12 @@
 <!-- Tin nhắn (docs/15-chat.md §6.1): conversations on the left; the open one on the right, its box pinned at the bottom. -->
 <UserControl xmlns="https://github.com/avaloniaui"
-             xmlns:l="using:Shorekeeper.Desktop.Localization"
+             xmlns:l="using:Shorekeeper.UI.Localization"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Shorekeeper.Desktop.ViewModels"
+             xmlns:ui="using:Shorekeeper.UI.ViewModels"
              x:Class="Shorekeeper.Desktop.Views.Pages.ChatPage"
              x:DataType="vm:MainWindowViewModel">
-  <Grid ColumnDefinitions="290,*" DataContext="{Binding Chat}" x:DataType="vm:ChatViewModel">
+  <Grid ColumnDefinitions="290,*" DataContext="{Binding Chat}" x:DataType="ui:ChatViewModel">
     <Border BorderThickness="0,0,1,0" BorderBrush="{DynamicResource Sk.Divider}">
       <DockPanel>
         <TextBlock DockPanel.Dock="Top" Classes="h2" Text="{l:T 'Tin nhắn'}" Margin="20,20,20,10" />
@@ -14,7 +15,7 @@
         <ScrollViewer>
           <ItemsControl ItemsSource="{Binding Conversations}" Margin="8,0,8,8">
             <ItemsControl.ItemTemplate>
-              <DataTemplate x:DataType="vm:ChatPersonViewModel">
+              <DataTemplate x:DataType="ui:ChatPersonViewModel">
                 <Button Classes="person" Classes.current="{Binding IsCurrent}" Command="{Binding OpenCommand}" AutomationProperties.Name="{Binding Name}">
                   <Grid ColumnDefinitions="Auto,*,Auto">
                     <Panel>
@@ -73,7 +74,7 @@
               </MenuFlyout>
             </Button.Flyout>
           </Button>
-          <StackPanel DataContext="{Binding Current}" x:DataType="vm:ChatPersonViewModel">
+          <StackPanel DataContext="{Binding Current}" x:DataType="ui:ChatPersonViewModel">
             <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
             <StackPanel Orientation="Horizontal" Spacing="6">
               <Ellipse Classes="dot" Classes.busy="{Binding IsBusy}" Classes.muted="{Binding !IsOnline}" IsVisible="{Binding !IsGroup}" Width="8" Height="8" />
@@ -153,7 +154,7 @@
               <ScrollViewer>
                 <ItemsControl ItemsSource="{Binding Details}">
                   <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="vm:ChatMemberViewModel">
+                    <DataTemplate x:DataType="ui:ChatMemberViewModel">
                       <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,4">
                         <StackPanel>
                           <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
@@ -180,7 +181,7 @@
           <ScrollViewer x:Name="ChatScroller">
             <ItemsControl ItemsSource="{Binding Messages}" Margin="20,10">
               <ItemsControl.DataTemplates>
-                <DataTemplate DataType="{x:Type vm:ChatBubbleViewModel}" x:DataType="vm:ChatBubbleViewModel">
+                <DataTemplate DataType="{x:Type ui:ChatBubbleViewModel}" x:DataType="ui:ChatBubbleViewModel">
                   <StackPanel>
                     <TextBlock Classes="muted" Text="{Binding DayText}" IsVisible="{Binding HasDay}" FontSize="12" HorizontalAlignment="Center" Margin="0,10,0,6" />
                     <!-- While choosing, a click anywhere on the row checks or unchecks the message. -->
@@ -210,7 +211,7 @@
                         <ItemsControl ItemsSource="{Binding Links}" IsVisible="{Binding HasLinks}">
                           <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="x:String">
-                              <Button Classes="link" Command="{Binding $parent[ItemsControl].((vm:ChatBubbleViewModel)DataContext).OpenLinkCommand}" CommandParameter="{Binding}"
+                              <Button Classes="link" Command="{Binding $parent[ItemsControl].((ui:ChatBubbleViewModel)DataContext).OpenLinkCommand}" CommandParameter="{Binding}"
                                       ToolTip.Tip="{l:T 'Mở'}">
                                 <TextBlock Text="{Binding}" FontSize="12" TextTrimming="CharacterEllipsis" />
                               </Button>
@@ -238,7 +239,7 @@
                               </ItemsControl.ItemTemplate>
                             </ItemsControl>
                             <Panel Width="{Binding PlayedWidth}" HorizontalAlignment="Left" ClipToBounds="True">
-                              <ItemsControl ItemsSource="{Binding Bars}" Width="{x:Static vm:ChatBubbleViewModel.WaveWidth}" HorizontalAlignment="Left">
+                              <ItemsControl ItemsSource="{Binding Bars}" Width="{x:Static ui:ChatBubbleViewModel.WaveWidth}" HorizontalAlignment="Left">
                                 <ItemsControl.ItemsPanel>
                                   <ItemsPanelTemplate>
                                     <StackPanel Orientation="Horizontal" Spacing="2" />
@@ -268,7 +269,7 @@
                     </Grid>
                   </StackPanel>
                 </DataTemplate>
-                <DataTemplate DataType="{x:Type vm:ChatFileViewModel}" x:DataType="vm:ChatFileViewModel">
+                <DataTemplate DataType="{x:Type ui:ChatFileViewModel}" x:DataType="ui:ChatFileViewModel">
                   <StackPanel>
                     <TextBlock Classes="muted" Text="{Binding DayText}" IsVisible="{Binding HasDay}" FontSize="12" HorizontalAlignment="Center" Margin="0,10,0,6" />
                     <Border Classes="filecard" Classes.mine="{Binding IsMine}">
@@ -298,8 +299,8 @@
                             </ItemsPanelTemplate>
                           </ItemsControl.ItemsPanel>
                           <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:ChatPicture">
-                              <Button Classes="picture" Command="{Binding $parent[ItemsControl].((vm:ChatFileViewModel)DataContext).OpenPictureCommand}" CommandParameter="{Binding}">
+                            <DataTemplate x:DataType="ui:ChatPicture">
+                              <Button Classes="picture" Command="{Binding $parent[ItemsControl].((ui:ChatFileViewModel)DataContext).OpenPictureCommand}" CommandParameter="{Binding}">
                                 <Border CornerRadius="10" ClipToBounds="True">
                                   <Image Source="{Binding Image}" MaxWidth="300" MaxHeight="340" Stretch="Uniform" />
                                 </Border>
@@ -314,8 +315,8 @@
                             </ItemsPanelTemplate>
                           </ItemsControl.ItemsPanel>
                           <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:ChatPicture">
-                              <Button Classes="picture" Command="{Binding $parent[ItemsControl].((vm:ChatFileViewModel)DataContext).OpenPictureCommand}" CommandParameter="{Binding}">
+                            <DataTemplate x:DataType="ui:ChatPicture">
+                              <Button Classes="picture" Command="{Binding $parent[ItemsControl].((ui:ChatFileViewModel)DataContext).OpenPictureCommand}" CommandParameter="{Binding}">
                                 <Border CornerRadius="6" ClipToBounds="True">
                                   <Image Source="{Binding Image}" Width="96" Height="96" Stretch="UniformToFill" />
                                 </Border>

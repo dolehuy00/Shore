@@ -1,13 +1,13 @@
 <!-- Âm thanh: this phone's sound for contacts, and the contacts' sound here. -->
 <UserControl xmlns="https://github.com/avaloniaui"
-             xmlns:l="using:Shorekeeper.Desktop.Localization"
+             xmlns:l="using:Shorekeeper.UI.Localization"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Shorekeeper.Android.ViewModels"
-             xmlns:dvm="using:Shorekeeper.Desktop.ViewModels"
+             xmlns:ui="using:Shorekeeper.UI.ViewModels"
              x:Class="Shorekeeper.Android.Views.Pages.AudioPage"
              x:DataType="vm:MainViewModel">
   <Panel Classes="page" IsVisible="{Binding IsAudioTab}">
-  <ScrollViewer DataContext="{Binding Audio}" x:DataType="dvm:AudioViewModel">
+  <ScrollViewer DataContext="{Binding Audio}" x:DataType="ui:AudioViewModel">
     <StackPanel Spacing="6" Margin="0,0,0,24">
       <!-- Phát: this phone's sound for contacts that choose to listen. -->
       <Border Classes="card">
@@ -49,7 +49,7 @@
             <TextBlock Classes="muted" Text="{l:T 'Chưa ai nghe'}" IsVisible="{Binding !HasListeners}" FontSize="12" />
             <ItemsControl ItemsSource="{Binding Listeners}">
               <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="dvm:AudioListenerItem">
+                <DataTemplate x:DataType="ui:AudioListenerItem">
                   <!-- What the host may do, for this listener alone; the buttons under the name on a narrow screen. -->
                   <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,2">
                     <Panel VerticalAlignment="Center">
@@ -101,7 +101,7 @@
       <TextBlock Classes="muted" Text="{l:T 'Chưa máy nào đang phát.'}" IsVisible="{Binding HasNoSources}" FontSize="12" TextWrapping="Wrap" />
       <ItemsControl ItemsSource="{Binding Sources}">
         <ItemsControl.ItemTemplate>
-          <DataTemplate x:DataType="dvm:AudioSourceItem">
+          <DataTemplate x:DataType="ui:AudioSourceItem">
             <Border Classes="card">
               <Grid ColumnDefinitions="Auto,*,Auto">
                 <Border Classes="tile" VerticalAlignment="Center">
@@ -191,7 +191,7 @@
             </Grid>
             <ItemsControl ItemsSource="{Binding Stats}">
               <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="dvm:AudioStatItem">
+                <DataTemplate x:DataType="ui:AudioStatItem">
                   <Grid ColumnDefinitions="Auto,*" Margin="0,2">
                     <TextBlock Classes="muted" Text="{Binding Label}" FontSize="13" Margin="0,0,12,0" />
                     <TextBlock Grid.Column="1" Text="{Binding Value}" FontSize="13" TextWrapping="Wrap" TextAlignment="Right" />
