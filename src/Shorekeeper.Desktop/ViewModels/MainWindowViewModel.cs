@@ -173,7 +173,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             RefreshStorage();
             return true;
         }, TimeSpan.FromMinutes(1));
-        Search = new SearchViewModel(neighborhood, groups, inbox, sent, Reveal);
+        Search = new SearchViewModel(neighborhood, groups, inbox, sent, chat, Reveal);
         dialogs.OfferSent += (_, _) => ShowPage(NavPage.Sent);
         dialogs.PageRequested += (_, page) => ShowPage(page);
         dialogs.TextSent += (_, target) => OpenChat(target);
@@ -421,6 +421,13 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     private void Reveal(SearchResult result)
     {
+        if (result.Item is ChatSearchHit hit)
+        {
+            ShowPage(NavPage.Messages);
+            Chat.OpenAt(hit);
+            return;
+        }
+
         if (result.Item is PeerCardViewModel person)
         {
             // Selecting lets Ctrl+V send to them right away.

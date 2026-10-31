@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Shorekeeper.Core.Audio;
 using Shorekeeper.Core.Identity;
 using Shorekeeper.Core.Localization;
+using Shorekeeper.Core.Text;
 using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Monitoring;
@@ -312,6 +313,35 @@ public sealed class ChatService(
         var rows = await connection.QueryAsync<MessageRow>(
             $"SELECT {Columns} FROM ChatMessages WHERE PeerId = @peer ORDER BY SentAt, Id;", new { peer = peer.Value });
         return [.. rows.Select(r => r.ToMessage())];
+    }
+
+    /// <summary>
+    /// Text messages with every word of <paramref name="query"/>, as Ctrl+K reads it (no case, no accents), newest first
+    /// (docs/18-chat-extras.md §3). Read until <paramref name="limit"/> are found: a few thousand rows take milliseconds.
+    /// </summary>
+    public async Task<IReadOnlyList<ChatMessage>> FindAsync(string query, int limit, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return [];
+        }
+
+        await using SqliteConnection connection = await database.OpenAsync(cancellationToken);
+        List<ChatMessage> found = [];
+        await foreach (MessageRow row in connection.QueryUnbufferedAsync<MessageRow>(
+            $"SELECT {Columns} FROM ChatMessages WHERE Kind = 'text' AND Text IS NOT NULL ORDER BY SentAt DESC, Id DESC;").WithCancellation(cancellationToken))
+        {
+            if (TextSearch.Matches(query, row.Text))
+            {
+                found.Add(row.ToMessage());
+                if (found.Count == limit)
+                {
+                    break;
+                }
+            }
+        }
+
+        return found;
     }
 
     /// <summary>The conversation is being looked at: what the peer sent is read, and the peer is told ("Đã xem").</summary>

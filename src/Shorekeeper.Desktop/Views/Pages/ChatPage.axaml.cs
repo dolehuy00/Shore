@@ -4,6 +4,7 @@ using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Shorekeeper.Desktop.ViewModels;
 using Shorekeeper.UI.ViewModels;
@@ -27,6 +28,7 @@ public partial class ChatPage : UserControl
             {
                 chatScroll = new ChatScroll(ChatScroller);
                 main.Chat.ScrollToEndRequested += (_, _) => chatScroll?.ToEnd();
+                main.Chat.RevealRequested += (_, entry) => Dispatcher.UIThread.Post(() => chatScroll?.Reveal(entry), DispatcherPriority.Loaded);
             }
         };
     }

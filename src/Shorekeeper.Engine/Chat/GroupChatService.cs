@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Shorekeeper.Core.Audio;
 using Shorekeeper.Core.Identity;
 using Shorekeeper.Core.Localization;
+using Shorekeeper.Core.Text;
 using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Groups;
@@ -510,6 +511,37 @@ public sealed partial class GroupChatService : BackgroundService
             $"SELECT {Columns} FROM ChatGroupMessages WHERE GroupId = @groupId AND Deleted = 0 ORDER BY SentAt, Id;", new { groupId })).ToList();
         Dictionary<(string, string), ChatMessageState> states = await OutgoingStatesAsync(connection, rows);
         return [.. rows.Select(r => r.ToMessage(states))];
+    }
+
+    /// <summary>
+    /// Text messages of every group conversation with every word of <paramref name="query"/>, as Ctrl+K reads it, newest
+    /// first (docs/18-chat-extras.md §3). Ours carry their state over all members.
+    /// </summary>
+    public async Task<IReadOnlyList<GroupChatMessage>> FindAsync(string query, int limit, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return [];
+        }
+
+        await using SqliteConnection connection = await database.OpenAsync(cancellationToken);
+        List<MessageRow> found = [];
+        await foreach (MessageRow row in connection.QueryUnbufferedAsync<MessageRow>(
+            $"SELECT {Columns} FROM ChatGroupMessages WHERE Kind = 'text' AND Text IS NOT NULL AND Deleted = 0 ORDER BY SentAt DESC, Id DESC;")
+            .WithCancellation(cancellationToken))
+        {
+            if (TextSearch.Matches(query, row.Text))
+            {
+                found.Add(row);
+                if (found.Count == limit)
+                {
+                    break;
+                }
+            }
+        }
+
+        Dictionary<(string, string), ChatMessageState> states = await OutgoingStatesAsync(connection, found);
+        return [.. found.Select(r => r.ToMessage(states))];
     }
 
     /// <summary>Where one of our messages is with each member it was for ("Chi tiết").</summary>

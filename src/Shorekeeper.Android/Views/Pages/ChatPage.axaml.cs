@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Shorekeeper.Android.ViewModels;
 using Shorekeeper.Core.Localization;
@@ -45,6 +46,7 @@ public partial class ChatPage : UserControl
             {
                 chatScroll = new ChatScroll(ChatScroller);
                 main.Chat.ScrollToEndRequested += (_, _) => chatScroll?.ToEnd();
+                main.Chat.RevealRequested += (_, entry) => Dispatcher.UIThread.Post(() => chatScroll?.Reveal(entry), DispatcherPriority.Loaded);
                 // 📎 in a conversation: the same picker as "Gửi file…" on a card.
                 main.Chat.PickFiles = () => Pickers.PickAsync(this, L.F("Gửi cho {0}", main.Chat.Current?.Name), allowMultiple: true);
             }

@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.Input;
 using Shorekeeper.Core.Audio;
 using Shorekeeper.Core.Identity;
 using Shorekeeper.Core.Localization;
+using Shorekeeper.Core.Text;
 using Shorekeeper.Core.Platform;
 using Shorekeeper.Core.Trust;
 using Shorekeeper.Engine.Chat;
@@ -228,6 +229,140 @@ public sealed partial class ChatViewModel : ObservableObject
 
     /// <summary>New messages were added at the end: the view scrolls down to them.</summary>
     public event EventHandler? ScrollToEndRequested;
+
+    /// <summary>A search result was opened: the view scrolls to this entry and points at it.</summary>
+    public event EventHandler<ChatEntryViewModel>? RevealRequested;
+
+    /// <summary>Shown once the conversation <see cref="OpenAt"/> asked for has loaded.</summary>
+    private string? revealId;
+
+    /// <summary>At most this many messages are found, newest first.</summary>
+    public const int MaxHits = 50;
+
+    /// <summary>
+    /// Messages with every word of <paramref name="query"/>, as Ctrl+K reads it (docs/18-chat-extras.md §3): text messages
+    /// of every conversation, and text sent as a card. Newest first.
+    /// </summary>
+    public async Task<IReadOnlyList<ChatSearchHit>> FindAsync(string query, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return [];
+        }
+
+        bool withGroups = ShowsGroups && settings.Current.GroupsEnabled;
+        IReadOnlyList<ChatMessage> direct = await chat.FindAsync(query, MaxHits, cancellationToken);
+        IReadOnlyList<GroupChatMessage> inGroups = withGroups ? await groupChat.FindAsync(query, MaxHits, cancellationToken) : [];
+        string me = L.T("Bạn");
+        List<ChatSearchHit> hits =
+        [
+            .. direct.Select(m => new ChatSearchHit(
+                NameOf(m.Peer), Said(m.Outgoing ? me : NameOf(m.Peer), m.Text!, query), m.SentAt, m.Peer, null, m.Id, this)),
+            .. inGroups.Select(m => new ChatSearchHit(
+                GroupNameOf(m.GroupId), Said(m.Outgoing ? me : NameOf(m.GroupId, m.Author, m.AuthorName), m.Text!, query), m.SentAt, null, m.GroupId, m.Id, this)),
+            // Text sent as a card ("Gửi văn bản"): one hit in each conversation it shows in.
+            .. offers.GetOffers()
+                .Where(o => o.Paths.Count == 0 && !o.Recalled && TextSearch.Matches(query, o.Note) && (o.GroupId is null || withGroups))
+                .SelectMany(o => o.GroupId is { } groupId
+                    ? [new ChatSearchHit(GroupNameOf(groupId), Said(me, o.Note!, query), o.CreatedAt, null, groupId, "sent:" + o.OfferId, this)]
+                    : o.Recipients.Select(r => new ChatSearchHit(
+                        NameOf(r.DeviceId), Said(me, o.Note!, query), o.CreatedAt, r.DeviceId, null, "sent:" + o.OfferId, this))),
+            .. inbox.GetOffers()
+                .Where(o => o.Files.Count == 0 && !o.Recalled && TextSearch.Matches(query, o.Note) && (o.GroupId is null || withGroups))
+                .Select(o => o.GroupId is { } groupId
+                    ? new ChatSearchHit(GroupNameOf(groupId), Said(NameOf(o.SenderId), o.Note!, query), o.SentAt, null, groupId, "received:" + o.OfferId, this)
+                    : new ChatSearchHit(NameOf(o.SenderId), Said(NameOf(o.SenderId), o.Note!, query), o.SentAt, o.SenderId, null, "received:" + o.OfferId, this)),
+        ];
+        return [.. hits.OrderByDescending(h => h.At).Take(MaxHits)];
+    }
+
+    /// <summary>"Mai: …nhớ mang báo cáo…".</summary>
+    private static string Said(string author, string text, string query) => $"{author}: {TransferText.Snippet(text, query)}";
+
+    /// <summary>Opens the conversation a search result is in, at that message.</summary>
+    public void OpenAt(ChatSearchHit hit)
+    {
+        SearchQuery = "";
+        if (hit.GroupId is { } groupId)
+        {
+            OpenGroup(groupId);
+        }
+        else if (hit.Peer is { } peer)
+        {
+            Open(peer);
+        }
+
+        // Already there: point at it now; otherwise once the conversation has loaded.
+        if (Messages.FirstOrDefault(m => m.Id == hit.EntryId) is { } entry)
+        {
+            revealId = null;
+            RevealRequested?.Invoke(this, entry);
+        }
+        else
+        {
+            revealId = hit.EntryId;
+        }
+    }
+
+    /// <summary>After a conversation loaded: the message a search result asked for, or new ones at the end.</summary>
+    private void Scroll(int added)
+    {
+        if (revealId is { } id && Messages.FirstOrDefault(m => m.Id == id) is { } entry)
+        {
+            revealId = null;
+            RevealRequested?.Invoke(this, entry);
+        }
+        else if (added > 0)
+        {
+            ScrollToEndRequested?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    /// <summary>The phone's search box above the conversations (the desktop searches with Ctrl+K).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsSearching))]
+    public partial string SearchQuery { get; set; } = "";
+
+    /// <summary>The box has words: its results show instead of the conversations.</summary>
+    public bool IsSearching => !string.IsNullOrWhiteSpace(SearchQuery);
+
+    public ObservableCollection<ChatSearchHit> SearchHits { get; } = [];
+
+    [ObservableProperty]
+    public partial bool HasNoSearchHits { get; set; }
+
+    /// <summary>Counts the words typed: only the newest search shows its results.</summary>
+    private int searchVersion;
+
+    partial void OnSearchQueryChanged(string value) => _ = SearchAsync(value);
+
+    private async Task SearchAsync(string query)
+    {
+        int version = ++searchVersion;
+        // A short pause, so each letter typed does not read the messages again.
+        await Task.Delay(TimeSpan.FromMilliseconds(200));
+        if (version != searchVersion)
+        {
+            return;
+        }
+
+        IReadOnlyList<ChatSearchHit> hits = await FindAsync(query, CancellationToken.None);
+        if (version != searchVersion)
+        {
+            return;
+        }
+
+        SearchHits.Clear();
+        foreach (ChatSearchHit hit in hits)
+        {
+            SearchHits.Add(hit);
+        }
+
+        HasNoSearchHits = IsSearching && hits.Count == 0;
+    }
+
+    [RelayCommand]
+    private void ClearSearch() => SearchQuery = "";
 
     /// <summary>Opens the conversation with <paramref name="peer"/>, from the list, "Nhắn tin" or a notification.</summary>
     public void Open(DeviceId peer) => Open(Person(peer));
@@ -608,10 +743,7 @@ public sealed partial class ChatViewModel : ObservableObject
             SelectionChanged();
         }
 
-        if (added > 0)
-        {
-            ScrollToEndRequested?.Invoke(this, EventArgs.Empty);
-        }
+        Scroll(added);
 
         if (IsShown && messages.Any(m => m.State == ChatMessageState.Unread))
         {
@@ -692,10 +824,7 @@ public sealed partial class ChatViewModel : ObservableObject
             SelectionChanged();
         }
 
-        if (added > 0)
-        {
-            ScrollToEndRequested?.Invoke(this, EventArgs.Empty);
-        }
+        Scroll(added);
 
         if (IsShown && messages.Any(m => m.State == ChatMessageState.Unread))
         {

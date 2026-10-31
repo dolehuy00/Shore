@@ -109,6 +109,42 @@ public static partial class TransferText
         return line.Length <= maxLength ? line : line[..(maxLength - 1)].TrimEnd() + "…";
     }
 
+    /// <summary>
+    /// The words around where <paramref name="query"/> first matches (accents and case aside), on one line, shortened
+    /// with "…" at either end; the start of the text when nothing matches.
+    /// </summary>
+    public static string Snippet(string text, string query, int maxLength = 80)
+    {
+        string line = string.Join(' ', text.Split((char[])['\r', '\n', '\t'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+        if (line.Length <= maxLength)
+        {
+            return line;
+        }
+
+        // Folded letter by letter, so a position in the folded line is the same in the line.
+        string folded = string.Concat(line.Select(c => TextSearch.Fold(c.ToString()) is { Length: 1 } f ? f : "\0"));
+        int at = TextSearch.Fold(query).Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Select(word => folded.IndexOf(word, StringComparison.Ordinal)).Where(i => i >= 0).DefaultIfEmpty(0).Min();
+        // A little before the match, from the start of a word.
+        int start = Math.Max(0, at - 20);
+        if (start > 0 && line.IndexOf(' ', start) is var space and >= 0 && space < at)
+        {
+            start = space + 1;
+        }
+
+        start = Math.Min(start, Math.Max(0, line.Length - maxLength + 1));
+        int room = maxLength - (start > 0 ? 1 : 0);
+        bool cutEnd = line.Length - start > room;
+        string middle = line.Substring(start, cutEnd ? room - 1 : line.Length - start);
+        // Cut at the end of a word, unless that loses much.
+        if (cutEnd && middle.LastIndexOf(' ') is var wordEnd && wordEnd > middle.Length * 2 / 3)
+        {
+            middle = middle[..wordEnd];
+        }
+
+        return (start > 0 ? "…" : "") + middle.Trim() + (cutEnd ? "…" : "");
+    }
+
     public static string Remaining(TimeSpan left) => left switch
     {
         { TotalSeconds: <= 0 } => L.T("hết hạn"),

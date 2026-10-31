@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Shorekeeper.Core.Localization;
 using Shorekeeper.Core.Text;
+using Shorekeeper.UI.ViewModels;
 
 namespace Shorekeeper.Desktop.ViewModels;
 
@@ -13,6 +14,9 @@ public enum SearchKind
     Group,
     Received,
     Sent,
+
+    /// <summary>A message, by its words (docs/18-chat-extras.md §3).</summary>
+    Message,
 }
 
 /// <param name="Item">The row's view model, revealed on its page when the result is chosen.</param>
@@ -23,13 +27,20 @@ public sealed record SearchResult(SearchKind Kind, string Title, string Subtitle
 }
 
 /// <summary>
-/// Ctrl+K in the header (docs/10-ux.md §1): people, groups, received and sent files in one list; choosing a result opens
-/// its page and points at it.
+/// Ctrl+K in the header (docs/10-ux.md §1): people, groups, received and sent files in one list, then messages found by
+/// their words, which come from the database a moment later; choosing a result opens its page and points at it.
 /// </summary>
 public sealed partial class SearchViewModel(
-    NeighborhoodViewModel people, GroupsViewModel groups, InboxViewModel inbox, SentViewModel sent, Action<SearchResult> reveal) : ObservableObject
+    NeighborhoodViewModel people, GroupsViewModel groups, InboxViewModel inbox, SentViewModel sent, ChatViewModel chat,
+    Action<SearchResult> reveal) : ObservableObject
 {
     private const int PerKind = 5;
+
+    /// <summary>Messages are many and what people look for most: more of them.</summary>
+    private const int Messages = 8;
+
+    /// <summary>Counts the words typed: only the newest search adds its messages.</summary>
+    private int version;
 
     public ObservableCollection<SearchResult> Results { get; } = [];
 
@@ -91,7 +102,38 @@ public sealed partial class SearchViewModel(
 
         Selected = Results.FirstOrDefault();
         IsOpen = query.Trim().Length > 0;
-        HasNoResults = IsOpen && Results.Count == 0;
+        // "Không tìm thấy" waits for the messages.
+        HasNoResults = false;
+        _ = AddMessagesAsync(query, ++version);
+    }
+
+    private async Task AddMessagesAsync(string query, int at)
+    {
+        if (!IsOpen)
+        {
+            return;
+        }
+
+        // A short pause, so each letter typed does not read the messages again.
+        await Task.Delay(TimeSpan.FromMilliseconds(150));
+        if (at != version)
+        {
+            return;
+        }
+
+        IReadOnlyList<ChatSearchHit> hits = await chat.FindAsync(query, CancellationToken.None);
+        if (at != version || !IsOpen)
+        {
+            return;
+        }
+
+        foreach (ChatSearchHit hit in hits.Take(Messages))
+        {
+            Results.Add(new SearchResult(SearchKind.Message, hit.Conversation, $"{hit.Snippet} · {hit.TimeText}", hit));
+        }
+
+        Selected ??= Results.FirstOrDefault();
+        HasNoResults = Results.Count == 0;
     }
 
     private IEnumerable<SearchResult> Find(string query)

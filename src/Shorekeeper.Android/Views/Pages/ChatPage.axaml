@@ -8,12 +8,51 @@
              x:DataType="vm:MainViewModel">
   <Panel Classes="page" IsVisible="{Binding IsChatTab}">
   <Panel DataContext="{Binding Chat}" x:DataType="ui:ChatViewModel">
-    <Panel IsVisible="{Binding !IsOpen}">
+    <DockPanel IsVisible="{Binding !IsOpen}">
+      <!-- Tìm theo nội dung (docs/18-chat-extras.md §3): no accents needed, every word must be there. -->
+      <TextBox DockPanel.Dock="Top" Text="{Binding SearchQuery}" PlaceholderText="{l:T 'Tìm trong tin nhắn'}" Margin="0,0,0,8"
+               IsVisible="{Binding HasConversations}" AutomationProperties.Name="{l:T 'Tìm trong tin nhắn'}">
+        <TextBox.InnerLeftContent>
+          <PathIcon Data="{StaticResource Icon.Search}" Width="16" Height="16" Margin="12,0,0,0" Opacity="0.7" />
+        </TextBox.InnerLeftContent>
+        <TextBox.InnerRightContent>
+          <Button Classes="round" Command="{Binding ClearSearchCommand}" IsVisible="{Binding IsSearching}" Width="36" Height="36" Margin="0,0,4,0"
+                  AutomationProperties.Name="{l:T 'Xóa'}">
+            <PathIcon Data="{StaticResource Icon.Dismiss}" Width="12" Height="12" />
+          </Button>
+        </TextBox.InnerRightContent>
+      </TextBox>
+      <Panel>
       <StackPanel IsVisible="{Binding !HasConversations}" Spacing="6" Margin="16,48" HorizontalAlignment="Center">
         <PathIcon Data="{StaticResource Icon.Chat}" Width="40" Height="40" Opacity="0.5" HorizontalAlignment="Center" />
         <TextBlock Classes="muted" Text="{l:T 'Kết nối với một máy ở Xóm để nhắn tin cho nhau.'}" TextWrapping="Wrap" TextAlignment="Center" />
       </StackPanel>
-      <ScrollViewer>
+      <TextBlock Classes="muted" Text="{l:T 'Không tìm thấy tin nhắn nào.'}" IsVisible="{Binding HasNoSearchHits}" Margin="16,24"
+                 HorizontalAlignment="Center" />
+      <ScrollViewer IsVisible="{Binding IsSearching}">
+        <ItemsControl ItemsSource="{Binding SearchHits}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="ui:ChatSearchHit">
+              <Button Classes="person" Command="{Binding OpenCommand}" AutomationProperties.Name="{Binding Conversation}">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                  <Border Classes="tile" VerticalAlignment="Center">
+                    <Panel>
+                      <PathIcon Data="{StaticResource Icon.Team}" IsVisible="{Binding IsGroup}" Width="22" Height="22" />
+                      <PathIcon Data="{StaticResource Icon.Chat}" IsVisible="{Binding !IsGroup}" Width="22" Height="22" />
+                    </Panel>
+                  </Border>
+                  <StackPanel Grid.Column="1" Spacing="2" Margin="12,0,8,0" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Conversation}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Classes="muted" Text="{Binding Snippet}" FontSize="13" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
+                  </StackPanel>
+                  <TextBlock Grid.Column="2" Classes="muted" Text="{Binding TimeText}" FontSize="12" VerticalAlignment="Top" Margin="0,4,0,0" />
+                </Grid>
+              </Button>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+      <ScrollViewer IsVisible="{Binding !IsSearching}">
         <ItemsControl ItemsSource="{Binding Conversations}">
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="ui:ChatPersonViewModel">
@@ -50,7 +89,8 @@
           </ItemsControl.ItemTemplate>
         </ItemsControl>
       </ScrollViewer>
-    </Panel>
+      </Panel>
+    </DockPanel>
 
     <DockPanel IsVisible="{Binding IsOpen}">
       <!-- ← Who, and whether they are there; ⋮ for the conversation. -->

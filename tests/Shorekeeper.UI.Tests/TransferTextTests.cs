@@ -58,6 +58,27 @@ public class TransferTextTests
     }
 
     [Fact]
+    public void A_snippet_shows_the_words_around_what_matched_on_one_line()
+    {
+        Assert.Equal("Họp lúc 3 giờ nhé", TransferText.Snippet("Họp lúc\n3 giờ nhé", "gio"));
+
+        string text = "Hôm qua anh có nói về chuyện nghỉ lễ của cả phòng, rồi sau đó cả nhóm thống nhất là nộp Báo cáo tháng 9 trước thứ sáu này để sếp duyệt kịp";
+        string snippet = TransferText.Snippet(text + ", rồi gửi lại cho cả phòng xem trước buổi họp chiều thứ hai tuần sau nữa nhé", "bao cao");
+        Assert.StartsWith("…", snippet);
+        Assert.EndsWith("…", snippet);
+        Assert.Contains("Báo cáo tháng 9", snippet);
+        Assert.True(snippet.Length <= 80, snippet);
+
+        // Near the end: nothing cut after it.
+        string end = TransferText.Snippet(text, "kip");
+        Assert.StartsWith("…", end);
+        Assert.EndsWith("duyệt kịp", end);
+
+        // No match (another word of the query did): the start.
+        Assert.StartsWith("Hôm qua anh", TransferText.Snippet(text, "zzz"));
+    }
+
+    [Fact]
     public void Times_left_and_ago_read_as_people_say_them()
     {
         Assert.Equal("hết hạn", TransferText.Remaining(TimeSpan.Zero));

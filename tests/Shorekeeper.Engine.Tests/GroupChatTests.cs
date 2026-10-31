@@ -505,6 +505,19 @@ public sealed class GroupChatTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Search_finds_group_messages_but_not_deleted_ones()
+    {
+        GroupChatMessage holiday = await tuan.GroupChat.SendTextAsync(groupId, "Tuần sau nghỉ lễ 2 ngày", Ct);
+        GroupChatMessage mine = await mai.GroupChat.SendTextAsync(groupId, "Nghỉ lễ đi đâu?", Ct);
+        GroupChatMessage gone = await tuan.GroupChat.SendTextAsync(groupId, "nghỉ lễ nhầm", Ct);
+        await WaitUntil(() => Messages(mai).Count == 3);
+        await mai.GroupChat.DeleteAsync(groupId, [gone.Id], Ct);
+
+        Assert.Equal([mine.Id, holiday.Id], (await mai.GroupChat.FindAsync("nghi le", 50, Ct)).Select(m => m.Id));
+        Assert.Equal([holiday.Id], (await mai.GroupChat.FindAsync("2 ngay tuan", 50, Ct)).Select(m => m.Id));
+    }
+
+    [Fact]
     public async Task A_new_member_gets_what_the_members_said_but_not_who_left()
     {
         await mai.GroupChat.SendTextAsync(groupId, "Mai đây", Ct);

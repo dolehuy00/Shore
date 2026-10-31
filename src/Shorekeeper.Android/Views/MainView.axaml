@@ -244,6 +244,11 @@
       <Setter Property="BorderBrush" Value="{DynamicResource Sk.CardBorder}" />
       <Setter Property="Background" Value="{DynamicResource Sk.CardBackground}" />
     </Style>
+    <!-- A search result just opened (docs/18-chat-extras.md §3), for a moment. -->
+    <Style Selector="Border.bubble.found, Border.filecard.found">
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentButtonBackground}" />
+      <Setter Property="BorderThickness" Value="2" />
+    </Style>
     <Style Selector="Border.filecard.mine">
       <Setter Property="HorizontalAlignment" Value="Right" />
     </Style>

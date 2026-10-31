@@ -86,6 +86,11 @@ public partial class MainView : UserControl
                     main.Chat.CloseCommand.Execute(null);
                     back.Handled = true;
                 }
+                else if (DataContext is MainViewModel { IsChatTab: true, Chat.IsSearching: true } searching)
+                {
+                    searching.Chat.ClearSearchCommand.Execute(null);
+                    back.Handled = true;
+                }
             };
             // The keyboard is drawn over the app, which keeps its size: lift the content above it (the message box),
             // and hide the tab strip meanwhile, as other apps do. Avalonia pads this view clear of the system bars; that

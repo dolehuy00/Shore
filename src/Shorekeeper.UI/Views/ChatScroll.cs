@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 
 namespace Shorekeeper.UI.Views;
@@ -41,6 +42,26 @@ public sealed class ChatScroll
         held = null;
         scroller.UpdateLayout();
         scroller.ScrollToEnd();
+    }
+
+    /// <summary>
+    /// A search result (docs/18-chat-extras.md §3): its entry scrolled into view and outlined for a moment ("found"),
+    /// rather than the end.
+    /// </summary>
+    public void Reveal(object item)
+    {
+        atEnd = false;
+        held = null;
+        scroller.UpdateLayout();
+        if (scroller.GetVisualDescendants().OfType<ItemsControl>().FirstOrDefault() is { } items && items.ContainerFromItem(item) is { } row)
+        {
+            row.BringIntoView();
+            if (row.GetVisualDescendants().OfType<Border>().FirstOrDefault(b => b.Classes.Contains("bubble") || b.Classes.Contains("filecard")) is { } frame)
+            {
+                frame.Classes.Add("found");
+                DispatcherTimer.RunOnce(() => frame.Classes.Remove("found"), TimeSpan.FromSeconds(2));
+            }
+        }
     }
 
     /// <summary>

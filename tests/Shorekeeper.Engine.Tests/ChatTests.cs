@@ -294,6 +294,28 @@ public sealed class ChatTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Search_finds_text_messages_by_every_word_without_accents_newest_first()
+    {
+        ChatMessage report = await a.Chat.SendTextAsync(b.Id, "Báo cáo tháng 9 đã xong", Ct);
+        ChatMessage meeting = await a.Chat.SendTextAsync(b.Id, "Họp lúc 3 giờ, nhớ mang báo cáo", Ct);
+        ChatMessage wrong = await a.Chat.SendTextAsync(b.Id, "báo cáo gửi nhầm", Ct);
+        ChatMessage gone = await a.Chat.SendTextAsync(b.Id, "báo cáo cũ", Ct);
+        await a.Chat.SendVoiceAsync(b.Id, Voice(seconds: 1), Ct);
+        await WaitUntil(() => b.Chat.GetMessagesAsync(a.Id, Ct).Result.Count == 5);
+        await a.Chat.RecallAsync(b.Id, [wrong.Id], Ct);
+        await WaitUntil(() => b.Chat.GetMessagesAsync(a.Id, Ct).Result.Any(m => m.Kind == ChatKinds.Recalled));
+        await b.Chat.DeleteAsync(a.Id, [gone.Id], Ct);
+
+        Assert.Equal([meeting.Id, report.Id], (await b.Chat.FindAsync("bao cao", 50, Ct)).Select(m => m.Id));
+        Assert.Equal([report.Id], (await b.Chat.FindAsync("xong THANG", 50, Ct)).Select(m => m.Id));
+        Assert.Equal([meeting.Id], (await b.Chat.FindAsync("báo cáo", 1, Ct)).Select(m => m.Id));
+        Assert.Empty(await b.Chat.FindAsync("báo cáo nhầm", 50, Ct));
+        Assert.Empty(await b.Chat.FindAsync("  ", 50, Ct));
+        // Ours are found too, on our side.
+        Assert.Equal([meeting.Id], (await a.Chat.FindAsync("hop 3 gio", 50, Ct)).Select(m => m.Id));
+    }
+
+    [Fact]
     public async Task A_message_can_be_taken_back_only_within_five_minutes_of_sending()
     {
         var time = new OffsetTime();
