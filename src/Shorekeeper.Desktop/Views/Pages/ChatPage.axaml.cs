@@ -53,6 +53,14 @@ public partial class ChatPage : UserControl
         }
     }
 
+    /// <summary>"@Name" chosen: back in the box, writing on after it.</summary>
+    private void OnMentionChosen(object? sender, RoutedEventArgs e) =>
+        Dispatcher.UIThread.Post(() =>
+        {
+            ChatBox.Focus();
+            ChatBox.CaretIndex = ChatBox.Text?.Length ?? 0;
+        });
+
     private void OnChatKeyDown(object? sender, KeyEventArgs e)
     {
         // Ctrl+V: copied files, or a picture copied as a picture, go to this person; text is pasted as usual.

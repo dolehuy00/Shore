@@ -53,6 +53,8 @@ public sealed partial class GroupChatService
         public string GroupName { get; init; } = "";
 
         public long Unread { get; init; }
+
+        public long Mentioned { get; init; }
     }
 
     private sealed class DeliveryRow : MessageRow

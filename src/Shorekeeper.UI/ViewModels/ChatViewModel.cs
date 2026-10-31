@@ -495,13 +495,15 @@ public sealed partial class ChatViewModel : ObservableObject
             return;
         }
 
+        string? replyTo = ReplyingTo is { } answered ? ReplyIdOf(answered) : null;
+        ReplyingTo = null;
         if (person.GroupId is { } groupId)
         {
-            await groupChat.SendVoiceAsync(groupId, note, CancellationToken.None);
+            await groupChat.SendVoiceAsync(groupId, note, CancellationToken.None, replyTo);
         }
         else
         {
-            await chat.SendVoiceAsync(person.Peer, note, CancellationToken.None);
+            await chat.SendVoiceAsync(person.Peer, note, CancellationToken.None, replyTo);
         }
     }
 
@@ -550,6 +552,133 @@ public sealed partial class ChatViewModel : ObservableObject
         now.Bubble.Progress = 0;
     }
 
+    // ───────────── Replies and mentions (docs/18-chat-extras.md §4) ─────────────
+
+    /// <summary>The message or file card being answered; what is sent next carries it.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsReplying), nameof(ReplyingText))]
+    public partial ChatEntryViewModel? ReplyingTo { get; set; }
+
+    public bool IsReplying => ReplyingTo is not null;
+
+    /// <summary>"Trả lời Mai: Mấy giờ họp?" above the box.</summary>
+    public string ReplyingText => ReplyingTo is { } entry ? L.F("Trả lời {0}: {1}", QuoteAuthor(entry), QuoteText(entry)) : "";
+
+    internal void StartReply(ChatEntryViewModel entry) => ReplyingTo = entry;
+
+    [RelayCommand]
+    private void CancelReply() => ReplyingTo = null;
+
+    /// <summary>Clicked on what a reply answers: the conversation goes to it.</summary>
+    internal void ShowQuote(ChatBubbleViewModel bubble)
+    {
+        if (bubble.ReplyTo is { } replyTo && Entries().GetValueOrDefault(replyTo) is { } entry)
+        {
+            RevealRequested?.Invoke(this, entry);
+        }
+    }
+
+    /// <summary>What a reply carries: a message's id, or "offer:" and a file card's offer.</summary>
+    private static string ReplyIdOf(ChatEntryViewModel entry) =>
+        entry is ChatFileViewModel ? ChatReplies.OfferPrefix + OfferOf(entry.Id) : entry.Id;
+
+    /// <summary>"sent:id" or "received:id" of a file card: its offer, the same on both sides.</summary>
+    private static string OfferOf(string entryId) => entryId[(entryId.IndexOf(':') + 1)..];
+
+    /// <summary>The entries by what replies point at them with.</summary>
+    private Dictionary<string, ChatEntryViewModel> Entries()
+    {
+        Dictionary<string, ChatEntryViewModel> entries = [];
+        foreach (ChatEntryViewModel entry in Messages)
+        {
+            entries.TryAdd(entry is ChatFileViewModel ? ChatReplies.OfferPrefix + OfferOf(entry.Id) : entry.Id, entry);
+        }
+
+        return entries;
+    }
+
+    private string QuoteAuthor(ChatEntryViewModel entry) => entry switch
+    {
+        ChatBubbleViewModel { IsMine: true } or ChatFileViewModel { IsMine: true } => L.T("Bạn"),
+        ChatBubbleViewModel { AuthorName.Length: > 0 } bubble => bubble.AuthorName,
+        _ => Current?.Name ?? "",
+    };
+
+    /// <summary>What a reply quotes of <paramref name="entry"/>; none here: "Tin nhắn không còn".</summary>
+    internal static string QuoteText(ChatEntryViewModel? entry) => entry switch
+    {
+        null => L.T("Tin nhắn không còn"),
+        ChatBubbleViewModel { IsVoice: true } bubble => L.F("Tin nhắn thoại {0}", bubble.DurationText),
+        ChatBubbleViewModel bubble => TransferText.Preview(bubble.Text, 60),
+        ChatFileViewModel card => TransferText.Preview(card.IsRecalled ? card.RecalledText : card.Title, 60),
+        _ => "",
+    };
+
+    /// <summary>Each reply shows what it answers, as it is here now: recalled, or gone ("Tin nhắn không còn").</summary>
+    private void Quote()
+    {
+        Dictionary<string, ChatEntryViewModel>? entries = null;
+        foreach (ChatBubbleViewModel bubble in Messages.OfType<ChatBubbleViewModel>())
+        {
+            bubble.HasQuote = bubble.ReplyTo is not null;
+            if (bubble.ReplyTo is { } replyTo)
+            {
+                ChatEntryViewModel? answered = (entries ??= Entries()).GetValueOrDefault(replyTo);
+                bubble.QuoteAuthor = answered is null ? "" : QuoteAuthor(answered);
+                bubble.QuoteText = QuoteText(answered);
+            }
+        }
+    }
+
+    /// <summary>"@" typed in a group: members to name, and everyone.</summary>
+    public ObservableCollection<ChatMentionCandidate> MentionCandidates { get; } = [];
+
+    [ObservableProperty]
+    public partial bool HasMentionCandidates { get; set; }
+
+    /// <summary>"@Name" chosen while writing, and whom it names; what is still in the text when sent is mentioned.</summary>
+    private readonly Dictionary<string, string> mentioned = [];
+
+    partial void OnDraftChanged(string value)
+    {
+        MentionCandidates.Clear();
+        int at = value.LastIndexOf('@');
+        if (Current is { GroupId: { } groupId } && at >= 0 && (at == 0 || char.IsWhiteSpace(value[at - 1]))
+            && value[(at + 1)..] is var typed && !typed.Any(char.IsWhiteSpace) && groupChat.OthersIn(groupId) is { } others)
+        {
+            ChatMentionCandidate[] all =
+            [
+                new("@" + L.T("mọi người"), ChatReplies.Everyone),
+                .. others.Select(m => new ChatMentionCandidate("@" + NameOf(groupId, m.DeviceId, m.Name), m.DeviceId.Value)),
+            ];
+            foreach (ChatMentionCandidate candidate in all.Where(c => typed.Length == 0 || TextSearch.Matches(typed, c.Label)).Take(8))
+            {
+                MentionCandidates.Add(candidate);
+            }
+        }
+
+        HasMentionCandidates = MentionCandidates.Count > 0;
+    }
+
+    [RelayCommand]
+    private void Mention(ChatMentionCandidate candidate)
+    {
+        int at = Draft.LastIndexOf('@');
+        if (at >= 0)
+        {
+            mentioned[candidate.Label] = candidate.Id;
+            Draft = Draft[..at] + candidate.Label + " ";
+        }
+    }
+
+    /// <summary>Whom <paramref name="text"/> names, of those chosen while writing it.</summary>
+    private List<string>? MentionsIn(string text)
+    {
+        List<string> ids = [.. mentioned.Where(m => text.Contains(m.Key, StringComparison.Ordinal)).Select(m => m.Value).Distinct()];
+        mentioned.Clear();
+        return ids.Count > 0 ? ids : null;
+    }
+
     private bool CanSend() => CanWrite && !string.IsNullOrWhiteSpace(Draft);
 
     [RelayCommand(CanExecute = nameof(CanSend))]
@@ -567,14 +696,17 @@ public sealed partial class ChatViewModel : ObservableObject
         }
 
         string text = Draft;
+        string? replyTo = ReplyingTo is { } answered ? ReplyIdOf(answered) : null;
+        List<string>? mentions = MentionsIn(text);
         Draft = "";
+        ReplyingTo = null;
         if (person.GroupId is { } groupId)
         {
-            await groupChat.SendTextAsync(groupId, text, CancellationToken.None);
+            await groupChat.SendTextAsync(groupId, text, CancellationToken.None, replyTo, mentions);
         }
         else
         {
-            await chat.SendTextAsync(person.Peer, text, CancellationToken.None);
+            await chat.SendTextAsync(person.Peer, text, CancellationToken.None, replyTo);
         }
     }
 
@@ -587,6 +719,8 @@ public sealed partial class ChatViewModel : ObservableObject
     partial void OnCurrentChanged(ChatPersonViewModel? oldValue, ChatPersonViewModel? newValue)
     {
         StopPlaying();
+        ReplyingTo = null;
+        mentioned.Clear();
         IsSelecting = false;
         CloseDetails();
         _ = FinishRecordingAsync(send: false);
@@ -743,6 +877,7 @@ public sealed partial class ChatViewModel : ObservableObject
             SelectionChanged();
         }
 
+        Quote();
         Scroll(added);
 
         if (IsShown && messages.Any(m => m.State == ChatMessageState.Unread))
@@ -802,6 +937,7 @@ public sealed partial class ChatViewModel : ObservableObject
                     // The name over the first of each run of one member's messages.
                     bool first = newDay || entries[i - 1].Author != entries[i].Author || entries[i - 1].Source is not GroupChatMessage;
                     bubble.Update(message, AuthorOf(groupId, message), first, message == lastMine ? reached : null);
+                    bubble.MentionsMe = groupChat.IsMentioned(message);
                     break;
                 case (ChatFileViewModel card, ReceivedOffer received):
                     ShowCard(card, received, null, live.GetValueOrDefault(received.SenderId) is { State: PeerState.Online });
@@ -824,6 +960,7 @@ public sealed partial class ChatViewModel : ObservableObject
             SelectionChanged();
         }
 
+        Quote();
         Scroll(added);
 
         if (IsShown && messages.Any(m => m.State == ChatMessageState.Unread))
@@ -1423,6 +1560,11 @@ public sealed partial class ChatViewModel : ObservableObject
             : local.ToString("dd/MM", L.Culture);
     }
 }
+
+/// <summary>A member, or everyone, to name with "@" (docs/18-chat-extras.md §4).</summary>
+/// <param name="Label">"@Mai", "@mọi người": what goes into the message.</param>
+/// <param name="Id">The member's DeviceId, or <see cref="ChatReplies.Everyone"/>.</param>
+public sealed record ChatMentionCandidate(string Label, string Id);
 
 /// <summary>A picture shown in a file card, and where it is, to open it.</summary>
 public sealed record ChatPicture(Bitmap Image, string Location);

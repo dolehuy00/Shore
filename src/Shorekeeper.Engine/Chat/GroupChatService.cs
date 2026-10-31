@@ -47,7 +47,8 @@ public sealed record GroupChatMessage(
 public sealed record GroupDelivery(DeviceId Peer, GroupDeliveryState State);
 
 /// <summary>A group conversation in the list: its newest message and how many are unread.</summary>
-public sealed record GroupChatConversation(string GroupId, string Name, GroupChatMessage Last, int Unread);
+/// <param name="Mentioned">Unread messages that name us (docs/18-chat-extras.md §4).</param>
+public sealed record GroupChatConversation(string GroupId, string Name, GroupChatMessage Last, int Unread, int Mentioned = 0);
 
 /// <summary>
 /// Messages to a whole group (docs/16-group-chat.md §3), apart from 1-1 ones: the author sends each one to every other
@@ -513,14 +514,16 @@ public sealed partial class GroupChatService : BackgroundService
         var rows = (await connection.QueryAsync<ConversationRow>(
             $"""
             SELECT m.{Columns.Replace(", ", ", m.")}, g.Name AS GroupName,
-                   (SELECT COUNT(*) FROM ChatGroupMessages u WHERE u.GroupId = m.GroupId AND u.State = 'unread') AS Unread
+                   (SELECT COUNT(*) FROM ChatGroupMessages u WHERE u.GroupId = m.GroupId AND u.State = 'unread') AS Unread,
+                   (SELECT COUNT(*) FROM ChatGroupMessages u WHERE u.GroupId = m.GroupId AND u.State = 'unread'
+                      AND (' ' || u.Mentions || ' ' LIKE '% all %' OR ' ' || u.Mentions || ' ' LIKE @me)) AS Mentioned
             FROM ChatGroupMessages m JOIN ChatGroups g ON g.GroupId = m.GroupId
             WHERE m.Id = (SELECT l.Id FROM ChatGroupMessages l WHERE l.GroupId = m.GroupId AND l.Deleted = 0 ORDER BY l.SentAt DESC, l.Id DESC LIMIT 1)
             ORDER BY m.SentAt DESC;
-            """)).ToList();
+            """, new { me = $"% {engine.Identity.DeviceId.Value} %" })).ToList();
         Dictionary<(string, string), ChatMessageState> states = await OutgoingStatesAsync(connection, rows);
         return [.. rows.Select(r => new GroupChatConversation(
-            r.GroupId, groups.Get(r.GroupId)?.Name ?? r.GroupName, r.ToMessage(states), (int)r.Unread))];
+            r.GroupId, groups.Get(r.GroupId)?.Name ?? r.GroupName, r.ToMessage(states), (int)r.Unread, (int)r.Mentioned))];
     }
 
     /// <summary>The whole group conversation, oldest first.</summary>
@@ -532,6 +535,9 @@ public sealed partial class GroupChatService : BackgroundService
         Dictionary<(string, string), ChatMessageState> states = await OutgoingStatesAsync(connection, rows);
         return [.. rows.Select(r => r.ToMessage(states))];
     }
+
+    /// <summary>A member's message that names us, or everyone (docs/18-chat-extras.md §4).</summary>
+    public bool IsMentioned(GroupChatMessage message) => !message.Outgoing && ChatReplies.Mentions(message.Mentions, engine.Identity.DeviceId);
 
     /// <summary>
     /// Text messages of every group conversation with every word of <paramref name="query"/>, as Ctrl+K reads it, newest

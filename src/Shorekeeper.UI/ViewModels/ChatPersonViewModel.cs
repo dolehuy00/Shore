@@ -79,6 +79,10 @@ public sealed partial class ChatPersonViewModel : ObservableObject
 
     public bool HasUnread => Unread > 0;
 
+    /// <summary>A group with unread messages that name us: "@" in the list (docs/18-chat-extras.md §4).</summary>
+    [ObservableProperty]
+    public partial bool HasMention { get; set; }
+
     /// <summary>The conversation open on the right (desktop).</summary>
     [ObservableProperty]
     public partial bool IsCurrent { get; set; }
@@ -111,6 +115,7 @@ public sealed partial class ChatPersonViewModel : ObservableObject
     {
         IsMuted = muted;
         Unread = conversation?.Unread ?? 0;
+        HasMention = conversation?.Mentioned > 0;
         if (conversation is not null)
         {
             Name = conversation.Name;

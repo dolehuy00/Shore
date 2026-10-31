@@ -79,6 +79,7 @@
                       <PathIcon Data="{StaticResource Icon.Muted}" IsVisible="{Binding IsMuted}" Width="13" Height="13" Opacity="0.6" />
                       <TextBlock Classes="muted" Text="{Binding TimeText}" FontSize="12" />
                     </StackPanel>
+                    <TextBlock Text="@" FontWeight="Bold" Foreground="{DynamicResource AccentButtonBackground}" IsVisible="{Binding HasMention}" HorizontalAlignment="Right" />
                     <Border Background="#EF4444" CornerRadius="9" MinWidth="18" Padding="5,0" HorizontalAlignment="Right" IsVisible="{Binding HasUnread}">
                       <TextBlock Text="{Binding Unread}" FontSize="11" Foreground="White" HorizontalAlignment="Center" />
                     </Border>
@@ -139,12 +140,34 @@
       <!-- 📎 (files to this person), the box, and ➤; empty, 🎤 instead: hold to record, slide left to cancel, let go to send. -->
       <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0,6,0,10">
         <TextBlock Classes="muted" Text="{Binding Notice}" IsVisible="{Binding HasNotice}" FontSize="12" TextWrapping="Wrap" />
+        <!-- Answering a message (docs/18-chat-extras.md §4): what, and ✕ to stop. -->
+        <Grid ColumnDefinitions="Auto,*,Auto" IsVisible="{Binding IsReplying}">
+          <Border Width="3" CornerRadius="2" Background="{DynamicResource AccentButtonBackground}" Margin="4,2,8,2" />
+          <TextBlock Grid.Column="1" Text="{Binding ReplyingText}" FontSize="12" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+          <Button Grid.Column="2" Classes="round" Command="{Binding CancelReplyCommand}" AutomationProperties.Name="{l:T 'Hủy'}">
+            <PathIcon Data="{StaticResource Icon.Dismiss}" Width="12" Height="12" />
+          </Button>
+        </Grid>
+        <!-- "@" typed in a group: members to name. -->
+        <ItemsControl ItemsSource="{Binding MentionCandidates}" IsVisible="{Binding HasMentionCandidates}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <WrapPanel />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="ui:ChatMentionCandidate">
+              <Button Content="{Binding Label}" Command="{Binding $parent[ItemsControl].((ui:ChatViewModel)DataContext).MentionCommand}" CommandParameter="{Binding}"
+                      Padding="10,4" Margin="0,0,6,6" Focusable="False" Click="OnMentionChosen" />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
         <Grid ColumnDefinitions="Auto,*,Auto">
           <Button Classes="round" Command="{Binding AttachCommand}" IsEnabled="{Binding CanAttach}" Width="40" Height="40" CornerRadius="20" Margin="-6,0,2,1"
                   VerticalAlignment="Bottom" AutomationProperties.Name="{l:T 'Gửi file…'}">
             <PathIcon Data="{StaticResource Icon.Attach}" Width="20" Height="20" />
           </Button>
-          <TextBox Grid.Column="1" Text="{Binding Draft}" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="120" IsEnabled="{Binding CanWrite}" CornerRadius="20" Padding="14,9"
+          <TextBox Grid.Column="1" x:Name="ChatBox" Text="{Binding Draft}" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="120" IsEnabled="{Binding CanWrite}" CornerRadius="20" Padding="14,9"
                    VerticalContentAlignment="Center" TextInputOptions.Multiline="True" TextInputOptions.ReturnKeyType="Return"
                    PlaceholderText="{l:T 'Nhập tin nhắn…'}" AutomationProperties.Name="{l:T 'Tin nhắn'}" IsVisible="{Binding IsComposing}" />
           <Border Grid.Column="1" IsVisible="{Binding IsRecording}" Background="{DynamicResource Sk.TileBackground}" CornerRadius="20" Height="42" Padding="16,0">
@@ -235,9 +258,11 @@
                     </Border>
                   </Panel>
                   <!-- Long press: copy the words, choose several, or take the message away here. -->
-                  <Border Grid.Column="2" Classes="bubble" Classes.mine="{Binding IsMine}" Classes.unknown="{Binding IsUnknown}" Holding="OnBubbleHolding">
+                  <Border Grid.Column="2" Classes="bubble" Classes.mine="{Binding IsMine}" Classes.unknown="{Binding IsUnknown}" Classes.mention="{Binding MentionsMe}"
+                          Holding="OnBubbleHolding">
                     <FlyoutBase.AttachedFlyout>
                       <MenuFlyout>
+                        <MenuItem Header="{l:T 'Trả lời'}" Command="{Binding ReplyCommand}" IsVisible="{Binding CanReply}" />
                         <MenuItem Header="{l:T 'Sao chép'}" Command="{Binding CopyCommand}" IsVisible="{Binding CanCopy}" />
                         <MenuItem Header="{Binding RecallText}" Command="{Binding RecallCommand}" IsVisible="{Binding CanRecall}" />
                         <MenuItem Header="{l:T 'Chi tiết'}" Command="{Binding ShowDetailsCommand}" IsVisible="{Binding CanShowDetails}" />
@@ -247,6 +272,13 @@
                     </FlyoutBase.AttachedFlyout>
                     <StackPanel Spacing="2">
                       <TextBlock Text="{Binding AuthorName}" Foreground="{Binding AuthorBrush}" IsVisible="{Binding ShowsAuthor}" FontSize="13" FontWeight="SemiBold" />
+                      <!-- What this answers (docs/18-chat-extras.md §4): clicked, the conversation goes to it. -->
+                      <Button Classes="quote" Command="{Binding ShowQuoteCommand}" IsVisible="{Binding HasQuote}">
+                        <StackPanel Spacing="1">
+                          <TextBlock Text="{Binding QuoteAuthor}" FontSize="11" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                          <TextBlock Text="{Binding QuoteText}" FontSize="12" Opacity="0.8" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                      </Button>
                       <TextBlock Classes="body" Text="{Binding Text}" TextWrapping="Wrap" FontSize="15" IsVisible="{Binding IsText}" />
                       <ItemsControl ItemsSource="{Binding Links}" IsVisible="{Binding HasLinks}">
                         <ItemsControl.ItemTemplate>
@@ -315,6 +347,7 @@
                   <Border Classes="filecard" Classes.mine="{Binding IsMine}" Holding="OnFileCardHolding">
                     <FlyoutBase.AttachedFlyout>
                       <MenuFlyout>
+                        <MenuItem Header="{l:T 'Trả lời'}" Command="{Binding ReplyCommand}" IsVisible="{Binding !IsRecalled}" />
                         <MenuItem Header="{Binding RecallText}" Command="{Binding RecallCommand}" IsVisible="{Binding CanRecall}" />
                         <MenuItem Header="{l:T 'Ngừng chia sẻ'}" Command="{Binding WithdrawCommand}" IsVisible="{Binding CanStopSharing}" />
                         <MenuItem Header="{l:T 'Sao chép'}" Command="{Binding CopyCommand}" IsVisible="{Binding CanCopy}" />

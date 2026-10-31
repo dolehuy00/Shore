@@ -63,14 +63,11 @@ internal static class ChatNotifications
 
     private static async Task ShowGroupAsync(Context context, GroupChatService groupChat, GroupStore groups, PeerNaming naming, string groupId)
     {
-        if ((await groupChat.GetMutedAsync(CancellationToken.None)).Contains(groupId))
-        {
-            return;
-        }
-
         IReadOnlyList<GroupChatMessage> messages = await groupChat.GetMessagesAsync(groupId, CancellationToken.None);
         List<GroupChatMessage> unread = [.. messages.Where(m => m.State == ChatMessageState.Unread).TakeLast(MaxShown)];
-        if (unread.Count == 0)
+        // "Tắt thông báo" still lets through a message that names us (docs/18-chat-extras.md §4).
+        if (unread.Count == 0
+            || ((await groupChat.GetMutedAsync(CancellationToken.None)).Contains(groupId) && !unread.Any(groupChat.IsMentioned)))
         {
             return;
         }

@@ -727,5 +727,9 @@
   "Tối": "Dark",
   "Gửi lúc người này không còn trong nhóm": "Sent while no longer in the group",
   "Tìm trong tin nhắn": "Search messages",
-  "Không tìm thấy tin nhắn nào.": "No messages found."
+  "Không tìm thấy tin nhắn nào.": "No messages found.",
+  "Trả lời {0}: {1}": "Replying to {0}: {1}",
+  "Tin nhắn không còn": "Message no longer here",
+  "mọi người": "everyone",
+  "Có tin nhắc tới bạn": "You were mentioned"
 }

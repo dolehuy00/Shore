@@ -40,6 +40,8 @@
                                   ToolTip.Tip="{l:T 'Đã tắt thông báo'}" />
                         <TextBlock Classes="muted" Text="{Binding TimeText}" FontSize="11" />
                       </StackPanel>
+                      <TextBlock Text="@" FontWeight="Bold" Foreground="{DynamicResource AccentButtonBackground}" IsVisible="{Binding HasMention}"
+                                 HorizontalAlignment="Right" ToolTip.Tip="{l:T 'Có tin nhắc tới bạn'}" />
                       <Border Classes="badge" IsVisible="{Binding HasUnread}" HorizontalAlignment="Right">
                         <TextBlock Text="{Binding Unread}" FontSize="11" Foreground="White" HorizontalAlignment="Center" />
                       </Border>
@@ -100,6 +102,28 @@
         <Border DockPanel.Dock="Bottom" Padding="16,10" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource Sk.Divider}">
           <StackPanel Spacing="6">
             <TextBlock Classes="muted" Text="{Binding Notice}" IsVisible="{Binding HasNotice}" FontSize="12" TextWrapping="Wrap" />
+            <!-- Answering a message (docs/18-chat-extras.md §4): what, and ✕ to stop. -->
+            <Grid ColumnDefinitions="Auto,*,Auto" IsVisible="{Binding IsReplying}">
+              <Border Width="3" CornerRadius="2" Background="{DynamicResource AccentButtonBackground}" Margin="4,2,8,2" />
+              <TextBlock Grid.Column="1" Text="{Binding ReplyingText}" FontSize="12" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+              <Button Grid.Column="2" Classes="icon" Command="{Binding CancelReplyCommand}" AutomationProperties.Name="{l:T 'Hủy'}">
+                <PathIcon Data="{StaticResource Icon.Dismiss}" Width="12" Height="12" />
+              </Button>
+            </Grid>
+            <!-- "@" typed in a group: members to name. -->
+            <ItemsControl ItemsSource="{Binding MentionCandidates}" IsVisible="{Binding HasMentionCandidates}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <WrapPanel />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="ui:ChatMentionCandidate">
+                  <Button Content="{Binding Label}" Command="{Binding $parent[ItemsControl].((ui:ChatViewModel)DataContext).MentionCommand}" CommandParameter="{Binding}"
+                          Padding="10,4" Margin="0,0,6,6" Focusable="False" Click="OnMentionChosen" />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
             <!-- One rounded bar, as chat apps have. Writing: 📎 🎤 [box] ➤ (Ctrl+V of files or a picture sends them too).
                  Recording: ✕ ● 0:07 [level] ➤. -->
             <Border Classes="composer">
@@ -193,10 +217,11 @@
                         <TextBlock Text="{Binding AuthorInitial}" Foreground="White" FontWeight="SemiBold" FontSize="13" HorizontalAlignment="Center" VerticalAlignment="Center" />
                       </Border>
                     </Panel>
-                    <Border Grid.Column="2" Classes="bubble" Classes.mine="{Binding IsMine}" Classes.unknown="{Binding IsUnknown}">
+                    <Border Grid.Column="2" Classes="bubble" Classes.mine="{Binding IsMine}" Classes.unknown="{Binding IsUnknown}" Classes.mention="{Binding MentionsMe}">
                       <!-- Right click: copy the words, choose several, or take the message away here. -->
                       <Border.ContextMenu>
                         <ContextMenu>
+                          <MenuItem Header="{l:T 'Trả lời'}" Command="{Binding ReplyCommand}" IsVisible="{Binding CanReply}" />
                           <MenuItem Header="{l:T 'Sao chép'}" Command="{Binding CopyCommand}" IsVisible="{Binding CanCopy}" />
                           <MenuItem Header="{Binding RecallText}" Command="{Binding RecallCommand}" IsVisible="{Binding CanRecall}" />
                           <MenuItem Header="{l:T 'Chi tiết'}" Command="{Binding ShowDetailsCommand}" IsVisible="{Binding CanShowDetails}" />
@@ -206,6 +231,13 @@
                       </Border.ContextMenu>
                       <StackPanel Spacing="2">
                         <TextBlock Text="{Binding AuthorName}" Foreground="{Binding AuthorBrush}" IsVisible="{Binding ShowsAuthor}" FontSize="12" FontWeight="SemiBold" />
+                        <!-- What this answers (docs/18-chat-extras.md §4): clicked, the conversation goes to it. -->
+                        <Button Classes="quote" Command="{Binding ShowQuoteCommand}" IsVisible="{Binding HasQuote}">
+                          <StackPanel Spacing="1">
+                            <TextBlock Text="{Binding QuoteAuthor}" FontSize="11" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding QuoteText}" FontSize="12" Opacity="0.8" TextTrimming="CharacterEllipsis" />
+                          </StackPanel>
+                        </Button>
                         <SelectableTextBlock Classes="body" Text="{Binding Text}" TextWrapping="Wrap" IsVisible="{Binding IsText}" ContextFlyout="{x:Null}"
                                              IsHitTestVisible="{Binding !Owner.IsSelecting}" />
                         <ItemsControl ItemsSource="{Binding Links}" IsVisible="{Binding HasLinks}">
@@ -276,6 +308,7 @@
                       <!-- Right click: take back what we sent (five minutes), then only stop sharing it; copy text, or see files in Hộp nhận / Đã gửi. -->
                       <Border.ContextMenu>
                         <ContextMenu>
+                          <MenuItem Header="{l:T 'Trả lời'}" Command="{Binding ReplyCommand}" IsVisible="{Binding !IsRecalled}" />
                           <MenuItem Header="{Binding RecallText}" Command="{Binding RecallCommand}" IsVisible="{Binding CanRecall}" />
                           <MenuItem Header="{l:T 'Ngừng chia sẻ'}" Command="{Binding WithdrawCommand}" IsVisible="{Binding CanStopSharing}" />
                           <MenuItem Header="{l:T 'Sao chép'}" Command="{Binding CopyCommand}" IsVisible="{Binding CanCopy}" />

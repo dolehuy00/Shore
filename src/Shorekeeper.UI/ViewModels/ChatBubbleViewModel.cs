@@ -31,6 +31,33 @@ public sealed partial class ChatBubbleViewModel(string id, ChatViewModel owner) 
     [RelayCommand]
     private void SelectMany() => owner.StartSelecting(this);
 
+    /// <summary>What this answers: a message's id, or "offer:" and a file card's offer (docs/18-chat-extras.md §4).</summary>
+    public string? ReplyTo { get; private set; }
+
+    /// <summary>The message answered shows above the words; clicked, the conversation goes to it.</summary>
+    [ObservableProperty]
+    public partial bool HasQuote { get; set; }
+
+    [ObservableProperty]
+    public partial string QuoteAuthor { get; set; } = "";
+
+    [ObservableProperty]
+    public partial string QuoteText { get; set; } = "";
+
+    /// <summary>A member's message that names us, or everyone: marked.</summary>
+    [ObservableProperty]
+    public partial bool MentionsMe { get; set; }
+
+    /// <summary>Words or a voice message, not one taken back.</summary>
+    [ObservableProperty]
+    public partial bool CanReply { get; set; }
+
+    [RelayCommand]
+    private void Reply() => owner.StartReply(this);
+
+    [RelayCommand]
+    private void ShowQuote() => owner.ShowQuote(this);
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasAvatarSpace), nameof(CanShowDetails))]
     public partial bool IsMine { get; set; }
@@ -170,6 +197,7 @@ public sealed partial class ChatBubbleViewModel(string id, ChatViewModel owner) 
             ChatMessageState.Read when lastMine => L.T("Đã xem"),
             _ => null,
         };
+        ReplyTo = message.ReplyTo;
         Show(message.Outgoing, message.Kind, TextOf(message), message.SentAt, message.State, message.DurationMs, message.Wave, message.VoicePath, state);
         return this;
     }
@@ -185,6 +213,7 @@ public sealed partial class ChatBubbleViewModel(string id, ChatViewModel owner) 
         AuthorBrush = BrushOf(message.Author);
         ShowsAuthor = !message.Outgoing && first;
         IsOutOfGroup = message.OutOfGroup;
+        ReplyTo = message.ReplyTo;
         string? state = !message.Outgoing || message.Kind == ChatKinds.Recalled ? null
             : message.State == ChatMessageState.Pending ? L.T("Chờ gửi")
             : message.State == ChatMessageState.Failed ? L.T("Không gửi được")
@@ -206,6 +235,7 @@ public sealed partial class ChatBubbleViewModel(string id, ChatViewModel owner) 
         IsVoice = messageKind == ChatKinds.Voice;
         IsUnknown = messageKind is not (ChatKinds.Text or ChatKinds.Voice);
         CanCopy = messageKind == ChatKinds.Text;
+        CanReply = messageKind is ChatKinds.Text or ChatKinds.Voice;
         recallUntil = !outgoing || messageKind is not (ChatKinds.Text or ChatKinds.Voice) ? DateTimeOffset.MinValue
             : messageState == ChatMessageState.Pending ? DateTimeOffset.MaxValue
             : sentAt + ChatService.RecallWindow;

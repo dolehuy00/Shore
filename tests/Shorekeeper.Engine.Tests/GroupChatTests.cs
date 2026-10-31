@@ -522,6 +522,9 @@ public sealed class GroupChatTests : IAsyncLifetime
 
         Assert.True(ChatReplies.Mentions(Messages(mai).Single(m => m.Id == answer.Id).Mentions, mai.Id));
         Assert.False(ChatReplies.Mentions(Messages(host).Single(m => m.Id == answer.Id).Mentions, host.Id));
+        // The list marks the conversation of whom it names, until read.
+        Assert.Equal(1, Assert.Single(await mai.GroupChat.GetConversationsAsync(Ct)).Mentioned);
+        Assert.Equal(0, Assert.Single(await host.GroupChat.GetConversationsAsync(Ct)).Mentioned);
 
         // Lan joins and gets it from the members, signature and all.
         await using TestNode lan = await TestNode.StartAsync("Lan");
@@ -539,6 +542,8 @@ public sealed class GroupChatTests : IAsyncLifetime
         GroupChatMessageBody everyone = Signed(tuan, "@mọi người họp", mentions: [ChatReplies.Everyone]);
         Assert.Equal(HttpStatusCode.NoContent, (await PostAsync(tuan, mai, $"chat/groups/{groupId}/messages", everyone)).Status);
         Assert.True(ChatReplies.Mentions(Messages(mai).Single().Mentions, mai.Id));
+        Assert.True(mai.GroupChat.IsMentioned(Messages(mai).Single()));
+        Assert.Equal(1, Assert.Single(await mai.GroupChat.GetConversationsAsync(Ct)).Mentioned);
 
         GroupChatMessageBody[] forged =
         [

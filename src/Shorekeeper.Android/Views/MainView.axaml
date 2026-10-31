@@ -244,6 +244,22 @@
       <Setter Property="BorderBrush" Value="{DynamicResource Sk.CardBorder}" />
       <Setter Property="Background" Value="{DynamicResource Sk.CardBackground}" />
     </Style>
+    <!-- Answering (docs/18-chat-extras.md §4): what a reply answers, set off by the accent at its left. -->
+    <Style Selector="Button.quote">
+      <Setter Property="Background" Value="#14808080" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentButtonBackground}" />
+      <Setter Property="BorderThickness" Value="3,0,0,0" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Padding" Value="8,4" />
+      <Setter Property="Margin" Value="0,2,0,4" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+    </Style>
+    <!-- A member's message that names us. -->
+    <Style Selector="Border.bubble.mention">
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentButtonBackground}" />
+      <Setter Property="BorderThickness" Value="2" />
+    </Style>
     <!-- A search result just opened (docs/18-chat-extras.md §3), for a moment. -->
     <Style Selector="Border.bubble.found, Border.filecard.found">
       <Setter Property="BorderBrush" Value="{DynamicResource AccentButtonBackground}" />

@@ -1,6 +1,6 @@
 # 18 — Tin nhắn: tìm, trả lời, @nhắc tên, sửa, cảm xúc (C6)
 
-> Trạng thái: **C6a xong** (2026-10-31); C6b–C6d theo kế hoạch đã chốt (§8). Nối tiếp [15](15-chat.md) (1-1) và [16](16-group-chat.md) (nhóm), lúc đó để sau: "@nhắc tên, cảm xúc, trả lời trích dẫn, sửa tin", và "tìm trong tin nhắn" ([17](17-ui-cleanup.md) U5a).
+> Trạng thái: **C6a, C6b xong** (2026-10-31); C6c–C6d theo kế hoạch đã chốt (§8). Nối tiếp [15](15-chat.md) (1-1) và [16](16-group-chat.md) (nhóm), lúc đó để sau: "@nhắc tên, cảm xúc, trả lời trích dẫn, sửa tin", và "tìm trong tin nhắn" ([17](17-ui-cleanup.md) U5a).
 
 ## 1. Mục tiêu
 
@@ -39,37 +39,45 @@ Thứ tự làm: **C6a tìm** (không đổi giao thức) → **C6b trả lời 
 - PC: Ctrl+K "u5 nubia" ra thẻ "Bạn: U5 thu tren Nubia…" trong hội thoại với Z2577; Enter mở hội thoại và viền thẻ đó.
 - Nubia: gõ "nubia" ra 2 kết quả (tin nhóm và thẻ văn bản); chạm thẻ thì mở hội thoại với PC và viền nó.
 
-## 4. C6b — Trả lời trích dẫn và @nhắc tên
+## 4. C6b — Trả lời trích dẫn và @nhắc tên ✅ (2026-10-31)
 
 **Trả lời trích dẫn**
-- Tin mang `replyTo`: id của tin được trả lời, trong cùng hội thoại. Phần trích **không** gửi kèm: máy nhận tự tìm tin đó trong hội thoại của mình, nên không ai giả được nội dung trích.
-- Bong bóng hiện khung trích phía trên: tên người viết và dòng đầu, "Tin nhắn thoại 0:12", "Ảnh"… Bấm vào khung thì cuộn tới tin gốc và viền nó.
-  - Tin gốc đã thu hồi: "Tin nhắn đã được thu hồi".
+- Tin mang `replyTo`: id của tin được trả lời trong cùng hội thoại, hoặc `offer:` cộng id offer khi trả lời một thẻ file (cùng một offer là "đã gửi" ở bên này và "đã nhận" ở bên kia). Phần trích **không** gửi kèm: máy nhận tự tìm tin đó trong hội thoại của mình, nên không ai giả được nội dung trích (`ChatReplies.IsReplyTo` kiểm định dạng, sai thì 400).
+- Bong bóng hiện khung trích ngay dưới tên người viết: tên và dòng đầu, "Tin nhắn thoại 0:12", tên file. Bấm vào khung thì cuộn tới tin gốc và viền nó (`ChatScroll.Reveal`, như kết quả tìm ở §3).
+  - Tin gốc là thẻ đã thu hồi: chữ thu hồi của thẻ, ví dụ "File đã được thu hồi".
   - Máy mình không có tin gốc (đã xóa, hay người mới vào nhóm không có lịch sử đó): "Tin nhắn không còn".
-- Cách bắt đầu trả lời:
-  - PC: mục **Trả lời** khi chuột phải;
-  - điện thoại: mục **Trả lời** khi nhấn giữ, và vuốt bong bóng sang phải.
-  - Ô soạn hiện dải "Trả lời Mai: …" với nút ✕.
-- Trả lời được tin chữ, tin thoại và thẻ file. Không trả lời được tin đã thu hồi.
+- Cách bắt đầu trả lời: mục **Trả lời** khi chuột phải (PC) hay nhấn giữ (điện thoại). Ô soạn hiện dải "Trả lời Mai: …" có nút ✕. **Vuốt bong bóng sang phải chưa làm.**
+- Trả lời được tin chữ, tin thoại và thẻ file chưa thu hồi.
 
 **@nhắc tên** (chỉ trong nhóm)
-- Gõ `@` trong ô soạn thì hiện danh sách thành viên, lọc theo chữ gõ tiếp (không dấu), cùng mục **@mọi người**. Chọn một người thì chèn "@Tên " vào ô soạn.
-- Tin mang `mentions`: danh sách DeviceId (hoặc `"all"`), nằm trong phần được ký. Chữ vẫn là "@Tên" như người gửi thấy lúc gửi; máy nhận tô các đoạn "@Tên" của những người có trong `mentions`.
-- Người được nhắc:
-  - tên mình được tô màu nhấn trong bong bóng;
-  - hội thoại có dấu **@** trong danh sách cho tới khi đọc;
-  - **có thông báo kể cả khi đã Tắt thông báo nhóm** (§8 Q3).
-- Xóa chữ "@Tên" trong ô soạn trước khi gửi thì người đó không còn trong `mentions`.
+- Gõ `@` (đầu ô hay sau khoảng trắng) thì phía trên ô soạn hiện **@mọi người** và các thành viên khác, lọc theo chữ gõ tiếp (không dấu, `TextSearch`), tối đa 8. Chọn một mục thì thay "@…" bằng "@Tên " và con trỏ về cuối ô; nút gợi ý không lấy focus nên bàn phím điện thoại không bị đóng.
+- Tin mang `mentions`: danh sách DeviceId hoặc `"all"`, tối đa 100, không trùng, nằm trong phần được ký. Chỉ người đã **chọn từ gợi ý** và chữ "@Tên" vẫn còn trong tin lúc gửi mới vào `mentions`: xóa chữ đó trước khi gửi thì người đó không bị nhắc.
+- Người được nhắc (`GroupChatService.IsMentioned`: tin của người khác có tên mình hay `all`):
+  - **cả bong bóng** có viền màu nhấn (kiểu `Border.bubble.mention`), không tô riêng đoạn "@Tên" như dự kiến: chữ "@Tên" có thể đã bị sửa tay, và viền thì dễ thấy khi cuộn;
+  - hội thoại có dấu **@** trong danh sách khi còn tin chưa đọc nhắc tới mình (`GroupChatConversation.Mentioned`);
+  - **có thông báo kể cả khi đã Tắt thông báo nhóm** (§8 Q3): toast trên PC, thông báo trên điện thoại.
+- `mentions` **không** lọc theo danh sách thành viên của máy nhận như dự kiến: nó nằm trong phần được ký và được chuyển hộ nguyên vẹn, bỏ bớt thì chữ ký hỏng ở máy sau. Mỗi máy chỉ xét tên mình và `all`, nên nhắc người ngoài nhóm không gây gì.
 
 **Engine và giao thức**
-- `ChatMessageBody` và `GroupChatMessageBody` thêm `replyTo?` và `mentions?` (`mentions` chỉ có ở tin nhóm).
-- Chữ ký nhóm `/2` (§2). Kiểm thêm: `mentions` không quá số thành viên, và mỗi DeviceId phải là thành viên theo danh sách của máy nhận (lạ thì bỏ khỏi `mentions`, không bỏ cả tin).
-- Migration thêm cột `ReplyTo` và `Mentions` cho hai bảng tin.
+- `ChatMessageBody.ReplyTo`; `GroupChatMessageBody.ReplyTo` và `Mentions`. `SendTextAsync` / `SendVoiceAsync` nhận thêm `replyTo` (và `mentions` cho nhóm).
+- Chữ ký nhóm `/2` (§2) chỉ dùng khi tin có `replyTo` hay `mentions`; sửa một trong hai thì chữ ký hỏng và tin bị bỏ (400).
+- Presence thêm `chat2` (`PeerInfo.CanChat2`). Tin `/2` không gửi cho thành viên nghe thấy trực tiếp mà không có `chat2`: với người đó tin mang trạng thái `old`.
+  - Còn hở: máy cũ **tự kéo** tin `/2` qua mục lục (khi vắng mặt rồi quay lại) thì kiểm chữ ký không qua và bỏ tin đó. Chấp nhận, vì máy nào cũng sẽ cập nhật.
+- Migration `0017_chat_replies.sql`: cột `ReplyTo` cho hai bảng tin, `Mentions` cho tin nhóm (lưu cách nhau bởi khoảng trắng, đúng thứ tự đã ký).
 
-**Xong khi**:
-- Test Engine: `replyTo` qua cả gửi thẳng lẫn chuyển hộ; ký `/2` và người chuyển sửa `mentions` thì tin bị bỏ; máy chưa có `chat2` nhận trạng thái `old`; nhắc người đã rời thì bị bỏ khỏi `mentions`.
-- Test UI: khung trích khi tin gốc còn, đã thu hồi hay không có.
-- Thử thật 3 máy: trả lời và nhắc tên; người bị nhắc vẫn có thông báo khi nhóm đã Tắt thông báo.
+**Đã kiểm**:
+- Test Engine:
+  - `replyTo` tới cả tin lẫn thẻ file, và `replyTo` sai định dạng bị từ chối;
+  - `replyTo` và `mentions` tới mọi thành viên và được chuyển hộ nguyên chữ ký (cả cho người mới vào);
+  - sửa `mentions` / `replyTo`, hay bỏ `replyTo` khỏi tin `/2`, thì tin bị bỏ;
+  - máy không có `chat2` nhận trạng thái `old`;
+  - đếm `Mentioned` của hội thoại, kể cả `all`.
+- Test UI: khung trích của tin chữ, tin thoại và khi không còn tin gốc.
+- Thử thật PC và Nubia (2026-10-31; OPPO mất kết nối nên chỉ 2 máy):
+  - 1-1: PC trả lời một thẻ văn bản; Nubia trả lời lại tin đó, và PC hiện khung trích "Bạn / C6b tra loi the van ban".
+  - Nhóm tạm: gõ "@p" trên Nubia thì chỉ còn "@PC · MSI"; chọn rồi gõ tiếp, gửi. PC thấy dấu **@** trong danh sách, bong bóng có viền. Ngược lại, PC gửi "@mọi người": Nubia có thông báo, dấu **@**, và viền.
+  - Chưa thử: thông báo khi nhóm đã Tắt thông báo (code đã có trên cả hai app).
+- Chỗ chưa đẹp: trên bong bóng của mình (nền màu nhấn), vạch màu của khung trích lẫn vào nền.
 
 ## 5. C6c — Sửa tin
 

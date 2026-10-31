@@ -110,6 +110,14 @@ public partial class ChatPage : UserControl
         }
     }
 
+    /// <summary>"@Name" chosen: back in the box, writing on after it.</summary>
+    private void OnMentionChosen(object? sender, RoutedEventArgs e) =>
+        Dispatcher.UIThread.Post(() =>
+        {
+            ChatBox.Focus();
+            ChatBox.CaretIndex = ChatBox.Text?.Length ?? 0;
+        });
+
     /// <summary>🎤 held down: recording starts, with the buzz a long press gives.</summary>
     private async void OnMicPressed(object? sender, PointerPressedEventArgs e)
     {

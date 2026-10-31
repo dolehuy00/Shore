@@ -60,6 +60,10 @@ public sealed partial class ChatFileViewModel(string id, ChatViewModel owner) : 
     [ObservableProperty]
     public partial IReadOnlyList<ChatPicture> AllPictures { get; set; } = [];
 
+    /// <summary>"Trả lời" (docs/18-chat-extras.md §4): what is sent next answers this card.</summary>
+    [RelayCommand]
+    private void Reply() => owner.StartReply(this);
+
     /// <summary>"+N ảnh" / "Thu gọn". All of them load before the card grows, so it changes size once.</summary>
     [RelayCommand]
     private async Task ToggleMoreAsync()

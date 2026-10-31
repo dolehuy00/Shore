@@ -141,6 +141,20 @@ public class ChatTests
     }
 
     [Fact]
+    public void A_reply_quotes_what_it_answers_or_says_it_is_gone()
+    {
+        GroupChatMessage question = new("g", "q1", Mai, "Mai", Outgoing: false, ChatKinds.Text, "Mấy giờ họp?", DateTimeOffset.UtcNow, ChatMessageState.Read);
+        GroupChatMessage voice = question with { Id = "v1", Kind = ChatKinds.Voice, Text = null, DurationMs = 12_000 };
+
+        ChatBubbleViewModel answer = Bubble(Ours("3 giờ", ChatMessageState.Delivered, DateTimeOffset.UtcNow) with { ReplyTo = "q1" }, first: true, reached: null);
+
+        Assert.Equal("q1", answer.ReplyTo);
+        Assert.Equal("Mấy giờ họp?", ChatViewModel.QuoteText(Bubble(question, first: true, reached: null, author: "Mai")));
+        Assert.Equal("Tin nhắn thoại 0:12", ChatViewModel.QuoteText(Bubble(voice, first: true, reached: null, author: "Mai")));
+        Assert.Equal("Tin nhắn không còn", ChatViewModel.QuoteText(null));
+    }
+
+    [Fact]
     public void Each_member_keeps_one_color()
     {
         Assert.Same(ChatBubbleViewModel.BrushOf(Mai), ChatBubbleViewModel.BrushOf(Mai));
