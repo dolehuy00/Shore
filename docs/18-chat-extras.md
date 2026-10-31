@@ -1,6 +1,6 @@
 # 18 — Tin nhắn: tìm, trả lời, @nhắc tên, sửa, cảm xúc (C6)
 
-> Trạng thái: **kế hoạch** (2026-10-31), chờ chốt các câu hỏi ở §8. Nối tiếp [15](15-chat.md) (1-1) và [16](16-group-chat.md) (nhóm), lúc đó để sau: "@nhắc tên, cảm xúc, trả lời trích dẫn, sửa tin", và "tìm trong tin nhắn" ([17](17-ui-cleanup.md) U5a).
+> Trạng thái: **kế hoạch, đã chốt** (2026-10-31, §8). Nối tiếp [15](15-chat.md) (1-1) và [16](16-group-chat.md) (nhóm), lúc đó để sau: "@nhắc tên, cảm xúc, trả lời trích dẫn, sửa tin", và "tìm trong tin nhắn" ([17](17-ui-cleanup.md) U5a).
 
 ## 1. Mục tiêu
 
@@ -86,7 +86,14 @@ Thứ tự làm: **C6a tìm** (không đổi giao thức) → **C6b trả lời 
 - Cách thả:
   - PC: nút 🙂 hiện cạnh bong bóng khi rê chuột, hoặc mục **Thả cảm xúc** khi chuột phải;
   - điện thoại: hàng biểu tượng ở đầu menu khi nhấn giữ.
-- **Không có thông báo hệ thống** (§8 Q5). Danh sách hội thoại có thể ghi "Mai đã thả ❤️" nếu đó là việc mới nhất.
+- **Thông báo, gộp theo từng tin** (§8 Q5): ai đó thả cảm xúc vào tin của mình thì có **một** thông báo cho tin đó.
+  - Người đầu tiên: "Mai đã thả ❤️ vào tin của bạn: "họp lúc 3 giờ"".
+  - Thêm người thả vào **cùng tin** trong lúc thông báo đó chưa được xem: **sửa** thông báo cũ thay vì gửi cái mới ("Mai, Tuấn và 2 người khác đã thả cảm xúc vào tin của bạn: …"), và không kêu hay rung lại.
+  - Một người đổi cảm xúc nhiều lần (thả 👍, đổi ❤️, đổi 😂…) chỉ tính **một** lần; thông báo hiện cảm xúc cuối của họ. Bỏ cảm xúc thì không báo gì.
+  - Đã xem thông báo (bấm vào, hay mở hội thoại đó) thì lần thả sau tạo thông báo mới.
+  - Như tin nhắn: không báo khi đang mở đúng hội thoại đó, khi đang "Bận", hay khi nhóm đã Tắt thông báo.
+  - PC: toast Windows có `Tag` theo tin, toast mới cùng tag thay toast cũ. Điện thoại: thông báo cùng id theo tin, `setOnlyAlertOnce`. `INotifier` thêm khóa để thay thông báo cũ.
+  - Danh sách hội thoại ghi "Mai đã thả ❤️" nếu đó là việc mới nhất.
 - **1-1**: `POST /chat/reactions` `{ id, emoji?, at }` (`emoji` rỗng nghĩa là bỏ). Chờ gửi theo từng tin, mới nhất thắng.
 - **Nhóm**:
   - Ký `shorekeeper-group-reaction/1` (`groupId`, `id` tin, `authorId` người thả, `emoji`, `at`).
@@ -94,7 +101,7 @@ Thứ tự làm: **C6a tìm** (không đổi giao thức) → **C6b trả lời 
   - **Không chuyển hộ**: người mới vào không thấy cảm xúc trên tin cũ.
   - Chỉ nhận cảm xúc trên tin mình có, từ người đang là thành viên.
 - Lưu ở bảng `ChatReactions` (hội thoại, `MessageId`, `ReactorId`, `Emoji`, `At`). Tin bị thu hồi thì xóa luôn cảm xúc của nó.
-- **Xong khi**: test Engine (thay, bỏ, mới nhất thắng khi tới lệch thứ tự, chữ ký nhóm, người ngoài nhóm thì bị bỏ, thu hồi xóa cảm xúc); test UI các chip; thử thật 3 máy.
+- **Xong khi**: test Engine (thay, bỏ, mới nhất thắng khi tới lệch thứ tự, chữ ký nhóm, người ngoài nhóm thì bị bỏ, thu hồi xóa cảm xúc); test UI các chip và chữ của thông báo gộp (1 người, nhiều người, một người đổi nhiều lần); thử thật 3 máy: hai người thả vào cùng một tin chỉ ra một thông báo được sửa lại.
 
 ## 7. Không làm
 
@@ -119,13 +126,15 @@ Việc này đụng tới danh tính, Kết nối, quyền và mọi luồng cha
 
 ## 8. Cần chốt
 
-| | Câu hỏi | Đề xuất |
+Chốt ngày 2026-10-31.
+
+| | Câu hỏi | Chốt |
 |---|---|---|
 | Q1 | Sửa tin trong bao lâu? | **15 phút** sau khi tới (lâu hơn thu hồi 5 phút vì sửa không làm mất tin); còn chờ gửi thì lúc nào cũng được |
 | Q2 | Bộ cảm xúc | **6 cái cố định** 👍 ❤️ 😂 😮 😢 🙏 |
 | Q3 | Bị @nhắc thì có thông báo khi đã Tắt thông báo nhóm? | **Có**, như Messenger / Zalo |
 | Q4 | Ai được dùng **@mọi người**? | **Mọi thành viên** (nhóm nhỏ trong LAN); có thể giới hạn cho Host sau |
-| Q5 | Thả cảm xúc vào tin của mình thì có thông báo? | **Không**, chỉ hiện trong hội thoại |
+| Q5 | Thả cảm xúc vào tin của mình thì có thông báo? | **Có, một thông báo cho mỗi tin**: thêm người thả thì sửa thông báo đó khi chưa xem, một người đổi nhiều lần chỉ tính một (§6) |
 | Q6 | Thứ tự làm | C6a → C6b → C6c → C6d như §1 |
 
 ## 9. Rủi ro
