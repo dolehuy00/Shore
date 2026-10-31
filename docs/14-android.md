@@ -120,7 +120,7 @@ Mỗi mục là một app thử nhỏ, không phải code sản phẩm:
 
 **Xong khi:** PC và điện thoại gọi `GET /hello` của nhau qua mTLS và nhận được presence của nhau. Nếu mục 1 thất bại: thử lại với BouncyCastle TLS trước khi đi tiếp.
 
-**Kết quả (2026-10-15, ✅ xong):** điện thoại OPPO CPH2525, Android 13; laptop Windows 11, cùng Wi-Fi 5 GHz. Code thử ở `spikes/android-a0/` (A0Phone, A0Ui, A0Pc).
+**Kết quả (2026-10-15, ✅ xong):** điện thoại OPPO CPH2525, Android 13; laptop Windows 11, cùng Wi-Fi 5 GHz. Code thử ở `spikes/android-a0/` (A0Phone, A0Ui, A0Pc), đã xóa khỏi repo ngày 2026-10-31 (commit 02fe8a4); xem lại trong lịch sử git.
 
 | # | Kết quả |
 |---|---|
