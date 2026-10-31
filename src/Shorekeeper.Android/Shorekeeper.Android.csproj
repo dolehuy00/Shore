@@ -52,6 +52,7 @@
     <Compile Include="..\Shorekeeper.Desktop\Views\ChatScroll.cs" Link="Views\ChatScroll.cs" />
     <Compile Include="..\Shorekeeper.Desktop\Localization\TExtension.cs" Link="Localization\TExtension.cs" />
     <Compile Include="..\Shorekeeper.Desktop\Localization\LanguageChoice.cs" Link="Localization\LanguageChoice.cs" />
+    <Compile Include="..\Shorekeeper.Desktop\ViewModels\ThemeChoice.cs" Link="ViewModels\ThemeChoice.cs" />
   </ItemGroup>
 
   <ItemGroup>

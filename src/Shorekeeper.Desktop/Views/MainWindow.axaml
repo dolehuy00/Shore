@@ -1712,7 +1712,7 @@
                 <!-- Applies at once, unlike the fields above. -->
                 <CheckBox IsChecked="{Binding Chat.AutoDownloadPictures}" Content="{l:T 'Tự tải ảnh máy đã kết nối gửi (đến 20 MB) để hiện ngay trong Tin nhắn'}" />
 
-                <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto">
+                <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto">
                   <TextBlock Classes="muted" Text="{l:T 'File tôi gửi mở trong'}" VerticalAlignment="Center" Margin="0,0,12,8" />
                   <ComboBox Grid.Column="1" ItemsSource="{Binding Settings.OfferLifetimeChoices}" SelectedItem="{Binding Settings.OfferLifetime}" MinWidth="140" Margin="0,0,0,8">
                     <ComboBox.ItemTemplate>
@@ -1740,10 +1740,20 @@
                     <TextBlock Classes="muted" Text="{l:T 'cho máy đã kết nối có Tự nhận file theo cài đặt chung'}" FontSize="12" VerticalAlignment="Center" TextWrapping="Wrap" />
                   </StackPanel>
 
-                  <TextBlock Classes="muted" Grid.Row="3" Text="{l:T 'Ngôn ngữ'}" VerticalAlignment="Center" Margin="0,0,12,0" />
-                  <ComboBox Grid.Row="3" Grid.Column="1" ItemsSource="{x:Static l:LanguageChoice.All}" SelectedItem="{Binding Settings.Language}" MinWidth="140">
+                  <TextBlock Classes="muted" Grid.Row="3" Text="{l:T 'Ngôn ngữ'}" VerticalAlignment="Center" Margin="0,0,12,8" />
+                  <ComboBox Grid.Row="3" Grid.Column="1" ItemsSource="{x:Static l:LanguageChoice.All}" SelectedItem="{Binding Settings.Language}" MinWidth="140" Margin="0,0,0,8">
                     <ComboBox.ItemTemplate>
                       <DataTemplate x:DataType="l:LanguageChoice">
+                        <TextBlock Text="{Binding Label}" />
+                      </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                  </ComboBox>
+
+                  <!-- Applies at once, unlike the fields above. -->
+                  <TextBlock Classes="muted" Grid.Row="4" Text="{l:T 'Giao diện'}" VerticalAlignment="Center" Margin="0,0,12,0" />
+                  <ComboBox Grid.Row="4" Grid.Column="1" ItemsSource="{x:Static vm:ThemeChoice.All}" SelectedItem="{Binding Settings.Theme}" MinWidth="140">
+                    <ComboBox.ItemTemplate>
+                      <DataTemplate x:DataType="vm:ThemeChoice">
                         <TextBlock Text="{Binding Label}" />
                       </DataTemplate>
                     </ComboBox.ItemTemplate>

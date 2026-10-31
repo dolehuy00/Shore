@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Shorekeeper.Android.Platform;
 using Shorekeeper.Core.Localization;
 using Shorekeeper.Core.Platform;
+using Shorekeeper.Core.Settings;
 using Shorekeeper.Engine;
 using Shorekeeper.Engine.Audio;
 using Shorekeeper.Engine.Hosting;
@@ -26,6 +27,9 @@ public static class EngineHost
     private static Task<IServiceProvider>? starting;
     private static WifiManager.MulticastLock? multicastLock;
 
+    /// <summary>"Giao diện" as saved, for <see cref="App"/> to apply before the first frame.</summary>
+    public static string? StartTheme { get; private set; }
+
     /// <summary>Started once per process; later calls get the same task.</summary>
     public static Task<IServiceProvider> StartAsync(Context context)
     {
@@ -36,8 +40,10 @@ public static class EngineHost
                 Path.Combine(DownloadDirectory(), "Shorekeeper"));
             paths.EnsureCreated();
 
-            // The UI is built while the engine starts, so the language chosen in Settings must be in place first.
-            L.Use(new SettingsStore(paths, TimeProvider.System, NullLogger<SettingsStore>.Instance).Load().Language);
+            // The UI is built while the engine starts, so the language and theme chosen in Settings must be in place first.
+            ShorekeeperSettings saved = new SettingsStore(paths, TimeProvider.System, NullLogger<SettingsStore>.Instance).Load();
+            L.Use(saved.Language);
+            StartTheme = saved.Theme;
             starting = Task.Run(() => StartCoreAsync(context, paths));
         }
 

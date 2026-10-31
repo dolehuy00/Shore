@@ -84,6 +84,19 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     public partial LanguageChoice Language { get; set; }
 
+    /// <summary>"Giao diện": saved and shown as soon as it is picked, without "Lưu".</summary>
+    [ObservableProperty]
+    public partial ThemeChoice Theme { get; set; }
+
+    partial void OnThemeChanged(ThemeChoice value)
+    {
+        ThemeChoice.Apply(value.Code);
+        if (value.Code != settings.User.Theme)
+        {
+            settings.Update(s => s with { Theme = value.Code });
+        }
+    }
+
     /// <summary>Null unless the shortcut is on but another program already took it.</summary>
     public string? HotkeyWarning => quickSend.IsHotkeyTaken
         ? L.F("{0} đang được ứng dụng khác dùng nên chưa bật được. Chọn phím tắt khác, hoặc mở Gửi nhanh từ icon ở khay hệ thống.", settings.Current.QuickSendShortcut)
@@ -306,6 +319,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         QuickSendShortcut = current.QuickSendShortcut.ToString();
         OnPropertyChanged(nameof(HotkeyWarning));
         Language = LanguageChoice.Of(settings.User.Language);
+        Theme = ThemeChoice.Of(settings.User.Theme);
         OfferLifetime = Closest(OfferLifetimeChoices, settings.User.OfferLifetimeHours ?? (int)current.OfferLifetime.TotalHours);
         ReconnectWindow = Closest(ReconnectChoices, (int)current.ReconnectWindow.TotalSeconds);
         IsDownloadDirectoryLocked = current.IsLocked(nameof(ShorekeeperSettings.DownloadDirectory));

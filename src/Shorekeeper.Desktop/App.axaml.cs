@@ -11,6 +11,7 @@ using Shorekeeper.Desktop.ViewModels;
 using Shorekeeper.Desktop.Views;
 using Shorekeeper.Engine.Chat;
 using Shorekeeper.Engine.Discovery;
+using Shorekeeper.Engine.Settings;
 using Shorekeeper.Engine.Transfers;
 using Shorekeeper.Engine.Trust;
 
@@ -43,6 +44,7 @@ public partial class App : Application
         {
             // Closing the window keeps the app running in the tray; only "Thoát" exits.
             desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            ThemeChoice.Apply(Services.GetRequiredService<SettingsService>().User.Theme);
 
             mainWindow = new MainWindow { DataContext = Services.GetRequiredService<MainWindowViewModel>() };
             mainWindow.Closing += OnMainWindowClosing;

@@ -721,5 +721,8 @@
   "{0} đã ngừng phát cho bạn.": "{0} stopped playing to you.",
   "Ngừng phát: ngắt máy đó, máy đó bấm Nghe lại được.": "Stop playing: cuts that device off; it can press Listen again.",
   "Hủy gửi": "Cancel sending",
-  "Đã hủy gửi": "Sending cancelled"
+  "Đã hủy gửi": "Sending cancelled",
+  "Giao diện": "Appearance",
+  "Sáng": "Light",
+  "Tối": "Dark"
 }

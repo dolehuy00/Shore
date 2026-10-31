@@ -1478,6 +1478,19 @@
 
             <Border Classes="card section">
               <StackPanel Spacing="8">
+                <TextBlock Classes="h3" Text="{l:T 'Giao diện'}" />
+                <ComboBox ItemsSource="{x:Static dvm:ThemeChoice.All}" SelectedItem="{Binding Theme}" HorizontalAlignment="Stretch">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="dvm:ThemeChoice">
+                      <TextBlock Text="{Binding Label}" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+              </StackPanel>
+            </Border>
+
+            <Border Classes="card section">
+              <StackPanel Spacing="8">
                 <TextBlock Classes="h3" Text="{l:T 'Tự nhận file tối đa'}" />
                 <Grid ColumnDefinitions="*,Auto,Auto">
                   <NumericUpDown Value="{Binding AutoAcceptLimitGb}" Minimum="0.1" Maximum="10000" Increment="1" FormatString="0.##" ShowButtonSpinner="False" />

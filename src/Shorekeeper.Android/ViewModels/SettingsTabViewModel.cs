@@ -67,6 +67,7 @@ public sealed partial class SettingsTabViewModel : ObservableObject
         AutoAcceptLimitGb = (decimal)settings.Current.AutoAcceptLimitGb;
         startLanguage = settings.User.Language;
         Language = LanguageChoice.Of(startLanguage);
+        Theme = ThemeChoice.Of(settings.User.Theme);
         directory.Changed += (_, _) => Dispatcher.UIThread.Post(() => OnPropertyChanged(nameof(NetworkText)));
     }
 
@@ -115,6 +116,19 @@ public sealed partial class SettingsTabViewModel : ObservableObject
         if (value.Code != settings.User.Language)
         {
             settings.Update(s => s with { Language = value.Code });
+        }
+    }
+
+    /// <summary>"Giao diện": saved and shown as soon as it is picked.</summary>
+    [ObservableProperty]
+    public partial ThemeChoice Theme { get; set; }
+
+    partial void OnThemeChanged(ThemeChoice value)
+    {
+        ThemeChoice.Apply(value.Code);
+        if (value.Code != settings.User.Theme)
+        {
+            settings.Update(s => s with { Theme = value.Code });
         }
     }
 

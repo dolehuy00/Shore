@@ -7,6 +7,7 @@ using Shorekeeper.Android.Platform;
 using Shorekeeper.Android.ViewModels;
 using Shorekeeper.Core.Identity;
 using Shorekeeper.Android.Views;
+using Shorekeeper.Desktop.ViewModels;
 using Application = Avalonia.Application;
 
 namespace Shorekeeper.Android;
@@ -27,6 +28,7 @@ public partial class App : Application
     {
         if (ApplicationLifetime is ISingleViewApplicationLifetime single && Engine is { } engine)
         {
+            ThemeChoice.Apply(EngineHost.StartTheme);
             var view = new MainView();
             single.MainView = view;
             // The engine opens its database and identity in the background; the list fills in when it is ready.
