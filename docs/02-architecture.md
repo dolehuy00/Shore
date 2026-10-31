@@ -57,6 +57,7 @@ Shorekeeper/
 │   ├── Shorekeeper.Core.Tests/
 │   ├── Shorekeeper.Engine.Tests/
 │   ├── Shorekeeper.Platform.Windows.Tests/
+│   ├── Shorekeeper.UI.Tests/          ← chữ hiển thị và trạng thái của view model dùng chung (không cần cửa sổ)
 │   └── Shorekeeper.IntegrationTests/  ← (từ M1) nhiều Engine trong 1 process trên loopback
 ├── installer/                         ← WiX (MSI)
 └── Shorekeeper.sln
