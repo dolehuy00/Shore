@@ -1,0 +1,248 @@
+<!-- Cài đặt: one card per setting. -->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:l="using:Shorekeeper.Desktop.Localization"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Shorekeeper.Android.ViewModels"
+             xmlns:dvm="using:Shorekeeper.Desktop.ViewModels"
+             x:Class="Shorekeeper.Android.Views.Pages.SettingsPage"
+             x:DataType="vm:MainViewModel">
+  <Panel Classes="page" IsVisible="{Binding IsSettingsTab}">
+  <ScrollViewer DataContext="{Binding Settings}" x:DataType="vm:SettingsTabViewModel">
+    <!-- One card per setting, its name on top inside it, so where one ends and the next begins is plain. -->
+    <StackPanel Spacing="12" Margin="0,8,0,24">
+      <Border Classes="card section">
+        <StackPanel Spacing="8">
+          <TextBlock Classes="h3" Text="{l:T 'Tên hiển thị'}" />
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBox Text="{Binding DisplayName}" Margin="0,0,8,0" />
+            <Button Grid.Column="1" Content="{l:T 'Lưu'}" Command="{Binding SaveNameCommand}" />
+          </Grid>
+        </StackPanel>
+      </Border>
+
+      <Border Classes="card section">
+        <StackPanel Spacing="8">
+          <TextBlock Classes="h3" Text="{l:T 'Ngôn ngữ'}" />
+          <ComboBox ItemsSource="{x:Static l:LanguageChoice.All}" SelectedItem="{Binding Language}" HorizontalAlignment="Stretch">
+            <ComboBox.ItemTemplate>
+              <DataTemplate x:DataType="l:LanguageChoice">
+                <TextBlock Text="{Binding Label}" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+          <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding NeedsRestart}">
+            <TextBlock Classes="muted" Text="{l:T 'Ngôn ngữ mới có hiệu lực sau khi khởi động lại Shorekeeper.'}" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <Button Grid.Column="1" Content="{l:T 'Khởi động lại'}" Command="{Binding RestartAppCommand}" Classes="accent" />
+          </Grid>
+        </StackPanel>
+      </Border>
+
+      <Border Classes="card section">
+        <StackPanel Spacing="8">
+          <TextBlock Classes="h3" Text="{l:T 'Giao diện'}" />
+          <ComboBox ItemsSource="{x:Static dvm:ThemeChoice.All}" SelectedItem="{Binding Theme}" HorizontalAlignment="Stretch">
+            <ComboBox.ItemTemplate>
+              <DataTemplate x:DataType="dvm:ThemeChoice">
+                <TextBlock Text="{Binding Label}" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+        </StackPanel>
+      </Border>
+
+      <Border Classes="card section">
+        <StackPanel Spacing="8">
+          <TextBlock Classes="h3" Text="{l:T 'Tự nhận file tối đa'}" />
+          <Grid ColumnDefinitions="*,Auto,Auto">
+            <NumericUpDown Value="{Binding AutoAcceptLimitGb}" Minimum="0.1" Maximum="10000" Increment="1" FormatString="0.##" ShowButtonSpinner="False" />
+            <TextBlock Grid.Column="1" Text="GB" VerticalAlignment="Center" Margin="8,0" />
+            <Button Grid.Column="2" Content="{l:T 'Lưu'}" Command="{Binding SaveAutoAcceptLimitCommand}" />
+          </Grid>
+          <TextBlock Classes="muted" Text="{l:T 'Cho máy đã kết nối có Tự nhận file theo cài đặt chung; từng máy có thể đặt riêng ở menu ⋮.'}" FontSize="12" TextWrapping="Wrap" />
+        </StackPanel>
+      </Border>
+
+      <Border Classes="card section">
+        <StackPanel Spacing="8">
+          <TextBlock Classes="h3" Text="{l:T 'Tin nhắn'}" />
+          <ToggleSwitch IsChecked="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).Chat.AutoDownloadPictures}"
+                        OnContent="{l:T 'Tự tải ảnh máy đã kết nối gửi'}" OffContent="{l:T 'Tự tải ảnh máy đã kết nối gửi'}" />
+          <TextBlock Classes="muted" Text="{l:T 'Ảnh đến 20 MB tự tải về thư mục nhận để hiện ngay trong Tin nhắn. Tắt thì ảnh chờ bạn bấm Tải như file khác.'}"
+                     FontSize="12" TextWrapping="Wrap" />
+        </StackPanel>
+      </Border>
+
+      <Border Classes="card section">
+        <StackPanel Spacing="8">
+          <TextBlock Classes="h3" Text="{l:T 'Chạy nền'}" />
+          <ToggleSwitch IsChecked="{Binding AlwaysReceive}" OnContent="{l:T 'Luôn nhận file (kể cả khi tắt màn hình)'}" OffContent="{l:T 'Luôn nhận file (kể cả khi tắt màn hình)'}" />
+          <TextBlock Classes="muted" Text="{l:T 'Giữ một thông báo thường trực để máy tính gửi được file bất cứ lúc nào. Tốn pin hơn một chút.'}"
+                     FontSize="12" TextWrapping="Wrap" />
+          <!-- Only while it is on: the system's own battery saver can still stop the app on these phones. -->
+          <TextBlock Classes="muted" IsVisible="{Binding AlwaysReceive}" FontSize="12" TextWrapping="Wrap"
+                     Text="{l:T 'Máy OPPO, Xiaomi, Vivo… còn có trình tiết kiệm pin riêng: vào Cài đặt → Pin → Shorekeeper và cho phép hoạt động nền, nếu không hệ thống vẫn có thể tắt app.'}" />
+        </StackPanel>
+      </Border>
+
+      <!-- Tự gửi ảnh: new pictures and videos to one computer, whenever it is online. -->
+      <Border Classes="card section">
+        <StackPanel Spacing="8">
+          <TextBlock Classes="h3" Text="{l:T 'Tự gửi ảnh về máy tính'}" />
+          <StackPanel DataContext="{Binding PhotoBackup}" x:DataType="vm:PhotoBackupViewModel" Spacing="8">
+            <ToggleSwitch IsChecked="{Binding IsOn}" OnContent="{l:T 'Tự gửi ảnh, video mới'}" OffContent="{l:T 'Tự gửi ảnh, video mới'}" />
+            <TextBlock Classes="muted" Text="{l:T 'Chưa kết nối với máy tính nào.'}" IsVisible="{Binding HasNoComputer}" FontSize="12" />
+            <!-- A bold label over the box, as the other fields of Cài đặt. -->
+            <StackPanel Spacing="6" IsVisible="{Binding !HasNoComputer}">
+              <TextBlock Text="{l:T 'Gửi về'}" FontWeight="SemiBold" Margin="0,6,0,0" />
+              <ComboBox ItemsSource="{Binding Computers}" SelectedIndex="{Binding ComputerIndex}" HorizontalAlignment="Stretch">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:ComputerOption">
+                    <StackPanel Spacing="2" Margin="0,2">
+                      <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                      <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Ellipse Classes="dot" Classes.muted="{Binding !IsOnline}" />
+                        <TextBlock Classes="muted" FontSize="12" TextTrimming="CharacterEllipsis">
+                          <Run Text="{Binding StatusText}" /><Run Text=" · " /><Run Text="{Binding Detail}" />
+                        </TextBlock>
+                      </StackPanel>
+                    </StackPanel>
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+            </StackPanel>
+            <CheckBox IsChecked="{Binding CameraPhotos}" Content="{l:T 'Ảnh máy ảnh'}" />
+            <CheckBox IsChecked="{Binding CameraVideos}" Content="{l:T 'Video máy ảnh'}" />
+            <CheckBox IsChecked="{Binding Screenshots}" Content="{l:T 'Ảnh chụp màn hình'}" />
+            <CheckBox IsChecked="{Binding Other}" Content="{l:T 'Ảnh, video khác (tải về, Zalo, Messenger…)'}" />
+            <TextBlock Text="{Binding Status}" IsVisible="{Binding IsOn}" FontSize="13" TextWrapping="Wrap" />
+            <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
+                       Text="{l:T 'Chỉ gửi những gì có từ lúc bật, mỗi khi máy tính online; chạy nền khi bật Luôn nhận file. Trên máy tính, bật Tự nhận file cho điện thoại này (menu ⋮ ở Xóm) để ảnh tự vào thư mục Ảnh từ (tên điện thoại); không thì chúng chờ ở trang File của máy tính.'}" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+      <Border Classes="card section">
+        <StackPanel Spacing="8">
+          <TextBlock Classes="h3" Text="{l:T 'Sao lưu danh tính'}" />
+          <TextBlock Classes="muted" Text="{l:T 'Giữ DeviceId, liên hệ và nhóm khi đổi điện thoại: không phải Kết nối lại với ai.'}"
+                     FontSize="12" TextWrapping="Wrap" />
+          <WrapPanel ItemSpacing="8" LineSpacing="8" Margin="0,4,0,0">
+            <Button Content="{l:T 'Sao lưu danh tính…'}" Command="{Binding StartBackupCommand}" />
+            <Button Content="{l:T 'Khôi phục…'}" Click="OnPickBackup" />
+          </WrapPanel>
+          <TextBlock Text="{Binding BackupStatus}" IsVisible="{Binding HasBackupStatus}" FontSize="13" TextWrapping="Wrap" />
+        </StackPanel>
+      </Border>
+
+      <Border Classes="card section">
+        <StackPanel Spacing="8">
+          <TextBlock Classes="h3" Text="{l:T 'Đã chặn'}" />
+          <TextBlock Classes="muted" Text="{l:T 'Chưa chặn ai.'}" IsVisible="{Binding !Blocked.Items.Count}" FontSize="12" />
+          <ItemsControl ItemsSource="{Binding Blocked.Items}" IsVisible="{Binding Blocked.Items.Count}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="dvm:BlockedPeerItem">
+                <Border Padding="0,6">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel VerticalAlignment="Center">
+                      <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Classes="muted" Text="{Binding HostName}" FontSize="12" />
+                    </StackPanel>
+                    <Button Grid.Column="1" Content="{l:T 'Bỏ chặn'}" Command="{Binding UnblockCommand}" VerticalAlignment="Center" />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </Border>
+
+      <!-- Thống kê (docs/10-ux.md §15): counts kept on this phone, and the storage the received files go to. -->
+      <Border Classes="card section">
+        <StackPanel Spacing="8">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Classes="h3" Text="{l:T 'Thống kê'}" />
+            <Button Grid.Column="1" Content="{l:T 'Làm mới'}" Command="{Binding Stats.RefreshCommand}" Padding="12,4" FontSize="13" VerticalAlignment="Bottom" />
+          </Grid>
+          <Border DataContext="{Binding Stats}" x:DataType="dvm:StatsViewModel">
+            <StackPanel Spacing="12">
+              <StackPanel Spacing="4">
+                <Grid ColumnDefinitions="78,*,*">
+                  <TextBlock Grid.Column="1" Classes="muted" Text="{l:T 'Đã gửi'}" FontSize="12" />
+                  <TextBlock Grid.Column="2" Classes="muted" Text="{l:T 'Đã nhận'}" FontSize="12" />
+                </Grid>
+                <ItemsControl ItemsSource="{Binding Periods}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="dvm:StatsPeriod">
+                      <Grid ColumnDefinitions="78,*,*" Margin="0,3">
+                        <TextBlock Text="{Binding Label}" FontWeight="SemiBold" FontSize="13" />
+                        <TextBlock Grid.Column="1" Text="{Binding Sent}" FontSize="13" TextWrapping="Wrap" Margin="0,0,6,0" />
+                        <TextBlock Grid.Column="2" Text="{Binding Received}" FontSize="13" TextWrapping="Wrap" />
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+
+              <StackPanel Spacing="2">
+                <TextBlock Text="{l:T 'Âm thanh'}" FontWeight="SemiBold" FontSize="13" />
+                <TextBlock Text="{Binding SoundWeek}" FontSize="13" TextWrapping="Wrap" />
+                <TextBlock Classes="muted" Text="{Binding SoundTotal}" FontSize="12" TextWrapping="Wrap" />
+              </StackPanel>
+
+              <StackPanel Spacing="2">
+                <TextBlock Text="{l:T 'Tin nhắn'}" FontWeight="SemiBold" FontSize="13" />
+                <TextBlock Text="{Binding MessagesWeek}" FontSize="13" TextWrapping="Wrap" />
+                <TextBlock Classes="muted" Text="{Binding MessagesTotal}" FontSize="12" TextWrapping="Wrap" />
+              </StackPanel>
+
+              <StackPanel Spacing="2" IsVisible="{Binding HasPeers}">
+                <TextBlock Text="{l:T 'Theo máy'}" FontWeight="SemiBold" FontSize="13" />
+                <ItemsControl ItemsSource="{Binding Peers}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="dvm:StatsPeer">
+                      <StackPanel Margin="0,3">
+                        <TextBlock Text="{Binding Name}" FontSize="13" />
+                        <TextBlock Classes="muted" Text="{Binding Text}" FontSize="12" TextWrapping="Wrap" />
+                      </StackPanel>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+
+              <StackPanel Spacing="6">
+                <TextBlock Text="{l:T 'Bộ nhớ chứa file nhận'}" FontWeight="SemiBold" FontSize="13" />
+                <TextBlock Classes="muted" Text="{l:T 'Đang đọc bộ nhớ…'}" IsVisible="{Binding IsMeasuring}" FontSize="12" />
+                <StackPanel Spacing="4" IsVisible="{Binding HasDrive}">
+                  <ProgressBar Value="{Binding DriveUsed}" Maximum="100" MinWidth="0" />
+                  <TextBlock Text="{Binding DriveText}" FontSize="13" />
+                </StackPanel>
+                <TextBlock Text="{Binding FolderText}" FontSize="13" TextWrapping="Wrap" />
+                <ItemsControl ItemsSource="{Binding Kinds}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="dvm:StatsKind">
+                      <Grid ColumnDefinitions="100,*" RowDefinitions="Auto,Auto" Margin="0,3">
+                        <TextBlock Text="{Binding Name}" FontSize="13" />
+                        <TextBlock Grid.Column="1" Classes="muted" Text="{Binding Text}" FontSize="12" HorizontalAlignment="Right" />
+                        <ProgressBar Grid.Row="1" Grid.ColumnSpan="2" Value="{Binding Share}" Maximum="100" MinWidth="0" Margin="0,3,0,0" />
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+
+              <TextBlock Classes="muted" Text="{Binding Since}" FontSize="12" TextWrapping="Wrap" />
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </Border>
+
+      <Border Classes="card section">
+        <StackPanel Spacing="8">
+          <TextBlock Classes="h3" Text="{l:T 'Mạng'}" />
+          <TextBlock Text="{Binding NetworkText}" FontSize="13" TextWrapping="Wrap" />
+        </StackPanel>
+      </Border>
+    </StackPanel>
+  </ScrollViewer>
+  </Panel>
+</UserControl>

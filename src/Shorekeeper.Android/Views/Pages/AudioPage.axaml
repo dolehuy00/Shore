@@ -1,0 +1,217 @@
+<!-- Âm thanh: this phone's sound for contacts, and the contacts' sound here. -->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:l="using:Shorekeeper.Desktop.Localization"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Shorekeeper.Android.ViewModels"
+             xmlns:dvm="using:Shorekeeper.Desktop.ViewModels"
+             x:Class="Shorekeeper.Android.Views.Pages.AudioPage"
+             x:DataType="vm:MainViewModel">
+  <Panel Classes="page" IsVisible="{Binding IsAudioTab}">
+  <ScrollViewer DataContext="{Binding Audio}" x:DataType="dvm:AudioViewModel">
+    <StackPanel Spacing="6" Margin="0,0,0,24">
+      <!-- Phát: this phone's sound for contacts that choose to listen. -->
+      <Border Classes="card">
+        <StackPanel Spacing="10">
+          <Grid ColumnDefinitions="Auto,*,Auto">
+            <Border Classes="tile" VerticalAlignment="Center">
+              <PathIcon Data="{StaticResource Icon.Speaker}" Width="22" Height="22" />
+            </Border>
+            <StackPanel Grid.Column="1" Spacing="2" Margin="12,0,8,0" VerticalAlignment="Center">
+              <TextBlock Text="{l:T 'Phát âm thanh'}" FontWeight="SemiBold" />
+              <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
+                         Text="{l:T 'Máy đã kết nối thấy máy này đang phát và tự bấm Nghe khi muốn. Tắt là mọi máy đang nghe đều dừng.'}" />
+            </StackPanel>
+            <ToggleSwitch Grid.Column="2" IsChecked="{Binding IsPlaying}" IsEnabled="{Binding CanPlay}" OnContent="" OffContent=""
+                          MinWidth="0" VerticalAlignment="Center" AutomationProperties.Name="{l:T 'Phát âm thanh'}" />
+          </Grid>
+          <!-- Nguồn tiếng: what apps play, or the microphone (the phone as a microphone); set while not playing. -->
+          <ComboBox SelectedIndex="{Binding SourceIndex}" IsEnabled="{Binding !IsPlaying}" IsVisible="{Binding CanChooseSource}" HorizontalAlignment="Stretch">
+            <ComboBoxItem Content="{l:T 'Nguồn: âm thanh đang phát'}" />
+            <ComboBoxItem Content="{l:T 'Nguồn: micro (dùng điện thoại làm micro)'}" />
+          </ComboBox>
+          <!-- Optional password: a listener types it once, then its device remembers it. -->
+          <StackPanel Spacing="6">
+            <Grid ColumnDefinitions="Auto,*">
+              <PathIcon Data="{StaticResource Icon.Lock}" Width="14" Height="14" VerticalAlignment="Center" />
+              <TextBlock Grid.Column="1" Classes="muted" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" Margin="8,0,0,0"
+                         Text="{l:T 'Không có mật khẩu: máy đã kết nối nào cũng nghe được.'}" IsVisible="{Binding !HasPassword}" />
+              <TextBlock Grid.Column="1" Classes="muted" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" Margin="8,0,0,0"
+                         Text="{l:T 'Có mật khẩu: máy muốn nghe nhập một lần, sau đó tự nhớ.'}" IsVisible="{Binding HasPassword}" />
+            </Grid>
+            <WrapPanel ItemSpacing="8" LineSpacing="8">
+              <Button Content="{l:T 'Đặt mật khẩu…'}" Command="{Binding SetPasswordCommand}" IsVisible="{Binding !HasPassword}" Padding="12,6" FontSize="13" />
+              <Button Content="{l:T 'Đổi mật khẩu…'}" Command="{Binding SetPasswordCommand}" IsVisible="{Binding HasPassword}" Padding="12,6" FontSize="13" />
+              <Button Content="{l:T 'Bỏ mật khẩu'}" Command="{Binding RemovePasswordCommand}" IsVisible="{Binding HasPassword}" Padding="12,6" FontSize="13" />
+            </WrapPanel>
+          </StackPanel>
+          <StackPanel Spacing="4" IsVisible="{Binding IsPlaying}">
+            <TextBlock Text="{l:T 'Đang nghe'}" FontWeight="SemiBold" FontSize="13" />
+            <TextBlock Classes="muted" Text="{l:T 'Chưa ai nghe'}" IsVisible="{Binding !HasListeners}" FontSize="12" />
+            <ItemsControl ItemsSource="{Binding Listeners}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="dvm:AudioListenerItem">
+                  <!-- What the host may do, for this listener alone; the buttons under the name on a narrow screen. -->
+                  <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,2">
+                    <Panel VerticalAlignment="Center">
+                      <PathIcon Data="{StaticResource Icon.Laptop}" IsVisible="{Binding !IsPhone}" Width="16" Height="16" />
+                      <PathIcon Data="{StaticResource Icon.Phone}" IsVisible="{Binding IsPhone}" Width="16" Height="16" />
+                    </Panel>
+                    <TextBlock Grid.Column="1" Text="{Binding Name}" Margin="8,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4">
+                      <ToggleButton Classes="round" IsChecked="{Binding AllowsControl}" IsVisible="{Binding CanOfferControl}"
+                                    AutomationProperties.Name="{l:T 'Cho điều khiển'}">
+                        <PathIcon Data="{StaticResource Icon.PlayPause}" Width="18" Height="18" />
+                      </ToggleButton>
+                      <Button Classes="round" Width="40" Height="40" CornerRadius="20" Command="{Binding StopCommand}"
+                              AutomationProperties.Name="{l:T 'Ngừng phát'}">
+                        <PathIcon Data="{StaticResource Icon.SpeakerOff}" Width="18" Height="18" />
+                      </Button>
+                      <Button Classes="round" Width="40" Height="40" CornerRadius="20" Command="{Binding KeepOutCommand}"
+                              AutomationProperties.Name="{l:T 'Không cho nghe'}">
+                        <PathIcon Data="{StaticResource Icon.Block}" Width="18" Height="18" />
+                      </Button>
+                    </StackPanel>
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <!-- What the icons of each listener do (no tooltips on a phone). -->
+            <StackPanel Spacing="4" IsVisible="{Binding HasListeners}">
+              <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding CanOfferControl}">
+                <PathIcon Data="{StaticResource Icon.PlayPause}" Width="13" Height="13" Opacity="0.7" VerticalAlignment="Top" Margin="0,2,8,0" />
+                <TextBlock Grid.Column="1" Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{l:T 'Cho điều khiển: máy đó bấm được Phát/Dừng, chuyển bài và âm lượng ở máy này.'}" />
+              </Grid>
+              <Grid ColumnDefinitions="Auto,*">
+                <PathIcon Data="{StaticResource Icon.SpeakerOff}" Width="13" Height="13" Opacity="0.7" VerticalAlignment="Top" Margin="0,2,8,0" />
+                <TextBlock Grid.Column="1" Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{l:T 'Ngừng phát: ngắt máy đó, máy đó bấm Nghe lại được.'}" />
+              </Grid>
+              <Grid ColumnDefinitions="Auto,*">
+                <PathIcon Data="{StaticResource Icon.Block}" Width="13" Height="13" Opacity="0.7" VerticalAlignment="Top" Margin="0,2,8,0" />
+                <TextBlock Grid.Column="1" Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{l:T 'Không cho nghe: máy đó không vào lại được cho tới khi bạn tắt rồi bật lại Phát âm thanh.'}" />
+              </Grid>
+            </StackPanel>
+          </StackPanel>
+        </StackPanel>
+      </Border>
+      <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
+                 Text="{l:T 'Âm thanh đang phát: mỗi lần bật, Android hỏi cho phép ghi hoặc truyền màn hình (Shorekeeper chỉ lấy âm thanh, không lấy hình); một số app (thường là app phim) không cho thu, cuộc gọi cũng không. Micro: chỉ cần quyền ghi âm; máy tính chọn Phát ra là CABLE Input thì app họp trên máy tính dùng được làm micro. Lần đầu Android hỏi quyền ghi âm.'}" />
+
+      <!-- Nghe: contacts with "Phát âm thanh" on. -->
+      <TextBlock Classes="h3" Text="{l:T 'Nghe'}" />
+      <TextBlock Classes="muted" Text="{l:T 'Chưa máy nào đang phát.'}" IsVisible="{Binding HasNoSources}" FontSize="12" TextWrapping="Wrap" />
+      <ItemsControl ItemsSource="{Binding Sources}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="dvm:AudioSourceItem">
+            <Border Classes="card">
+              <Grid ColumnDefinitions="Auto,*,Auto">
+                <Border Classes="tile" VerticalAlignment="Center">
+                  <Panel>
+                    <PathIcon Data="{StaticResource Icon.Laptop}" IsVisible="{Binding !IsPhone}" Width="22" Height="22" />
+                    <PathIcon Data="{StaticResource Icon.Phone}" IsVisible="{Binding IsPhone}" Width="22" Height="22" />
+                  </Panel>
+                </Border>
+                <StackPanel Grid.Column="1" Spacing="2" Margin="12,0,8,0" VerticalAlignment="Center">
+                  <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                  <StackPanel Orientation="Horizontal" Spacing="4" IsVisible="{Binding !IsListening}">
+                    <PathIcon Data="{StaticResource Icon.Lock}" Width="12" Height="12" IsVisible="{Binding IsLocked}" VerticalAlignment="Center" />
+                    <TextBlock Classes="muted" Text="{l:T 'Đang phát âm thanh'}" FontSize="12" />
+                  </StackPanel>
+                  <TextBlock Text="{l:T 'Đang nghe'}" IsVisible="{Binding IsListening}" FontSize="12"
+                             Foreground="{DynamicResource AccentButtonBackground}" />
+                </StackPanel>
+                <Panel Grid.Column="2" VerticalAlignment="Center">
+                  <Button Content="{l:T 'Nghe'}" Command="{Binding ListenCommand}" IsVisible="{Binding CanListen}" Classes="accent" Padding="12,6" FontSize="13" />
+                  <Button Content="{l:T 'Dừng nghe'}" Command="{Binding StopListeningCommand}" IsVisible="{Binding IsListening}" Padding="12,6" FontSize="13" />
+                </Panel>
+              </Grid>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+
+      <!-- Âm lượng: this phone's own level for what it listens to, apart from the system's and the source's. -->
+      <StackPanel IsVisible="{Binding IsListening}">
+        <TextBlock Classes="h3" Text="{l:T 'Âm lượng trên máy này'}" />
+        <Border Classes="card">
+          <StackPanel Spacing="6">
+            <Grid ColumnDefinitions="Auto,*,52">
+              <Panel VerticalAlignment="Center">
+                <PathIcon Data="{StaticResource Icon.Speaker}" IsVisible="{Binding !IsListenMuted}" Width="20" Height="20" />
+                <PathIcon Data="{StaticResource Icon.SpeakerOff}" IsVisible="{Binding IsListenMuted}" Width="20" Height="20" />
+              </Panel>
+              <Slider Grid.Column="1" Minimum="0" Maximum="150" TickFrequency="5" IsSnapToTickEnabled="True" SmallChange="5" LargeChange="10"
+                      Value="{Binding ListenVolume}" Margin="12,0" VerticalAlignment="Center"
+                      AutomationProperties.Name="{l:T 'Âm lượng trên máy này'}" />
+              <TextBlock Grid.Column="2" Text="{Binding ListenVolumeText}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+            </Grid>
+            <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
+                       Text="{l:T 'Chỉ đổi tiếng ở máy này, nhớ riêng cho từng máy phát; máy phát và người khác đang nghe không bị ảnh hưởng.'}" />
+          </StackPanel>
+        </Border>
+      </StackPanel>
+
+      <!-- Điều khiển: the source's media keys, when it lets us (a computer). -->
+      <StackPanel IsVisible="{Binding CanControl}">
+        <TextBlock Classes="h3" Text="{Binding ControlTitle}" />
+        <Border Classes="card">
+          <StackPanel Spacing="10">
+            <UniformGrid Columns="3" ColumnSpacing="8">
+              <Button Command="{Binding PreviousCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="0,10"
+                      AutomationProperties.Name="{l:T 'Bài trước'}">
+                <PathIcon Data="{StaticResource Icon.Previous}" Width="20" Height="20" />
+              </Button>
+              <Button Command="{Binding PlayPauseCommand}" Classes="accent" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="0,10"
+                      AutomationProperties.Name="{l:T 'Phát/Dừng'}">
+                <PathIcon Data="{StaticResource Icon.PlayPause}" Width="20" Height="20" />
+              </Button>
+              <Button Command="{Binding NextCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="0,10"
+                      AutomationProperties.Name="{l:T 'Bài sau'}">
+                <PathIcon Data="{StaticResource Icon.Next}" Width="20" Height="20" />
+              </Button>
+            </UniformGrid>
+            <UniformGrid Columns="3" ColumnSpacing="8">
+              <Button Content="{l:T 'Nhỏ đi'}" Command="{Binding VolumeDownCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="13" />
+              <Button Content="{l:T 'Tắt tiếng'}" Command="{Binding MuteCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="13" />
+              <Button Content="{l:T 'To lên'}" Command="{Binding VolumeUpCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="13" />
+            </UniformGrid>
+            <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
+                       Text="{l:T 'Như bấm phím media trên máy kia: app đang phát nhạc nhận Phát/Dừng và chuyển bài; âm lượng là âm lượng chung của máy đó.'}" />
+          </StackPanel>
+        </Border>
+      </StackPanel>
+
+      <!-- Thống kê: how listening goes, every second. -->
+      <StackPanel IsVisible="{Binding IsListening}">
+        <TextBlock Classes="h3" Text="{l:T 'Thống kê'}" />
+        <Border Classes="card">
+          <StackPanel Spacing="8">
+            <Grid ColumnDefinitions="Auto,*">
+              <Ellipse Classes="dot" Classes.busy="{Binding IsStatusWarning}" Classes.error="{Binding IsStatusBad}" Margin="0,0,8,0" />
+              <TextBlock Grid.Column="1" Text="{Binding StatusText}" TextWrapping="Wrap" FontWeight="SemiBold" VerticalAlignment="Center" />
+            </Grid>
+            <ItemsControl ItemsSource="{Binding Stats}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="dvm:AudioStatItem">
+                  <Grid ColumnDefinitions="Auto,*" Margin="0,2">
+                    <TextBlock Classes="muted" Text="{Binding Label}" FontSize="13" Margin="0,0,12,0" />
+                    <TextBlock Grid.Column="1" Text="{Binding Value}" FontSize="13" TextWrapping="Wrap" TextAlignment="Right" />
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+
+      <TextBlock Classes="h3" Text="{l:T 'Độ trễ khi nghe'}" />
+      <ComboBox SelectedIndex="{Binding LatencyIndex}" HorizontalAlignment="Stretch">
+        <ComboBoxItem Content="{l:T 'Thấp: cho game'}" />
+        <ComboBoxItem Content="{l:T 'Ổn định: cho nghe nhạc'}" />
+        <ComboBoxItem Content="{l:T 'Bảo toàn: không hụt tiếng, trễ hơn'}" />
+      </ComboBox>
+      <TextBlock Classes="muted" Text="{l:T 'Thấp trễ ít nhưng đôi khi hụt tiếng lúc Wi-Fi chập chờn; Ổn định trễ hơn một chút nhưng ít hụt; Bảo toàn xin gửi lại gói bị mất và chịu trễ thêm (có khi vài giây) khi mạng kém để không hụt nhịp nào. Áp dụng từ lần nghe sau.'}"
+                 FontSize="12" TextWrapping="Wrap" />
+    </StackPanel>
+  </ScrollViewer>
+  </Panel>
+</UserControl>

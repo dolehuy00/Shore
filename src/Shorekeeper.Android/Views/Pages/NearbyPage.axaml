@@ -1,0 +1,91 @@
+<!-- Xóm: connected devices, and the others online in the network. -->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:l="using:Shorekeeper.Desktop.Localization"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Shorekeeper.Android.ViewModels"
+             x:Class="Shorekeeper.Android.Views.Pages.NearbyPage"
+             x:DataType="vm:MainViewModel">
+  <Panel Classes="page" IsVisible="{Binding IsNearbyTab}">
+  <Panel>
+    <StackPanel IsVisible="{Binding HasNoPeers}" Spacing="6" Margin="16,48" HorizontalAlignment="Center">
+      <PathIcon Data="{StaticResource Icon.People}" Width="40" Height="40" Opacity="0.5" HorizontalAlignment="Center" />
+      <TextBlock Classes="muted" Text="{l:T 'Chưa thấy ai trong mạng. Mở Shorekeeper trên máy tính cùng Wi-Fi.'}"
+                 TextWrapping="Wrap" TextAlignment="Center" />
+    </StackPanel>
+    <ScrollViewer>
+      <!-- Room at the end so the last card can scroll above the + button. -->
+      <ItemsControl ItemsSource="{Binding Peers}" Margin="0,0,0,80">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:PeerItemViewModel">
+            <Border Classes="card">
+              <!-- Tall enough that ⋮ (top) and the main action (bottom) do not crowd each other. -->
+              <Grid ColumnDefinitions="Auto,*,Auto" MinHeight="96">
+                <Border Classes="tile" VerticalAlignment="Center">
+                  <Panel>
+                    <PathIcon Data="{StaticResource Icon.Laptop}" IsVisible="{Binding !IsPhone}" Width="22" Height="22" />
+                    <PathIcon Data="{StaticResource Icon.Phone}" IsVisible="{Binding IsPhone}" Width="22" Height="22" />
+                  </Panel>
+                </Border>
+                <StackPanel Grid.Column="1" Spacing="2" Margin="12,0,8,0" VerticalAlignment="Center">
+                  <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                  <TextBlock Classes="muted" Text="{Binding Detail}" FontSize="12" TextTrimming="CharacterEllipsis" />
+                  <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsTrusted}">
+                    <Ellipse Classes="dot" Classes.busy="{Binding IsBusy}" Classes.muted="{Binding !IsOnline}" />
+                    <TextBlock Classes="muted" Text="{Binding StatusText}" FontSize="12" />
+                  </StackPanel>
+                  <TextBlock Classes="muted" Text="{l:T '⚠ Chưa kết nối'}" IsVisible="{Binding !IsTrusted}" FontSize="12" />
+                </StackPanel>
+
+                <!-- ⋮ in the corner, the main action below it. -->
+                <Grid Grid.Column="2" RowDefinitions="Auto,*,Auto">
+                  <Button HorizontalAlignment="Right" Padding="6" Margin="0,-4,-6,0" Background="Transparent" BorderThickness="0"
+                          AutomationProperties.Name="{l:T 'Thêm'}">
+                    <PathIcon Data="{StaticResource Icon.More}" Width="16" Height="16">
+                      <PathIcon.RenderTransform>
+                        <RotateTransform Angle="90" />
+                      </PathIcon.RenderTransform>
+                    </PathIcon>
+                    <Button.Flyout>
+                      <MenuFlyout>
+                        <MenuItem Header="{l:T 'Nhắn tin'}" Command="{Binding MessageCommand}" IsVisible="{Binding IsTrusted}" />
+                        <MenuItem Header="{l:T 'Tự nhận file…'}" Command="{Binding ChooseAutoAcceptCommand}" IsVisible="{Binding IsTrusted}"
+                                  ToggleType="CheckBox" IsChecked="{Binding IsAutoAccept, Mode=OneWay}" />
+                        <MenuItem Header="{l:T 'Gửi văn bản…'}" Command="{Binding SendTextCommand}" IsVisible="{Binding IsTrusted}" />
+                        <MenuItem Header="{l:T 'Đặt tên gợi nhớ…'}" Command="{Binding RenameCommand}" IsVisible="{Binding IsTrusted}" />
+                        <MenuItem Header="{l:T 'Ngắt kết nối'}" Command="{Binding DisconnectCommand}" IsVisible="{Binding IsTrusted}" />
+                        <MenuItem Header="{l:T 'Chặn'}" Command="{Binding BlockCommand}" />
+                      </MenuFlyout>
+                    </Button.Flyout>
+                  </Button>
+                  <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                    <Button Command="{Binding MessageCommand}" IsVisible="{Binding IsTrusted}" Padding="9,7"
+                            AutomationProperties.Name="{l:T 'Nhắn tin'}">
+                      <PathIcon Data="{StaticResource Icon.Chat}" Width="16" Height="16" />
+                    </Button>
+                    <Button Content="{l:T 'Kết nối'}" Command="{Binding ConnectCommand}" IsVisible="{Binding CanConnect}" Classes="accent"
+                            Padding="12,6" FontSize="13" />
+                    <Button Click="OnSendFiles" IsVisible="{Binding CanSend}" Classes="accent" Padding="12,6" FontSize="13"
+                            AutomationProperties.Name="{l:T 'Gửi file…'}">
+                      <StackPanel Orientation="Horizontal" Spacing="6">
+                        <PathIcon Data="{StaticResource Icon.Send}" Width="14" Height="14" />
+                        <TextBlock Text="{l:T 'Gửi file…'}" />
+                      </StackPanel>
+                    </Button>
+                  </StackPanel>
+                </Grid>
+              </Grid>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+    <!-- "Thêm máy bằng địa chỉ", for devices the phone cannot see by itself. -->
+    <Button Classes="accent" Command="{Binding OpenAddPeerCommand}" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+            Width="44" Height="44" CornerRadius="22" Padding="0" Margin="0,0,6,14"
+            HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+            AutomationProperties.Name="{l:T 'Thêm máy bằng địa chỉ'}">
+      <PathIcon Data="{StaticResource Icon.Add}" Width="20" Height="20" />
+    </Button>
+  </Panel>
+  </Panel>
+</UserControl>

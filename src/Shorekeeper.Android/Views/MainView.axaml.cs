@@ -3,37 +3,21 @@ using Avalonia.Controls;
 using Avalonia.Controls.Platform;
 using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Presenters;
-using Avalonia.Input;
-using Avalonia.Interactivity;
 using Avalonia.Layout;
-using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Shorekeeper.Android.Platform;
 using Shorekeeper.Android.ViewModels;
-using Shorekeeper.Core.Localization;
-using Shorekeeper.Desktop.ViewModels;
-using Shorekeeper.Desktop.Views;
-using Button = Avalonia.Controls.Button;
-using FeedbackConstants = Android.Views.FeedbackConstants;
 
 namespace Shorekeeper.Android.Views;
 
-/// <summary>Pickers need the window, so the buttons that open one are handled here.</summary>
+/// <summary>The tabs and their pages (Views/Pages), the dialogs over them, and what Back and the keyboard do.</summary>
 public partial class MainView : UserControl
 {
     private long lastRemeasure;
 
     /// <summary>The padding Avalonia gave this view (clear of the system bars) while the keyboard lifts it; null otherwise.</summary>
     private Thickness? resting;
-    private ChatScroll? chatScroll;
-
-    /// <summary>When a message or card was last held: letting go is not a tap on the picture or link under the finger.</summary>
-    private long heldAt;
-
-    /// <summary>Where the finger went down on 🎤, and whether it is still there.</summary>
-    private Point micStart;
-    private bool micHeld;
 
     /// <summary>Menus and drop-down lists open now, the newest last, and when one last closed.</summary>
     private static readonly List<Popup> openPopups = [];
@@ -71,25 +55,6 @@ public partial class MainView : UserControl
         LayoutLog.View = this;
         SizeChanged += (_, e) => LayoutLog.Event($"size {e.PreviousSize.Width:0}x{e.PreviousSize.Height:0} -> {e.NewSize.Width:0}x{e.NewSize.Height:0}");
         LayoutUpdated += (_, _) => RemeasureIfCollapsed();
-        // A button's command runs only when its Click is not handled.
-        AddHandler(Button.ClickEvent, (_, e) =>
-        {
-            if (Environment.TickCount64 - heldAt < 1500)
-            {
-                heldAt = 0;
-                e.Handled = true;
-            }
-        });
-        DataContextChanged += (_, _) =>
-        {
-            if (DataContext is MainViewModel main)
-            {
-                chatScroll = new ChatScroll(ChatScroller);
-                main.Chat.ScrollToEndRequested += (_, _) => chatScroll?.ToEnd();
-                // 📎 in a conversation: the same picker as "Gửi file…" on a card.
-                main.Chat.PickFiles = () => PickAsync(L.F("Gửi cho {0}", main.Chat.Current?.Name), allowMultiple: true);
-            }
-        };
     }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
@@ -189,215 +154,4 @@ public partial class MainView : UserControl
             (visual as Layoutable)?.InvalidateMeasure();
         }
     });
-
-    /// <summary>
-    /// A long press on a message: its menu (copy, choose several, delete), with the buzz a long press gives; while
-    /// choosing, it checks or unchecks the message like a tap.
-    /// </summary>
-    private void OnBubbleHolding(object? sender, HoldingRoutedEventArgs e)
-    {
-        if (e.HoldingState != HoldingState.Started || sender is not Control { DataContext: ChatBubbleViewModel message } bubble)
-        {
-            return;
-        }
-
-        MainActivity.Current?.Window?.DecorView.PerformHapticFeedback(FeedbackConstants.LongPress);
-        heldAt = Environment.TickCount64;
-        if (message.Owner.IsSelecting)
-        {
-            message.IsSelected = !message.IsSelected;
-        }
-        else
-        {
-            FlyoutBase.ShowAttachedFlyout(bubble);
-        }
-
-        e.Handled = true;
-    }
-
-    /// <summary>A long press on a file card: its menu (withdraw what we sent, see it in File).</summary>
-    private void OnFileCardHolding(object? sender, HoldingRoutedEventArgs e)
-    {
-        if (e.HoldingState == HoldingState.Started && sender is Control card)
-        {
-            MainActivity.Current?.Window?.DecorView.PerformHapticFeedback(FeedbackConstants.LongPress);
-            heldAt = Environment.TickCount64;
-            FlyoutBase.ShowAttachedFlyout(card);
-            e.Handled = true;
-        }
-    }
-
-    /// <summary>"+N ảnh" / "Thu gọn": the card changes size where it is, its top kept in place.</summary>
-    private void OnMorePictures(object? sender, RoutedEventArgs e)
-    {
-        if (sender is Control button)
-        {
-            chatScroll?.Hold(button);
-        }
-    }
-
-    /// <summary>While choosing messages, a tap on a row checks or unchecks it; its buttons and check box do their own job.</summary>
-    private void OnChatRowTapped(object? sender, TappedEventArgs e)
-    {
-        if (sender is Control { DataContext: ChatBubbleViewModel { Owner.IsSelecting: true } message }
-            && !((e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<Button>().Any() ?? false))
-        {
-            message.IsSelected = !message.IsSelected;
-            e.Handled = true;
-        }
-    }
-
-    /// <summary>Slid this far left, letting go of 🎤 throws the recording away.</summary>
-    private const double CancelDistance = 90;
-
-    /// <summary>🎤 held down: recording starts, with the buzz a long press gives.</summary>
-    private async void OnMicPressed(object? sender, PointerPressedEventArgs e)
-    {
-        if (sender is not Control mic || DataContext is not MainViewModel main)
-        {
-            return;
-        }
-
-        e.Pointer.Capture(mic);
-        mic.Classes.Remove("released");
-        micStart = e.GetPosition(this);
-        micHeld = true;
-        if (await main.Chat.StartRecordingAsync())
-        {
-            MainActivity.Current?.Window?.DecorView.PerformHapticFeedback(FeedbackConstants.LongPress);
-            // Let go while the microphone was opening: a tap, not a recording.
-            if (!micHeld)
-            {
-                await main.Chat.FinishRecordingAsync(send: false);
-                main.Chat.Notice = L.T("Giữ nút micrô để ghi, thả tay để gửi.");
-            }
-        }
-    }
-
-    private void OnMicMoved(object? sender, PointerEventArgs e)
-    {
-        if (micHeld && DataContext is MainViewModel { Chat.IsRecording: true } main)
-        {
-            main.Chat.WillCancel = e.GetPosition(this).X - micStart.X < -CancelDistance;
-        }
-    }
-
-    private void OnMicReleased(object? sender, PointerReleasedEventArgs e)
-    {
-        micHeld = false;
-        (sender as Control)?.Classes.Add("released");
-        if (DataContext is MainViewModel main)
-        {
-            _ = main.Chat.FinishRecordingAsync(send: !main.Chat.WillCancel);
-        }
-    }
-
-    /// <summary>The system took the finger away (a dialog, a gesture): nothing is sent.</summary>
-    private void OnMicLost(object? sender, PointerCaptureLostEventArgs e)
-    {
-        if (micHeld && DataContext is MainViewModel main)
-        {
-            micHeld = false;
-            (sender as Control)?.Classes.Add("released");
-            _ = main.Chat.FinishRecordingAsync(send: false);
-        }
-    }
-
-    /// <summary>A finger on a card of Hộp nhận or Đã gửi: it starts sinking, as the long press it may become.</summary>
-    private void OnCardPressed(object? sender, PointerPressedEventArgs e)
-    {
-        if (sender is Control card && e.Pointer.Type == PointerType.Touch)
-        {
-            card.Classes.Remove("released");
-            card.Classes.Remove("held");
-            card.Classes.Add("pressing");
-        }
-    }
-
-    /// <summary>Let go (or scrolling took over) before choosing started: the card eases back.</summary>
-    private void OnCardLetGo(object? sender, RoutedEventArgs e)
-    {
-        if (sender is Control card && card.Classes.Remove("pressing"))
-        {
-            card.Classes.Add("released");
-        }
-    }
-
-    /// <summary>Long press on a card of Hộp nhận or Đã gửi: choosing starts, with that card checked.</summary>
-    private void OnCardHolding(object? sender, HoldingRoutedEventArgs e)
-    {
-        if (e.HoldingState == HoldingState.Started && sender is Control { DataContext: ISelectableItem item } card)
-        {
-            card.Classes.Remove("pressing");
-            card.Classes.Add("held");
-            item.Selection.StartWith(item);
-            // The small buzz Android apps give a long press.
-            MainActivity.Current?.Window?.DecorView.PerformHapticFeedback(FeedbackConstants.LongPress);
-            e.Handled = true;
-        }
-    }
-
-    /// <summary>
-    /// While choosing, a tap anywhere on a card checks or unchecks it; its buttons, the check box among them, still do
-    /// their own job.
-    /// </summary>
-    private void OnCardTapped(object? sender, TappedEventArgs e)
-    {
-        if ((sender as Control)?.DataContext is ISelectableItem { Selection.IsOn: true } item
-            && (e.Source as Visual)?.FindAncestorOfType<Button>(includeSelf: true) is null)
-        {
-            item.IsSelected = !item.IsSelected;
-        }
-    }
-
-    /// <summary>"Gửi file…" on a contact.</summary>
-    private async void OnSendFiles(object? sender, RoutedEventArgs e)
-    {
-        if ((sender as Control)?.DataContext is PeerItemViewModel peer && DataContext is MainViewModel main
-            && await PickAsync(L.F("Gửi cho {0}", peer.Name), allowMultiple: true) is { Count: > 0 } picked)
-        {
-            main.Notice = await peer.SendAsync(picked);
-        }
-    }
-
-    /// <summary>"Gửi file cho nhóm…": every other member, through the group.</summary>
-    private async void OnSendToGroup(object? sender, RoutedEventArgs e)
-    {
-        if ((sender as Control)?.DataContext is GroupItemViewModel group && DataContext is MainViewModel main
-            && await PickAsync(L.F("Gửi cho nhóm {0}", group.Name), allowMultiple: true) is { Count: > 0 } picked)
-        {
-            main.Notice = await group.SendAsync(picked);
-        }
-    }
-
-    /// <summary>"Khôi phục…" in Cài đặt: the file first, then its password.</summary>
-    private async void OnPickBackup(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is MainViewModel main && await PickAsync(L.T("Chọn bản sao lưu Shorekeeper"), allowMultiple: false) is [var file])
-        {
-            main.Settings.StartRestore(file);
-        }
-    }
-
-    /// <returns>Paths, or content:// URIs kept exactly as given (their document ids are percent-encoded).</returns>
-    private async Task<IReadOnlyList<string>> PickAsync(string title, bool allowMultiple)
-    {
-        if (TopLevel.GetTopLevel(this) is not { } top)
-        {
-            return [];
-        }
-
-        IReadOnlyList<IStorageFile> picked = await top.StorageProvider.OpenFilePickerAsync(
-            new FilePickerOpenOptions { Title = title, AllowMultiple = allowMultiple });
-        string[] locations = [.. picked.Select(f => f.Path.IsFile ? f.Path.LocalPath : f.Path.OriginalString)];
-        if (MainActivity.Current?.ContentResolver is { } resolver)
-        {
-            foreach (string location in locations.Where(l => l.StartsWith("content://", StringComparison.Ordinal)))
-            {
-                ContentUriFiles.Keep(resolver, location);
-            }
-        }
-
-        return locations;
-    }
 }

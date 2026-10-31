@@ -1,0 +1,227 @@
+<!-- File (docs/15-chat.md §6.2): "Nhận" and "Đã gửi" share one tab, so "Tin nhắn" has room in the tab strip. -->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:l="using:Shorekeeper.Desktop.Localization"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Shorekeeper.Android.ViewModels"
+             xmlns:dvm="using:Shorekeeper.Desktop.ViewModels"
+             x:Class="Shorekeeper.Android.Views.Pages.FilesPage"
+             x:DataType="vm:MainViewModel">
+  <DockPanel IsVisible="{Binding IsFilesTab}">
+  <Border DockPanel.Dock="Top" Classes="segments" Margin="0,0,0,10">
+    <Grid ColumnDefinitions="*,*">
+      <Button Classes="segment" Classes.on="{Binding !FilesShowSent}" Command="{Binding ShowReceivedCommand}" Content="{l:T 'Nhận'}" />
+      <Button Grid.Column="1" Classes="segment" Classes.on="{Binding FilesShowSent}" Command="{Binding ShowSentFilesCommand}" Content="{l:T 'Đã gửi'}" />
+    </Grid>
+  </Border>
+  <Panel>
+  <Panel Classes="page" IsVisible="{Binding IsInboxTab}">
+  <Panel>
+    <StackPanel IsVisible="{Binding HasNoOffers}" Spacing="6" Margin="16,48" HorizontalAlignment="Center">
+      <PathIcon Data="{StaticResource Icon.Download}" Width="40" Height="40" Opacity="0.5" HorizontalAlignment="Center" />
+      <TextBlock Classes="muted" Text="{l:T 'Chưa có ai gửi gì cho bạn.'}" TextAlignment="Center" />
+    </StackPanel>
+    <DockPanel>
+    <!-- While choosing (long press on a card): "Chọn tất cả", the count and what to do with the checked cards. -->
+    <StackPanel DockPanel.Dock="Top" DataContext="{Binding OfferSelection}" x:DataType="vm:ListSelection" Margin="0,0,0,8" IsVisible="{Binding IsOn}" Classes="selectionbar">
+      <Border Classes="card" IsVisible="{Binding IsOn}" Margin="0" Padding="12,6">
+        <!-- [☐ Chọn tất cả] Đã chọn N … [✕ end choosing] [⋮ what to do with the checked cards]. -->
+        <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+          <CheckBox IsChecked="{Binding All}" Content="{l:T 'Chọn tất cả'}" />
+          <TextBlock Grid.Column="1" Classes="muted" Text="{Binding Text}" FontSize="12" Margin="8,0" VerticalAlignment="Center" />
+          <!-- A small round close, as on Android chips: a light disc with a thin, muted ✕. -->
+          <Button Grid.Column="2" Classes="round close" Command="{Binding StopCommand}" VerticalAlignment="Center" Margin="0,0,6,0"
+                  AutomationProperties.Name="{l:T 'Xong'}" ToolTip.Tip="{l:T 'Xong'}">
+            <PathIcon Data="{StaticResource Icon.Dismiss}" Width="12" Height="12" />
+          </Button>
+          <Button Grid.Column="3" Classes="round" VerticalAlignment="Center" Margin="0,0,-4,0" IsEnabled="{Binding HasAny}"
+                  AutomationProperties.Name="{l:T 'Thêm'}">
+            <PathIcon Data="{StaticResource Icon.More}" Width="16" Height="16">
+              <PathIcon.RenderTransform>
+                <RotateTransform Angle="90" />
+              </PathIcon.RenderTransform>
+            </PathIcon>
+            <Button.Flyout>
+              <MenuFlyout>
+                <MenuItem Header="{l:T 'Xóa khỏi lịch sử'}" Command="{Binding RemoveCommand}" />
+                <MenuItem Header="{l:T 'Xóa kèm file đã nhận…'}" Command="{Binding RemoveWithFilesCommand}" IsVisible="{Binding CanRemoveWithFiles}" />
+              </MenuFlyout>
+            </Button.Flyout>
+          </Button>
+        </Grid>
+      </Border>
+    </StackPanel>
+    <ScrollViewer>
+      <ItemsControl ItemsSource="{Binding Offers}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:OfferItemViewModel">
+            <Border Classes="card offer" Classes.picked="{Binding IsSelected}" Classes.leaving="{Binding IsLeaving}" Holding="OnCardHolding" Tapped="OnCardTapped"
+                    PointerPressed="OnCardPressed" PointerReleased="OnCardLetGo" PointerCaptureLost="OnCardLetGo">
+              <DockPanel>
+              <CheckBox DockPanel.Dock="Left" Classes="pick" IsChecked="{Binding IsSelected}" IsVisible="{Binding Selection.IsOn}" VerticalAlignment="Center" MinWidth="0" Width="24" Padding="0" Margin="0,0,10,0"
+                        AutomationProperties.Name="{l:T 'Chọn'}" />
+              <Grid ColumnDefinitions="Auto,*,Auto">
+                <Border Classes="tile">
+                  <Panel>
+                    <PathIcon Data="{StaticResource Icon.Document}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static dvm:TransferKind.Files}}" Width="22" Height="22" />
+                    <PathIcon Data="{StaticResource Icon.Image}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static dvm:TransferKind.Images}}" Width="22" Height="22" />
+                    <PathIcon Data="{StaticResource Icon.FolderOpen}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static dvm:TransferKind.Folder}}" Width="22" Height="22" />
+                  </Panel>
+                </Border>
+                <StackPanel Grid.Column="1" Spacing="3" Margin="12,0,0,0">
+                  <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                  <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" />
+                  <!-- "app.zip + 2 mục" names only the first: the button opens the whole list. -->
+                  <StackPanel DataContext="{Binding Contents}" x:DataType="dvm:OfferContents" IsVisible="{Binding CanExpand}" Spacing="2">
+                    <Button Content="{Binding ToggleText}" Command="{Binding ToggleCommand}" Padding="0,2" FontSize="13" HorizontalAlignment="Left"
+                            Background="Transparent" BorderThickness="0" Foreground="{DynamicResource AccentButtonBackground}" />
+                    <ItemsControl ItemsSource="{Binding Items}" IsVisible="{Binding IsExpanded}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="x:String">
+                          <!-- The bullet keeps its own column, so a long name wraps under itself, not below the bullet. -->
+                          <Grid ColumnDefinitions="Auto,*">
+                            <TextBlock Text="•" FontSize="14" Margin="0,0,6,0" />
+                            <TextBlock Grid.Column="1" Text="{Binding}" FontSize="14" TextWrapping="Wrap" />
+                          </Grid>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
+                  <TextBlock Text="{Binding Note}" IsVisible="{Binding HasNote}" FontStyle="Italic" TextWrapping="Wrap" />
+                  <ProgressBar Value="{Binding Progress}" IsVisible="{Binding IsDownloading}" MinWidth="0" Margin="0,4" />
+                  <StackPanel Orientation="Horizontal" Spacing="5">
+                    <PathIcon Classes="done" Data="{StaticResource Icon.CheckCircle}" IsVisible="{Binding IsCompleted}" Width="14" Height="14" />
+                    <TextBlock Classes="muted" Text="{Binding Status}" FontSize="12" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <WrapPanel ItemSpacing="8" LineSpacing="8" Margin="0,6,0,0">
+                    <Button Content="{l:T 'Tải'}" Command="{Binding DownloadCommand}" IsVisible="{Binding CanDownload}" Classes="accent" />
+                    <Button Content="{l:T 'Bỏ qua'}" Command="{Binding DeclineCommand}" IsVisible="{Binding CanDecline}" />
+                  </WrapPanel>
+                </StackPanel>
+                <!-- ⋮: take it out of the list, with or without the files received. -->
+                <Button Grid.Column="2" VerticalAlignment="Top" Padding="6" Margin="4,-4,-6,0" Background="Transparent" BorderThickness="0"
+                        AutomationProperties.Name="{l:T 'Thêm'}">
+                  <PathIcon Data="{StaticResource Icon.More}" Width="16" Height="16">
+                    <PathIcon.RenderTransform>
+                      <RotateTransform Angle="90" />
+                    </PathIcon.RenderTransform>
+                  </PathIcon>
+                  <Button.Flyout>
+                    <MenuFlyout>
+                      <MenuItem Header="{l:T 'Chọn nhiều'}" Command="{Binding SelectManyCommand}" />
+                      <MenuItem Header="{l:T 'Xóa khỏi lịch sử (giữ file)'}" Command="{Binding RemoveCommand}" IsEnabled="{Binding !IsDownloading}" />
+                      <MenuItem Header="{l:T 'Xóa kèm file đã nhận…'}" Command="{Binding RemoveWithFilesCommand}" IsVisible="{Binding HasFiles}" IsEnabled="{Binding !IsDownloading}" />
+                    </MenuFlyout>
+                  </Button.Flyout>
+                </Button>
+              </Grid>
+              </DockPanel>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+    </DockPanel>
+  </Panel>
+  </Panel>
+  <Panel Classes="page" IsVisible="{Binding IsSentTab}">
+  <Panel>
+    <StackPanel IsVisible="{Binding HasNoSent}" Spacing="6" Margin="16,48" HorizontalAlignment="Center">
+      <PathIcon Data="{StaticResource Icon.Upload}" Width="40" Height="40" Opacity="0.5" HorizontalAlignment="Center" />
+      <TextBlock Classes="muted" Text="{l:T 'Chưa gửi gì. Chạm Gửi file… ở một người đã kết nối, hoặc Chia sẻ từ Thư viện ảnh / Files.'}"
+                 TextWrapping="Wrap" TextAlignment="Center" />
+    </StackPanel>
+    <DockPanel>
+    <!-- While choosing (long press on a card): "Chọn tất cả", the count and what to do with the checked cards. -->
+    <StackPanel DockPanel.Dock="Top" DataContext="{Binding SentSelection}" x:DataType="vm:ListSelection" Margin="0,0,0,8" IsVisible="{Binding IsOn}" Classes="selectionbar">
+      <Border Classes="card" IsVisible="{Binding IsOn}" Margin="0" Padding="12,6">
+        <!-- [☐ Chọn tất cả] Đã chọn N … [✕ end choosing] [⋮ what to do with the checked cards]. -->
+        <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+          <CheckBox IsChecked="{Binding All}" Content="{l:T 'Chọn tất cả'}" />
+          <TextBlock Grid.Column="1" Classes="muted" Text="{Binding Text}" FontSize="12" Margin="8,0" VerticalAlignment="Center" />
+          <!-- A small round close, as on Android chips: a light disc with a thin, muted ✕. -->
+          <Button Grid.Column="2" Classes="round close" Command="{Binding StopCommand}" VerticalAlignment="Center" Margin="0,0,6,0"
+                  AutomationProperties.Name="{l:T 'Xong'}" ToolTip.Tip="{l:T 'Xong'}">
+            <PathIcon Data="{StaticResource Icon.Dismiss}" Width="12" Height="12" />
+          </Button>
+          <Button Grid.Column="3" Classes="round" VerticalAlignment="Center" Margin="0,0,-4,0" IsEnabled="{Binding HasAny}"
+                  AutomationProperties.Name="{l:T 'Thêm'}">
+            <PathIcon Data="{StaticResource Icon.More}" Width="16" Height="16">
+              <PathIcon.RenderTransform>
+                <RotateTransform Angle="90" />
+              </PathIcon.RenderTransform>
+            </PathIcon>
+            <Button.Flyout>
+              <MenuFlyout>
+                <MenuItem Header="{l:T 'Xóa khỏi lịch sử'}" Command="{Binding RemoveCommand}" />
+              </MenuFlyout>
+            </Button.Flyout>
+          </Button>
+        </Grid>
+      </Border>
+    </StackPanel>
+    <ScrollViewer>
+      <ItemsControl ItemsSource="{Binding Sent}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:SentItemViewModel">
+            <Border Classes="card offer" Classes.picked="{Binding IsSelected}" Classes.leaving="{Binding IsLeaving}" Holding="OnCardHolding" Tapped="OnCardTapped"
+                    PointerPressed="OnCardPressed" PointerReleased="OnCardLetGo" PointerCaptureLost="OnCardLetGo">
+              <DockPanel>
+              <CheckBox DockPanel.Dock="Left" Classes="pick" IsChecked="{Binding IsSelected}" IsVisible="{Binding Selection.IsOn}" VerticalAlignment="Center" MinWidth="0" Width="24" Padding="0" Margin="0,0,10,0"
+                        AutomationProperties.Name="{l:T 'Chọn'}" />
+              <Grid ColumnDefinitions="Auto,*,Auto">
+                <Border Classes="tile">
+                  <Panel>
+                    <PathIcon Data="{StaticResource Icon.Document}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static dvm:TransferKind.Files}}" Width="22" Height="22" />
+                    <PathIcon Data="{StaticResource Icon.Image}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static dvm:TransferKind.Images}}" Width="22" Height="22" />
+                    <PathIcon Data="{StaticResource Icon.FolderOpen}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static dvm:TransferKind.Folder}}" Width="22" Height="22" />
+                  </Panel>
+                </Border>
+                <StackPanel Grid.Column="1" Spacing="3" Margin="12,0,0,0">
+                  <TextBlock Text="{Binding Summary}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                  <!-- "app.zip + 2 mục" names only the first: the button opens the whole list. -->
+                  <StackPanel DataContext="{Binding Contents}" x:DataType="dvm:OfferContents" IsVisible="{Binding CanExpand}" Spacing="2">
+                    <Button Content="{Binding ToggleText}" Command="{Binding ToggleCommand}" Padding="0,2" FontSize="13" HorizontalAlignment="Left"
+                            Background="Transparent" BorderThickness="0" Foreground="{DynamicResource AccentButtonBackground}" />
+                    <ItemsControl ItemsSource="{Binding Items}" IsVisible="{Binding IsExpanded}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="x:String">
+                          <!-- The bullet keeps its own column, so a long name wraps under itself, not below the bullet. -->
+                          <Grid ColumnDefinitions="Auto,*">
+                            <TextBlock Text="•" FontSize="14" Margin="0,0,6,0" />
+                            <TextBlock Grid.Column="1" Text="{Binding}" FontSize="14" TextWrapping="Wrap" />
+                          </Grid>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
+                  <TextBlock Classes="muted" Text="{Binding Status}" FontSize="12" />
+                  <TextBlock Text="{Binding Recipients}" FontSize="13" TextWrapping="Wrap" />
+                  <Button Content="{l:T 'Thu hồi'}" Command="{Binding WithdrawCommand}" IsVisible="{Binding CanWithdraw}" Margin="0,6,0,0" />
+                </StackPanel>
+                <Button Grid.Column="2" VerticalAlignment="Top" Padding="6" Margin="4,-4,-6,0" Background="Transparent" BorderThickness="0"
+                        AutomationProperties.Name="{l:T 'Thêm'}">
+                  <PathIcon Data="{StaticResource Icon.More}" Width="16" Height="16">
+                    <PathIcon.RenderTransform>
+                      <RotateTransform Angle="90" />
+                    </PathIcon.RenderTransform>
+                  </PathIcon>
+                  <Button.Flyout>
+                    <MenuFlyout>
+                      <MenuItem Header="{l:T 'Chọn nhiều'}" Command="{Binding SelectManyCommand}" />
+                      <MenuItem Header="{l:T 'Xóa khỏi lịch sử'}" Command="{Binding RemoveCommand}" />
+                    </MenuFlyout>
+                  </Button.Flyout>
+                </Button>
+              </Grid>
+              </DockPanel>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+    </DockPanel>
+  </Panel>
+  </Panel>
+  </Panel>
+  </DockPanel>
+</UserControl>
