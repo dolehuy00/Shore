@@ -573,6 +573,34 @@ public sealed partial class ChatViewModel : ObservableObject
     [RelayCommand]
     private void CancelReply() => ReplyingTo = null;
 
+    // ───────────── Reactions (docs/18-chat-extras.md §6) ─────────────
+
+    /// <summary>Ours on <paramref name="bubble"/>, or none to take it away.</summary>
+    internal async Task ReactAsync(ChatBubbleViewModel bubble, string? emoji)
+    {
+        if (Current is { GroupId: { } groupId })
+        {
+            await groupChat.ReactAsync(groupId, bubble.Id, emoji, CancellationToken.None);
+        }
+        else if (Current is { } person)
+        {
+            await chat.ReactAsync(person.Peer, bubble.Id, emoji, CancellationToken.None);
+        }
+    }
+
+    /// <summary>Each bubble's chips from the conversation's reactions, ours as "Bạn".</summary>
+    private void ShowReactions(IReadOnlyList<ChatReaction> reactions, Func<ChatReaction, bool> ours, Func<DeviceId, string> nameOf)
+    {
+        ILookup<string, ChatReaction> byMessage = reactions.ToLookup(r => r.MessageId);
+        foreach (ChatBubbleViewModel bubble in Messages.OfType<ChatBubbleViewModel>())
+        {
+            ChatReaction[] these = [.. byMessage[bubble.Id]];
+            bubble.ShowReactions(
+                ChatBubbleViewModel.Chips(these.Select(r => (ours(r) ? L.T("Bạn") : nameOf(r.Reactor), r.Emoji, ours(r)))),
+                these.FirstOrDefault(ours)?.Emoji);
+        }
+    }
+
     // ───────────── Editing (docs/18-chat-extras.md §5) ─────────────
 
     /// <summary>Our text message whose words are in the box: what is sent next replaces them.</summary>
@@ -868,6 +896,7 @@ public sealed partial class ChatViewModel : ObservableObject
         }
 
         IReadOnlyList<ChatMessage> messages = await chat.GetMessagesAsync(person.Peer, CancellationToken.None);
+        IReadOnlyList<ChatReaction> reactions = await chat.GetReactionsAsync(person.Peer, CancellationToken.None);
         IReadOnlyDictionary<DeviceId, DateTimeOffset> cleared = await chat.GetClearedAsync(CancellationToken.None);
         if (Current != person)
         {
@@ -927,11 +956,17 @@ public sealed partial class ChatViewModel : ObservableObject
         }
 
         Quote();
+        ShowReactions(reactions, chat.IsOurs, _ => person.Name);
         Scroll(added);
 
         if (IsShown && messages.Any(m => m.State == ChatMessageState.Unread))
         {
             await chat.MarkReadAsync(person.Peer, CancellationToken.None);
+        }
+
+        if (IsShown && reactions.Any(r => r.Unseen))
+        {
+            await chat.MarkReactionsSeenAsync(person.Peer, CancellationToken.None);
         }
     }
 
@@ -942,6 +977,7 @@ public sealed partial class ChatViewModel : ObservableObject
     private async Task RefreshGroupMessagesAsync(ChatPersonViewModel row, string groupId)
     {
         IReadOnlyList<GroupChatMessage> messages = await groupChat.GetMessagesAsync(groupId, CancellationToken.None);
+        IReadOnlyList<ChatReaction> reactions = await groupChat.GetReactionsAsync(groupId, CancellationToken.None);
         GroupChatMessage? lastMine = messages.LastOrDefault(m => m.Outgoing);
         IReadOnlyList<GroupDelivery> reached = lastMine is null ? [] : await groupChat.GetDeliveriesAsync(groupId, lastMine.Id, CancellationToken.None);
         DateTimeOffset? clearedAt = (await groupChat.GetClearedAsync(CancellationToken.None)).TryGetValue(groupId, out DateTimeOffset at) ? at : null;
@@ -1010,11 +1046,17 @@ public sealed partial class ChatViewModel : ObservableObject
         }
 
         Quote();
+        ShowReactions(reactions, groupChat.IsOurs, member => NameOf(groupId, member, member.ShortForm));
         Scroll(added);
 
         if (IsShown && messages.Any(m => m.State == ChatMessageState.Unread))
         {
             await groupChat.MarkReadAsync(groupId, CancellationToken.None);
+        }
+
+        if (IsShown && reactions.Any(r => r.Unseen))
+        {
+            await groupChat.MarkReactionsSeenAsync(groupId, CancellationToken.None);
         }
     }
 

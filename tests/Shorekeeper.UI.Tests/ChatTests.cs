@@ -183,6 +183,27 @@ public class ChatTests
     }
 
     [Fact]
+    public void Reactions_show_as_one_chip_each_in_the_order_of_the_set()
+    {
+        IReadOnlyList<ChatReactionChip> chips = ChatBubbleViewModel.Chips([("Tuấn", "❤️", false), ("Mai", "👍", false), ("Bạn", "👍", true)]);
+
+        Assert.Equal(["👍 2", "❤️ 1"], chips.Select(c => c.Text));
+        Assert.Equal((true, "👍 Mai, Bạn"), (chips[0].Mine, chips[0].Tip));
+        Assert.False(chips[1].Mine);
+        Assert.Empty(ChatBubbleViewModel.Chips([]));
+    }
+
+    [Fact]
+    public void A_reaction_notification_names_one_two_or_two_and_how_many_more()
+    {
+        Assert.Equal("Mai đã thả ❤️ vào tin của bạn: “họp lúc 3 giờ”", ChatReactionNotice.Text([("Mai", "❤️")], "họp lúc 3 giờ"));
+        Assert.Equal("Tuấn và Mai đã thả cảm xúc vào tin của bạn: “họp”", ChatReactionNotice.Text([("Tuấn", "😂"), ("Mai", "❤️")], "họp"));
+        Assert.Equal(
+            "Lan, Tuấn và 2 người khác đã thả cảm xúc vào tin của bạn: “Tin nhắn thoại 0:12”",
+            ChatReactionNotice.Text([("Lan", "🙏"), ("Tuấn", "😂"), ("Mai", "❤️"), ("Huy", "👍")], ChatBubbleViewModel.TextOf(ChatKinds.Voice, null, 12_000)));
+    }
+
+    [Fact]
     public void Each_member_keeps_one_color()
     {
         Assert.Same(ChatBubbleViewModel.BrushOf(Mai), ChatBubbleViewModel.BrushOf(Mai));

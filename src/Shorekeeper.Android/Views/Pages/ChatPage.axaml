@@ -270,6 +270,24 @@
                           Holding="OnBubbleHolding">
                     <FlyoutBase.AttachedFlyout>
                       <MenuFlyout>
+                        <!-- The reactions in a row on top (docs/18-chat-extras.md §6): a tap chooses one and closes the menu. -->
+                        <MenuItem IsVisible="{Binding CanReply}" Padding="4,2">
+                          <MenuItem.Header>
+                            <ItemsControl ItemsSource="{x:Static ui:ChatBubbleViewModel.Emojis}">
+                              <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                  <StackPanel Orientation="Horizontal" Spacing="2" />
+                                </ItemsPanelTemplate>
+                              </ItemsControl.ItemsPanel>
+                              <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="x:String">
+                                  <Button Classes="emoji" Content="{Binding}" Click="OnReactionPicked"
+                                          Command="{Binding $parent[MenuItem].((ui:ChatBubbleViewModel)DataContext).ReactCommand}" CommandParameter="{Binding}" />
+                                </DataTemplate>
+                              </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                          </MenuItem.Header>
+                        </MenuItem>
                         <MenuItem Header="{l:T 'Trả lời'}" Command="{Binding ReplyCommand}" IsVisible="{Binding CanReply}" />
                         <MenuItem Header="{l:T 'Sửa'}" Command="{Binding EditCommand}" IsVisible="{Binding CanEdit}" />
                         <MenuItem Header="{l:T 'Sao chép'}" Command="{Binding CopyCommand}" IsVisible="{Binding CanCopy}" />
@@ -340,6 +358,20 @@
                         <PathIcon Data="{StaticResource Icon.Block}" Width="11" Height="11" Foreground="#D97706" VerticalAlignment="Center" />
                         <TextBlock Text="{l:T 'Gửi lúc người này không còn trong nhóm'}" FontSize="12" Foreground="#D97706" TextWrapping="Wrap" />
                       </StackPanel>
+                      <!-- Reactions (docs/18-chat-extras.md §6): clicked, who chose each. -->
+                      <ItemsControl ItemsSource="{Binding Reactions}" IsVisible="{Binding HasReactions}">
+                        <ItemsControl.ItemsPanel>
+                          <ItemsPanelTemplate>
+                            <WrapPanel />
+                          </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="ui:ChatReactionChip">
+                            <Button Classes="reaction" Classes.mine="{Binding Mine}" Content="{Binding Text}" ToolTip.Tip="{Binding Tip}"
+                                    Command="{Binding $parent[ItemsControl].((ui:ChatBubbleViewModel)DataContext).ShowReactorsCommand}" CommandParameter="{Binding}" />
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
                       <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
                         <TextBlock Text="{Binding StatusText}" FontSize="11" Opacity="0.75" VerticalAlignment="Center" />
                         <Button Content="{l:T 'Gửi lại'}" Command="{Binding RetryCommand}" IsVisible="{Binding IsFailed}" Padding="8,2" FontSize="12" />

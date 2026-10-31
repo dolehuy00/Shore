@@ -267,10 +267,11 @@ public sealed class DialogService(
 
     /// <summary>
     /// A message: a Windows toast with the sender and the text; clicking it runs <paramref name="open"/> on the UI
-    /// thread. With toasts off nothing pops up: the badge on "Tin nhắn" is enough for a message.
+    /// thread. With toasts off nothing pops up: the badge on "Tin nhắn" is enough for a message. One with the
+    /// <paramref name="tag"/> of one before replaces it (reactions to a message, docs/18-chat-extras.md §6).
     /// </summary>
-    public void ShowIncomingMessage(string senderName, string text, Action open) =>
-        notifier.TryShow(senderName, [TransferText.Preview(text, 200)], [], _ => Dispatcher.UIThread.Post(open));
+    public void ShowIncomingMessage(string senderName, string text, Action open, string? tag = null) =>
+        notifier.TryShow(senderName, [TransferText.Preview(text, 200)], [], _ => Dispatcher.UIThread.Post(open), tag);
 
     /// <summary>
     /// "Huy gửi cho bạn …" [Tải] [Bỏ qua] [Xem] (docs/10-ux.md §4): a Windows toast, or a small popup in the corner

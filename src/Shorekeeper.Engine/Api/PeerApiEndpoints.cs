@@ -257,6 +257,9 @@ public static class PeerApiEndpoints
         api.Map("POST", "/chat/edits", RequiredAccess.Trusted, async request =>
             await request.ReadJsonAsync<ChatEditBody>() is { } body ? await chat.HandleEditAsync(request.Caller, body) : Invalid());
 
+        api.Map("POST", "/chat/reactions", RequiredAccess.Trusted, async request =>
+            await request.ReadJsonAsync<ChatReactionBody>() is { } body ? await chat.HandleReactionAsync(request.Caller, body) : Invalid());
+
         // ───────────── Group messages (docs/16-group-chat.md §4): members of that group, contacts or not ─────────────
 
         // Open to any peer here: the handler answers "not_member" rather than "not_trusted", which an older version
@@ -279,6 +282,11 @@ public static class PeerApiEndpoints
         api.Map("POST", "/chat/groups/{groupId}/edits", RequiredAccess.AnyPeer, async request =>
             await request.ReadJsonAsync<GroupChatEditBody>() is { } body
                 ? await groupChat.HandleEditAsync(request.Caller, request.Route("groupId"), body)
+                : Invalid());
+
+        api.Map("POST", "/chat/groups/{groupId}/reactions", RequiredAccess.AnyPeer, async request =>
+            await request.ReadJsonAsync<ChatReactionBody>() is { } body
+                ? await groupChat.HandleReactionAsync(request.Caller, request.Route("groupId"), body)
                 : Invalid());
 
         // Members pull what they lack from each other (docs/16-group-chat.md §3.6).

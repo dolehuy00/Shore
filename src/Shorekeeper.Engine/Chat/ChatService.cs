@@ -51,6 +51,7 @@ public sealed class ChatService(
     UsageStatsService usage,
     OfferService offers,
     InboxService inbox,
+    ShorekeeperEngine engine,
     TimeProvider timeProvider,
     ILogger<ChatService> logger) : BackgroundService
 {
@@ -90,6 +91,9 @@ public sealed class ChatService(
 
     /// <summary>Raised for each new message from a peer.</summary>
     public event EventHandler<ChatMessage>? Received;
+
+    /// <summary>Raised when the peer reacts to one of our messages, or changes its reaction (not when it takes it away).</summary>
+    public event EventHandler<ChatReaction>? Reacted;
 
     /// <summary>Stores the message and sends it, now or when the peer is next online.</summary>
     /// <param name="replyTo">The message answered (<see cref="ChatReplies.IsReplyTo"/>).</param>
@@ -211,6 +215,7 @@ public sealed class ChatService(
             files = [.. await connection.QueryAsync<string?>(
                 "SELECT VoicePath FROM ChatMessages WHERE PeerId = @peer AND Id IN @ids AND VoicePath IS NOT NULL;", new { peer = peer.Value, ids })];
             await connection.ExecuteAsync("DELETE FROM ChatMessages WHERE PeerId = @peer AND Id IN @ids;", new { peer = peer.Value, ids });
+            await ChatReactions.OneToOne.DeleteAsync(connection, peer.Value, ids);
         }
 
         DeleteFiles(files);
@@ -246,6 +251,7 @@ public sealed class ChatService(
                 new { peer = peer.Value, mine });
             await connection.ExecuteAsync(
                 "INSERT OR IGNORE INTO ChatRecalls (PeerId, Id) VALUES (@peer, @id);", mine.Select(id => new { peer = peer.Value, id }));
+            await ChatReactions.OneToOne.DeleteAsync(connection, peer.Value, mine);
         }
 
         DeleteFiles(files);
@@ -289,6 +295,64 @@ public sealed class ChatService(
         Kick(peer);
         return true;
     }
+
+    /// <summary>
+    /// A reaction of ours to a message of the conversation (docs/18-chat-extras.md §6), or none to take it away: here at
+    /// once, and on the peer's device as soon as it is told.
+    /// </summary>
+    /// <returns>False when the message is not one to react to (gone, taken back, a note).</returns>
+    /// <exception cref="ArgumentException">Not one of <see cref="ChatReactions.Emojis"/>.</exception>
+    public async Task<bool> ReactAsync(DeviceId peer, string messageId, string? emoji, CancellationToken cancellationToken)
+    {
+        if (!ChatReactions.IsEmoji(emoji))
+        {
+            throw new ArgumentException("Not a reaction.", nameof(emoji));
+        }
+
+        DeviceId me = engine.Identity.DeviceId;
+        await using (SqliteConnection connection = await database.OpenAsync(cancellationToken))
+        {
+            if (!await IsReactableAsync(connection, peer, messageId))
+            {
+                return false;
+            }
+
+            long at = await ChatReactions.OneToOne.NextAsync(connection, peer.Value, messageId, me, timeProvider.GetUtcNow().ToUnixTimeMilliseconds());
+            await ChatReactions.OneToOne.StoreAsync(connection, peer.Value, messageId, me, emoji, at, unseen: false);
+            await connection.ExecuteAsync(
+                "INSERT OR IGNORE INTO ChatReactionsOut (PeerId, MessageId) VALUES (@peer, @messageId);", new { peer = peer.Value, messageId });
+        }
+
+        Changed?.Invoke(this, peer);
+        Kick(peer);
+        return true;
+    }
+
+    /// <summary>One of ours, not the peer's.</summary>
+    public bool IsOurs(ChatReaction reaction) => reaction.Reactor == engine.Identity.DeviceId;
+
+    /// <summary>The reactions in the conversation, oldest first.</summary>
+    public async Task<IReadOnlyList<ChatReaction>> GetReactionsAsync(DeviceId peer, CancellationToken cancellationToken, string? messageId = null)
+    {
+        await using SqliteConnection connection = await database.OpenAsync(cancellationToken);
+        return await ChatReactions.OneToOne.GetAsync(connection, peer.Value, messageId);
+    }
+
+    /// <summary>The conversation is being looked at: the peer's reactions to ours are seen, and the next starts a notification.</summary>
+    public async Task MarkReactionsSeenAsync(DeviceId peer, CancellationToken cancellationToken)
+    {
+        await using SqliteConnection connection = await database.OpenAsync(cancellationToken);
+        if (await ChatReactions.OneToOne.MarkSeenAsync(connection, peer.Value) > 0)
+        {
+            Changed?.Invoke(this, peer);
+        }
+    }
+
+    /// <summary>Words or a voice message, neither taken back nor from a newer version.</summary>
+    private static async Task<bool> IsReactableAsync(SqliteConnection connection, DeviceId peer, string messageId) =>
+        await connection.ExecuteScalarAsync<long>(
+            "SELECT COUNT(*) FROM ChatMessages WHERE PeerId = @peer AND Id = @messageId AND Kind IN ('text', 'voice');",
+            new { peer = peer.Value, messageId }) > 0;
 
     /// <summary>
     /// "Thu hồi" on a file card (docs/15-chat.md §6.3), within <see cref="RecallWindow"/> of sending or while not yet
@@ -337,6 +401,7 @@ public sealed class ChatService(
                 ON CONFLICT (PeerId) DO UPDATE SET ClearedAt = excluded.ClearedAt;
                 """,
                 new { peer = peer.Value, at = timeProvider.GetUtcNow().ToUnixTimeMilliseconds() });
+            await ChatReactions.OneToOne.DeleteAsync(connection, peer.Value, null);
         }
 
         DeleteFiles(files);
@@ -520,6 +585,7 @@ public sealed class ChatService(
                 WHERE PeerId = @peer AND Id IN @ids AND Outgoing = 0 AND Kind <> 'recalled';
                 """,
                 new { peer = caller.Value, ids });
+            await ChatReactions.OneToOne.DeleteAsync(connection, caller.Value, ids);
         }
 
         DeleteFiles(files);
@@ -554,6 +620,47 @@ public sealed class ChatService(
                 CancellationToken.None) > 0)
         {
             Changed?.Invoke(this, caller);
+        }
+
+        return PeerResponse.Empty(HttpStatusCode.NoContent);
+    }
+
+    internal async Task<PeerResponse> HandleReactionAsync(DeviceId caller, ChatReactionBody body)
+    {
+        if (!TakeRate(caller))
+        {
+            return PeerResponse.Problem(HttpStatusCode.TooManyRequests, ApiErrorCodes.RateLimited);
+        }
+
+        if (!Guid.TryParseExact(body.Id, "N", out Guid parsed) || !ChatReactions.IsEmoji(body.Emoji))
+        {
+            return PeerResponse.Problem(HttpStatusCode.BadRequest, ApiErrorCodes.InvalidRequest);
+        }
+
+        string id = parsed.ToString("N");
+        long at = body.At.ToUnixTimeMilliseconds();
+        bool ours;
+        bool stored;
+        await using (SqliteConnection connection = await database.OpenAsync())
+        {
+            // Not here (deleted, or taken back): nothing to react to.
+            if (!await IsReactableAsync(connection, caller, id))
+            {
+                return PeerResponse.Empty(HttpStatusCode.NoContent);
+            }
+
+            ours = await connection.ExecuteScalarAsync<long>(
+                "SELECT Outgoing FROM ChatMessages WHERE PeerId = @peer AND Id = @id;", new { peer = caller.Value, id }) != 0;
+            stored = await ChatReactions.OneToOne.StoreAsync(connection, caller.Value, id, caller, body.Emoji, at, unseen: ours && body.Emoji is not null);
+        }
+
+        if (stored)
+        {
+            Changed?.Invoke(this, caller);
+            if (ours && body.Emoji is { } emoji)
+            {
+                Reacted?.Invoke(this, new ChatReaction(id, caller, emoji, body.At, Unseen: true));
+            }
         }
 
         return PeerResponse.Empty(HttpStatusCode.NoContent);
@@ -616,7 +723,8 @@ public sealed class ChatService(
             waiting = await connection.QueryAsync<string>(
                 """
                 SELECT PeerId FROM ChatMessages WHERE Outgoing = 1 AND State = 'pending' AND Kind <> 'recalled'
-                UNION SELECT PeerId FROM ChatReceipts UNION SELECT PeerId FROM ChatRecalls UNION SELECT PeerId FROM ChatEdits;
+                UNION SELECT PeerId FROM ChatReceipts UNION SELECT PeerId FROM ChatRecalls UNION SELECT PeerId FROM ChatEdits
+                UNION SELECT PeerId FROM ChatReactionsOut;
                 """);
         }
 
@@ -677,6 +785,7 @@ public sealed class ChatService(
         string? receipt;
         List<(string Id, long IsOffer)> recalls;
         List<(string Id, string? Text, long? EditedAt)> edits;
+        List<string> reactions;
         await using (SqliteConnection connection = await database.OpenAsync(cancellationToken))
         {
             // A recalled message that never left stays here.
@@ -695,6 +804,7 @@ public sealed class ChatService(
                 WHERE e.PeerId = @peer;
                 """,
                 new { peer = peer.Value })];
+            reactions = [.. await connection.QueryAsync<string>("SELECT MessageId FROM ChatReactionsOut WHERE PeerId = @peer;", new { peer = peer.Value })];
         }
 
         foreach (MessageRow row in pending)
@@ -745,13 +855,42 @@ public sealed class ChatService(
             await WriteAsync("DELETE FROM ChatRecalls WHERE PeerId = @peer AND Id IN @done;", new { peer = peer.Value, done }, cancellationToken);
         }
 
-        // The same for edits: a version without them answers like for a route it does not have.
+        // The same for edits: a version without them answers like for a route it does not have. One edited again while
+        // this one went stays, to go next.
         foreach ((string id, string? text, long? editedAt) in edits)
         {
             if (text is null
                 || await PostAsync(peer, "chat/edits", new ChatEditBody(id, text, FromMs(editedAt ?? timeProvider.GetUtcNow().ToUnixTimeMilliseconds())), cancellationToken) is not null)
             {
-                await WriteAsync("DELETE FROM ChatEdits WHERE PeerId = @peer AND Id = @id;", new { peer = peer.Value, id }, cancellationToken);
+                await WriteAsync(
+                    """
+                    DELETE FROM ChatEdits WHERE PeerId = @peer AND Id = @id
+                      AND NOT EXISTS (SELECT 1 FROM ChatMessages m WHERE m.PeerId = @peer AND m.Id = @id AND m.EditedAt > @editedAt);
+                    """,
+                    new { peer = peer.Value, id, editedAt = editedAt ?? 0 },
+                    cancellationToken);
+            }
+        }
+
+        // And reactions, the newest of each; none left when the message is gone since.
+        foreach (string messageId in reactions)
+        {
+            (string? Emoji, long At)? mine;
+            await using (SqliteConnection connection = await database.OpenAsync(cancellationToken))
+            {
+                mine = await ChatReactions.OneToOne.MineAsync(connection, peer.Value, messageId, engine.Identity.DeviceId);
+            }
+
+            if (mine is not { } reaction
+                || await PostAsync(peer, "chat/reactions", new ChatReactionBody(messageId, reaction.Emoji, FromMs(reaction.At)), cancellationToken) is not null)
+            {
+                await WriteAsync(
+                    """
+                    DELETE FROM ChatReactionsOut WHERE PeerId = @peer AND MessageId = @messageId
+                      AND NOT EXISTS (SELECT 1 FROM ChatReactions r WHERE r.PeerId = @peer AND r.MessageId = @messageId AND r.ReactorId = @me AND r.At > @at);
+                    """,
+                    new { peer = peer.Value, messageId, me = engine.Identity.DeviceId.Value, at = mine?.At ?? 0 },
+                    cancellationToken);
             }
         }
     }

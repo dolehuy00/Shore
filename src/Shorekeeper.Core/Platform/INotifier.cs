@@ -8,13 +8,14 @@ public interface INotifier
     /// Called on a background thread with the index of the button pressed, or -1 when the notification itself
     /// is clicked. Not called when it is dismissed.
     /// </param>
+    /// <param name="tag">One shown before with the same tag is replaced by this one, quietly.</param>
     /// <returns>False when the OS cannot show it (unsupported, or notifications turned off for the app): show a window instead.</returns>
-    bool TryShow(string title, IReadOnlyList<string> lines, IReadOnlyList<string> actions, Action<int> onChoice);
+    bool TryShow(string title, IReadOnlyList<string> lines, IReadOnlyList<string> actions, Action<int> onChoice, string? tag = null);
 }
 
 public sealed class NullNotifier : INotifier
 {
     public static NullNotifier Instance { get; } = new();
 
-    public bool TryShow(string title, IReadOnlyList<string> lines, IReadOnlyList<string> actions, Action<int> onChoice) => false;
+    public bool TryShow(string title, IReadOnlyList<string> lines, IReadOnlyList<string> actions, Action<int> onChoice, string? tag = null) => false;
 }

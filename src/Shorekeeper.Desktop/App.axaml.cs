@@ -6,6 +6,7 @@ using Avalonia.Platform;
 using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Shorekeeper.Core.Discovery;
+using Shorekeeper.Core.Identity;
 using Shorekeeper.Core.Localization;
 using Shorekeeper.Desktop.ViewModels;
 using Shorekeeper.Desktop.Views;
@@ -101,6 +102,34 @@ public partial class App : Application
                         main.OpenGroupChat(message.GroupId);
                         ShowMainWindow();
                     });
+                }
+            });
+
+            // Reactions to ours: one toast per message, replaced as more come until it is seen (docs/18-chat-extras.md §6).
+            chat.Reacted += (_, reaction) => Dispatcher.UIThread.Post(async () =>
+            {
+                DeviceId peer = reaction.Reactor;
+                if (presence.Status != MyStatus.Busy && main.Chat.ReadingPeer != peer
+                    && await ChatReactionNotice.ForPersonAsync(chat, peer, reaction.MessageId, names.Of(peer)) is { } text)
+                {
+                    dialogs.ShowIncomingMessage(names.Of(peer), text, () =>
+                    {
+                        main.OpenChat(peer);
+                        ShowMainWindow();
+                    }, reaction.MessageId);
+                }
+            });
+            groupChat.Reacted += (_, reacted) => Dispatcher.UIThread.Post(async () =>
+            {
+                string groupId = reacted.GroupId;
+                if (presence.Status != MyStatus.Busy && main.Chat.ReadingGroup != groupId && !main.Chat.IsMuted(groupId)
+                    && await ChatReactionNotice.ForGroupAsync(groupChat, groupId, reacted.Reaction.MessageId, m => main.Chat.NameOf(groupId, m, m.ShortForm)) is { } text)
+                {
+                    dialogs.ShowIncomingMessage(main.Chat.GroupNameOf(groupId), text, () =>
+                    {
+                        main.OpenGroupChat(groupId);
+                        ShowMainWindow();
+                    }, reacted.Reaction.MessageId);
                 }
             });
 

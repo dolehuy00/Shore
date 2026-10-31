@@ -369,6 +369,29 @@
       <Setter Property="HorizontalContentAlignment" Value="Left" />
     </Style>
     <!-- A member's message that names us. -->
+    <!-- A reaction under a message (docs/18-chat-extras.md §6); ours outlined. -->
+    <Style Selector="Button.reaction">
+      <Setter Property="Background" Value="#20808080" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="6,1" />
+      <Setter Property="Margin" Value="0,2,4,0" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="FontSize" Value="12" />
+    </Style>
+    <Style Selector="Button.reaction.mine">
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentButtonBackground}" />
+    </Style>
+    <Style Selector="Border.bubble.mine Button.reaction.mine">
+      <Setter Property="BorderBrush" Value="White" />
+    </Style>
+    <Style Selector="Button.emoji">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Padding" Value="6,2" />
+      <Setter Property="MinWidth" Value="0" />
+      <Setter Property="FontSize" Value="18" />
+    </Style>
     <Style Selector="Border.bubble.mention">
       <Setter Property="BorderBrush" Value="{DynamicResource AccentButtonBackground}" />
       <Setter Property="BorderThickness" Value="2" />

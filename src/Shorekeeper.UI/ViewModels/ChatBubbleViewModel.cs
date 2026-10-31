@@ -61,6 +61,43 @@ public sealed partial class ChatBubbleViewModel(string id, ChatViewModel owner) 
     [RelayCommand]
     private void ShowQuote() => owner.ShowQuote(this);
 
+    /// <summary>The reactions under the words, one chip each (docs/18-chat-extras.md §6).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasReactions))]
+    public partial IReadOnlyList<ChatReactionChip> Reactions { get; set; } = [];
+
+    public bool HasReactions => Reactions.Count > 0;
+
+    /// <summary>Ours on it: choosing it again takes it away.</summary>
+    public string? MyReaction { get; private set; }
+
+    /// <summary>What can be chosen: 👍 ❤️ 😂 😮 😢 🙏.</summary>
+    public static IReadOnlyList<string> Emojis => ChatReactions.Emojis;
+
+    [RelayCommand]
+    private Task ReactAsync(string emoji) => owner.ReactAsync(this, emoji == MyReaction ? null : emoji);
+
+    /// <summary>A chip clicked or tapped: who chose it.</summary>
+    [RelayCommand]
+    private void ShowReactors(ChatReactionChip chip) => owner.Notice = chip.Tip;
+
+    internal void ShowReactions(IReadOnlyList<ChatReactionChip> chips, string? mine)
+    {
+        MyReaction = mine;
+        if (!chips.SequenceEqual(Reactions))
+        {
+            Reactions = chips;
+        }
+    }
+
+    /// <summary>The chips for a message's reactions, in the order of the set, each with who chose it.</summary>
+    internal static IReadOnlyList<ChatReactionChip> Chips(IEnumerable<(string Name, string Emoji, bool Mine)> reactions) =>
+    [
+        .. reactions.GroupBy(r => r.Emoji)
+            .OrderBy(g => ChatReactions.Emojis.ToList().IndexOf(g.Key))
+            .Select(g => new ChatReactionChip(g.Key, g.Count(), g.Any(r => r.Mine), string.Join(", ", g.Select(r => r.Name)))),
+    ];
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasAvatarSpace), nameof(CanShowDetails))]
     public partial bool IsMine { get; set; }

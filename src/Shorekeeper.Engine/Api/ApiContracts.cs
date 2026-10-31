@@ -172,6 +172,14 @@ public sealed record ChatRecallBody(IReadOnlyList<string> Ids, IReadOnlyList<str
 public sealed record ChatEditBody(string Id, string Text, DateTimeOffset EditedAt);
 
 /// <summary>
+/// Body of <c>POST /api/v1/chat/reactions</c> and <c>POST /api/v1/chat/groups/{groupId}/reactions</c>
+/// (docs/18-chat-extras.md §6): the caller's reaction to a message of the conversation, one of the fixed set, or none to
+/// take it away. <paramref name="At"/> is on its clock; an older reaction never replaces a newer one. Not passed on, so
+/// not signed: it comes from the one who reacted.
+/// </summary>
+public sealed record ChatReactionBody(string Id, string? Emoji, DateTimeOffset At);
+
+/// <summary>
 /// Body of <c>POST /api/v1/chat/groups/{groupId}/messages</c> (docs/16-group-chat.md §4): a message of
 /// <see cref="ChatMessageBody"/> to a whole group, signed by its author (the caller) with its device key
 /// (<paramref name="AuthorKey"/>, a SubjectPublicKeyInfo whose hash is <paramref name="AuthorId"/>), so it stays the

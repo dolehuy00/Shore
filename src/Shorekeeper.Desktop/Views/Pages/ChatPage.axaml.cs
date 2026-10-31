@@ -61,6 +61,18 @@ public partial class ChatPage : UserControl
             ChatBox.CaretIndex = ChatBox.Text?.Length ?? 0;
         });
 
+    /// <summary>
+    /// A reaction clicked in the message's menu: the menu closes as after any of its items, once the button's command
+    /// has run (closed first, the button would lose the message it reacts to).
+    /// </summary>
+    private void OnReactionPicked(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Visual)?.FindAncestorOfType<ContextMenu>() is { } menu)
+        {
+            Dispatcher.UIThread.Post(menu.Close);
+        }
+    }
+
     private void OnChatKeyDown(object? sender, KeyEventArgs e)
     {
         // Ctrl+V: copied files, or a picture copied as a picture, go to this person; text is pasted as usual.

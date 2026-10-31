@@ -685,6 +685,74 @@ public sealed class GroupChatTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Reactions_reach_every_member_one_each_and_only_the_author_hears_of_them()
+    {
+        var reacted = new List<GroupChatReaction>();
+        host.GroupChat.Reacted += (_, r) => reacted.Add(r);
+        var told = new List<GroupChatReaction>();
+        tuan.GroupChat.Reacted += (_, r) => told.Add(r);
+        GroupChatMessage sent = await host.GroupChat.SendTextAsync(groupId, "họp 3 giờ", Ct);
+        await WaitUntil(() => Messages(mai).Count == 1 && Messages(tuan).Count == 1);
+
+        Assert.True(await mai.GroupChat.ReactAsync(groupId, sent.Id, "👍", Ct));
+        Assert.True(await mai.GroupChat.ReactAsync(groupId, sent.Id, "❤️", Ct));
+        Assert.True(await tuan.GroupChat.ReactAsync(groupId, sent.Id, "😂", Ct));
+
+        foreach (TestNode member in (TestNode[])[host, mai, tuan])
+        {
+            await WaitUntil(() => member.GroupChat.GetReactionsAsync(groupId, Ct).Result.Count == 2
+                && member.GroupChat.GetReactionsAsync(groupId, Ct).Result.Any(r => r.Emoji == "❤️"));
+        }
+
+        Assert.All(await host.GroupChat.GetReactionsAsync(groupId, Ct), r => Assert.True(r.Unseen));
+        Assert.All(await tuan.GroupChat.GetReactionsAsync(groupId, Ct), r => Assert.False(r.Unseen));
+        // Mai's two may have gone as one: the newest is read when sent.
+        Assert.Equal(new[] { mai.Id.Value, tuan.Id.Value }.Order(), reacted.Select(r => r.Reaction.Reactor.Value).Distinct().Order());
+        Assert.All(reacted, r => Assert.Equal((groupId, sent.Id), (r.GroupId, r.Reaction.MessageId)));
+        Assert.Empty(told);
+    }
+
+    [Fact]
+    public async Task A_reaction_waits_for_an_offline_member_and_is_not_passed_on()
+    {
+        GroupChatMessage sent = await host.GroupChat.SendTextAsync(groupId, "họp 3 giờ", Ct);
+        await WaitUntil(() => Messages(mai).Count == 1 && Messages(tuan).Count == 1);
+        await OfflineAsync(tuan, mai);
+
+        Assert.True(await host.GroupChat.ReactAsync(groupId, sent.Id, "🙏", Ct));
+        await WaitUntil(() => mai.GroupChat.GetReactionsAsync(groupId, Ct).Result.Count == 1);
+        Together(mai, tuan);
+        await PulledAllAsync(tuan, mai);
+        Assert.Empty(await tuan.GroupChat.GetReactionsAsync(groupId, Ct));
+
+        Online(tuan);
+        await WaitUntil(() => tuan.GroupChat.GetReactionsAsync(groupId, Ct).Result.Count == 1);
+        ChatReaction got = (await tuan.GroupChat.GetReactionsAsync(groupId, Ct)).Single();
+        Assert.Equal((host.Id, "🙏"), (got.Reactor, got.Emoji));
+    }
+
+    [Fact]
+    public async Task Someone_outside_the_group_cannot_react_and_taking_back_takes_the_reactions()
+    {
+        GroupChatMessage sent = await host.GroupChat.SendTextAsync(groupId, "gửi nhầm", Ct);
+        await WaitUntil(() => Messages(mai).Count == 1 && Messages(tuan).Count == 1);
+        await using TestNode stranger = await TestNode.StartAsync("Lạ");
+        stranger.Sees(mai);
+
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await PostAsync(stranger, mai, $"chat/groups/{groupId}/reactions", new ChatReactionBody(sent.Id, "👍", DateTimeOffset.UtcNow))).Status);
+        Assert.Empty(await mai.GroupChat.GetReactionsAsync(groupId, Ct));
+
+        await tuan.GroupChat.ReactAsync(groupId, sent.Id, "😢", Ct);
+        await WaitUntil(() => mai.GroupChat.GetReactionsAsync(groupId, Ct).Result.Count == 1 && host.GroupChat.GetReactionsAsync(groupId, Ct).Result.Count == 1);
+        await host.GroupChat.RecallAsync(groupId, [sent.Id], Ct);
+
+        Assert.Empty(await host.GroupChat.GetReactionsAsync(groupId, Ct));
+        await WaitUntil(() => mai.GroupChat.GetReactionsAsync(groupId, Ct).Result.Count == 0);
+        Assert.False(await mai.GroupChat.ReactAsync(groupId, sent.Id, "👍", Ct));
+    }
+
+    [Fact]
     public async Task Search_finds_group_messages_but_not_deleted_ones()
     {
         GroupChatMessage holiday = await tuan.GroupChat.SendTextAsync(groupId, "Tuần sau nghỉ lễ 2 ngày", Ct);

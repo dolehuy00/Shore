@@ -47,6 +47,9 @@ public sealed record GroupChatMessage(
 
 public sealed record GroupDelivery(DeviceId Peer, GroupDeliveryState State);
 
+/// <summary>A member's reaction in a group's conversation.</summary>
+public sealed record GroupChatReaction(string GroupId, ChatReaction Reaction);
+
 /// <summary>A group conversation in the list: its newest message and how many are unread.</summary>
 /// <param name="Mentioned">Unread messages that name us (docs/18-chat-extras.md §4).</param>
 public sealed record GroupChatConversation(string GroupId, string Name, GroupChatMessage Last, int Unread, int Mentioned = 0);
@@ -160,6 +163,9 @@ public sealed partial class GroupChatService : BackgroundService
 
     /// <summary>Raised for each new message from a member.</summary>
     public event EventHandler<GroupChatMessage>? Received;
+
+    /// <summary>Raised when a member reacts to one of our messages, or changes their reaction (not when they take it away).</summary>
+    public event EventHandler<GroupChatReaction>? Reacted;
 
     /// <summary>Stores the message and sends it to every other member, now or when each is next online.</summary>
     /// <exception cref="ArgumentException">Empty, or longer than <see cref="ChatService.MaxTextLength"/>.</exception>
@@ -400,6 +406,7 @@ public sealed partial class GroupChatService : BackgroundService
                 DELETE FROM ChatGroupDeliveries WHERE GroupId = @groupId AND Id IN @ids;
                 """,
                 new { groupId, ids });
+            await ChatReactions.Groups.DeleteAsync(connection, groupId, ids);
         }
 
         DeleteFiles(files);
@@ -425,11 +432,80 @@ public sealed partial class GroupChatService : BackgroundService
                 UPDATE ChatGroups SET ClearedAt = @now WHERE GroupId = @groupId;
                 """,
                 new { groupId, now = timeProvider.GetUtcNow().ToUnixTimeMilliseconds() });
+            await ChatReactions.Groups.DeleteAsync(connection, groupId, null);
         }
 
         DeleteFiles(files);
         Changed?.Invoke(this, groupId);
     }
+
+    /// <summary>
+    /// A reaction of ours to a message of the group (docs/18-chat-extras.md §6), or none to take it away: here at once,
+    /// and on each other member's device as soon as it is told. Not passed on: a member who joins later never sees it.
+    /// </summary>
+    /// <returns>False when the message is not one to react to (gone, taken back, a note), or we are not in the group.</returns>
+    /// <exception cref="ArgumentException">Not one of <see cref="ChatReactions.Emojis"/>.</exception>
+    public async Task<bool> ReactAsync(string groupId, string messageId, string? emoji, CancellationToken cancellationToken)
+    {
+        if (!ChatReactions.IsEmoji(emoji))
+        {
+            throw new ArgumentException("Not a reaction.", nameof(emoji));
+        }
+
+        DeviceId me = engine.Identity.DeviceId;
+        if (OthersIn(groupId) is not { } others)
+        {
+            return false;
+        }
+
+        await using (SqliteConnection connection = await database.OpenAsync(cancellationToken))
+        {
+            if (!await IsReactableAsync(connection, groupId, messageId))
+            {
+                return false;
+            }
+
+            long at = await ChatReactions.Groups.NextAsync(connection, groupId, messageId, me, timeProvider.GetUtcNow().ToUnixTimeMilliseconds());
+            await ChatReactions.Groups.StoreAsync(connection, groupId, messageId, me, emoji, at, unseen: false);
+            await connection.ExecuteAsync(
+                "INSERT OR IGNORE INTO ChatGroupReactionsOut (GroupId, PeerId, MessageId) VALUES (@groupId, @peer, @messageId);",
+                others.Select(m => new { groupId, peer = m.DeviceId.Value, messageId }));
+        }
+
+        Changed?.Invoke(this, groupId);
+        foreach (GroupMember member in others)
+        {
+            Kick(member.DeviceId);
+        }
+
+        return true;
+    }
+
+    /// <summary>One of ours, not a member's.</summary>
+    public bool IsOurs(ChatReaction reaction) => reaction.Reactor == engine.Identity.DeviceId;
+
+    /// <summary>The reactions in the group's conversation, oldest first.</summary>
+    public async Task<IReadOnlyList<ChatReaction>> GetReactionsAsync(string groupId, CancellationToken cancellationToken, string? messageId = null)
+    {
+        await using SqliteConnection connection = await database.OpenAsync(cancellationToken);
+        return await ChatReactions.Groups.GetAsync(connection, groupId, messageId);
+    }
+
+    /// <summary>The conversation is being looked at: members' reactions to ours are seen, and the next starts a notification.</summary>
+    public async Task MarkReactionsSeenAsync(string groupId, CancellationToken cancellationToken)
+    {
+        await using SqliteConnection connection = await database.OpenAsync(cancellationToken);
+        if (await ChatReactions.Groups.MarkSeenAsync(connection, groupId) > 0)
+        {
+            Changed?.Invoke(this, groupId);
+        }
+    }
+
+    /// <summary>Words or a voice message here, neither taken back, deleted, nor from a newer version.</summary>
+    private static async Task<bool> IsReactableAsync(SqliteConnection connection, string groupId, string messageId) =>
+        await connection.ExecuteScalarAsync<long>(
+            "SELECT COUNT(*) FROM ChatGroupMessages WHERE GroupId = @groupId AND Id = @messageId AND Kind IN ('text', 'voice') AND Deleted = 0;",
+            new { groupId, messageId }) > 0;
 
     /// <summary>
     /// "Sửa" (docs/18-chat-extras.md §5): new words for one of our text messages. One that reached nobody yet is signed
@@ -548,6 +624,7 @@ public sealed partial class GroupChatService : BackgroundService
                 UPDATE ChatGroupMessages SET Kind = 'recalled', Text = NULL, VoicePath = NULL, DurationMs = NULL, Wave = NULL, RecallSig = @sig, Seq = {NextSeq}
                 WHERE GroupId = @groupId AND Id = @id;
                 DELETE FROM ChatGroupDeliveries WHERE GroupId = @groupId AND Id = @id AND State = 'pending';
+                DELETE FROM ChatGroupReactions WHERE GroupId = @groupId AND MessageId = @id;
                 """,
                 mine.Select(id => new { groupId, id, sig = sigs[id] }),
                 transaction);

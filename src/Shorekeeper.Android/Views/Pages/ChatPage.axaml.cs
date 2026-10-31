@@ -78,6 +78,18 @@ public partial class ChatPage : UserControl
         e.Handled = true;
     }
 
+    /// <summary>
+    /// A reaction tapped in the long press menu: the menu closes as after any of its items, once the button's command
+    /// has run (closed first, the button would lose the message it reacts to).
+    /// </summary>
+    private void OnReactionPicked(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Visual)?.FindAncestorOfType<MenuFlyoutPresenter>() is { } menu)
+        {
+            Dispatcher.UIThread.Post(menu.Close);
+        }
+    }
+
     /// <summary>A long press on a file card: its menu (withdraw what we sent, see it in File).</summary>
     private void OnFileCardHolding(object? sender, HoldingRoutedEventArgs e)
     {

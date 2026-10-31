@@ -33,4 +33,11 @@ public class WindowsToastNotifierTests
 
         Assert.Equal(3, toast.Descendants("text").Count());
     }
+
+    [Fact]
+    public void A_toast_replacing_one_before_makes_no_sound()
+    {
+        Assert.Empty(XElement.Parse(WindowsToastNotifier.BuildXml("A", ["1"], [])).Descendants("audio"));
+        Assert.Equal("true", XElement.Parse(WindowsToastNotifier.BuildXml("A", ["1"], [], silent: true)).Element("audio")?.Attribute("silent")?.Value);
+    }
 }

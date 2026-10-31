@@ -1,6 +1,6 @@
 # 18 — Tin nhắn: tìm, trả lời, @nhắc tên, sửa, cảm xúc (C6)
 
-> Trạng thái: **C6a, C6b, C6c xong** (2026-10-31); C6d theo kế hoạch đã chốt (§8). Nối tiếp [15](15-chat.md) (1-1) và [16](16-group-chat.md) (nhóm), lúc đó để sau: "@nhắc tên, cảm xúc, trả lời trích dẫn, sửa tin", và "tìm trong tin nhắn" ([17](17-ui-cleanup.md) U5a).
+> Trạng thái: **C6 xong** (C6a–C6d, 2026-10-31), theo kế hoạch đã chốt (§8). Nối tiếp [15](15-chat.md) (1-1) và [16](16-group-chat.md) (nhóm), lúc đó để sau: "@nhắc tên, cảm xúc, trả lời trích dẫn, sửa tin", và "tìm trong tin nhắn" ([17](17-ui-cleanup.md) U5a).
 
 ## 1. Mục tiêu
 
@@ -129,29 +129,53 @@ Thứ tự làm: **C6a tìm** (không đổi giao thức) → **C6b trả lời 
   - 1-1: PC sửa "C6c hop luc 3 gio" thành "…4 gio nhe", Nubia hiện chữ mới và "Đã sửa". Ngược lại, Nubia sửa tin của mình, PC hiện chữ mới và "Đã sửa".
   - Nhóm tạm: Nubia sửa tin nhóm đã tới PC; PC hiện chữ mới và "Đã sửa", tức chữ ký sửa được kiểm qua.
 
-## 6. C6d — Thả cảm xúc
+## 6. C6d — Thả cảm xúc ✅ (2026-10-31)
 
-- Bộ cố định 6 biểu tượng: 👍 ❤️ 😂 😮 😢 🙏 (§8 Q2). Mỗi người một cảm xúc cho mỗi tin: chọn cái khác thì thay, chọn lại cái đang thả thì bỏ.
-- Hiện dưới bong bóng thành các chip "👍 2 ❤️ 1"; chip có cảm xúc của mình thì tô màu nhấn. Rê chuột hay chạm vào chip thì xem ai đã thả.
-- Cách thả:
-  - PC: nút 🙂 hiện cạnh bong bóng khi rê chuột, hoặc mục **Thả cảm xúc** khi chuột phải;
-  - điện thoại: hàng biểu tượng ở đầu menu khi nhấn giữ.
-- **Thông báo, gộp theo từng tin** (§8 Q5): ai đó thả cảm xúc vào tin của mình thì có **một** thông báo cho tin đó.
-  - Người đầu tiên: "Mai đã thả ❤️ vào tin của bạn: "họp lúc 3 giờ"".
-  - Thêm người thả vào **cùng tin** trong lúc thông báo đó chưa được xem: **sửa** thông báo cũ thay vì gửi cái mới ("Mai, Tuấn và 2 người khác đã thả cảm xúc vào tin của bạn: …"), và không kêu hay rung lại.
-  - Một người đổi cảm xúc nhiều lần (thả 👍, đổi ❤️, đổi 😂…) chỉ tính **một** lần; thông báo hiện cảm xúc cuối của họ. Bỏ cảm xúc thì không báo gì.
-  - Đã xem thông báo (bấm vào, hay mở hội thoại đó) thì lần thả sau tạo thông báo mới.
-  - Như tin nhắn: không báo khi đang mở đúng hội thoại đó, khi đang "Bận", hay khi nhóm đã Tắt thông báo.
-  - PC: toast Windows có `Tag` theo tin, toast mới cùng tag thay toast cũ. Điện thoại: thông báo cùng id theo tin, `setOnlyAlertOnce`. `INotifier` thêm khóa để thay thông báo cũ.
-  - Danh sách hội thoại ghi "Mai đã thả ❤️" nếu đó là việc mới nhất.
-- **1-1**: `POST /chat/reactions` `{ id, emoji?, at }` (`emoji` rỗng nghĩa là bỏ). Chờ gửi theo từng tin, mới nhất thắng.
-- **Nhóm**:
-  - Ký `shorekeeper-group-reaction/1` (`groupId`, `id` tin, `authorId` người thả, `emoji`, `at`).
-  - Gửi tới các thành viên, chờ gửi theo từng người như tin.
-  - **Không chuyển hộ**: người mới vào không thấy cảm xúc trên tin cũ.
-  - Chỉ nhận cảm xúc trên tin mình có, từ người đang là thành viên.
-- Lưu ở bảng `ChatReactions` (hội thoại, `MessageId`, `ReactorId`, `Emoji`, `At`). Tin bị thu hồi thì xóa luôn cảm xúc của nó.
-- **Xong khi**: test Engine (thay, bỏ, mới nhất thắng khi tới lệch thứ tự, chữ ký nhóm, người ngoài nhóm thì bị bỏ, thu hồi xóa cảm xúc); test UI các chip và chữ của thông báo gộp (1 người, nhiều người, một người đổi nhiều lần); thử thật 3 máy: hai người thả vào cùng một tin chỉ ra một thông báo được sửa lại.
+**Thả và xem**
+- Bộ cố định 6 biểu tượng: 👍 ❤️ 😂 😮 😢 🙏 (§8 Q2, `ChatReactions.Emojis`). Mỗi người một cảm xúc cho mỗi tin: chọn cái khác thì thay, chọn lại cái đang thả thì bỏ.
+- Thả được trên tin chữ và tin thoại (cả của mình), không trên tin đã thu hồi hay thẻ file.
+- **Cách thả:** hàng 6 biểu tượng ở **đầu menu** của tin, chuột phải trên PC hay nhấn giữ trên điện thoại. Bấm một biểu tượng thì menu đóng.
+  - Khác dự kiến: không có nút 🙂 hiện khi rê chuột, và PC cũng dùng hàng biểu tượng thay cho menu con "Thả cảm xúc". Một lần bấm thay vì hai, và giống điện thoại.
+- **Chip dưới chữ, trong bong bóng:** "👍 2 ❤️ 1", theo thứ tự của bộ. Chip có cảm xúc của mình thì có viền (màu nhấn; trắng trên bong bóng của mình).
+  - Rê chuột (PC) hay bấm/chạm vào chip thì hiện ai đã thả, ví dụ "👍 Mai, Bạn", ở dòng ghi chú trên ô soạn.
+
+**Thông báo, gộp theo từng tin** (§8 Q5)
+- Ai đó thả cảm xúc vào tin của mình thì có **một** thông báo cho tin đó. Thông báo liệt kê những người thả **từ lần xem trước**, mỗi người một lần với cảm xúc mới nhất của họ (`ChatReactionNotice`):
+  - "Mai đã thả ❤️ vào tin của bạn: “họp lúc 3 giờ”";
+  - "Tuấn và Mai đã thả cảm xúc vào tin của bạn: …";
+  - "Lan, Tuấn và 2 người khác đã thả cảm xúc vào tin của bạn: …" (người mới nhất trước).
+- Thả thêm hay đổi cảm xúc khi chưa xem thì **sửa** thông báo đó, không kêu lại:
+  - PC: toast có `Tag` là id tin; toast sau cùng tag thay toast cũ và có `<audio silent="true"/>`;
+  - điện thoại: thông báo có tag `reaction:` cộng id tin, `SetOnlyAlertOnce`.
+- Bỏ cảm xúc thì không báo gì.
+- **Đã xem** nghĩa là mở hội thoại đó (`MarkReactionsSeenAsync`). Trên điện thoại thông báo tự mất; lần thả sau tạo thông báo mới.
+- Không báo khi đang mở đúng hội thoại đó, hay khi nhóm đã Tắt thông báo. PC còn không báo khi đang "Bận", như tin nhắn.
+- **Chưa làm:** danh sách hội thoại ghi "Mai đã thả ❤️" khi đó là việc mới nhất. Danh sách vẫn chỉ hiện tin mới nhất.
+
+**Giao thức**
+- `POST /chat/reactions` và `POST /chat/groups/{id}/reactions`, cùng thân `{ id, emoji?, at }` (`emoji` rỗng nghĩa là bỏ).
+  - Máy nhận giữ cái có `at` mới hơn: cảm xúc cũ tới sau không đè được cái mới, kể cả khi đã bỏ (dòng bỏ vẫn giữ lại, không có emoji).
+- **Nhóm không ký** như dự kiến. Cảm xúc không chuyển hộ, nên luôn đến thẳng từ người thả, và kết nối đã cho biết đó là ai. Chỉ nhận từ thành viên, và chỉ trên tin mình có.
+- **Không chuyển hộ:**
+  - người mới vào không thấy cảm xúc trên tin cũ;
+  - cảm xúc tới trước tin (máy chưa có tin) thì bị bỏ.
+  - Thành viên offline nhận khi online lại, từ chính người thả.
+- **Hàng đợi** `ChatReactionsOut` / `ChatGroupReactionsOut` chỉ giữ id tin. Lúc gửi mới đọc cảm xúc mới nhất, nên đổi nhiều lần khi người kia offline chỉ gửi một lần. Bản cũ không có route này thì từ chối, và cảm xúc bị bỏ.
+- **Lỗi chạy đua đã sửa (cả lệnh sửa của C6c):** dòng hàng đợi chỉ được xoá nếu cái vừa gửi vẫn là mới nhất. Trước đó, đổi cảm xúc (hay sửa tin) đúng lúc lần trước đang gửi thì lần sau bị mất.
+- Lưu ở `ChatReactions` / `ChatGroupReactions` (hội thoại, `MessageId`, `ReactorId`, `Emoji`, `At`, `Unseen`), migration `0019_chat_reactions.sql`.
+  - Tin bị thu hồi (ở cả hai phía), xóa tin hay xóa hội thoại thì xóa luôn cảm xúc của nó.
+
+**Đã kiểm**:
+- Test Engine:
+  - 1-1: tới máy kia, thay, bỏ (không báo), cảm xúc lạ bị từ chối; cái cũ tới sau không đè cái mới (cả khi bỏ); xem rồi thì lần thả sau lại là chưa xem; thu hồi xóa cảm xúc ở cả hai phía.
+  - Nhóm: tới mọi thành viên, mỗi người một; chỉ tác giả được báo; chờ thành viên offline và không chuyển hộ qua người khác; người ngoài nhóm bị từ chối; thu hồi xóa cảm xúc.
+  - Sửa tin nhiều lần liền nhau thì máy kia ra chữ cuối; bỏ điều kiện chặn xoá hàng đợi thì test này báo lỗi.
+- Test UI: chip (gộp, thứ tự, của mình, ai đã thả); chữ thông báo cho 1, 2 và nhiều người. Test Windows: toast thay thế không kêu.
+- Thử thật PC và Nubia (2026-10-31; OPPO mất kết nối nên không thử được 3 máy):
+  - 1-1, Nubia thả 👍 rồi đổi ❤️, 😂 vào tin của PC. Lịch sử toast của PC chỉ có **một** toast cho tin đó, toast sau cùng không kêu. Trên Nubia chỉ còn chip "😂 1".
+  - PC thả ❤️ rồi đổi 🙏 vào tin của Nubia. Nubia có một thông báo (`ONLY_ALERT_ONCE`), chữ đổi theo. Mở hội thoại thì thông báo tự mất.
+  - Chạm chip thì hiện "🙏 PC · MSI". Nubia chọn lại 😂 thì chip mất ở cả hai máy.
+  - Nhóm tạm, theo cả hai chiều: thông báo trên Nubia "Nhóm C6d · PC · MSI đã thả ❤️…", toast trên PC "Nhóm C6d · Z2577 đã thả 😮…".
 
 ## 7. Không làm
 
@@ -193,7 +217,7 @@ Chốt ngày 2026-10-31.
 |---|---|
 | Máy bản cũ trong nhóm bỏ tin ký `/2` | Không gửi tin `/2` cho máy chưa có `chat2`; người gửi thấy trạng thái `old` với người đó (§2) |
 | Người chuyển hộ sửa `replyTo` / `mentions` | Nằm trong phần được ký `/2` |
-| Giả lệnh sửa, cảm xúc hay nhắc tên của người khác | Đều ký bằng khóa tác giả; lệnh sửa phải khớp `authorId` của tin gốc |
+| Giả lệnh sửa, cảm xúc hay nhắc tên của người khác | Lệnh sửa và nhắc tên ký bằng khóa tác giả, lệnh sửa phải khớp khóa của tin gốc; cảm xúc không chuyển hộ nên luôn đến thẳng từ người thả, được kết nối xác nhận |
 | Spam @mọi người hay cảm xúc | Chung giới hạn 20 tin/giây mỗi máy ([16 §3.1](16-group-chat.md)); Tắt thông báo vẫn chặn được @mọi người nếu Q4 đổi thành chỉ Host |
 | Tìm chậm khi lịch sử dài | Bắt đầu bằng `LIKE` trên cột đã chuẩn hóa; đo, chuyển FTS5 nếu cần |
 | Trích dẫn tin quá cũ, máy mình không còn | Hiện "Tin nhắn không còn" thay vì để trống |

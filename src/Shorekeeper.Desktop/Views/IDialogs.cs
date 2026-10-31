@@ -37,7 +37,7 @@ public interface IDialogs
 
     void Ask(string title, IReadOnlyList<string> lines, IReadOnlyList<string> actions, NavPage page, Action<int> onAction);
 
-    void ShowIncomingMessage(string senderName, string text, Action open);
+    void ShowIncomingMessage(string senderName, string text, Action open, string? tag = null);
 
     void ShowIncomingOffer(ReceivedOffer offer, string senderName);
 

@@ -127,7 +127,8 @@ public sealed partial class GroupChatService
             waiting = await connection.QueryAsync<string>(
                 """
                 SELECT PeerId FROM ChatGroupDeliveries WHERE State = 'pending'
-                UNION SELECT AuthorId FROM ChatGroupReceipts UNION SELECT PeerId FROM ChatGroupRecalls UNION SELECT PeerId FROM ChatGroupEdits;
+                UNION SELECT AuthorId FROM ChatGroupReceipts UNION SELECT PeerId FROM ChatGroupRecalls UNION SELECT PeerId FROM ChatGroupEdits
+                UNION SELECT PeerId FROM ChatGroupReactionsOut;
                 """);
         }
 
@@ -188,6 +189,7 @@ public sealed partial class GroupChatService
         List<(string GroupId, string ReadUpTo)> receipts;
         List<(string GroupId, string Id, byte[] Sig, long IsOffer)> recalls;
         List<EditRow> edits;
+        List<(string GroupId, string MessageId)> reactions;
         await using (SqliteConnection connection = await database.OpenAsync(cancellationToken))
         {
             pending = [.. await connection.QueryAsync<DeliveryRow>(
@@ -210,6 +212,8 @@ public sealed partial class GroupChatService
                 WHERE e.PeerId = @peer;
                 """,
                 new { peer = peer.Value })];
+            reactions = [.. await connection.QueryAsync<(string, string)>(
+                "SELECT GroupId, MessageId FROM ChatGroupReactionsOut WHERE PeerId = @peer;", new { peer = peer.Value })];
         }
 
         // Heard directly without the capability: a version without group messages, which would only refuse them; or one
@@ -329,7 +333,8 @@ public sealed partial class GroupChatService
             }
         }
 
-        // The same for edits: a version without them answers like for a route it does not have.
+        // The same for edits: a version without them answers like for a route it does not have. One edited again while
+        // this one went stays, to go next.
         foreach (EditRow e in edits)
         {
             if (e.EditSig is null
@@ -337,7 +342,35 @@ public sealed partial class GroupChatService
                     .Taken is not null)
             {
                 await WriteAsync(
-                    "DELETE FROM ChatGroupEdits WHERE GroupId = @GroupId AND PeerId = @peer AND Id = @Id;", new { e.GroupId, peer = peer.Value, e.Id }, cancellationToken);
+                    """
+                    DELETE FROM ChatGroupEdits WHERE GroupId = @GroupId AND PeerId = @peer AND Id = @Id
+                      AND NOT EXISTS (SELECT 1 FROM ChatGroupMessages m WHERE m.GroupId = @GroupId AND m.Id = @Id AND m.EditedAt > @editedAt);
+                    """,
+                    new { e.GroupId, peer = peer.Value, e.Id, editedAt = e.EditedAt ?? 0 },
+                    cancellationToken);
+            }
+        }
+
+        // And reactions, the newest of each; none for whoever left, nor when the message is gone since.
+        foreach ((string groupId, string messageId) in reactions)
+        {
+            (string? Emoji, long At)? mine;
+            await using (SqliteConnection connection = await database.OpenAsync(cancellationToken))
+            {
+                mine = await ChatReactions.Groups.MineAsync(connection, groupId, messageId, engine.Identity.DeviceId);
+            }
+
+            if (mine is not { } reaction || !groups.IsMember(groupId, peer)
+                || (await PostAsync(peer, $"chat/groups/{groupId}/reactions", new ChatReactionBody(messageId, reaction.Emoji, FromMs(reaction.At)), cancellationToken))
+                    .Taken is not null)
+            {
+                await WriteAsync(
+                    """
+                    DELETE FROM ChatGroupReactionsOut WHERE GroupId = @groupId AND PeerId = @peer AND MessageId = @messageId
+                      AND NOT EXISTS (SELECT 1 FROM ChatGroupReactions r WHERE r.GroupId = @groupId AND r.MessageId = @messageId AND r.ReactorId = @me AND r.At > @at);
+                    """,
+                    new { groupId, peer = peer.Value, messageId, me = engine.Identity.DeviceId.Value, at = mine?.At ?? 0 },
+                    cancellationToken);
             }
         }
     }

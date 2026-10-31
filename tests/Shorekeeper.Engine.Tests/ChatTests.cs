@@ -311,6 +311,20 @@ public sealed class ChatTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Edits_one_right_after_another_end_with_the_newest_words()
+    {
+        ChatMessage sent = await a.Chat.SendTextAsync(b.Id, "một", Ct);
+        await WaitUntil(() => State(a, b, sent.Id) == ChatMessageState.Delivered);
+
+        foreach (string text in (string[])["hai", "ba", "bốn", "năm"])
+        {
+            Assert.True(await a.Chat.EditAsync(b.Id, sent.Id, text, Ct));
+        }
+
+        await WaitUntil(() => b.Chat.GetMessagesAsync(a.Id, Ct).Result.Single().Text == "năm");
+    }
+
+    [Fact]
     public async Task A_message_still_waiting_goes_with_its_new_words_unmarked()
     {
         a.Directory.Remove(b.Id);
@@ -361,6 +375,64 @@ public sealed class ChatTests : IAsyncLifetime
         // Taken back, it is no longer edited.
         await a.Chat.RecallAsync(b.Id, [mine.Id], Ct);
         Assert.False(await a.Chat.EditAsync(b.Id, mine.Id, "sau thu hồi", Ct));
+    }
+
+    [Fact]
+    public async Task A_reaction_reaches_the_peer_changes_and_goes_away()
+    {
+        var reacted = new List<ChatReaction>();
+        a.Chat.Reacted += (_, r) => reacted.Add(r);
+        ChatMessage sent = await a.Chat.SendTextAsync(b.Id, "họp 3 giờ", Ct);
+        await WaitUntil(() => b.Chat.GetMessagesAsync(a.Id, Ct).Result.Count == 1);
+
+        Assert.True(await b.Chat.ReactAsync(a.Id, sent.Id, "👍", Ct));
+        await WaitUntil(() => a.Chat.GetReactionsAsync(b.Id, Ct).Result.Count == 1);
+        ChatReaction got = (await a.Chat.GetReactionsAsync(b.Id, Ct)).Single();
+        Assert.Equal((sent.Id, b.Id, "👍", true), (got.MessageId, got.Reactor, got.Emoji, got.Unseen));
+
+        // Another one replaces it, still one to see; none takes it away, and tells nothing.
+        Assert.True(await b.Chat.ReactAsync(a.Id, sent.Id, "❤️", Ct));
+        await WaitUntil(() => a.Chat.GetReactionsAsync(b.Id, Ct).Result.Single().Emoji == "❤️");
+        Assert.Equal(["👍", "❤️"], reacted.Select(r => r.Emoji));
+        Assert.True(await b.Chat.ReactAsync(a.Id, sent.Id, null, Ct));
+        await WaitUntil(() => a.Chat.GetReactionsAsync(b.Id, Ct).Result.Count == 0);
+        Assert.Equal(2, reacted.Count);
+        Assert.Empty(await b.Chat.GetReactionsAsync(a.Id, Ct));
+        await Assert.ThrowsAsync<ArgumentException>(() => b.Chat.ReactAsync(a.Id, sent.Id, "🐱", Ct));
+    }
+
+    [Fact]
+    public async Task An_older_reaction_never_replaces_a_newer_one_and_seeing_them_starts_over()
+    {
+        ChatMessage sent = await a.Chat.SendTextAsync(b.Id, "họp 3 giờ", Ct);
+        await WaitUntil(() => b.Chat.GetMessagesAsync(a.Id, Ct).Result.Count == 1);
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+
+        Assert.Equal(HttpStatusCode.NoContent, await PostAsync(b, a, "chat/reactions", new ChatReactionBody(sent.Id, "😂", now)));
+        Assert.Equal(HttpStatusCode.NoContent, await PostAsync(b, a, "chat/reactions", new ChatReactionBody(sent.Id, "👍", now.AddSeconds(-1))));
+        Assert.Equal(HttpStatusCode.NoContent, await PostAsync(b, a, "chat/reactions", new ChatReactionBody(sent.Id, null, now.AddSeconds(-2))));
+        Assert.Equal("😂", (await a.Chat.GetReactionsAsync(b.Id, Ct)).Single().Emoji);
+        Assert.Equal(HttpStatusCode.BadRequest, await PostAsync(b, a, "chat/reactions", new ChatReactionBody(sent.Id, "🐱", now.AddSeconds(1))));
+
+        await a.Chat.MarkReactionsSeenAsync(b.Id, Ct);
+        Assert.False((await a.Chat.GetReactionsAsync(b.Id, Ct)).Single().Unseen);
+        await PostAsync(b, a, "chat/reactions", new ChatReactionBody(sent.Id, "🙏", now.AddSeconds(2)));
+        Assert.True((await a.Chat.GetReactionsAsync(b.Id, Ct)).Single().Unseen);
+    }
+
+    [Fact]
+    public async Task Taking_a_message_back_takes_its_reactions()
+    {
+        ChatMessage sent = await a.Chat.SendTextAsync(b.Id, "gửi nhầm", Ct);
+        await WaitUntil(() => b.Chat.GetMessagesAsync(a.Id, Ct).Result.Count == 1);
+        await b.Chat.ReactAsync(a.Id, sent.Id, "😮", Ct);
+        await WaitUntil(() => a.Chat.GetReactionsAsync(b.Id, Ct).Result.Count == 1);
+
+        await a.Chat.RecallAsync(b.Id, [sent.Id], Ct);
+
+        Assert.Empty(await a.Chat.GetReactionsAsync(b.Id, Ct));
+        await WaitUntil(() => b.Chat.GetReactionsAsync(a.Id, Ct).Result.Count == 0);
+        Assert.False(await b.Chat.ReactAsync(a.Id, sent.Id, "👍", Ct));
     }
 
     [Fact]

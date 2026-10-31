@@ -25,10 +25,13 @@ public sealed class WindowsToastNotifier(ILogger<WindowsToastNotifier> logger) :
 
     // Toasts stay referenced until they are gone, so their event handlers keep working from the Action Center.
     private readonly ConcurrentDictionary<int, ToastNotification> shown = new();
+
+    /// <summary>Tags shown so far: a toast with one of them replaces the one before without a sound.</summary>
+    private readonly ConcurrentDictionary<string, byte> tags = new();
     private ToastNotifier? notifier;
     private int nextId;
 
-    public bool TryShow(string title, IReadOnlyList<string> lines, IReadOnlyList<string> actions, Action<int> onChoice)
+    public bool TryShow(string title, IReadOnlyList<string> lines, IReadOnlyList<string> actions, Action<int> onChoice, string? tag = null)
     {
         try
         {
@@ -39,8 +42,14 @@ public sealed class WindowsToastNotifier(ILogger<WindowsToastNotifier> logger) :
             }
 
             var xml = new XmlDocument();
-            xml.LoadXml(BuildXml(title, lines, actions));
+            xml.LoadXml(BuildXml(title, lines, actions, silent: tag is not null && !tags.TryAdd(tag, 0)));
             var toast = new ToastNotification(xml);
+            if (tag is not null)
+            {
+                // Windows keeps tags short: a message id fits.
+                toast.Tag = tag.Length > 64 ? tag[..64] : tag;
+            }
+
             int id = Interlocked.Increment(ref nextId);
             toast.Activated += (_, args) =>
             {
@@ -90,7 +99,8 @@ public sealed class WindowsToastNotifier(ILogger<WindowsToastNotifier> logger) :
     }
 
     /// <summary>The body clicked gives "-1", a button its index.</summary>
-    internal static string BuildXml(string title, IReadOnlyList<string> lines, IReadOnlyList<string> actions)
+    /// <param name="silent">Replacing one shown before: no sound again.</param>
+    internal static string BuildXml(string title, IReadOnlyList<string> lines, IReadOnlyList<string> actions, bool silent = false)
     {
         var toast = new XElement("toast",
             new XAttribute("launch", "-1"),
@@ -100,6 +110,11 @@ public sealed class WindowsToastNotifier(ILogger<WindowsToastNotifier> logger) :
                     new XElement("text", title),
                     // A toast shows at most three lines of text, the title included.
                     lines.Take(2).Select(line => new XElement("text", line)))));
+        if (silent)
+        {
+            toast.Add(new XElement("audio", new XAttribute("silent", "true")));
+        }
+
         if (actions.Count > 0)
         {
             toast.Add(new XElement("actions",

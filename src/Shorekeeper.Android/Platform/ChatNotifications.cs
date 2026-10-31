@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Android.Content;
 using Android.Graphics.Drawables;
 using Microsoft.Extensions.DependencyInjection;
@@ -32,6 +33,9 @@ internal static class ChatNotifications
     /// <summary>Set by the app: the group conversation on screen.</summary>
     public static Func<string, bool>? IsReadingGroup { get; set; }
 
+    /// <summary>Reaction notifications shown, by tag: the conversation (a peer, or "group:" and a group) and the message.</summary>
+    private static readonly ConcurrentDictionary<string, (string Conversation, string MessageId)> reactionsShown = new();
+
     public static void Start(Context context, IServiceProvider services)
     {
         var chat = services.GetRequiredService<ChatService>();
@@ -59,6 +63,83 @@ internal static class ChatNotifications
             }
         };
         groupChat.Changed += (_, groupId) => _ = CancelGroupIfReadAsync(context, groupChat, groupId);
+
+        // Reactions to ours: one notification per message, changed in place as more come until seen (docs/18-chat-extras.md §6).
+        chat.Reacted += (_, reaction) =>
+        {
+            DeviceId peer = reaction.Reactor;
+            if (IsReading?.Invoke(peer) != true)
+            {
+                Intent open = new Intent(context, typeof(MainActivity))
+                    .PutExtra(MainActivity.ExtraChat, peer.Value)!
+                    .SetData(AndroidUri.Parse($"shorekeeper://chat/{peer.Value}"))!;
+                _ = ShowReactionAsync(
+                    context, peer.Value, reaction.MessageId, naming.Of(peer), ChatReactionNotice.ForPersonAsync(chat, peer, reaction.MessageId, naming.Of(peer)), open);
+            }
+        };
+        chat.Changed += (_, peer) => _ = CancelSeenReactionsAsync(
+            context, peer.Value, async id => (await chat.GetReactionsAsync(peer, CancellationToken.None, id)).Any(r => r.Unseen));
+        groupChat.Reacted += (_, reacted) => _ = ShowGroupReactionAsync(context, groupChat, groups, naming, reacted);
+        groupChat.Changed += (_, groupId) => _ = CancelSeenReactionsAsync(
+            context, GroupTag(groupId), async id => (await groupChat.GetReactionsAsync(groupId, CancellationToken.None, id)).Any(r => r.Unseen));
+    }
+
+    private static async Task ShowGroupReactionAsync(Context context, GroupChatService groupChat, GroupStore groups, PeerNaming naming, GroupChatReaction reacted)
+    {
+        string groupId = reacted.GroupId;
+        if (IsReadingGroup?.Invoke(groupId) == true || (await groupChat.GetMutedAsync(CancellationToken.None)).Contains(groupId))
+        {
+            return;
+        }
+
+        Group? group = groups.Get(groupId);
+        string name = (await groupChat.GetConversationsAsync(CancellationToken.None)).FirstOrDefault(c => c.GroupId == groupId)?.Name ?? group?.Name ?? "";
+        Intent open = new Intent(context, typeof(MainActivity))
+            .PutExtra(MainActivity.ExtraChatGroup, groupId)!
+            .SetData(AndroidUri.Parse($"shorekeeper://chat-group/{groupId}"))!;
+        await ShowReactionAsync(
+            context, GroupTag(groupId), reacted.Reaction.MessageId, name,
+            ChatReactionNotice.ForGroupAsync(groupChat, groupId, reacted.Reaction.MessageId,
+                member => naming.Of(member, group?.Members.FirstOrDefault(m => m.DeviceId == member)?.Name)),
+            open);
+    }
+
+    /// <summary>
+    /// The notification for reactions to one message: shown again under the same tag as more come, so it changes in
+    /// place, and only the first one makes a sound.
+    /// </summary>
+    private static async Task ShowReactionAsync(Context context, string conversation, string messageId, string title, Task<string?> text, Intent open)
+    {
+        if (await text is not { } line)
+        {
+            return;
+        }
+
+        string tag = "reaction:" + messageId;
+        Notification notification = new Notification.Builder(context, Channel)
+            .SetContentTitle(title)!
+            .SetContentText(line)!
+            .SetStyle(new Notification.BigTextStyle().BigText(line))!
+            .SetSmallIcon(Resource.Drawable.ic_stat_shorekeeper)!
+            .SetCategory(Notification.CategorySocial)!
+            .SetOnlyAlertOnce(true)!
+            .SetAutoCancel(true)!
+            .SetContentIntent(PendingIntent.GetActivity(context, tag.GetHashCode(), open, PendingIntentFlags.Immutable | PendingIntentFlags.UpdateCurrent))!
+            .Build()!;
+        reactionsShown[tag] = (conversation, messageId);
+        Manager(context).Notify(tag, NotificationId, notification);
+    }
+
+    /// <summary>The conversation was seen: its reaction notifications with nothing new left go.</summary>
+    private static async Task CancelSeenReactionsAsync(Context context, string conversation, Func<string, Task<bool>> anyUnseen)
+    {
+        foreach ((string tag, (string Conversation, string MessageId) shown) in reactionsShown)
+        {
+            if (shown.Conversation == conversation && !await anyUnseen(shown.MessageId) && reactionsShown.TryRemove(tag, out _))
+            {
+                Manager(context).Cancel(tag, NotificationId);
+            }
+        }
     }
 
     private static async Task ShowGroupAsync(Context context, GroupChatService groupChat, GroupStore groups, PeerNaming naming, string groupId)

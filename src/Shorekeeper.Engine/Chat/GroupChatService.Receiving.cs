@@ -214,6 +214,52 @@ public sealed partial class GroupChatService
         return true;
     }
 
+    /// <summary>A member's reaction to a message here: only from the member themself, as reactions are not passed on.</summary>
+    internal async Task<PeerResponse> HandleReactionAsync(DeviceId caller, string groupId, ChatReactionBody body)
+    {
+        if (Refusal(caller, groupId) is { } refusal)
+        {
+            return refusal;
+        }
+
+        if (!chat.TakeRate(caller))
+        {
+            return PeerResponse.Problem(HttpStatusCode.TooManyRequests, ApiErrorCodes.RateLimited);
+        }
+
+        if (!Guid.TryParseExact(body.Id, "N", out Guid parsed) || !ChatReactions.IsEmoji(body.Emoji))
+        {
+            return PeerResponse.Problem(HttpStatusCode.BadRequest, ApiErrorCodes.InvalidRequest);
+        }
+
+        string id = parsed.ToString("N");
+        bool ours;
+        bool stored;
+        await using (SqliteConnection connection = await database.OpenAsync())
+        {
+            if (!await IsReactableAsync(connection, groupId, id))
+            {
+                return PeerResponse.Empty(HttpStatusCode.NoContent);
+            }
+
+            ours = await connection.ExecuteScalarAsync<long>(
+                "SELECT Outgoing FROM ChatGroupMessages WHERE GroupId = @groupId AND Id = @id;", new { groupId, id }) != 0;
+            stored = await ChatReactions.Groups.StoreAsync(
+                connection, groupId, id, caller, body.Emoji, body.At.ToUnixTimeMilliseconds(), unseen: ours && body.Emoji is not null);
+        }
+
+        if (stored)
+        {
+            Changed?.Invoke(this, groupId);
+            if (ours && body.Emoji is { } emoji)
+            {
+                Reacted?.Invoke(this, new GroupChatReaction(groupId, new ChatReaction(id, caller, emoji, body.At, Unseen: true)));
+            }
+        }
+
+        return PeerResponse.Empty(HttpStatusCode.NoContent);
+    }
+
     internal async Task<PeerResponse> HandleReceiptAsync(DeviceId caller, string groupId, ChatReceiptBody body)
     {
         if (Refusal(caller, groupId) is { } refusal)
@@ -302,6 +348,7 @@ public sealed partial class GroupChatService
             $"""
             UPDATE ChatGroupMessages SET Kind = 'recalled', Text = NULL, VoicePath = NULL, DurationMs = NULL, Wave = NULL, State = 'read', RecallSig = @sig, Seq = {NextSeq}
             WHERE GroupId = @groupId AND Id = @id;
+            DELETE FROM ChatGroupReactions WHERE GroupId = @groupId AND MessageId = @id;
             """,
             new { groupId, id, sig });
         return true;
