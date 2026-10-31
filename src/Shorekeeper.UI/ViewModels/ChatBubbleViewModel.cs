@@ -1,0 +1,245 @@
+using Avalonia.Media;
+using Avalonia.Media.Immutable;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Shorekeeper.Core.Audio;
+using Shorekeeper.Core.Identity;
+using Shorekeeper.Core.Localization;
+using Shorekeeper.Engine.Api;
+using Shorekeeper.Engine.Chat;
+
+namespace Shorekeeper.UI.ViewModels;
+
+/// <summary>A message in the open conversation.</summary>
+public sealed partial class ChatBubbleViewModel(string id, ChatViewModel owner) : ChatEntryViewModel(id)
+{
+    /// <summary>The kind last shown, so links and waveform are built again only when it changes.</summary>
+    private string? kind;
+
+    /// <summary>Until when "Thu hồi" is offered: never for theirs, any time for one still waiting.</summary>
+    private DateTimeOffset recallUntil;
+
+    /// <summary>For the check box while choosing.</summary>
+    public ChatViewModel Owner => owner;
+
+    /// <summary>Checked in "Chọn nhiều".</summary>
+    [ObservableProperty]
+    public partial bool IsSelected { get; set; }
+
+    partial void OnIsSelectedChanged(bool value) => owner.SelectionChanged();
+
+    [RelayCommand]
+    private void SelectMany() => owner.StartSelecting(this);
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasAvatarSpace), nameof(CanShowDetails))]
+    public partial bool IsMine { get; set; }
+
+    /// <summary>In a group's conversation: others' messages keep room on the left for the member's initial.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasAvatarSpace), nameof(CanShowDetails))]
+    public partial bool IsInGroup { get; set; }
+
+    public bool HasAvatarSpace => IsInGroup && !IsMine;
+
+    /// <summary>The first of a run of one member's messages: their name above it and their initial beside it.</summary>
+    [ObservableProperty]
+    public partial bool ShowsAuthor { get; set; }
+
+    [ObservableProperty]
+    public partial string AuthorName { get; set; } = "";
+
+    [ObservableProperty]
+    public partial string AuthorInitial { get; set; } = "";
+
+    /// <summary>Each member keeps one color, from their DeviceId.</summary>
+    [ObservableProperty]
+    public partial IBrush? AuthorBrush { get; set; }
+
+    /// <summary>Ours in a group: "Chi tiết" lists where it is with each member.</summary>
+    public bool CanShowDetails => IsInGroup && IsMine;
+
+    [RelayCommand]
+    private Task ShowDetailsAsync() => owner.ShowDetailsAsync(this);
+
+    /// <summary>A member's color, the same on every device: from their DeviceId.</summary>
+    internal static IBrush BrushOf(DeviceId member) =>
+        AuthorBrushes[(int)((uint)member.Value.Aggregate(17, (h, c) => (h * 31) + c) % AuthorBrushes.Length)];
+
+    private static readonly IBrush[] AuthorBrushes =
+    [
+        .. ((string[])["#E11D48", "#D97706", "#059669", "#0284C7", "#7C3AED", "#DB2777", "#0D9488", "#65A30D"])
+            .Select(hex => (IBrush)new ImmutableSolidColorBrush(Color.Parse(hex))),
+    ];
+
+    [ObservableProperty]
+    public partial string Text { get; set; } = "";
+
+    /// <summary>Web addresses in the text, each with its own button.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasLinks))]
+    public partial IReadOnlyList<string> Links { get; set; } = [];
+
+    public bool HasLinks => Links.Count > 0;
+
+    /// <summary>"14:05", with the state on ours: "14:05 · Đã xem".</summary>
+    [ObservableProperty]
+    public partial string StatusText { get; set; } = "";
+
+    [ObservableProperty]
+    public partial bool IsFailed { get; set; }
+
+    /// <summary>A kind from a newer version: shown as a note, not as the sender's words.</summary>
+    [ObservableProperty]
+    public partial bool IsUnknown { get; set; }
+
+    /// <summary>A member's message that came while they were out of the group (docs/16-group-chat.md §3.6): kept, with a note.</summary>
+    [ObservableProperty]
+    public partial bool IsOutOfGroup { get; set; }
+
+    /// <summary>A voice message: ▶, the waveform and how long it plays instead of text.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsText))]
+    public partial bool IsVoice { get; set; }
+
+    public bool IsText => !IsVoice;
+
+    [ObservableProperty]
+    public partial string? VoicePath { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DurationText))]
+    public partial int DurationMs { get; set; }
+
+    public string DurationText => ChatViewModel.Duration(DurationMs);
+
+    /// <summary>Heights of the waveform's bars, in pixels.</summary>
+    [ObservableProperty]
+    public partial IReadOnlyList<double> Bars { get; set; } = [];
+
+    [ObservableProperty]
+    public partial bool IsPlaying { get; set; }
+
+    /// <summary>How far it has played, 0 to 1.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PlayedWidth))]
+    public partial double Progress { get; set; }
+
+    /// <summary>Width of the bars already played (<see cref="WaveWidth"/> in all).</summary>
+    public double PlayedWidth => Progress * WaveWidth;
+
+    /// <summary>48 bars, 2 pixels wide with 2 between.</summary>
+    public const double WaveWidth = (VoiceRecorder.WaveBars * 4) - 2;
+
+    [RelayCommand]
+    private Task RetryAsync() => owner.RetryAsync(this);
+
+    [RelayCommand]
+    private void Play() => owner.TogglePlay(this);
+
+    /// <summary>Words to copy (not a voice message, nor the note left by a recall).</summary>
+    [ObservableProperty]
+    public partial bool CanCopy { get; set; }
+
+    /// <summary>Ours, not taken back yet, and sent less than five minutes ago (or still waiting).</summary>
+    [ObservableProperty]
+    public partial bool CanRecall { get; set; }
+
+    [RelayCommand]
+    private void Copy() => owner.CopyText?.Invoke(Text);
+
+    [RelayCommand]
+    private Task RecallAsync() => owner.RecallAsync(this);
+
+    internal override void RefreshRecall() => CanRecall = DateTimeOffset.UtcNow <= recallUntil;
+
+    [RelayCommand]
+    private void OpenLink(string link) => owner.OpenLink?.Invoke(link);
+
+    [RelayCommand]
+    private Task DeleteAsync() => owner.DeleteAsync(this);
+
+    /// <param name="lastMine">Our newest message: it says how far the peer got even when delivered or read.</param>
+    internal ChatBubbleViewModel Update(ChatMessage message, bool lastMine)
+    {
+        string? state = !message.Outgoing || message.Kind == ChatKinds.Recalled ? null : message.State switch
+        {
+            ChatMessageState.Pending => L.T("Chờ gửi"),
+            ChatMessageState.Failed => L.T("Không gửi được"),
+            ChatMessageState.Delivered when lastMine => L.T("Đã nhận"),
+            ChatMessageState.Read when lastMine => L.T("Đã xem"),
+            _ => null,
+        };
+        Show(message.Outgoing, message.Kind, TextOf(message), message.SentAt, message.State, message.DurationMs, message.Wave, message.VoicePath, state);
+        return this;
+    }
+
+    /// <param name="author">"Bạn", or the member's name.</param>
+    /// <param name="first">The first of a run of this member's messages.</param>
+    /// <param name="reached">Our newest message: where it is with each member.</param>
+    internal ChatBubbleViewModel Update(GroupChatMessage message, string author, bool first, IReadOnlyList<GroupDelivery>? reached)
+    {
+        IsInGroup = true;
+        AuthorName = author;
+        AuthorInitial = author.Length > 0 ? author[..1].ToUpper(L.Culture) : "?";
+        AuthorBrush = BrushOf(message.Author);
+        ShowsAuthor = !message.Outgoing && first;
+        IsOutOfGroup = message.OutOfGroup;
+        string? state = !message.Outgoing || message.Kind == ChatKinds.Recalled ? null
+            : message.State == ChatMessageState.Pending ? L.T("Chờ gửi")
+            : message.State == ChatMessageState.Failed ? L.T("Không gửi được")
+            : reached is { Count: > 0 } all
+                ? all.Any(d => d.State == GroupDeliveryState.Read)
+                    ? L.F("Đã xem {0}/{1}", all.Count(d => d.State == GroupDeliveryState.Read), all.Count)
+                    : L.F("Đã nhận {0}/{1}", all.Count(d => d.State == GroupDeliveryState.Delivered), all.Count)
+                : null;
+        Show(message.Outgoing, message.Kind, TextOf(message.Kind, message.Text, message.DurationMs, message.Outgoing && message.State == ChatMessageState.Pending),
+            message.SentAt, message.State, message.DurationMs, message.Wave, message.VoicePath, state);
+        return this;
+    }
+
+    private void Show(
+        bool outgoing, string messageKind, string text, DateTimeOffset sentAt, ChatMessageState messageState, int durationMs, byte[]? wave,
+        string? voicePath, string? state)
+    {
+        IsMine = outgoing;
+        IsVoice = messageKind == ChatKinds.Voice;
+        IsUnknown = messageKind is not (ChatKinds.Text or ChatKinds.Voice);
+        CanCopy = messageKind == ChatKinds.Text;
+        recallUntil = !outgoing || messageKind is not (ChatKinds.Text or ChatKinds.Voice) ? DateTimeOffset.MinValue
+            : messageState == ChatMessageState.Pending ? DateTimeOffset.MaxValue
+            : sentAt + ChatService.RecallWindow;
+        RecallText = ChatViewModel.RecallLabel(messageState == ChatMessageState.Pending);
+        RefreshRecall();
+        Text = text;
+        // New lists only when the message changed (sent, recalled): every refresh would build the rows again.
+        bool changed = messageKind != kind;
+        kind = messageKind;
+        if (changed)
+        {
+            Links = messageKind == ChatKinds.Text ? TransferText.LinksIn(Text) : [];
+        }
+        VoicePath = voicePath;
+        DurationMs = durationMs;
+        if (changed)
+        {
+            Bars = IsVoice ? [.. Enumerable.Range(0, VoiceRecorder.WaveBars).Select(i => 3 + (21.0 * (wave is not null && i < wave.Length ? wave[i] : 0) / 255))] : [];
+        }
+        IsFailed = messageState == ChatMessageState.Failed;
+        string time = sentAt.ToLocalTime().ToString("HH:mm", L.Culture);
+        StatusText = state is null ? time : $"{time} · {state}";
+    }
+
+    /// <summary>The words, or what stands for them in a list or a notification.</summary>
+    internal static string TextOf(ChatMessage message) =>
+        TextOf(message.Kind, message.Text, message.DurationMs, message.Outgoing && message.State == ChatMessageState.Pending);
+
+    /// <param name="cancelled">Ours, taken back while still waiting to be sent: it never left ("Đã hủy gửi").</param>
+    internal static string TextOf(string kind, string? text, int durationMs, bool cancelled = false) => kind switch
+    {
+        ChatKinds.Text => text ?? "",
+        ChatKinds.Voice => L.F("Tin nhắn thoại {0}", ChatViewModel.Duration(durationMs)),
+        ChatKinds.Recalled => cancelled ? L.T("Đã hủy gửi") : L.T("Tin nhắn đã được thu hồi"),
+        _ => L.T("Tin nhắn này cần bản Shorekeeper mới hơn."),
+    };
+}
