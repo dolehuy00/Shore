@@ -724,5 +724,6 @@
   "Đã hủy gửi": "Sending cancelled",
   "Giao diện": "Appearance",
   "Sáng": "Light",
-  "Tối": "Dark"
+  "Tối": "Dark",
+  "Gửi lúc người này không còn trong nhóm": "Sent while no longer in the group"
 }

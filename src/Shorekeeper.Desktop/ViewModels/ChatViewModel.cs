@@ -1544,6 +1544,10 @@ public sealed partial class ChatBubbleViewModel(string id, ChatViewModel owner) 
     [ObservableProperty]
     public partial bool IsUnknown { get; set; }
 
+    /// <summary>A member's message that came while they were out of the group (docs/16-group-chat.md §3.6): kept, with a note.</summary>
+    [ObservableProperty]
+    public partial bool IsOutOfGroup { get; set; }
+
     /// <summary>A voice message: ▶, the waveform and how long it plays instead of text.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsText))]
@@ -1631,6 +1635,7 @@ public sealed partial class ChatBubbleViewModel(string id, ChatViewModel owner) 
         AuthorInitial = author.Length > 0 ? author[..1].ToUpper(L.Culture) : "?";
         AuthorBrush = BrushOf(message.Author);
         ShowsAuthor = !message.Outgoing && first;
+        IsOutOfGroup = message.OutOfGroup;
         string? state = !message.Outgoing || message.Kind == ChatKinds.Recalled ? null
             : message.State == ChatMessageState.Pending ? L.T("Chờ gửi")
             : message.State == ChatMessageState.Failed ? L.T("Không gửi được")

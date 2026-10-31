@@ -38,9 +38,10 @@ public enum GroupDeliveryState
 /// Received: unread or read. Ours, over all members: pending until it reached someone, delivered, read once someone read
 /// it, failed when it reached nobody and never will (<see cref="GroupChatService.GetDeliveriesAsync"/> has each member).
 /// </param>
+/// <param name="OutOfGroup">Came while its author was out of the group, before this device knew (docs/16-group-chat.md §3.6).</param>
 public sealed record GroupChatMessage(
     string GroupId, string Id, DeviceId Author, string AuthorName, bool Outgoing, string Kind, string? Text, DateTimeOffset SentAt,
-    ChatMessageState State, int DurationMs = 0, byte[]? Wave = null, string? VoicePath = null);
+    ChatMessageState State, int DurationMs = 0, byte[]? Wave = null, string? VoicePath = null, bool OutOfGroup = false);
 
 public sealed record GroupDelivery(DeviceId Peer, GroupDeliveryState State);
 
@@ -101,7 +102,7 @@ public sealed class GroupChatService(
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(15);
 
     private const string Columns =
-        "GroupId, Id, AuthorId, AuthorName, AuthorKey, Outgoing, Kind, Text, SentAt, State, DurationMs, Wave, VoicePath, Sig";
+        "GroupId, Id, AuthorId, AuthorName, AuthorKey, Outgoing, Kind, Text, SentAt, State, DurationMs, Wave, VoicePath, Sig, OutOfGroup";
 
     private readonly Lock gate = new();
     private readonly HashSet<DeviceId> sending = [];
@@ -764,7 +765,7 @@ public sealed class GroupChatService(
         List<IndexRow> rows = [.. await connection.QueryAsync<IndexRow>(
             """
             SELECT Seq, Id, AuthorId, SentAt, Kind FROM ChatGroupMessages
-            WHERE GroupId = @groupId AND Seq > @after AND Deleted = 0 AND SentAt >= @since
+            WHERE GroupId = @groupId AND Seq > @after AND Deleted = 0 AND OutOfGroup = 0 AND SentAt >= @since
               AND (Kind <> 'recalled' OR RecallSig IS NOT NULL)
               AND Id IN (SELECT Id FROM ChatGroupMessages WHERE GroupId = @groupId AND Deleted = 0 ORDER BY SentAt DESC, Id DESC LIMIT @history)
             ORDER BY Seq LIMIT @take;
@@ -776,7 +777,7 @@ public sealed class GroupChatService(
             })];
         bool more = rows.Count > MaxIndexEntries;
         rows = [.. rows.Take(MaxIndexEntries)];
-        // Past what was left out too (deleted, too old), so the next pull starts after it.
+        // Past what was left out too (deleted, too old, out of the group), so the next pull starts after it.
         long next = more ? rows[^1].Seq
             : Math.Max(after, await connection.ExecuteScalarAsync<long?>("SELECT MAX(Seq) FROM ChatGroupMessages WHERE GroupId = @groupId;", new { groupId }) ?? 0);
         return PeerResponse.Json(new GroupChatIndexResponse(
@@ -806,7 +807,7 @@ public sealed class GroupChatService(
         await using (SqliteConnection connection = await database.OpenAsync())
         {
             rows = [.. await connection.QueryAsync<FetchRow>(
-                $"SELECT {Columns}, RecallSig FROM ChatGroupMessages WHERE GroupId = @groupId AND Id IN @ids AND Deleted = 0 ORDER BY SentAt, Id;",
+                $"SELECT {Columns}, RecallSig FROM ChatGroupMessages WHERE GroupId = @groupId AND Id IN @ids AND Deleted = 0 AND OutOfGroup = 0 ORDER BY SentAt, Id;",
                 new { groupId, ids })];
         }
 
@@ -1124,7 +1125,7 @@ public sealed class GroupChatService(
         groups.Changed += OnGroupsChanged;
         try
         {
-            await DropFromRemovedAsync();
+            await MarkFromRemovedAsync();
             DateTimeOffset pulled = DateTimeOffset.MinValue;
             while (!stoppingToken.IsCancellationRequested)
             {
@@ -1161,12 +1162,13 @@ public sealed class GroupChatService(
     private void OnGroupsChanged(object? sender, EventArgs e)
     {
         _ = PullAllAsync(CancellationToken.None);
-        _ = DropFromRemovedAsync();
+        _ = MarkFromRemovedAsync();
     }
 
     /// <summary>
     /// What reached us from someone while they were out of the group and our member list did not know
-    /// (docs/16-group-chat.md §3.6): deleted here like "Xóa". Judged by when it reached us, which they cannot set:
+    /// (docs/16-group-chat.md §3.6): kept, marked as such, and no longer passed on. Judged by when it reached us, which
+    /// they cannot set:
     /// <list type="bullet">
     /// <item>within a time out the Host's signed list names (until they were let in again, if they were), read in our
     /// clock: the Host's, less how far it is ahead;</item>
@@ -1174,7 +1176,7 @@ public sealed class GroupChatService(
     /// lists): after we last heard from the Host that they were a member.</item>
     /// </list>
     /// </summary>
-    private async Task DropFromRemovedAsync()
+    private async Task MarkFromRemovedAsync()
     {
         try
         {
@@ -1194,31 +1196,31 @@ public sealed class GroupChatService(
                     continue;
                 }
 
-                List<string> ids = [];
+                int marked = 0;
                 await using (SqliteConnection connection = await database.OpenAsync())
                 {
                     foreach ((string author, long from, long until) in spans)
                     {
-                        ids.AddRange(await connection.QueryAsync<string>(
+                        marked += await connection.ExecuteAsync(
                             """
-                            SELECT Id FROM ChatGroupMessages
-                            WHERE GroupId = @groupId AND AuthorId = @author AND Outgoing = 0 AND Deleted = 0
+                            UPDATE ChatGroupMessages SET OutOfGroup = 1
+                            WHERE GroupId = @groupId AND AuthorId = @author AND Outgoing = 0 AND Deleted = 0 AND OutOfGroup = 0
                               AND ReceivedAt > @from AND ReceivedAt < @until;
                             """,
-                            new { groupId = group.Id, author, from, until }));
+                            new { groupId = group.Id, author, from, until });
                     }
                 }
 
-                if (ids.Count > 0)
+                if (marked > 0)
                 {
-                    logger.LogWarning("Deleting {Count} group messages of {Group} that came while their author was out of it", ids.Count, group.Id);
-                    await DeleteAsync(group.Id, ids, CancellationToken.None);
+                    logger.LogWarning("Marked {Count} group messages of {Group} that came while their author was out of it", marked, group.Id);
+                    Changed?.Invoke(this, group.Id);
                 }
             }
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Deleting group messages from removed members failed");
+            logger.LogWarning(ex, "Marking group messages from removed members failed");
         }
     }
 
@@ -1564,11 +1566,13 @@ public sealed class GroupChatService(
 
         public byte[] Sig { get; init; } = [];
 
+        public long OutOfGroup { get; init; }
+
         /// <summary>Ours take their state from the deliveries; with none left (everyone gone), it reached whom it could.</summary>
         public GroupChatMessage ToMessage(Dictionary<(string, string), ChatMessageState> outgoing) => new(
             GroupId, Id, DeviceId.Parse(AuthorId), AuthorName, Outgoing != 0, Kind, Text, FromMs(SentAt),
             Outgoing != 0 ? outgoing.GetValueOrDefault((GroupId, Id), ChatMessageState.Delivered) : Enum.Parse<ChatMessageState>(State, ignoreCase: true),
-            (int)(DurationMs ?? 0), Wave, VoicePath);
+            (int)(DurationMs ?? 0), Wave, VoicePath, OutOfGroup != 0);
     }
 
     private sealed class ConversationRow : MessageRow

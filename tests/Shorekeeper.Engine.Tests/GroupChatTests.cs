@@ -343,7 +343,7 @@ public sealed class GroupChatTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task What_a_removed_member_got_in_while_the_list_was_behind_is_deleted_once_it_is_known()
+    public async Task What_a_removed_member_got_in_while_the_list_was_behind_is_marked_once_it_is_known()
     {
         await CutOffFromHostAsync(mai);
         Assert.Equal(HttpStatusCode.NoContent, (await PostAsync(tuan, mai, $"chat/groups/{groupId}/messages", Signed(tuan, "trước khi bị loại"))).Status);
@@ -354,8 +354,8 @@ public sealed class GroupChatTests : IAsyncLifetime
         // However it reaches her: from Huy, or from another member.
         Assert.True(await mai.Groups.AdoptRosterAsync(groupId, host.GroupStore.GetRoster(groupId)!));
 
-        await WaitUntil(() => Messages(mai).Count == 1);
-        Assert.Equal("trước khi bị loại", Messages(mai).Single().Text);
+        await WaitUntil(() => Messages(mai).Any(m => m.OutOfGroup));
+        Assert.Equal([("trước khi bị loại", false), ("sau khi bị loại", true)], Messages(mai).Select(m => (m.Text, m.OutOfGroup)));
     }
 
     [Fact]
@@ -374,8 +374,8 @@ public sealed class GroupChatTests : IAsyncLifetime
 
         Assert.True(await mai.Groups.AdoptRosterAsync(groupId, host.GroupStore.GetRoster(groupId)!));
 
-        await WaitUntil(() => Messages(mai).Count == 1);
-        Assert.Equal("trước khi bị loại", Messages(mai).Single().Text);
+        await WaitUntil(() => Messages(mai).Any(m => m.OutOfGroup));
+        Assert.Equal([("trước khi bị loại", false), ("sau khi bị loại", true)], Messages(mai).Select(m => (m.Text, m.OutOfGroup)));
     }
 
     [Fact]
@@ -432,7 +432,7 @@ public sealed class GroupChatTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task What_came_while_someone_was_out_is_deleted_even_after_they_are_back()
+    public async Task What_came_while_someone_was_out_is_marked_and_not_passed_on_even_after_they_are_back()
     {
         await CutOffFromHostAsync(mai);
         await PostToMaiAsync("trước khi bị loại");
@@ -449,12 +449,19 @@ public sealed class GroupChatTests : IAsyncLifetime
         Assert.NotNull(Assert.Single(roster.Removed).BackAt);
         Assert.True(await mai.Groups.AdoptRosterAsync(groupId, roster));
 
-        await WaitUntil(() => Messages(mai).Count == 2);
-        Assert.Equal(["trước khi bị loại", "sau khi vào lại"], Messages(mai).Select(m => m.Text));
+        await WaitUntil(() => Messages(mai).Any(m => m.OutOfGroup));
+        Assert.Equal(
+            [("trước khi bị loại", false), ("lúc bị loại", true), ("sau khi vào lại", false)],
+            Messages(mai).Select(m => (m.Text, m.OutOfGroup)));
+        // Tuấn is a member again, so his messages are passed on; not the one from his time out.
+        Dictionary<string, string?> texts = Messages(mai).ToDictionary(m => m.Id, m => m.Text);
+        Assert.Equal(
+            ((string[])["trước khi bị loại", "sau khi vào lại"]).Order(),
+            (await IndexAsync(tuan, mai)).Where(e => e.AuthorId == tuan.Id.Value).Select(e => texts.GetValueOrDefault(e.Id, e.Id)).Order());
     }
 
     [Fact]
-    public async Task Someone_gone_without_a_time_loses_what_came_after_the_host_last_said_they_were_in()
+    public async Task Someone_gone_without_a_time_has_what_came_after_the_host_last_said_they_were_in_marked()
     {
         await PostToMaiAsync("lúc còn trong nhóm");
         await CutOffFromHostAsync(mai);
@@ -468,8 +475,8 @@ public sealed class GroupChatTests : IAsyncLifetime
 
         Assert.True(await mai.Groups.AdoptRosterAsync(groupId, roster));
 
-        await WaitUntil(() => Messages(mai).Count == 1);
-        Assert.Equal("lúc còn trong nhóm", Messages(mai).Single().Text);
+        await WaitUntil(() => Messages(mai).Any(m => m.OutOfGroup));
+        Assert.Equal([("lúc còn trong nhóm", false), ("không rõ lúc nào", true)], Messages(mai).Select(m => (m.Text, m.OutOfGroup)));
     }
 
     [Fact]
@@ -850,6 +857,15 @@ public sealed class GroupChatTests : IAsyncLifetime
         }
 
         return recorder.Finish();
+    }
+
+    /// <summary>What <paramref name="to"/> offers <paramref name="from"/> to pull, from the start.</summary>
+    private async Task<IReadOnlyList<GroupChatIndexEntry>> IndexAsync(TestNode from, TestNode to)
+    {
+        using HttpResponseMessage response = await from.Client.SendAsync(
+            to.Id, u => new HttpRequestMessage(HttpMethod.Get, new Uri(u, $"chat/groups/{groupId}/index?after=0")), TimeSpan.FromSeconds(10), Ct);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<GroupChatIndexResponse>(Ct))!.Entries;
     }
 
     private static async Task<(HttpStatusCode Status, string Body)> PostAsync<T>(TestNode from, TestNode to, string path, T body)

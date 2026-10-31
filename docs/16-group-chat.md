@@ -119,10 +119,10 @@ Một cơ chế cho cả hai việc: **thành viên kéo tin còn thiếu từ t
 - Người chuyển hộ chỉ đưa tin nó đã nhận và kiểm được, nên không tạo được tin giả. Tin trong lịch sử hiện tên tác giả lúc gửi (lưu kèm tin).
 - **Máy chưa biết ai vừa bị loại** (chưa gọi được Host) vẫn nhận tin của người đó, gửi thẳng hay chuyển hộ, tới khi danh sách cập nhật. Thu hẹp và dọn lại (2026-10-22):
   - Tin loại đi theo danh sách Host đã ký, và thành viên đưa cho nhau khi không gọi được Host ([07 §4.1](07-groups.md)): chỉ cần một người biết.
-  - Danh sách đã ký ghi **khoảng thời gian bị loại** (giờ Host): từ lúc rời / bị loại tới lúc được cho vào lại, nếu có; người vào lại thì khoảng đó vẫn được ghi. Nhận được nó thì máy **xóa** (như "Xóa", để lại dấu xóa) tin của người đó mà máy **nhận** trong khoảng đó, theo `ReceivedAt` do chính máy ghi, người bị loại không đặt được. Giờ được đổi sang giờ máy mình theo độ lệch đồng hồ đo được với Host ([07 §4.1](07-groups.md)), nên ranh giới chỉ sai vài ms.
-  - Danh sách chỉ ghi các khoảng trong 31 ngày. Người biến khỏi danh sách của máy mình mà danh sách mới không có giờ (máy lâu không gọi được Host, hay Host bản cũ): máy xóa tin của người đó nhận **sau lần cuối Host xác nhận** họ còn trong nhóm (`Groups.SyncedAt`, `GroupDepartures`).
+  - Danh sách đã ký ghi **khoảng thời gian bị loại** (giờ Host): từ lúc rời / bị loại tới lúc được cho vào lại, nếu có; người vào lại thì khoảng đó vẫn được ghi. Nhận được nó thì máy **đánh dấu** tin của người đó mà máy **nhận** trong khoảng đó, theo `ReceivedAt` do chính máy ghi, người bị loại không đặt được. Tin được giữ, hiện kèm dòng "Gửi lúc người này không còn trong nhóm", và không bao giờ được chuyển hộ cho thành viên khác (`index` / `fetch` bỏ qua), kể cả khi người đó đã vào lại (`ChatGroupMessages.OutOfGroup`, migration `0016`; trước 2026-10-31 thì xóa). Giờ được đổi sang giờ máy mình theo độ lệch đồng hồ đo được với Host ([07 §4.1](07-groups.md)), nên ranh giới chỉ sai vài ms.
+  - Danh sách chỉ ghi các khoảng trong 31 ngày. Người biến khỏi danh sách của máy mình mà danh sách mới không có giờ (máy lâu không gọi được Host, hay Host bản cũ): máy đánh dấu như trên tin của người đó nhận **sau lần cuối Host xác nhận** họ còn trong nhóm (`Groups.SyncedAt`, `GroupDepartures`).
   - Host báo ngay khi loại, báo thành viên vừa online, và báo trước khi thoát.
-  - Còn hở: Host loại người khi không thành viên nào online, rồi tắt trước khi có ai online (tin lọt trong lúc đó bị xóa khi Host mở lại); và một máy không gọi được Host quá 31 ngày, trong lúc đó A bị loại rồi được cho vào lại, và A gửi tin tới máy đó đúng trong khoảng bị loại. Nhóm cần kín hẳn thì dùng §3.7.
+  - Còn hở: Host loại người khi không thành viên nào online, rồi tắt trước khi có ai online (tin lọt trong lúc đó được đánh dấu khi Host mở lại); và một máy không gọi được Host quá 31 ngày, trong lúc đó A bị loại rồi được cho vào lại, và A gửi tin tới máy đó đúng trong khoảng bị loại. Nhóm cần kín hẳn thì dùng §3.7.
 
 ### 3.7 Chỉ nhắn khi Host online (2026-10-22)
 
@@ -252,8 +252,8 @@ Test engine của C5b:
 - A thu hồi khi C offline: C kéo từ B thấy dòng "đã thu hồi", không bao giờ thấy nội dung.
 - D mới vào nhóm: kéo được tin trong 30 ngày của người còn trong nhóm, không có tin của người đã rời (từ 2026-10-22), không có tin ngoài cửa sổ.
 - C bị loại vẫn gửi được cho B (danh sách của B chưa cập nhật): A kéo từ B không nhận tin nào của C, kể cả tin lùi giờ về trước lúc bị loại (thêm 2026-10-22).
-- Danh sách đã ký: Host ký lại khi loại C, ghi C và giờ; danh sách bị sửa hay cũ hơn thì không nhận. B không gọi được Host vẫn biết C bị loại nhờ hỏi D, rồi từ chối C. Tin C lọt vào B sau giờ bị loại bị xóa khi B biết; tin trước đó giữ nguyên, kể cả khi đồng hồ Host nhanh 2 phút. Host báo ngay B khi B không gọi được Host mà Host gọi được B, báo B khi B vừa online lại, và báo trước khi thoát (thêm 2026-10-22).
-- C bị loại rồi được cho vào lại: tin C gửi lọt vào B trong lúc bị loại bị xóa khi B biết, tin trước và sau đó giữ. Danh sách không còn giờ loại C (quá 31 ngày): B xóa tin C nhận sau lần cuối Host xác nhận C. Nhóm "Chỉ nhắn khi Host online": B mất Host thì không gửi được, từ chối tin của A (`host_offline`), A giữ tin và gửi lại khi B nghe lại Host (thêm 2026-10-22).
+- Danh sách đã ký: Host ký lại khi loại C, ghi C và giờ; danh sách bị sửa hay cũ hơn thì không nhận. B không gọi được Host vẫn biết C bị loại nhờ hỏi D, rồi từ chối C. Tin C lọt vào B sau giờ bị loại được đánh dấu khi B biết (trước 2026-10-31: bị xóa); tin trước đó không đánh dấu, kể cả khi đồng hồ Host nhanh 2 phút. Host báo ngay B khi B không gọi được Host mà Host gọi được B, báo B khi B vừa online lại, và báo trước khi thoát (thêm 2026-10-22).
+- C bị loại rồi được cho vào lại: tin C gửi lọt vào B trong lúc bị loại được đánh dấu khi B biết, và B không chuyển hộ tin đó dù C đã là thành viên lại; tin trước và sau đó không đánh dấu. Danh sách không còn giờ loại C (quá 31 ngày): B đánh dấu tin C nhận sau lần cuối Host xác nhận C. Nhóm "Chỉ nhắn khi Host online": B mất Host thì không gửi được, từ chối tin của A (`host_offline`), A giữ tin và gửi lại khi B nghe lại Host (thêm 2026-10-22).
 - C xóa một tin rồi kéo lại từ người khác thì tin không quay về.
 - Kéo lần hai từ cùng người chỉ lấy phần mới.
 
@@ -263,12 +263,18 @@ Thử thật 3 máy (2026-10-21: PC làm Host, OPPO Reno10 Android 13, Samsung A
 - Tắt hẳn app trên A07, PC gửi một tin (OPPO nhận, PC hiện "Đã xem 1/2"), tắt PC, mở lại A07: A07 kéo tin đó từ OPPO, có thông báo nhóm như tin thường.
 - Mở lại PC: tin đó thành "Đã xem 2/2" (PC gửi tiếp, A07 trả "đã có", rồi báo đã xem); A07 không có tin trùng.
 
+Thử thật 3 máy (2026-10-31: PC làm Host, OPPO Reno10, Nubia Z2577; một nhóm lập để thử rồi đóng):
+
+- Tin lọt: tắt app trên hai điện thoại, PC loại OPPO rồi tắt hẳn. Mở lại hai điện thoại, OPPO (chưa biết mình bị loại) nhắn vào nhóm; Nubia nhận. Mở lại PC: Nubia còn 2 thành viên, tin của OPPO vẫn còn với dòng "Gửi lúc người này không còn trong nhóm"; OPPO được báo "Bạn không còn ở trong nhóm". Mời OPPO vào lại: dòng đó vẫn còn trên Nubia.
+- Tin đó cũng tới PC, không qua Nubia mà từ chính OPPO: PC từ chối lúc OPPO bị loại, OPPO thử lại trong 2 phút (§3.1) và lúc đó đã được cho vào lại. Như mọi tin của thành viên, giờ gửi do người gửi ghi; đây là giới hạn đã biết, không phải chuyển hộ.
+- "Chỉ nhắn khi Host online": tường lửa PC chặn riêng Nubia, OPPO vẫn gọi được PC. Khoảng 1 phút sau Nubia khóa ô soạn ("Host đang offline…"); OPPO gửi một tin, thành "Đã nhận 1/2" (PC nhận, Nubia từ chối, tin chờ ở OPPO). Gỡ chặn: Nubia mở ô soạn, tin tự tới Nubia, OPPO hiện "Đã xem 2/2".
+
 ## 8. Rủi ro
 
 | Rủi ro | Cách xử lý |
 |---|---|
 | Một thành viên cùng phe với người đã bị loại, đưa tin mới của người đó vào nhóm (chữ ký vẫn đúng, kể cả lùi giờ) | Đã chặn (2026-10-22): tin chuyển hộ chỉ nhận khi tác giả đang là thành viên (§3.6); máy nhận ghi log người chuyển. Đổi lại, không còn chuyển hộ tin của người đã rời. Thành viên đó vẫn tự chép lại chữ được, nhưng đứng tên chính mình |
-| Máy chưa gọi được Host chưa biết ai vừa bị loại, vẫn nhận tin của người đó | Danh sách Host ký; Host báo ngay, báo người vừa online, báo trước khi thoát; thành viên đưa cho nhau khi không gọi được Host ([07 §4.1](07-groups.md)); biết rồi thì xóa tin của người đó nhận sau giờ bị loại, theo đồng hồ đã đo (§3.6). Còn hở khi Host loại lúc không ai online rồi tắt trước khi có ai online; nhóm cần kín hẳn bật "Chỉ nhắn khi Host online" (§3.7), đổi lại Host tắt thì nhóm không nhắn được |
+| Máy chưa gọi được Host chưa biết ai vừa bị loại, vẫn nhận tin của người đó | Danh sách Host ký; Host báo ngay, báo người vừa online, báo trước khi thoát; thành viên đưa cho nhau khi không gọi được Host ([07 §4.1](07-groups.md)); biết rồi thì đánh dấu tin của người đó nhận sau giờ bị loại, theo đồng hồ đã đo, và không chuyển hộ tin đó (§3.6). Còn hở khi Host loại lúc không ai online rồi tắt trước khi có ai online; nhóm cần kín hẳn bật "Chỉ nhắn khi Host online" (§3.7), đổi lại Host tắt thì nhóm không nhắn được |
 | Lịch sử chỉ có khi còn ai đó online giữ nó | Cửa sổ 30 ngày / 1.000 tin trên mọi máy thành viên, nên chỉ cần một người online |
 | Kéo lịch sử từ nhiều người tốn băng thông | `index` gọn trước, `fetch` chỉ tin thiếu; kéo lần lượt từng người, không song song |
 | Danh sách thành viên các máy lệch nhau ngay sau khi có người vào hay rời | `403` thử lại 2 phút (§3.1); tin chờ cho người đã rời thì bỏ |
