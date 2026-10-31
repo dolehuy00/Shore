@@ -225,7 +225,7 @@ public sealed partial class AudioViewModel : ObservableObject
     }
 
     /// <summary>"Nguồn tiếng" is shown: the phone can play its microphone instead of what apps play (Android).</summary>
-    public bool CanChooseSource { get; init; }
+    public bool CanChooseSource { get; set; }
 
     /// <summary>"Nguồn tiếng": 0 what apps play, 1 the microphone. Changed while not playing.</summary>
     public int SourceIndex

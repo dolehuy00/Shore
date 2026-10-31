@@ -7,7 +7,7 @@ using Shorekeeper.Engine.Trust;
 namespace Shorekeeper.Desktop.ViewModels;
 
 /// <summary>How a peer is named in the UI (<see cref="PeerNaming"/>: told apart from anyone with the same name).</summary>
-public sealed class PeerNames(TrustStore trust, PeerDirectory directory, PeerNaming naming)
+public sealed class PeerNames(TrustStore trust, PeerDirectory directory, PeerNaming naming, IDialogs dialogs)
 {
     /// <summary>A name may have changed: a contact renamed itself, or we gave someone a name of our own.</summary>
     public event EventHandler? Changed
@@ -31,7 +31,7 @@ public sealed class PeerNames(TrustStore trust, PeerDirectory directory, PeerNam
     public async Task AskAliasAsync(DeviceId id, string knownAs)
     {
         string current = trust.GetAlias(id) ?? trust.Get(id)?.DisplayName ?? knownAs;
-        if (await DialogService.PromptAsync(L.T("Đặt tên gợi nhớ"), L.F("Tên gợi nhớ cho {0}:", naming.Of(id, knownAs)), current) is { } alias)
+        if (await dialogs.PromptAsync(L.T("Đặt tên gợi nhớ"), L.F("Tên gợi nhớ cho {0}:", naming.Of(id, knownAs)), current) is { } alias)
         {
             await trust.SetAliasAsync(id, alias);
         }

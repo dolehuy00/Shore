@@ -26,14 +26,14 @@ public sealed partial class NeighborhoodViewModel : ObservableObject
     private readonly TrustStore trust;
     private readonly GroupStore groups;
     private readonly PairingService pairing;
-    private readonly DialogService dialogs;
+    private readonly IDialogs dialogs;
     private readonly PeerAvatars avatars;
     private readonly SettingsService settings;
     private readonly AudioService audio;
     private readonly Dictionary<DeviceId, PeerCardViewModel> cards = [];
 
     public NeighborhoodViewModel(
-        PeerDirectory directory, TrustStore trust, GroupStore groups, PairingService pairing, DialogService dialogs, PeerAvatars avatars,
+        PeerDirectory directory, TrustStore trust, GroupStore groups, PairingService pairing, IDialogs dialogs, PeerAvatars avatars,
         SettingsService settings, AudioService audio)
     {
         this.directory = directory;
@@ -198,7 +198,7 @@ public sealed partial class NeighborhoodViewModel : ObservableObject
     {
         int count = card.IsSelected ? Contacts.Count(c => c.IsSelected) : 1;
         string label = count > 1 ? L.F("Văn bản hoặc link gửi cho {0} người:", count) : L.F("Văn bản hoặc link gửi cho {0}:", card.DisplayName);
-        if (await DialogService.PromptAsync(L.T("Gửi văn bản"), label, initialText, L.T("Gửi"), multiline: true) is { } text
+        if (await dialogs.PromptAsync(L.T("Gửi văn bản"), label, initialText, L.T("Gửi"), multiline: true) is { } text
             && !string.IsNullOrWhiteSpace(text))
         {
             await SendAsync(card, [], text);
@@ -253,19 +253,19 @@ public sealed partial class NeighborhoodViewModel : ObservableObject
     }
 
     internal Task ChooseAutoAcceptAsync(PeerCardViewModel card) =>
-        DialogService.ChooseAutoAcceptAsync(
+        dialogs.ChooseAutoAcceptAsync(
             card.DisplayName, trust.Get(card.DeviceId)?.AutoAcceptMaxBytes, settings.Current.AutoAcceptLimitGb,
             maxBytes => trust.SetAutoAcceptAsync(card.DeviceId, maxBytes));
 
-    internal async Task SendFilesAsync(PeerCardViewModel card) => await SendAsync(card, await DialogService.PickFilesAsync());
+    internal async Task SendFilesAsync(PeerCardViewModel card) => await SendAsync(card, await dialogs.PickFilesAsync());
 
-    internal async Task SendFolderAsync(PeerCardViewModel card) => await SendAsync(card, await DialogService.PickFolderAsync());
+    internal async Task SendFolderAsync(PeerCardViewModel card) => await SendAsync(card, await dialogs.PickFolderAsync());
 
     internal Task ConnectAsync(PeerCardViewModel card) => dialogs.ConnectAsync(card.DeviceId, card.DisplayName);
 
     internal async Task RenameAsync(PeerCardViewModel card)
     {
-        string? alias = await DialogService.PromptAsync(L.T("Đặt tên gợi nhớ"), L.F("Tên gợi nhớ cho {0}:", card.HostName), card.DisplayName);
+        string? alias = await dialogs.PromptAsync(L.T("Đặt tên gợi nhớ"), L.F("Tên gợi nhớ cho {0}:", card.HostName), card.DisplayName);
         if (alias is not null)
         {
             await trust.SetAliasAsync(card.DeviceId, alias);

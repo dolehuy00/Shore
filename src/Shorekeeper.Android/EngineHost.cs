@@ -5,6 +5,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shorekeeper.Android.Platform;
+using Shorekeeper.Android.ViewModels;
 using Shorekeeper.Core.Localization;
 using Shorekeeper.Core.Platform;
 using Shorekeeper.Core.Settings;
@@ -12,6 +13,7 @@ using Shorekeeper.Engine;
 using Shorekeeper.Engine.Audio;
 using Shorekeeper.Engine.Hosting;
 using Shorekeeper.Engine.Settings;
+using Shorekeeper.UI.ViewModels;
 using AndroidEnvironment = Android.OS.Environment;
 using Build = Android.OS.Build;
 using GlobalSettings = Android.Provider.Settings.Global;
@@ -77,6 +79,14 @@ public static class EngineHost
         builder.Services.AddTransfers();
         builder.Services.AddPeerApi();
         builder.Services.AddMulticastDiscovery();
+        // The view models, each given what it uses (docs/02-architecture.md); App asks for MainViewModel once all runs.
+        builder.Services.AddSingleton<MainViewModel>();
+        builder.Services.AddSingleton<ChatViewModel>();
+        builder.Services.AddSingleton<AudioViewModel>();
+        builder.Services.AddSingleton<Func<MainViewModel, GroupsTabViewModel>>(
+            services => main => ActivatorUtilities.CreateInstance<GroupsTabViewModel>(services, main));
+        builder.Services.AddSingleton<Func<MainViewModel, SettingsTabViewModel>>(
+            services => main => ActivatorUtilities.CreateInstance<SettingsTabViewModel>(services, main));
 
         IHost host = builder.Build();
         await host.StartAsync();

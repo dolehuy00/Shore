@@ -22,7 +22,7 @@ namespace Shorekeeper.Desktop.Views;
 /// Explorer's "Gửi bằng Shorekeeper…". Must be called on the UI thread.
 /// </summary>
 public sealed class QuickSendService(
-    DialogService dialogs,
+    IDialogs dialogs,
     TrustStore trust,
     GroupStore groups,
     OfferService offers,
@@ -69,7 +69,7 @@ public sealed class QuickSendService(
         }
 
         var viewModel = new QuickSendViewModel(People(), paths);
-        var opened = new QuickSendWindow { DataContext = viewModel };
+        var opened = new QuickSendWindow { DataContext = viewModel, Dialogs = dialogs };
         viewModel.CloseRequested += (_, _) => opened.Close();
         opened.Closed += (_, _) =>
         {

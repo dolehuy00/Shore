@@ -231,11 +231,11 @@ public partial class MainWindow : Window
 
         if (paths.Length == 0 && string.IsNullOrWhiteSpace(text))
         {
-            await DialogService.ChooseAsync(L.T("Không có gì để gửi"), L.T("Hãy copy file, thư mục, ảnh hoặc một đoạn chữ rồi nhấn Ctrl+V."), [L.T("Đóng")]);
+            await main.Dialogs.ChooseAsync(L.T("Không có gì để gửi"), L.T("Hãy copy file, thư mục, ảnh hoặc một đoạn chữ rồi nhấn Ctrl+V."), [L.T("Đóng")]);
         }
         else if (!(paths.Length > 0 ? await main.Neighborhood.SendToSelectedAsync(paths) : await main.Neighborhood.SendTextToSelectedAsync(text!)))
         {
-            await DialogService.ChooseAsync(L.T("Chưa chọn người nhận"), L.T("Click vào thẻ một người đã kết nối rồi nhấn Ctrl+V."), [L.T("Đóng")]);
+            await main.Dialogs.ChooseAsync(L.T("Chưa chọn người nhận"), L.T("Click vào thẻ một người đã kết nối rồi nhấn Ctrl+V."), [L.T("Đóng")]);
         }
     }
 

@@ -27,7 +27,7 @@ public sealed class DialogService(
     OfferService offers,
     InboxService inbox,
     SettingsService settings,
-    INotifier notifier)
+    INotifier notifier) : IDialogs
 {
     private static readonly TimeSpan OfferPopupLifetime = TimeSpan.FromSeconds(20);
 
@@ -146,7 +146,7 @@ public sealed class DialogService(
     }
 
     /// <param name="owner">The window asking; the main window when null.</param>
-    public static async Task<IReadOnlyList<string>> PickFilesAsync(Window? owner = null)
+    public async Task<IReadOnlyList<string>> PickFilesAsync(Window? owner = null)
     {
         if ((owner ?? MainWindow) is not { } window)
         {
@@ -157,7 +157,7 @@ public sealed class DialogService(
         return [.. files.Select(f => f.TryGetLocalPath()).OfType<string>()];
     }
 
-    public static async Task<IReadOnlyList<string>> PickFolderAsync(Window? owner = null)
+    public async Task<IReadOnlyList<string>> PickFolderAsync(Window? owner = null)
     {
         if ((owner ?? MainWindow) is not { } window)
         {
@@ -169,7 +169,7 @@ public sealed class DialogService(
     }
 
     /// <returns>The file chosen, or null when cancelled.</returns>
-    public static async Task<string?> PickFileAsync(string title, FilePickerFileType type)
+    public async Task<string?> PickFileAsync(string title, FilePickerFileType type)
     {
         if (MainWindow is not { } window)
         {
@@ -181,7 +181,7 @@ public sealed class DialogService(
     }
 
     /// <returns>Where to save, or null when cancelled.</returns>
-    public static async Task<string?> PickSaveFileAsync(string title, string suggestedName, FilePickerFileType type)
+    public async Task<string?> PickSaveFileAsync(string title, string suggestedName, FilePickerFileType type)
     {
         if (MainWindow is not { } window)
         {
@@ -199,7 +199,7 @@ public sealed class DialogService(
     }
 
     /// <returns>The file ids picked, or null when cancelled.</returns>
-    public static async Task<IReadOnlyList<string>?> PickOfferFilesAsync(ReceivedOffer offer)
+    public async Task<IReadOnlyList<string>?> PickOfferFilesAsync(ReceivedOffer offer)
     {
         var viewModel = new PickOfferFilesViewModel(offer);
         await ShowAsync(new PickOfferFilesWindow { DataContext = viewModel }, viewModel);
@@ -207,7 +207,7 @@ public sealed class DialogService(
     }
 
     /// <returns>The people ticked, or null when cancelled.</returns>
-    public static async Task<IReadOnlyList<PickablePeer>?> PickPeopleAsync(string title, string confirmText, string emptyText, IReadOnlyList<PickablePeer> people)
+    public async Task<IReadOnlyList<PickablePeer>?> PickPeopleAsync(string title, string confirmText, string emptyText, IReadOnlyList<PickablePeer> people)
     {
         var viewModel = new PickPeopleViewModel(title, confirmText, emptyText, people);
         await ShowAsync(new PickPeopleWindow { DataContext = viewModel }, viewModel);
@@ -258,7 +258,7 @@ public sealed class DialogService(
     }
 
     /// <returns>Index of the button pressed, or -1 if the window was closed.</returns>
-    public static async Task<int> ChooseAsync(string title, string message, IReadOnlyList<string> choices)
+    public async Task<int> ChooseAsync(string title, string message, IReadOnlyList<string> choices)
     {
         var viewModel = new ChoiceViewModel(title, message, choices);
         await ShowAsync(new ChoiceWindow { DataContext = viewModel }, viewModel);
@@ -279,7 +279,7 @@ public sealed class DialogService(
     public void ShowIncomingOffer(ReceivedOffer offer, string senderName)
     {
         var key = new OfferKey(offer.SenderId, offer.OfferId);
-        var viewModel = new IncomingOfferViewModel(offer, senderName, () => inbox.Download(key), () => inbox.DeclineAsync(key), () =>
+        var viewModel = new IncomingOfferViewModel(this, offer, senderName, () => inbox.Download(key), () => inbox.DeclineAsync(key), () =>
         {
             if (offer.Files.Count == 0)
             {
@@ -377,7 +377,7 @@ public sealed class DialogService(
     }
 
     /// <inheritdoc cref="PasswordPromptViewModel"/>
-    public static async Task<string?> PromptPasswordAsync(string title, string label, string okText, bool confirm, Func<string, Task<string?>> check)
+    public async Task<string?> PromptPasswordAsync(string title, string label, string okText, bool confirm, Func<string, Task<string?>> check)
     {
         var viewModel = new PasswordPromptViewModel(title, label, okText, confirm, check);
         await ShowAsync(new PasswordPromptWindow { DataContext = viewModel }, viewModel);
@@ -385,7 +385,7 @@ public sealed class DialogService(
     }
 
     /// <param name="multiline">A larger box where Enter starts a new line, e.g. for "Gửi văn bản".</param>
-    public static async Task<string?> PromptAsync(string title, string label, string initialText, string? okText = null, bool multiline = false)
+    public async Task<string?> PromptAsync(string title, string label, string initialText, string? okText = null, bool multiline = false)
     {
         var viewModel = new TextPromptViewModel(title, label, initialText, okText) { IsMultiline = multiline };
         await ShowAsync(new TextPromptWindow { DataContext = viewModel }, viewModel);
@@ -393,9 +393,9 @@ public sealed class DialogService(
     }
 
     /// <summary>A text and a tick box below it; null when cancelled.</summary>
-    public static async Task<(string Text, bool Option)?> PromptWithOptionAsync(string title, string label, string initialText, string optionText, bool option)
+    public async Task<(string Text, bool Option)?> PromptWithOptionAsync(string title, string label, string initialText, string optionText, bool optionChecked)
     {
-        var viewModel = new TextPromptViewModel(title, label, initialText) { OptionText = optionText, IsOptionChecked = option };
+        var viewModel = new TextPromptViewModel(title, label, initialText) { OptionText = optionText, IsOptionChecked = optionChecked };
         await ShowAsync(new TextPromptWindow { DataContext = viewModel }, viewModel);
         return viewModel.Confirmed ? (viewModel.Text, viewModel.IsOptionChecked) : null;
     }
@@ -439,7 +439,7 @@ public sealed class DialogService(
         .Windows.FirstOrDefault(w => w is MainWindow { IsVisible: true });
 
     /// <summary>"Tự nhận file…" for one contact; <paramref name="save"/> gets the choice when the user saves.</summary>
-    public static async Task ChooseAutoAcceptAsync(string name, long? current, double generalLimitGb, Func<long?, Task> save)
+    public async Task ChooseAutoAcceptAsync(string name, long? current, double generalLimitGb, Func<long?, Task> save)
     {
         var window = new AutoAcceptWindow();
         window.DataContext = new AutoAcceptChoiceViewModel(name, current, generalLimitGb, save, window.Close);
@@ -454,7 +454,7 @@ public sealed class DialogService(
     }
 
     /// <summary>Puts text on the clipboard, through the main window (it exists while hidden in the tray).</summary>
-    public static async Task CopyTextAsync(string text)
+    public async Task CopyTextAsync(string text)
     {
         if (MainWindow?.Clipboard is { } clipboard)
         {
@@ -464,14 +464,14 @@ public sealed class DialogService(
 
     /// <summary>Puts a received picture on the clipboard as a picture, off the UI thread (large photos take a moment).</summary>
     /// <returns>False when the file cannot be read any more.</returns>
-    public static Task<bool> CopyImageAsync(string path) => Task.Run(() => ClipboardImage.Copy(path));
+    public Task<bool> CopyImageAsync(string path) => Task.Run(() => ClipboardImage.Copy(path));
 
     /// <summary>
     /// Opening a received file that runs (a program, a script, a shortcut…) runs it with the user's rights, so it asks
     /// first, offering the folder instead (docs/04-identity-security.md §5). Anything else opens at once.
     /// </summary>
     /// <returns>True to open it.</returns>
-    public static async Task<bool> ConfirmOpenAsync(string path)
+    public async Task<bool> ConfirmOpenAsync(string path)
     {
         if (!RunnableFiles.Is(path))
         {
@@ -498,7 +498,7 @@ public sealed class DialogService(
     }
 
     /// <summary>Opens <paramref name="text"/> in the browser when it is a web address; anything else is left alone.</summary>
-    public static void OpenLink(string text)
+    public void OpenLink(string text)
     {
         if (TransferText.LinkOf(text) is { } link)
         {

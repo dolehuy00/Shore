@@ -129,6 +129,7 @@ internal static class Program
         builder.Services.AddSingleton<IGlobalHotkey>(NullGlobalHotkey.Instance);
 #endif
         builder.Services.AddSingleton<DialogService>();
+        builder.Services.AddSingleton<IDialogs>(services => services.GetRequiredService<DialogService>());
         builder.Services.AddSingleton<QuickSendService>();
         builder.Services.AddSingleton<PeerNames>();
         builder.Services.AddSingleton<InboxViewModel>();

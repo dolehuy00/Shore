@@ -3,9 +3,7 @@ using System.Security.Cryptography;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Microsoft.Extensions.DependencyInjection;
 using Shorekeeper.Android.Platform;
-using Shorekeeper.Core.Discovery;
 using Shorekeeper.Core.Localization;
 using Shorekeeper.Core.Platform;
 using Shorekeeper.Core.Settings;
@@ -48,20 +46,21 @@ public sealed partial class SettingsTabViewModel : ObservableObject
     private OpenedBackup? opened;
     private string? restoreLocation;
 
-    public SettingsTabViewModel(IServiceProvider services, MainViewModel main)
+    public SettingsTabViewModel(
+        SettingsService settings, IdentityBackup backup, IExternalFileSource external, PeerDirectory directory, ApiServer api,
+        LocalDevice device, AppPaths paths, TrustStore trust, UsageStatsService usage, PeerNaming naming, PhotoBackupService photoBackup,
+        MainViewModel main)
     {
-        settings = services.GetRequiredService<SettingsService>();
-        backup = services.GetRequiredService<IdentityBackup>();
-        external = services.GetRequiredService<IExternalFileSource>();
-        directory = services.GetRequiredService<PeerDirectory>();
-        api = services.GetRequiredService<ApiServer>();
-        device = services.GetRequiredService<LocalDevice>();
-        paths = services.GetRequiredService<AppPaths>();
-        Blocked = new BlockedPeersViewModel(services.GetRequiredService<TrustStore>());
-        Stats = new StatsViewModel(
-            services.GetRequiredService<UsageStatsService>(), services.GetRequiredService<PeerNaming>(), services.GetRequiredService<SettingsService>());
-        PhotoBackup = new PhotoBackupViewModel(
-            services.GetRequiredService<PhotoBackupService>(), services.GetRequiredService<TrustStore>(), directory, main);
+        this.settings = settings;
+        this.backup = backup;
+        this.external = external;
+        this.directory = directory;
+        this.api = api;
+        this.device = device;
+        this.paths = paths;
+        Blocked = new BlockedPeersViewModel(trust);
+        Stats = new StatsViewModel(usage, naming, settings);
+        PhotoBackup = new PhotoBackupViewModel(photoBackup, trust, directory, main);
         this.main = main;
         DisplayName = settings.Current.DisplayName;
         AutoAcceptLimitGb = (decimal)settings.Current.AutoAcceptLimitGb;

@@ -35,11 +35,14 @@ public sealed partial class GroupsViewModel : ObservableObject
     private readonly PeerDirectory directory;
     private readonly LocalDevice device;
     private readonly LocalPresence presence;
-    private readonly DialogService dialogs;
+    private readonly IDialogs dialogs;
     private readonly Dictionary<string, GroupCardViewModel> cards = [];
 
+    /// <summary>For the group cards, which ask through their page.</summary>
+    internal IDialogs Dialogs => dialogs;
+
     public GroupsViewModel(
-        GroupStore store, GroupService groups, PeerDirectory directory, PeerNames names, LocalDevice device, LocalPresence presence, DialogService dialogs)
+        GroupStore store, GroupService groups, PeerDirectory directory, PeerNames names, LocalDevice device, LocalPresence presence, IDialogs dialogs)
     {
         this.store = store;
         this.groups = groups;
@@ -85,7 +88,7 @@ public sealed partial class GroupsViewModel : ObservableObject
     [RelayCommand]
     private async Task CreateAsync()
     {
-        if (await DialogService.PromptWithOptionAsync(L.T("Tạo nhóm"), L.T("Tên nhóm:"), "", HostOnlyText, false) is { } answer
+        if (await dialogs.PromptWithOptionAsync(L.T("Tạo nhóm"), L.T("Tên nhóm:"), "", HostOnlyText, false) is { } answer
             && !string.IsNullOrWhiteSpace(answer.Text))
         {
             await RunAsync(L.T("Không tạo được nhóm"), async () =>
@@ -117,7 +120,7 @@ public sealed partial class GroupsViewModel : ObservableObject
         }
 
         PickablePeer[] members = [.. group.Members.Where(m => m.DeviceId != Me).Select(m => Person(m.DeviceId, m.Name, isChecked: true))];
-        IReadOnlyList<PickablePeer>? picked = await DialogService.PickPeopleAsync(
+        IReadOnlyList<PickablePeer>? picked = await dialogs.PickPeopleAsync(
             L.F("Gửi cho nhóm {0}", group.Name), L.T("Gửi"), L.T("Nhóm chưa có ai khác ngoài bạn."), members);
         if (picked is not null)
         {
@@ -127,7 +130,7 @@ public sealed partial class GroupsViewModel : ObservableObject
 
     internal async Task SendTextAsync(GroupCardViewModel card)
     {
-        if (await DialogService.PromptAsync(L.T("Gửi văn bản"), L.F("Văn bản hoặc link gửi cho nhóm {0}:", card.Name), "", L.T("Tiếp"), multiline: true) is { } text)
+        if (await dialogs.PromptAsync(L.T("Gửi văn bản"), L.F("Văn bản hoặc link gửi cho nhóm {0}:", card.Name), "", L.T("Tiếp"), multiline: true) is { } text)
         {
             await SendAsync(card, [], text);
         }
@@ -147,7 +150,7 @@ public sealed partial class GroupsViewModel : ObservableObject
                 .OrderBy(p => p.DisplayName, StringComparer.CurrentCultureIgnoreCase)
                 .Select(p => Person(p.DeviceId, Names.Of(p.DeviceId), isChecked: false, p.HostName)),
         ];
-        IReadOnlyList<PickablePeer>? picked = await DialogService.PickPeopleAsync(
+        IReadOnlyList<PickablePeer>? picked = await dialogs.PickPeopleAsync(
             L.F("Mời vào nhóm {0}", group.Name), L.T("Mời"), L.T("Không có ai đang online ngoài các thành viên."), candidates);
         foreach (PickablePeer person in picked ?? [])
         {
@@ -162,7 +165,7 @@ public sealed partial class GroupsViewModel : ObservableObject
     internal async Task EditAsync(GroupCardViewModel card)
     {
         bool hostOnly = store.Get(card.Id)?.HostOnlyChat ?? false;
-        if (await DialogService.PromptWithOptionAsync(L.T("Sửa nhóm"), L.T("Tên nhóm:"), card.Name, HostOnlyText, hostOnly) is { } answer
+        if (await dialogs.PromptWithOptionAsync(L.T("Sửa nhóm"), L.T("Tên nhóm:"), card.Name, HostOnlyText, hostOnly) is { } answer
             && !string.IsNullOrWhiteSpace(answer.Text))
         {
             await RunAsync(L.T("Không sửa được nhóm"), async () =>
@@ -175,7 +178,7 @@ public sealed partial class GroupsViewModel : ObservableObject
 
     internal async Task CloseAsync(GroupCardViewModel card)
     {
-        int choice = await DialogService.ChooseAsync(
+        int choice = await dialogs.ChooseAsync(
             L.F("Đóng nhóm {0}?", card.Name),
             L.T("Mọi thành viên sẽ rời nhóm. File đã gửi/nhận trước đó không bị ảnh hưởng."),
             [L.T("Đóng nhóm"), L.T("Hủy")]);
@@ -189,7 +192,7 @@ public sealed partial class GroupsViewModel : ObservableObject
 
     internal async Task RemoveAsync(GroupCardViewModel card, MemberViewModel member)
     {
-        int choice = await DialogService.ChooseAsync(
+        int choice = await dialogs.ChooseAsync(
             L.F("Loại {0} khỏi nhóm?", member.Name),
             L.F("{0} sẽ không còn trong nhóm {1} và không nhận file qua nhóm này nữa.", member.Name, card.Name),
             [L.T("Loại khỏi nhóm"), L.T("Hủy")]);
@@ -207,7 +210,7 @@ public sealed partial class GroupsViewModel : ObservableObject
 
     internal async Task JoinAsync(NetworkGroupViewModel group)
     {
-        string? note = await DialogService.PromptAsync(L.F("Xin vào nhóm {0}", group.Name), L.F("Lời nhắn cho {0} (không bắt buộc):", group.HostName), "");
+        string? note = await dialogs.PromptAsync(L.F("Xin vào nhóm {0}", group.Name), L.F("Lời nhắn cho {0} (không bắt buộc):", group.HostName), "");
         if (note is not null)
         {
             await RunAsync(L.T("Không gửi được yêu cầu"), () => groups.RequestJoinAsync(group.HostId, group.GroupId, group.Name, note));
@@ -352,7 +355,7 @@ public sealed partial class GroupsViewModel : ObservableObject
 
     /// <summary>Runs a group action; failures are explained in plain words.</summary>
     /// <returns>False when it failed.</returns>
-    private static async Task<bool> RunAsync(string title, Func<Task> action)
+    private async Task<bool> RunAsync(string title, Func<Task> action)
     {
         string? error;
         try
@@ -379,7 +382,7 @@ public sealed partial class GroupsViewModel : ObservableObject
             };
         }
 
-        await DialogService.ChooseAsync(title, error, [L.T("Đóng")]);
+        await dialogs.ChooseAsync(title, error, [L.T("Đóng")]);
         return false;
     }
 }
@@ -480,10 +483,10 @@ public sealed partial class GroupCardViewModel(string id, GroupsViewModel owner)
     private void Chat() => owner.RequestChat(this);
 
     [RelayCommand]
-    private async Task SendFilesAsync() => await owner.SendAsync(this, await DialogService.PickFilesAsync());
+    private async Task SendFilesAsync() => await owner.SendAsync(this, await owner.Dialogs.PickFilesAsync());
 
     [RelayCommand]
-    private async Task SendFolderAsync() => await owner.SendAsync(this, await DialogService.PickFolderAsync());
+    private async Task SendFolderAsync() => await owner.SendAsync(this, await owner.Dialogs.PickFolderAsync());
 
     [RelayCommand]
     private Task SendTextAsync() => owner.SendTextAsync(this);

@@ -338,7 +338,7 @@ public sealed partial class PickOfferFilesViewModel : DialogViewModel
 }
 
 /// <summary>"Huy gửi cho bạn · app.zip + 1 mục · 2.4 GB" [Tải] [Bỏ qua] [Xem] (docs/10-ux.md §4).</summary>
-public sealed partial class IncomingOfferViewModel(ReceivedOffer offer, string senderName, Action download, Func<Task> decline, Action show)
+public sealed partial class IncomingOfferViewModel(IDialogs dialogs, ReceivedOffer offer, string senderName, Action download, Func<Task> decline, Action show)
     : DialogViewModel
 {
     public string Title { get; } = L.F("{0} gửi cho bạn", senderName);
@@ -361,14 +361,14 @@ public sealed partial class IncomingOfferViewModel(ReceivedOffer offer, string s
     [RelayCommand]
     private async Task CopyAsync()
     {
-        await DialogService.CopyTextAsync(Text);
+        await dialogs.CopyTextAsync(Text);
         RequestClose();
     }
 
     [RelayCommand]
     private void OpenLink()
     {
-        DialogService.OpenLink(Text);
+        dialogs.OpenLink(Text);
         RequestClose();
     }
 

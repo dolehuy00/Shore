@@ -3,7 +3,6 @@ using System.Windows.Input;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Microsoft.Extensions.DependencyInjection;
 using Shorekeeper.Android.Platform;
 using Shorekeeper.Core.Discovery;
 using Shorekeeper.Core.Identity;
@@ -30,13 +29,14 @@ public sealed partial class GroupsTabViewModel : ObservableObject
     private readonly MainViewModel main;
     private string shownGroups = "";
 
-    public GroupsTabViewModel(IServiceProvider services, MainViewModel main)
+    public GroupsTabViewModel(
+        GroupStore store, GroupService groups, PeerDirectory directory, LocalDevice device, TrustStore trust, MainViewModel main)
     {
-        store = services.GetRequiredService<GroupStore>();
-        groups = services.GetRequiredService<GroupService>();
-        directory = services.GetRequiredService<PeerDirectory>();
-        device = services.GetRequiredService<LocalDevice>();
-        trust = services.GetRequiredService<TrustStore>();
+        this.store = store;
+        this.groups = groups;
+        this.directory = directory;
+        this.device = device;
+        this.trust = trust;
         this.main = main;
 
         store.Changed += (_, _) => Dispatcher.UIThread.Post(Refresh);

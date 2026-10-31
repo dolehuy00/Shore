@@ -19,11 +19,16 @@ namespace Shorekeeper.Desktop.ViewModels;
 /// </summary>
 public sealed partial class InboxViewModel : ObservableObject
 {
+    private readonly IDialogs dialogs;
     private readonly InboxService inbox;
     private readonly PeerNames names;
 
-    public InboxViewModel(InboxService inbox, PeerNames names, PeerDirectory directory, TimeProvider timeProvider)
+    /// <summary>For the offer cards, which ask through their page.</summary>
+    internal IDialogs Dialogs => dialogs;
+
+    public InboxViewModel(InboxService inbox, PeerNames names, PeerDirectory directory, TimeProvider timeProvider, IDialogs dialogs)
     {
+        this.dialogs = dialogs;
         this.inbox = inbox;
         this.names = names;
         TimeProvider = timeProvider;
@@ -154,7 +159,7 @@ public sealed partial class InboxViewModel : ObservableObject
             string message = deleteFiles
                 ? L.F("Xóa {0} mục khỏi danh sách đã nhận và xóa luôn file đã nhận của chúng? File bị xóa hẳn khỏi máy, không vào Thùng rác.", chosen.Count)
                 : L.F("Xóa {0} mục khỏi danh sách đã nhận? File đã nhận vẫn giữ nguyên.", chosen.Count);
-            if (await DialogService.ChooseAsync(L.T("Xóa"), message, [L.T("Xóa"), L.T("Hủy")]) != 0)
+            if (await dialogs.ChooseAsync(L.T("Xóa"), message, [L.T("Xóa"), L.T("Hủy")]) != 0)
             {
                 return;
             }
@@ -187,7 +192,7 @@ public sealed partial class InboxViewModel : ObservableObject
 
         if (problems.Count > 0)
         {
-            await DialogService.ChooseAsync(L.T("Xóa"), string.Join("\n", problems), [L.T("Đóng")]);
+            await dialogs.ChooseAsync(L.T("Xóa"), string.Join("\n", problems), [L.T("Đóng")]);
         }
     }
 
@@ -405,7 +410,7 @@ public sealed partial class InboxItemViewModel(OfferKey key, InboxViewModel owne
     [RelayCommand]
     private async Task CopyImageAsync()
     {
-        if (offer?.Files.FirstOrDefault(IsPicture)?.FinalPath is { } path && await DialogService.CopyImageAsync(path))
+        if (offer?.Files.FirstOrDefault(IsPicture)?.FinalPath is { } path && await owner.Dialogs.CopyImageAsync(path))
         {
             CopyText = L.T("Đã chép");
             DispatcherTimer.RunOnce(() => CopyText = L.T("Sao chép"), TimeSpan.FromSeconds(2));
@@ -517,7 +522,7 @@ public sealed partial class InboxItemViewModel(OfferKey key, InboxViewModel owne
     [RelayCommand]
     private async Task PickFilesAsync()
     {
-        if (offer is not null && await DialogService.PickOfferFilesAsync(offer) is { } picked)
+        if (offer is not null && await owner.Dialogs.PickOfferFilesAsync(offer) is { } picked)
         {
             owner.Inbox.Download(Key, [.. picked]);
         }
@@ -567,7 +572,7 @@ public sealed partial class InboxItemViewModel(OfferKey key, InboxViewModel owne
         {
             await ShowMissingAsync();
         }
-        else if (await DialogService.ConfirmOpenAsync(received[0]))
+        else if (await owner.Dialogs.ConfirmOpenAsync(received[0]))
         {
             await StartAsync(new ProcessStartInfo(received[0]) { UseShellExecute = true });
         }
@@ -592,11 +597,11 @@ public sealed partial class InboxItemViewModel(OfferKey key, InboxViewModel owne
         }
     }
 
-    private static async Task ShowMissingAsync() =>
-        await DialogService.ChooseAsync(L.T("Mở"), L.T("Không còn thấy file đã nhận: có thể nó đã bị xóa hoặc chuyển đi chỗ khác."), [L.T("Đóng")]);
+    private async Task ShowMissingAsync() =>
+        await owner.Dialogs.ChooseAsync(L.T("Mở"), L.T("Không còn thấy file đã nhận: có thể nó đã bị xóa hoặc chuyển đi chỗ khác."), [L.T("Đóng")]);
 
     /// <summary>Opening can still fail (deleted just now, blocked by policy); that must not take the app down.</summary>
-    private static async Task StartAsync(ProcessStartInfo start)
+    private async Task StartAsync(ProcessStartInfo start)
     {
         try
         {
@@ -604,7 +609,7 @@ public sealed partial class InboxItemViewModel(OfferKey key, InboxViewModel owne
         }
         catch (Win32Exception ex)
         {
-            await DialogService.ChooseAsync(L.T("Mở"), L.F("Không mở được: {0}", ex.Message), [L.T("Đóng")]);
+            await owner.Dialogs.ChooseAsync(L.T("Mở"), L.F("Không mở được: {0}", ex.Message), [L.T("Đóng")]);
         }
     }
 

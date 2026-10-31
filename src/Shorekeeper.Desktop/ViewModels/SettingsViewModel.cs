@@ -23,13 +23,15 @@ public sealed partial class SettingsViewModel : ObservableObject
 {
     private static readonly FilePickerFileType BackupFileType = new(L.T("Bản sao lưu Shorekeeper")) { Patterns = ["*" + IdentityBackup.FileExtension] };
 
+    private readonly IDialogs dialogs;
     private readonly SettingsService settings;
     private readonly QuickSendService quickSend;
     private readonly IdentityBackup backup;
     private readonly LocalDevice device;
 
-    public SettingsViewModel(SettingsService settings, QuickSendService quickSend, IdentityBackup backup, LocalDevice device)
+    public SettingsViewModel(SettingsService settings, QuickSendService quickSend, IdentityBackup backup, LocalDevice device, IDialogs dialogs)
     {
+        this.dialogs = dialogs;
         this.settings = settings;
         this.quickSend = quickSend;
         this.backup = backup;
@@ -140,7 +142,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     private async Task BackupAsync()
     {
         string title = L.T("Sao lưu danh tính");
-        if (await DialogService.PromptPasswordAsync(
+        if (await dialogs.PromptPasswordAsync(
                 title, L.F("Đặt mật khẩu cho bản sao lưu (ít nhất {0} ký tự):", IdentityBackup.MinPasswordLength), L.T("Tiếp"), confirm: true,
                 p => Task.FromResult(p.Length < IdentityBackup.MinPasswordLength ? L.F("Mật khẩu phải có ít nhất {0} ký tự.", IdentityBackup.MinPasswordLength) : null))
             is not { } password)
@@ -149,7 +151,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
 
         string name = $"Shorekeeper-{device.DeviceId.ShortForm}-{DateTime.Now.ToString("yyyyMMdd", CultureInfo.InvariantCulture)}{IdentityBackup.FileExtension}";
-        if (await DialogService.PickSaveFileAsync(title, name, BackupFileType) is not { } path)
+        if (await dialogs.PickSaveFileAsync(title, name, BackupFileType) is not { } path)
         {
             return;
         }
@@ -160,16 +162,16 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
         catch (IOException ex)
         {
-            await DialogService.ChooseAsync(title, L.F("Không ghi được file: {0}", ex.Message), [L.T("Đóng")]);
+            await dialogs.ChooseAsync(title, L.F("Không ghi được file: {0}", ex.Message), [L.T("Đóng")]);
             return;
         }
         catch (UnauthorizedAccessException)
         {
-            await DialogService.ChooseAsync(title, L.T("Không có quyền ghi vào thư mục đã chọn."), [L.T("Đóng")]);
+            await dialogs.ChooseAsync(title, L.T("Không có quyền ghi vào thư mục đã chọn."), [L.T("Đóng")]);
             return;
         }
 
-        await DialogService.ChooseAsync(
+        await dialogs.ChooseAsync(
             L.T("Đã sao lưu"),
             L.T("Cất file và mật khẩu ở nơi an toàn: ai có cả hai có thể giả làm máy này.\n\nKhi cài lại Windows hoặc chuyển sang máy mới, vào Cài đặt → Khôi phục để giữ nguyên danh tính, liên hệ và nhóm."),
             [L.T("Đóng")]);
@@ -183,13 +185,13 @@ public sealed partial class SettingsViewModel : ObservableObject
     private async Task RestoreAsync()
     {
         string title = L.T("Khôi phục danh tính");
-        if (await DialogService.PickFileAsync(title, BackupFileType) is not { } path)
+        if (await dialogs.PickFileAsync(title, BackupFileType) is not { } path)
         {
             return;
         }
 
         OpenedBackup? opened = null;
-        if (await DialogService.PromptPasswordAsync(title, L.T("Mật khẩu của bản sao lưu:"), L.T("Mở"), confirm: false, async password =>
+        if (await dialogs.PromptPasswordAsync(title, L.T("Mật khẩu của bản sao lưu:"), L.T("Mở"), confirm: false, async password =>
             {
                 try
                 {
@@ -210,7 +212,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
 
         BackupSummary summary = opened.Summary;
-        int choice = await DialogService.ChooseAsync(
+        int choice = await dialogs.ChooseAsync(
             title,
             L.F("Khôi phục danh tính {0} ({1}, sao lưu lúc {2:HH:mm dd/MM/yyyy}) với {3} liên hệ và {4} nhóm?\n\n",
                 summary.DeviceId.ShortForm, summary.DisplayName, summary.CreatedAt.ToLocalTime(), summary.Contacts, summary.Groups)
@@ -229,7 +231,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     [RelayCommand]
     private async Task PickDownloadDirectoryAsync()
     {
-        IReadOnlyList<string> picked = await DialogService.PickFolderAsync();
+        IReadOnlyList<string> picked = await dialogs.PickFolderAsync();
         if (picked.Count > 0)
         {
             DownloadDirectory = picked[0];
@@ -266,7 +268,7 @@ public sealed partial class SettingsViewModel : ObservableObject
 
         // Text is translated when it is created, so a new language needs a fresh start.
         if (languageChanged
-            && await DialogService.ChooseAsync(L.T("Ngôn ngữ"), L.T("Ngôn ngữ mới có hiệu lực sau khi khởi động lại Shorekeeper."), [L.T("Khởi động lại"), L.T("Để sau")]) == 0)
+            && await dialogs.ChooseAsync(L.T("Ngôn ngữ"), L.T("Ngôn ngữ mới có hiệu lực sau khi khởi động lại Shorekeeper."), [L.T("Khởi động lại"), L.T("Để sau")]) == 0)
         {
             App.Restart();
         }

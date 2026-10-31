@@ -75,6 +75,10 @@ public enum SettingsSection
 public sealed partial class MainWindowViewModel : ObservableObject
 {
     private readonly LocalPresence presence;
+    private readonly IDialogs dialogs;
+
+    /// <summary>For the window's own messages (Ctrl+V with nothing to send).</summary>
+    internal IDialogs Dialogs => dialogs;
 
     public MainWindowViewModel(
         ShorekeeperEngine engine,
@@ -91,8 +95,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
         AudioViewModel audio,
         StatsViewModel stats,
         ChatViewModel chat,
-        DialogService dialogs)
+        IDialogs dialogs)
     {
+        this.dialogs = dialogs;
         Groups = groups;
         Chat = chat;
         Stats = stats;
@@ -148,12 +153,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
         neighborhood.ChatRequested += (_, peer) => OpenChat(peer);
         groups.ChatRequested += (_, groupId) => OpenGroupChat(groupId);
         chat.ShowsGroups = true;
-        chat.CopyText = text => _ = DialogService.CopyTextAsync(text);
-        chat.OpenLink = DialogService.OpenLink;
-        chat.Confirm = async (title, question, action) => await DialogService.ChooseAsync(title, question, [action, L.T("Hủy")]) == 0;
-        chat.AskText = (title, label, text) => DialogService.PromptAsync(title, label, text);
+        chat.CopyText = text => _ = dialogs.CopyTextAsync(text);
+        chat.OpenLink = dialogs.OpenLink;
+        chat.Confirm = async (title, question, action) => await dialogs.ChooseAsync(title, question, [action, L.T("Hủy")]) == 0;
+        chat.AskText = (title, label, text) => dialogs.PromptAsync(title, label, text);
         chat.ShowFiles = received => ShowPage(received ? NavPage.Inbox : NavPage.Sent);
-        chat.PickFiles = () => DialogService.PickFilesAsync();
+        chat.PickFiles = () => dialogs.PickFilesAsync();
         chat.OpenFile = path => _ = OpenReceivedAsync(path);
         chat.SendFiles = async (recipients, groupId, paths) =>
         {
@@ -175,8 +180,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
         dialogs.ChatRequested += (_, target) => OpenChat(target);
         audio.Notice += (_, message) => dialogs.Ask(L.T("Âm thanh"), [message], [], NavPage.Audio, _ => { });
         audio.AskPassword = question => question.Masked
-            ? DialogService.PromptPasswordAsync(question.Title, question.Label, question.OkText, confirm: false, _ => Task.FromResult<string?>(null))
-            : DialogService.PromptAsync(question.Title, question.Label, "", question.OkText);
+            ? dialogs.PromptPasswordAsync(question.Title, question.Label, question.OkText, confirm: false, _ => Task.FromResult<string?>(null))
+            : dialogs.PromptAsync(question.Title, question.Label, "", question.OkText);
     }
 
     public NeighborhoodViewModel Neighborhood { get; }
@@ -306,7 +311,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private void SetSettingsSection(SettingsSection section) => SettingsSection = section;
 
     [RelayCommand]
-    private Task CopyDeviceIdAsync() => DialogService.CopyTextAsync(DeviceId);
+    private Task CopyDeviceIdAsync() => dialogs.CopyTextAsync(DeviceId);
 
     public bool IsComingSoonVisible => SelectedNavItem.Milestone is not null;
 
@@ -326,9 +331,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
     }
 
     /// <summary>A file from a conversation, in its viewer; one that runs asks first.</summary>
-    private static async Task OpenReceivedAsync(string path)
+    private async Task OpenReceivedAsync(string path)
     {
-        if (!await DialogService.ConfirmOpenAsync(path))
+        if (!await dialogs.ConfirmOpenAsync(path))
         {
             return;
         }

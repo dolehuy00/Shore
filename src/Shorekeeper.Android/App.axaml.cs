@@ -1,8 +1,8 @@
-using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
+using Microsoft.Extensions.DependencyInjection;
 using Shorekeeper.Android.Platform;
 using Shorekeeper.Android.ViewModels;
 using Shorekeeper.Core.Identity;
@@ -119,7 +119,8 @@ public partial class App : Application
         IServiceProvider services = await engine;
         await Dispatcher.UIThread.InvokeAsync(() =>
         {
-            main = new MainViewModel(services) { IsInForeground = true };
+            main = services.GetRequiredService<MainViewModel>();
+            main.IsInForeground = true;
             view.DataContext = main;
             ChatNotifications.IsReading = peer => main.Chat.ReadingPeer == peer;
             ChatNotifications.IsReadingGroup = groupId => main.Chat.ReadingGroup == groupId;

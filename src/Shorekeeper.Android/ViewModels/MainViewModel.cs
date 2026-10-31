@@ -3,7 +3,6 @@ using System.Globalization;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Microsoft.Extensions.DependencyInjection;
 using Shorekeeper.Android.Platform;
 using Shorekeeper.Core.Identity;
 using Shorekeeper.Core.Localization;
@@ -11,8 +10,6 @@ using Shorekeeper.Core.Platform;
 using Shorekeeper.Core.Trust;
 using Shorekeeper.UI.ViewModels;
 using Shorekeeper.Engine;
-using Shorekeeper.Engine.Audio;
-using Shorekeeper.Engine.Chat;
 using Shorekeeper.Engine.Discovery;
 using Shorekeeper.Engine.Groups;
 using Shorekeeper.Engine.Settings;
@@ -45,67 +42,64 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly ManualPeerFinder finder;
     private readonly DispatcherTimer progressTimer;
 
-    public MainViewModel(IServiceProvider services)
+    /// <param name="groupsTab">Nhóm, and <paramref name="settingsTab"/> Cài đặt: made by the container for this view model.</param>
+    public MainViewModel(
+        PeerDirectory directory, TrustStore trust, PairingService pairing, InboxService inbox, OfferService offers, IExternalFileSource external,
+        GroupStore groups, SettingsService settings, PeerNaming naming, LocalDevice device, AppPaths paths, ManualPeerFinder finder,
+        ChatViewModel chat, AudioViewModel audio, Func<MainViewModel, GroupsTabViewModel> groupsTab,
+        Func<MainViewModel, SettingsTabViewModel> settingsTab)
     {
-        directory = services.GetRequiredService<PeerDirectory>();
-        trust = services.GetRequiredService<TrustStore>();
-        pairing = services.GetRequiredService<PairingService>();
-        inbox = services.GetRequiredService<InboxService>();
-        offers = services.GetRequiredService<OfferService>();
-        external = services.GetRequiredService<IExternalFileSource>();
-        groups = services.GetRequiredService<GroupStore>();
-        settings = services.GetRequiredService<SettingsService>();
-        // Before the tabs: Nhóm names its members while it is being made, before Chat exists.
-        naming = services.GetRequiredService<PeerNaming>();
-        device = services.GetRequiredService<LocalDevice>();
-        paths = services.GetRequiredService<AppPaths>();
-        finder = services.GetRequiredService<ManualPeerFinder>();
-        Groups = new GroupsTabViewModel(services, this);
-        Audio = new AudioViewModel(
-            services.GetRequiredService<AudioService>(), directory, trust, settings, services.GetRequiredService<PeerNaming>())
-        {
-            AllowPlaying = () => MainActivity.Current is { } activity
-                ? PlaybackCapture.RequestAsync(activity, settings.Current.AudioFromMicrophone)
-                : Task.FromResult(false),
-            CanChooseSource = true,
-        };
+        this.directory = directory;
+        this.trust = trust;
+        this.pairing = pairing;
+        this.inbox = inbox;
+        this.offers = offers;
+        this.external = external;
+        this.groups = groups;
+        this.settings = settings;
+        // Before the tabs: Nhóm names its members while it is being made, before Chat is set.
+        this.naming = naming;
+        this.device = device;
+        this.paths = paths;
+        this.finder = finder;
+        Groups = groupsTab(this);
+        Audio = audio;
+        Audio.AllowPlaying = () => MainActivity.Current is { } activity
+            ? PlaybackCapture.RequestAsync(activity, settings.Current.AudioFromMicrophone)
+            : Task.FromResult(false);
+        Audio.CanChooseSource = true;
         Audio.Notice += (_, message) => Notice = message;
         Audio.AskPassword = AskPasswordAsync;
-        Settings = new SettingsTabViewModel(services, this);
-        Chat = new ChatViewModel(
-            services.GetRequiredService<ChatService>(), services.GetRequiredService<GroupChatService>(), services.GetRequiredService<GroupStore>(),
-            trust, directory, offers, inbox, settings, services.GetRequiredService<PeerNaming>(), external,
-            services.GetService<IMicrophone>(), services.GetService<IVoicePlayer>())
+        Settings = settingsTab(this);
+        Chat = chat;
+        Chat.AllowRecording = AllowRecordingAsync;
+        Chat.ShowsGroups = true;
+        Chat.CopyText = text =>
         {
-            AllowRecording = AllowRecordingAsync,
-            ShowsGroups = true,
-            CopyText = text =>
-            {
-                TextActions.Copy(global::Android.App.Application.Context, text);
-                Notice = L.T("Đã chép");
-            },
-            OpenLink = link => TextActions.Open(global::Android.App.Application.Context, link),
-            AskText = AskTextAsync,
-            Confirm = (title, question, action) =>
-            {
-                var answer = new TaskCompletionSource<bool>();
-                Question = new QuestionViewModel(title, question, action, null, _ =>
-                {
-                    answer.TrySetResult(true);
-                    return Task.CompletedTask;
-                }, this)
-                {
-                    Cancelled = () => answer.TrySetResult(false),
-                };
-                return answer.Task;
-            },
-            ShowFiles = received =>
-            {
-                FilesShowSent = !received;
-                SelectedTab = 1;
-            },
-            SendFiles = (recipients, groupId, locations) => SendAsync(locations, [.. recipients.Select(r => (r, groupId))], showSent: false),
+            TextActions.Copy(global::Android.App.Application.Context, text);
+            Notice = L.T("Đã chép");
         };
+        Chat.OpenLink = link => TextActions.Open(global::Android.App.Application.Context, link);
+        Chat.AskText = AskTextAsync;
+        Chat.Confirm = (title, question, action) =>
+        {
+            var answer = new TaskCompletionSource<bool>();
+            Question = new QuestionViewModel(title, question, action, null, _ =>
+            {
+                answer.TrySetResult(true);
+                return Task.CompletedTask;
+            }, this)
+            {
+                Cancelled = () => answer.TrySetResult(false),
+            };
+            return answer.Task;
+        };
+        Chat.ShowFiles = received =>
+        {
+            FilesShowSent = !received;
+            SelectedTab = 1;
+        };
+        Chat.SendFiles = (recipients, groupId, locations) => SendAsync(locations, [.. recipients.Select(r => (r, groupId))], showSent: false);
         OfferSelection = new ListSelection(() => Offers, () => RemoveCheckedOffers(deleteFiles: false), () => RemoveCheckedOffers(deleteFiles: true));
         SentSelection = new ListSelection(() => Sent, RemoveCheckedSent);
         settings.Changed += (_, _) => Dispatcher.UIThread.Post(() => OnPropertyChanged(nameof(Title)));

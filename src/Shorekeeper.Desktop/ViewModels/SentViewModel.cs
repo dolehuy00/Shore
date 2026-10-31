@@ -13,10 +13,12 @@ namespace Shorekeeper.Desktop.ViewModels;
 /// <summary>"Đã gửi" (docs/10-ux.md §3): our offers and where each recipient is at.</summary>
 public sealed partial class SentViewModel : ObservableObject
 {
+    private readonly IDialogs dialogs;
     private readonly OfferService offers;
 
-    public SentViewModel(OfferService offers, PeerNames names, PeerDirectory directory, TimeProvider timeProvider)
+    public SentViewModel(OfferService offers, PeerNames names, PeerDirectory directory, TimeProvider timeProvider, IDialogs dialogs)
     {
+        this.dialogs = dialogs;
         this.offers = offers;
         Names = names;
         TimeProvider = timeProvider;
@@ -124,7 +126,7 @@ public sealed partial class SentViewModel : ObservableObject
             string message = chosen.Any(i => i.CanWithdraw)
                 ? L.F("Xóa {0} mục khỏi danh sách đã gửi? Mục còn đang mở sẽ bị thu hồi: người nhận chưa tải sẽ không tải được nữa. File gốc của bạn vẫn giữ nguyên.", chosen.Count)
                 : L.F("Xóa {0} mục khỏi danh sách đã gửi? File gốc của bạn vẫn giữ nguyên.", chosen.Count);
-            if (await DialogService.ChooseAsync(L.T("Xóa"), message, [L.T("Xóa"), L.T("Hủy")]) != 0)
+            if (await dialogs.ChooseAsync(L.T("Xóa"), message, [L.T("Xóa"), L.T("Hủy")]) != 0)
             {
                 return;
             }
