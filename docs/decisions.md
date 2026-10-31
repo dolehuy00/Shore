@@ -218,3 +218,28 @@ Mỗi mục: **Bối cảnh → Quyết định → Hệ quả**. Trạng thái:
 - ✅ Engine chạy được trên Android; một bộ route + quyền cho mọi nền tảng.
 - ✅ Nhanh hơn Kestrel trên loopback, dừng nhanh (không chờ long-poll).
 - ❌ Tự giữ phần phân tích HTTP: chỉ HTTP/1.1, một range, không nén. Đủ cho client của chính mình; không dùng cho trình duyệt.
+
+---
+
+## ADR-016 — Không chuyển hộ tin của người đã rời hay bị loại khỏi nhóm
+
+**Trạng thái:** Chấp nhận (2026-10-22, C5; bổ sung 2026-10-31)
+
+**Bối cảnh:** Thành viên kéo tin còn thiếu từ nhau ([16 §3.6](16-group-chat.md)). Mỗi tin ký bằng khóa tác giả nên người chuyển không sửa được nội dung, nhưng giờ gửi do tác giả tự ghi. Một người đã bị loại, cùng phe với một thành viên còn lại, có thể ký tin mới, ghi lùi giờ về lúc còn trong nhóm, rồi nhờ thành viên kia đưa vào lịch sử. Chữ ký vẫn đúng, nên không ai phân biệt được với tin thật.
+
+**Quyết định:**
+- Tin chuyển hộ chỉ được nhận khi tác giả **đang là thành viên** theo danh sách của máy nhận. Tin của người đã rời hay bị loại không bao giờ được chuyển hộ, kể cả tin gửi khi họ còn trong nhóm. Máy nhận ghi log người chuyển.
+- Tin người đó gửi **thẳng** lọt vào một máy chưa biết họ bị loại (Host loại người khi không ai online, rồi tắt máy) thì không xóa: khi máy biết, tin được **giữ và đánh dấu** "Gửi lúc người này không còn trong nhóm" (2026-10-31, trước đó là xóa), và cũng không bao giờ được chuyển hộ, kể cả sau khi người đó được cho vào lại.
+- Nhóm cần kín hẳn thì bật "Chỉ nhắn khi Host online" ([16 §3.7](16-group-chat.md)).
+
+**Đã cân nhắc và bỏ:**
+- **Giấy thành viên có hạn** (Host ký, thành viên trình khi gửi): kín, nhưng Host tắt quá hạn là cả nhóm không nhắn được.
+- **Server đứng giữa**: kín vì mọi tin đi qua một chỗ biết ai còn trong nhóm, nhưng đi ngược nguyên tắc không có server, và server tắt thì nhóm cũng tắt.
+- **Không giữ lịch sử**: không vá được gì, vì chỗ hở là tin gửi thẳng, không phải lịch sử; lại làm người offline lỡ tin.
+
+**Hệ quả:**
+- ✅ Người bị loại không chen được tin giả vào lịch sử của nhóm, kể cả khi ghi lùi giờ.
+- ✅ Tin lọt vào lúc danh sách chưa cập nhật vẫn đọc được nhưng có nhãn, và không lan sang máy khác.
+- ❌ Người mới vào không thấy tin cũ của người đã rời.
+- ❌ Máy bị lỡ tin của một người, nếu người đó rời trước khi máy kịp kéo, thì không bao giờ nhận được tin đó. Máy đã có tin từ trước thì vẫn giữ và hiện như cũ.
+

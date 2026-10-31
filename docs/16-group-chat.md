@@ -18,7 +18,7 @@ Thành viên một **Nhóm** nhắn cho cả nhóm văn bản và tin nhắn tho
 | Văn bản, thoại tối đa 5 phút, như 1-1 | @nhắc tên, cảm xúc, trả lời trích dẫn, sửa tin |
 | Người gửi offline thì thành viên khác chuyển hộ; tin ký bằng khóa của người gửi | Chuyển hộ file (file chỉ tải từ người gửi, như hiện nay) |
 | Đã nhận / đã xem theo từng người, chỉ người gửi thấy | Đồng bộ lịch sử giữa các máy của cùng một người |
-| Người mới vào thấy tin 30 ngày gần nhất của người còn trong nhóm | Chuyển hộ tin của người đã rời hay bị loại |
+| Người mới vào thấy tin 30 ngày gần nhất của người còn trong nhóm | Chuyển hộ tin của người đã rời hay bị loại ([ADR-016](decisions.md)) |
 | Thu hồi tin và file của mình trong 5 phút; xóa trên máy mình | |
 | Tắt thông báo theo nhóm | |
 | File gửi cho nhóm hiện thành thẻ trong hội thoại nhóm | |
