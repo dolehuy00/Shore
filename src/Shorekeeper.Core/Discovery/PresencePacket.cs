@@ -94,6 +94,12 @@ public static class PresenceCapabilities
 
     /// <summary>Takes group messages (docs/16-group-chat.md §3.1); not announced while IT has turned groups off.</summary>
     public const string GroupChat = "chat-group";
+
+    /// <summary>
+    /// Takes replies and @mentions, edits and reactions (docs/18-chat-extras.md §2): group messages that have them are
+    /// signed in a way older versions cannot check, so those only go to devices that say this.
+    /// </summary>
+    public const string Chat2 = "chat2";
 }
 
 public static class PresenceStatus

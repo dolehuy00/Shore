@@ -29,9 +29,10 @@ public enum ChatMessageState
 /// <param name="Kind">A <see cref="ChatKinds"/> value, or one from a newer version, which has no text.</param>
 /// <param name="SentAt">On the sender's clock (received ones never later than when they came): it orders the conversation.</param>
 /// <param name="VoicePath">A voice message's Ogg Opus file; <paramref name="DurationMs"/> and <paramref name="Wave"/> come with it.</param>
+/// <param name="ReplyTo">The message answered, or "offer:" and a file card's offer (<see cref="ChatReplies"/>).</param>
 public sealed record ChatMessage(
     DeviceId Peer, string Id, bool Outgoing, string Kind, string? Text, DateTimeOffset SentAt, ChatMessageState State,
-    int DurationMs = 0, byte[]? Wave = null, string? VoicePath = null);
+    int DurationMs = 0, byte[]? Wave = null, string? VoicePath = null, string? ReplyTo = null);
 
 /// <summary>A conversation in the list: its newest message and how many from the peer are unread.</summary>
 public sealed record ChatConversation(DeviceId Peer, ChatMessage Last, int Unread);
@@ -70,7 +71,7 @@ public sealed class ChatService(
     private static readonly TimeSpan RetryEvery = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(15);
 
-    private const string Columns = "PeerId, Id, Outgoing, Kind, Text, SentAt, State, DurationMs, Wave, VoicePath";
+    private const string Columns = "PeerId, Id, Outgoing, Kind, Text, SentAt, State, DurationMs, Wave, VoicePath, ReplyTo";
 
     private readonly Lock gate = new();
     private readonly HashSet<DeviceId> sending = [];
@@ -87,9 +88,15 @@ public sealed class ChatService(
     public event EventHandler<ChatMessage>? Received;
 
     /// <summary>Stores the message and sends it, now or when the peer is next online.</summary>
+    /// <param name="replyTo">The message answered (<see cref="ChatReplies.IsReplyTo"/>).</param>
     /// <exception cref="ArgumentException">Empty, or longer than <see cref="MaxTextLength"/>.</exception>
-    public async Task<ChatMessage> SendTextAsync(DeviceId peer, string text, CancellationToken cancellationToken)
+    public async Task<ChatMessage> SendTextAsync(DeviceId peer, string text, CancellationToken cancellationToken, string? replyTo = null)
     {
+        if (!ChatReplies.IsReplyTo(replyTo))
+        {
+            throw new ArgumentException("Not a message to answer.", nameof(replyTo));
+        }
+
         text = text.Trim();
         if (text.Length == 0)
         {
@@ -103,10 +110,11 @@ public sealed class ChatService(
 
         DateTimeOffset now = NextSentAt();
         var message = new ChatMessage(
-            peer, Guid.CreateVersion7(now).ToString("N"), true, ChatKinds.Text, text, FromMs(now.ToUnixTimeMilliseconds()), ChatMessageState.Pending);
+            peer, Guid.CreateVersion7(now).ToString("N"), true, ChatKinds.Text, text, FromMs(now.ToUnixTimeMilliseconds()), ChatMessageState.Pending,
+            ReplyTo: replyTo);
         await WriteAsync(
-            "INSERT INTO ChatMessages (PeerId, Id, Outgoing, Kind, Text, SentAt, State) VALUES (@peer, @Id, 1, @Kind, @Text, @sentAt, 'pending');",
-            new { peer = peer.Value, message.Id, message.Kind, message.Text, sentAt = now.ToUnixTimeMilliseconds() },
+            "INSERT INTO ChatMessages (PeerId, Id, Outgoing, Kind, Text, SentAt, State, ReplyTo) VALUES (@peer, @Id, 1, @Kind, @Text, @sentAt, 'pending', @ReplyTo);",
+            new { peer = peer.Value, message.Id, message.Kind, message.Text, sentAt = now.ToUnixTimeMilliseconds(), message.ReplyTo },
             cancellationToken);
 
         Changed?.Invoke(this, peer);
@@ -134,8 +142,13 @@ public sealed class ChatService(
 
     /// <summary>Stores a recorded voice message, then sends it like a text.</summary>
     /// <exception cref="ArgumentException">Empty, too long, or not a voice message.</exception>
-    public async Task<ChatMessage> SendVoiceAsync(DeviceId peer, VoiceNote note, CancellationToken cancellationToken)
+    public async Task<ChatMessage> SendVoiceAsync(DeviceId peer, VoiceNote note, CancellationToken cancellationToken, string? replyTo = null)
     {
+        if (!ChatReplies.IsReplyTo(replyTo))
+        {
+            throw new ArgumentException("Not a message to answer.", nameof(replyTo));
+        }
+
         if (!IsVoice(note.Ogg, note.DurationMs, note.Wave))
         {
             throw new ArgumentException("Not a voice message that can be sent.", nameof(note));
@@ -147,13 +160,13 @@ public sealed class ChatService(
         Directory.CreateDirectory(paths.ChatVoiceDirectory);
         await File.WriteAllBytesAsync(path, note.Ogg, cancellationToken);
         var message = new ChatMessage(
-            peer, id, true, ChatKinds.Voice, null, FromMs(now.ToUnixTimeMilliseconds()), ChatMessageState.Pending, note.DurationMs, note.Wave, path);
+            peer, id, true, ChatKinds.Voice, null, FromMs(now.ToUnixTimeMilliseconds()), ChatMessageState.Pending, note.DurationMs, note.Wave, path, replyTo);
         await WriteAsync(
             """
-            INSERT INTO ChatMessages (PeerId, Id, Outgoing, Kind, SentAt, State, DurationMs, Wave, VoicePath)
-            VALUES (@peer, @Id, 1, @Kind, @sentAt, 'pending', @DurationMs, @Wave, @VoicePath);
+            INSERT INTO ChatMessages (PeerId, Id, Outgoing, Kind, SentAt, State, DurationMs, Wave, VoicePath, ReplyTo)
+            VALUES (@peer, @Id, 1, @Kind, @sentAt, 'pending', @DurationMs, @Wave, @VoicePath, @ReplyTo);
             """,
-            new { peer = peer.Value, message.Id, message.Kind, sentAt = now.ToUnixTimeMilliseconds(), message.DurationMs, message.Wave, message.VoicePath },
+            new { peer = peer.Value, message.Id, message.Kind, sentAt = now.ToUnixTimeMilliseconds(), message.DurationMs, message.Wave, message.VoicePath, message.ReplyTo },
             cancellationToken);
 
         Changed?.Invoke(this, peer);
@@ -384,7 +397,8 @@ public sealed class ChatService(
         if (!Guid.TryParseExact(body.Id, "N", out Guid id)
             || body.Kind is not { Length: > 0 and <= 32 }
             || (body.Kind == ChatKinds.Text && text is not { Length: > 0 and <= MaxTextLength })
-            || (voice && !IsVoice(body.Audio, body.DurationMs ?? 0, body.Wave)))
+            || (voice && !IsVoice(body.Audio, body.DurationMs ?? 0, body.Wave))
+            || !ChatReplies.IsReplyTo(body.ReplyTo))
         {
             return PeerResponse.Problem(HttpStatusCode.BadRequest, ApiErrorCodes.InvalidRequest);
         }
@@ -404,13 +418,17 @@ public sealed class ChatService(
 
         var message = new ChatMessage(
             caller, id.ToString("N"), false, body.Kind, text, FromMs(sentAt), ChatMessageState.Unread,
-            voice ? body.DurationMs!.Value : 0, voice ? body.Wave : null, path);
+            voice ? body.DurationMs!.Value : 0, voice ? body.Wave : null, path, body.ReplyTo);
         int added = await WriteAsync(
             """
-            INSERT OR IGNORE INTO ChatMessages (PeerId, Id, Outgoing, Kind, Text, SentAt, ReceivedAt, State, DurationMs, Wave, VoicePath)
-            VALUES (@peer, @Id, 0, @Kind, @Text, @sentAt, @now, 'unread', @DurationMs, @Wave, @VoicePath);
+            INSERT OR IGNORE INTO ChatMessages (PeerId, Id, Outgoing, Kind, Text, SentAt, ReceivedAt, State, DurationMs, Wave, VoicePath, ReplyTo)
+            VALUES (@peer, @Id, 0, @Kind, @Text, @sentAt, @now, 'unread', @DurationMs, @Wave, @VoicePath, @ReplyTo);
             """,
-            new { peer = caller.Value, message.Id, message.Kind, message.Text, sentAt, now = now.ToUnixTimeMilliseconds(), message.DurationMs, message.Wave, message.VoicePath },
+            new
+            {
+                peer = caller.Value, message.Id, message.Kind, message.Text, sentAt, now = now.ToUnixTimeMilliseconds(), message.DurationMs, message.Wave,
+                message.VoicePath, message.ReplyTo,
+            },
             CancellationToken.None);
 
         // Already here: the sender did not hear our answer and sent it again.
@@ -596,7 +614,7 @@ public sealed class ChatService(
         foreach (MessageRow row in pending)
         {
             byte[]? audio = row.VoicePath is { } path && File.Exists(path) ? await File.ReadAllBytesAsync(path, cancellationToken) : null;
-            var body = new ChatMessageBody(row.Id, FromMs(row.SentAt), row.Kind, row.Text, (int?)row.DurationMs, row.Wave, audio);
+            var body = new ChatMessageBody(row.Id, FromMs(row.SentAt), row.Kind, row.Text, (int?)row.DurationMs, row.Wave, audio, row.ReplyTo);
             // The recording is gone (data folder cleaned): nothing to send.
             bool? delivered = row.Kind == ChatKinds.Voice && audio is null ? false : await PostAsync(peer, "chat/messages", body, cancellationToken);
             if (delivered is null)
@@ -735,9 +753,11 @@ public sealed class ChatService(
 
         public string? VoicePath { get; init; }
 
+        public string? ReplyTo { get; init; }
+
         public ChatMessage ToMessage() => new(
             DeviceId.Parse(PeerId), Id, Outgoing != 0, Kind, Text, FromMs(SentAt), Enum.Parse<ChatMessageState>(State, ignoreCase: true),
-            (int)(DurationMs ?? 0), Wave, VoicePath);
+            (int)(DurationMs ?? 0), Wave, VoicePath, ReplyTo);
     }
 
     private sealed class ConversationRow : MessageRow

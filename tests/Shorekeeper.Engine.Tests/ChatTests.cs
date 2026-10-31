@@ -294,6 +294,31 @@ public sealed class ChatTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_reply_says_which_message_or_file_card_it_answers()
+    {
+        ChatMessage question = await a.Chat.SendTextAsync(b.Id, "Mấy giờ họp?", Ct);
+        await WaitUntil(() => b.Chat.GetMessagesAsync(a.Id, Ct).Result.Count == 1);
+
+        ChatMessage answer = await b.Chat.SendTextAsync(a.Id, "3 giờ", Ct, replyTo: question.Id);
+        string offer = "offer:" + Guid.CreateVersion7().ToString("N");
+        ChatMessage aboutFile = await b.Chat.SendTextAsync(a.Id, "nhận rồi", Ct, replyTo: offer);
+
+        await WaitUntil(() => a.Chat.GetMessagesAsync(b.Id, Ct).Result.Count == 3);
+        IReadOnlyList<ChatMessage> here = await a.Chat.GetMessagesAsync(b.Id, Ct);
+        Assert.Equal(question.Id, here.Single(m => m.Id == answer.Id).ReplyTo);
+        Assert.Equal(offer, here.Single(m => m.Id == aboutFile.Id).ReplyTo);
+        Assert.Null(here.Single(m => m.Id == question.Id).ReplyTo);
+    }
+
+    [Fact]
+    public async Task A_reply_to_something_that_is_not_a_message_is_refused()
+    {
+        await Assert.ThrowsAsync<ArgumentException>(() => a.Chat.SendTextAsync(b.Id, "?", Ct, replyTo: "../chat"));
+        Assert.Equal(HttpStatusCode.BadRequest, await PostAsync(a, b, "chat/messages",
+            new ChatMessageBody(Guid.CreateVersion7().ToString("N"), DateTimeOffset.UtcNow, ChatKinds.Text, "?", ReplyTo: "offer:x")));
+    }
+
+    [Fact]
     public async Task Search_finds_text_messages_by_every_word_without_accents_newest_first()
     {
         ChatMessage report = await a.Chat.SendTextAsync(b.Id, "Báo cáo tháng 9 đã xong", Ct);

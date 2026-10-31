@@ -37,9 +37,12 @@ public enum GroupDeliveryState
 /// it, failed when it reached nobody and never will (<see cref="GroupChatService.GetDeliveriesAsync"/> has each member).
 /// </param>
 /// <param name="OutOfGroup">Came while its author was out of the group, before this device knew (docs/16-group-chat.md §3.6).</param>
+/// <param name="ReplyTo">The message answered (<see cref="ChatReplies"/>).</param>
+/// <param name="Mentions">Members named with "@", or <see cref="ChatReplies.Everyone"/>.</param>
 public sealed record GroupChatMessage(
     string GroupId, string Id, DeviceId Author, string AuthorName, bool Outgoing, string Kind, string? Text, DateTimeOffset SentAt,
-    ChatMessageState State, int DurationMs = 0, byte[]? Wave = null, string? VoicePath = null, bool OutOfGroup = false);
+    ChatMessageState State, int DurationMs = 0, byte[]? Wave = null, string? VoicePath = null, bool OutOfGroup = false,
+    string? ReplyTo = null, IReadOnlyList<string>? Mentions = null);
 
 public sealed record GroupDelivery(DeviceId Peer, GroupDeliveryState State);
 
@@ -86,7 +89,7 @@ public sealed partial class GroupChatService : BackgroundService
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(15);
 
     private const string Columns =
-        "GroupId, Id, AuthorId, AuthorName, AuthorKey, Outgoing, Kind, Text, SentAt, State, DurationMs, Wave, VoicePath, Sig, OutOfGroup";
+        "GroupId, Id, AuthorId, AuthorName, AuthorKey, Outgoing, Kind, Text, SentAt, State, DurationMs, Wave, VoicePath, Sig, OutOfGroup, ReplyTo, Mentions";
 
     private readonly Lock gate = new();
     private readonly HashSet<DeviceId> sending = [];
@@ -158,8 +161,11 @@ public sealed partial class GroupChatService : BackgroundService
 
     /// <summary>Stores the message and sends it to every other member, now or when each is next online.</summary>
     /// <exception cref="ArgumentException">Empty, or longer than <see cref="ChatService.MaxTextLength"/>.</exception>
+    /// <param name="replyTo">The message answered (<see cref="ChatReplies.IsReplyTo"/>).</param>
+    /// <param name="mentions">Members named with "@", or <see cref="ChatReplies.Everyone"/>.</param>
     /// <exception cref="InvalidOperationException">Not in that group, or nobody else is.</exception>
-    public async Task<GroupChatMessage> SendTextAsync(string groupId, string text, CancellationToken cancellationToken)
+    public async Task<GroupChatMessage> SendTextAsync(
+        string groupId, string text, CancellationToken cancellationToken, string? replyTo = null, IReadOnlyList<string>? mentions = null)
     {
         text = text.Trim();
         if (text.Length == 0)
@@ -172,25 +178,35 @@ public sealed partial class GroupChatService : BackgroundService
             throw new ArgumentException(L.F("Tin nhắn dài tối đa {0:N0} ký tự.", ChatService.MaxTextLength), nameof(text));
         }
 
-        return await StoreAndSendAsync(groupId, ChatKinds.Text, text, null, cancellationToken);
+        return await StoreAndSendAsync(groupId, ChatKinds.Text, text, null, replyTo, mentions is { Count: > 0 } ? mentions : null, cancellationToken);
     }
 
     /// <summary>Stores a recorded voice message, then sends it like a text.</summary>
     /// <exception cref="ArgumentException">Empty, too long, or not a voice message.</exception>
     /// <exception cref="InvalidOperationException">Not in that group, or nobody else is.</exception>
-    public async Task<GroupChatMessage> SendVoiceAsync(string groupId, VoiceNote note, CancellationToken cancellationToken)
+    public async Task<GroupChatMessage> SendVoiceAsync(string groupId, VoiceNote note, CancellationToken cancellationToken, string? replyTo = null)
     {
         if (!ChatService.IsVoice(note.Ogg, note.DurationMs, note.Wave))
         {
             throw new ArgumentException("Not a voice message that can be sent.", nameof(note));
         }
 
-        return await StoreAndSendAsync(groupId, ChatKinds.Voice, null, note, cancellationToken);
+        return await StoreAndSendAsync(groupId, ChatKinds.Voice, null, note, replyTo, null, cancellationToken);
     }
 
     private async Task<GroupChatMessage> StoreAndSendAsync(
-        string groupId, string kind, string? text, VoiceNote? note, CancellationToken cancellationToken)
+        string groupId, string kind, string? text, VoiceNote? note, string? replyTo, IReadOnlyList<string>? mentions, CancellationToken cancellationToken)
     {
+        if (!ChatReplies.IsReplyTo(replyTo))
+        {
+            throw new ArgumentException("Not a message to answer.", nameof(replyTo));
+        }
+
+        if (!ChatReplies.AreMentions(mentions))
+        {
+            throw new ArgumentException("Not members to mention.", nameof(mentions));
+        }
+
         DeviceId me = engine.Identity.DeviceId;
         if (!settings.Current.GroupsEnabled || groups.Get(groupId) is not { Role: not GroupRole.Pending } group)
         {
@@ -219,7 +235,8 @@ public sealed partial class GroupChatService : BackgroundService
             await File.WriteAllBytesAsync(path, note.Ogg, cancellationToken);
         }
 
-        var content = new GroupChatContent(groupId, id, me, sentAt.ToUnixTimeMilliseconds(), kind, text, note?.DurationMs ?? 0, note?.Wave, note?.Ogg);
+        var content = new GroupChatContent(
+            groupId, id, me, sentAt.ToUnixTimeMilliseconds(), kind, text, note?.DurationMs ?? 0, note?.Wave, note?.Ogg, replyTo, mentions);
         byte[] key = engine.Identity.Certificate.PublicKey.ExportSubjectPublicKeyInfo();
         byte[] sig;
         using (ECDsa privateKey = engine.Identity.Certificate.GetECDsaPrivateKey()!)
@@ -232,13 +249,15 @@ public sealed partial class GroupChatService : BackgroundService
             await connection.ExecuteAsync(
                 $"""
                 INSERT INTO ChatGroups (GroupId, Name) VALUES (@groupId, @name) ON CONFLICT (GroupId) DO UPDATE SET Name = excluded.Name;
-                INSERT INTO ChatGroupMessages (GroupId, Id, AuthorId, AuthorName, AuthorKey, Outgoing, Kind, Text, SentAt, State, DurationMs, Wave, VoicePath, Sig, Seq)
-                VALUES (@groupId, @id, @me, @name2, @key, 1, @kind, @text, @sentAt, 'pending', @durationMs, @wave, @path, @sig, {NextSeq});
+                INSERT INTO ChatGroupMessages
+                  (GroupId, Id, AuthorId, AuthorName, AuthorKey, Outgoing, Kind, Text, SentAt, State, DurationMs, Wave, VoicePath, Sig, Seq, ReplyTo, Mentions)
+                VALUES (@groupId, @id, @me, @name2, @key, 1, @kind, @text, @sentAt, 'pending', @durationMs, @wave, @path, @sig, {NextSeq}, @replyTo, @mentions);
                 """,
                 new
                 {
                     groupId, name = group.Name, id, me = me.Value, name2 = device.DisplayName, key, kind, text,
-                    sentAt = sentAt.ToUnixTimeMilliseconds(), durationMs = note?.DurationMs, wave = note?.Wave, path, sig,
+                    sentAt = sentAt.ToUnixTimeMilliseconds(), durationMs = note?.DurationMs, wave = note?.Wave, path, sig, replyTo,
+                    mentions = ChatReplies.Join(mentions),
                 },
                 transaction);
             await connection.ExecuteAsync(
@@ -255,7 +274,8 @@ public sealed partial class GroupChatService : BackgroundService
         }
 
         return new GroupChatMessage(
-            groupId, id, me, device.DisplayName, true, kind, text, sentAt, ChatMessageState.Pending, note?.DurationMs ?? 0, note?.Wave, path);
+            groupId, id, me, device.DisplayName, true, kind, text, sentAt, ChatMessageState.Pending, note?.DurationMs ?? 0, note?.Wave, path,
+            ReplyTo: replyTo, Mentions: mentions);
     }
 
     /// <summary>

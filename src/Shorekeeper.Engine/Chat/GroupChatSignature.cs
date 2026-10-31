@@ -7,8 +7,14 @@ using Shorekeeper.Engine.Api;
 namespace Shorekeeper.Engine.Chat;
 
 /// <summary>What a group message's signature covers (docs/16-group-chat.md §3.5).</summary>
+/// <param name="ReplyTo">With <paramref name="Mentions"/>, signed only by version 2 (docs/18-chat-extras.md §2).</param>
 internal readonly record struct GroupChatContent(
-    string GroupId, string Id, DeviceId Author, long SentAtMs, string Kind, string? Text, int DurationMs, byte[]? Wave, byte[]? Audio);
+    string GroupId, string Id, DeviceId Author, long SentAtMs, string Kind, string? Text, int DurationMs, byte[]? Wave, byte[]? Audio,
+    string? ReplyTo = null, IReadOnlyList<string>? Mentions = null)
+{
+    /// <summary>Has what only version 2 signs, which versions without <c>chat2</c> cannot check.</summary>
+    public bool IsVersion2 => ReplyTo is not null || Mentions is not null;
+}
 
 /// <summary>
 /// Group messages and their recalls are signed with the author's device key (docs/16-group-chat.md §3.5), so a member
@@ -19,6 +25,9 @@ internal readonly record struct GroupChatContent(
 internal static class GroupChatSignature
 {
     private const string MessagePurpose = "shorekeeper-group-chat/1";
+
+    /// <summary>Version 1 and then the reply and the mentions; a message with neither is still signed as version 1.</summary>
+    private const string MessagePurpose2 = "shorekeeper-group-chat/2";
     private const string RecallPurpose = "shorekeeper-group-recall/1";
     private const string RosterPurpose = "shorekeeper-group-roster/1";
 
@@ -69,7 +78,7 @@ internal static class GroupChatSignature
     private static byte[] MessageBytes(GroupChatContent c)
     {
         using var stream = new MemoryStream();
-        Write(stream, MessagePurpose);
+        Write(stream, c.IsVersion2 ? MessagePurpose2 : MessagePurpose);
         Write(stream, c.GroupId);
         Write(stream, c.Id);
         Write(stream, c.Author.Value);
@@ -79,6 +88,16 @@ internal static class GroupChatSignature
         Write(stream, (long)c.DurationMs);
         Write(stream, c.Wave ?? []);
         Write(stream, c.Audio is { } audio ? SHA256.HashData(audio) : []);
+        if (c.IsVersion2)
+        {
+            Write(stream, c.ReplyTo ?? "");
+            Write(stream, (long)(c.Mentions?.Count ?? 0));
+            foreach (string mention in c.Mentions ?? [])
+            {
+                Write(stream, mention);
+            }
+        }
+
         return stream.ToArray();
     }
 

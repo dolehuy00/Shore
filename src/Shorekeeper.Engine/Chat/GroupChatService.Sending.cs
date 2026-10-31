@@ -203,8 +203,11 @@ public sealed partial class GroupChatService
                 "SELECT GroupId, Id, Sig, IsOffer FROM ChatGroupRecalls WHERE PeerId = @peer;", new { peer = peer.Value })];
         }
 
-        // Heard directly without the capability: a version without group messages, which would only refuse them.
-        bool old = directory.Snapshot().FirstOrDefault(p => p.DeviceId == peer) is { Source: PeerSource.Direct, DiscoveryPort: > 0, CanGroupChat: false };
+        // Heard directly without the capability: a version without group messages, which would only refuse them; or one
+        // without replies and mentions, which could not check how a message that has them is signed.
+        PeerInfo? heard = directory.Snapshot().FirstOrDefault(p => p.DeviceId == peer) is { Source: PeerSource.Direct, DiscoveryPort: > 0 } direct ? direct : null;
+        bool old = heard is { CanGroupChat: false };
+        bool before2 = heard is { CanChat2: false };
         foreach (DeliveryRow row in pending)
         {
             // Left, removed, or the group is gone (closed, we left, IT turned groups off): never for them now.
@@ -214,7 +217,7 @@ public sealed partial class GroupChatService
                 continue;
             }
 
-            if (old)
+            if (old || (before2 && (row.ReplyTo is not null || row.Mentions is not null)))
             {
                 await SetDeliveryAsync(row, peer, GroupDeliveryState.Old, cancellationToken);
                 continue;
@@ -229,7 +232,8 @@ public sealed partial class GroupChatService
             }
 
             var body = new GroupChatMessageBody(
-                row.Id, row.AuthorId, row.AuthorName, row.AuthorKey, FromMs(row.SentAt), row.Kind, row.Sig, row.Text, (int?)row.DurationMs, row.Wave, audio);
+                row.Id, row.AuthorId, row.AuthorName, row.AuthorKey, FromMs(row.SentAt), row.Kind, row.Sig, row.Text, (int?)row.DurationMs, row.Wave, audio,
+                row.ReplyTo, ChatReplies.Split(row.Mentions));
             bool? taken;
             string? code;
             if (audio is null)

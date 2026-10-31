@@ -112,7 +112,8 @@ public sealed partial class GroupChatService
             }
 
             messages.Add(new GroupChatMessageBody(
-                row.Id, row.AuthorId, row.AuthorName, row.AuthorKey, FromMs(row.SentAt), row.Kind, row.Sig, row.Text, (int?)row.DurationMs, row.Wave, audio));
+                row.Id, row.AuthorId, row.AuthorName, row.AuthorKey, FromMs(row.SentAt), row.Kind, row.Sig, row.Text, (int?)row.DurationMs, row.Wave, audio,
+                row.ReplyTo, ChatReplies.Split(row.Mentions)));
         }
 
         return PeerResponse.Json(new GroupChatFetchResponse(messages, recalled));

@@ -26,6 +26,7 @@ public enum PeerSource
 /// <param name="HostedGroups">Groups the peer hosts and announces; null when none.</param>
 /// <param name="CanChat">Announces messages; peers heard only through a Bridge or found by address never say so.</param>
 /// <param name="CanGroupChat">Announces group messages, like <paramref name="CanChat"/>.</param>
+/// <param name="CanChat2">Announces replies, mentions, edits and reactions, like <paramref name="CanChat"/>.</param>
 public sealed record PeerInfo(
     DeviceId DeviceId,
     string DisplayName,
@@ -46,7 +47,8 @@ public sealed record PeerInfo(
     bool IsPlayingAudio = false,
     bool IsAudioLocked = false,
     bool CanChat = false,
-    bool CanGroupChat = false);
+    bool CanGroupChat = false,
+    bool CanChat2 = false);
 
 public enum PeerChangeKind
 {
@@ -194,7 +196,8 @@ public sealed class PeerDirectory(TimeProvider timeProvider)
         packet.Capabilities.Contains(PresenceCapabilities.Audio),
         packet.Capabilities.Contains(PresenceCapabilities.AudioLocked),
         packet.Capabilities.Contains(PresenceCapabilities.Chat),
-        packet.Capabilities.Contains(PresenceCapabilities.GroupChat));
+        packet.Capabilities.Contains(PresenceCapabilities.GroupChat),
+        packet.Capabilities.Contains(PresenceCapabilities.Chat2));
 
     /// <summary>Stores the observation; returns the change to raise outside the lock, or null if nothing visible changed.</summary>
     private PeerChange? Store(PeerInfo observed)

@@ -153,8 +153,10 @@ public sealed record AudioControlBody(bool Allowed);
 /// time ordered). A <see cref="ChatKinds.Voice"/> message carries its Ogg Opus file in <paramref name="Audio"/>, how long
 /// it plays and its waveform (base64 in JSON); kinds this version does not know are kept for a newer one.
 /// </summary>
+/// <param name="ReplyTo">The message answered, or "offer:" and a file card's offer (docs/18-chat-extras.md §4); older versions ignore it.</param>
 public sealed record ChatMessageBody(
-    string Id, DateTimeOffset SentAt, string Kind, string? Text = null, int? DurationMs = null, byte[]? Wave = null, byte[]? Audio = null);
+    string Id, DateTimeOffset SentAt, string Kind, string? Text = null, int? DurationMs = null, byte[]? Wave = null, byte[]? Audio = null,
+    string? ReplyTo = null);
 
 /// <summary>Body of <c>POST /api/v1/chat/receipts</c>: the caller has read our messages up to this id.</summary>
 public sealed record ChatReceiptBody(string ReadUpTo);
@@ -169,9 +171,12 @@ public sealed record ChatRecallBody(IReadOnlyList<string> Ids, IReadOnlyList<str
 /// (<paramref name="AuthorKey"/>, a SubjectPublicKeyInfo whose hash is <paramref name="AuthorId"/>), so it stays the
 /// author's whoever passes it on. <paramref name="AuthorName"/> is not signed: only shown while the member list has none.
 /// </summary>
+/// <param name="ReplyTo">As in <see cref="ChatMessageBody"/>; signed (docs/18-chat-extras.md §2).</param>
+/// <param name="Mentions">DeviceIds named with "@", or "all"; signed.</param>
 public sealed record GroupChatMessageBody(
     string Id, string AuthorId, string AuthorName, byte[] AuthorKey, DateTimeOffset SentAt, string Kind, byte[] Sig,
-    string? Text = null, int? DurationMs = null, byte[]? Wave = null, byte[]? Audio = null);
+    string? Text = null, int? DurationMs = null, byte[]? Wave = null, byte[]? Audio = null, string? ReplyTo = null,
+    IReadOnlyList<string>? Mentions = null);
 
 /// <summary>Body of <c>POST /api/v1/chat/groups/{groupId}/recalls</c>: messages taken back, each with its signed recall.</summary>
 /// <param name="Offers">The caller's offers to the group taken back from the conversation (docs/16-group-chat.md §6.3).</param>

@@ -36,11 +36,16 @@ public sealed partial class GroupChatService
 
         public long OutOfGroup { get; init; }
 
+        public string? ReplyTo { get; init; }
+
+        /// <summary>As stored (<see cref="ChatReplies.Join"/>), for passing on exactly as signed.</summary>
+        public string? Mentions { get; init; }
+
         /// <summary>Ours take their state from the deliveries; with none left (everyone gone), it reached whom it could.</summary>
         public GroupChatMessage ToMessage(Dictionary<(string, string), ChatMessageState> outgoing) => new(
             GroupId, Id, DeviceId.Parse(AuthorId), AuthorName, Outgoing != 0, Kind, Text, FromMs(SentAt),
             Outgoing != 0 ? outgoing.GetValueOrDefault((GroupId, Id), ChatMessageState.Delivered) : Enum.Parse<ChatMessageState>(State, ignoreCase: true),
-            (int)(DurationMs ?? 0), Wave, VoicePath, OutOfGroup != 0);
+            (int)(DurationMs ?? 0), Wave, VoicePath, OutOfGroup != 0, ReplyTo, ChatReplies.Split(Mentions));
     }
 
     private sealed class ConversationRow : MessageRow

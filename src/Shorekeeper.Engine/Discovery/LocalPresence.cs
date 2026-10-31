@@ -93,6 +93,7 @@ public sealed class LocalPresence : ILocalPresence
     private IEnumerable<string> Capabilities()
     {
         yield return PresenceCapabilities.Chat;
+        yield return PresenceCapabilities.Chat2;
         if (settings.Current.GroupsEnabled)
         {
             yield return PresenceCapabilities.GroupChat;

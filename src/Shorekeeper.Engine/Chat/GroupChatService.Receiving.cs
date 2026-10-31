@@ -57,13 +57,15 @@ public sealed partial class GroupChatService
             || (body.Kind == ChatKinds.Text && text is not { Length: > 0 and <= ChatService.MaxTextLength })
             || (body.Kind == ChatKinds.Voice && !ChatService.IsVoice(body.Audio, body.DurationMs ?? 0, body.Wave))
             || body.SentAt > timeProvider.GetUtcNow() + MaxAhead
-            || body.AuthorKey is null || body.Sig is null)
+            || body.AuthorKey is null || body.Sig is null
+            || !ChatReplies.IsReplyTo(body.ReplyTo) || !ChatReplies.AreMentions(body.Mentions))
         {
             return false;
         }
 
         if (!GroupChatSignature.VerifyMessage(body.AuthorKey, body.Sig, new GroupChatContent(
-                groupId, body.Id, author, body.SentAt.ToUnixTimeMilliseconds(), body.Kind, body.Text, body.DurationMs ?? 0, body.Wave, body.Audio)))
+                groupId, body.Id, author, body.SentAt.ToUnixTimeMilliseconds(), body.Kind, body.Text, body.DurationMs ?? 0, body.Wave, body.Audio,
+                body.ReplyTo, body.Mentions)))
         {
             logger.LogWarning("Group message {Id} from {Peer} has no valid signature of its author {Author}", body.Id, from, author);
             return false;
@@ -107,20 +109,24 @@ public sealed partial class GroupChatService
         string name = body.AuthorName is { Length: > 0 } n ? n.Length > PresenceCodec.MaxNameLength ? n[..PresenceCodec.MaxNameLength] : n : author.ShortForm;
         var message = new GroupChatMessage(
             groupId, id, author, name, false, body.Kind, cleared ? null : body.Text, body.SentAt,
-            cleared || history ? ChatMessageState.Read : ChatMessageState.Unread, cleared ? 0 : body.DurationMs ?? 0, cleared ? null : body.Wave, path);
+            cleared || history ? ChatMessageState.Read : ChatMessageState.Unread, cleared ? 0 : body.DurationMs ?? 0, cleared ? null : body.Wave, path,
+            ReplyTo: body.ReplyTo, Mentions: body.Mentions);
         // As it came (duration and waveform of any kind): a member pulling it from here checks the same signature.
         int added = await connection.ExecuteAsync(
             $"""
             INSERT INTO ChatGroups (GroupId, Name) VALUES (@groupId, @groupName) ON CONFLICT (GroupId) DO UPDATE SET Name = excluded.Name;
             INSERT OR IGNORE INTO ChatGroupMessages
-              (GroupId, Id, AuthorId, AuthorName, AuthorKey, Outgoing, Kind, Text, SentAt, ReceivedAt, State, DurationMs, Wave, VoicePath, Sig, Seq, Deleted)
-            VALUES (@groupId, @Id, @author, @AuthorName, @key, 0, @Kind, @Text, @sentAt, @now, @state, @durationMs, @Wave, @VoicePath, @sig, {NextSeq}, @cleared);
+              (GroupId, Id, AuthorId, AuthorName, AuthorKey, Outgoing, Kind, Text, SentAt, ReceivedAt, State, DurationMs, Wave, VoicePath, Sig, Seq, Deleted,
+               ReplyTo, Mentions)
+            VALUES (@groupId, @Id, @author, @AuthorName, @key, 0, @Kind, @Text, @sentAt, @now, @state, @durationMs, @Wave, @VoicePath, @sig, {NextSeq}, @cleared,
+                    @ReplyTo, @mentions);
             """,
             new
             {
                 groupId, groupName = groups.Get(groupId)?.Name ?? groupId, message.Id, author = author.Value, message.AuthorName,
                 key = body.AuthorKey, message.Kind, message.Text, sentAt, now, state = message.State == ChatMessageState.Read ? "read" : "unread",
-                durationMs = cleared ? null : body.DurationMs, message.Wave, message.VoicePath, sig = body.Sig, cleared,
+                durationMs = cleared ? null : body.DurationMs, message.Wave, message.VoicePath, sig = body.Sig, cleared, message.ReplyTo,
+                mentions = ChatReplies.Join(body.Mentions),
             });
 
         // The first statement always changes a row; the message is new only when the second did too.

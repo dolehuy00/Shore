@@ -505,6 +505,79 @@ public sealed class GroupChatTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Replies_and_mentions_reach_every_member_and_are_passed_on_as_signed()
+    {
+        GroupChatMessage question = await mai.GroupChat.SendTextAsync(groupId, "Ai đi họp?", Ct);
+        await WaitUntil(() => Messages(tuan).Count == 1);
+
+        GroupChatMessage answer = await tuan.GroupChat.SendTextAsync(groupId, "@Mai em đi", Ct, replyTo: question.Id, mentions: [mai.Id.Value]);
+
+        await WaitUntil(() => Messages(mai).Count == 2 && Messages(host).Count == 2);
+        foreach (TestNode member in (TestNode[])[mai, host])
+        {
+            GroupChatMessage got = Messages(member).Single(m => m.Id == answer.Id);
+            Assert.Equal(question.Id, got.ReplyTo);
+            Assert.Equal([mai.Id.Value], got.Mentions);
+        }
+
+        Assert.True(ChatReplies.Mentions(Messages(mai).Single(m => m.Id == answer.Id).Mentions, mai.Id));
+        Assert.False(ChatReplies.Mentions(Messages(host).Single(m => m.Id == answer.Id).Mentions, host.Id));
+
+        // Lan joins and gets it from the members, signature and all.
+        await using TestNode lan = await TestNode.StartAsync("Lan");
+        await JoinAsync(lan);
+        await WaitUntil(() => Messages(lan).Any(m => m.Id == answer.Id));
+        GroupChatMessage passedOn = Messages(lan).Single(m => m.Id == answer.Id);
+        Assert.Equal(question.Id, passedOn.ReplyTo);
+        Assert.Equal([mai.Id.Value], passedOn.Mentions);
+    }
+
+    [Fact]
+    public async Task Changing_whom_a_message_mentions_or_answers_breaks_its_signature()
+    {
+        string question = Guid.CreateVersion7().ToString("N");
+        GroupChatMessageBody everyone = Signed(tuan, "@mọi người họp", mentions: [ChatReplies.Everyone]);
+        Assert.Equal(HttpStatusCode.NoContent, (await PostAsync(tuan, mai, $"chat/groups/{groupId}/messages", everyone)).Status);
+        Assert.True(ChatReplies.Mentions(Messages(mai).Single().Mentions, mai.Id));
+
+        GroupChatMessageBody[] forged =
+        [
+            Signed(tuan, "@Mai", mentions: [mai.Id.Value]) with { Mentions = [host.Id.Value] },
+            Signed(tuan, "đúng", replyTo: question) with { ReplyTo = Guid.CreateVersion7().ToString("N") },
+            // Taken off, it is no message of version 1 either.
+            Signed(tuan, "đúng", replyTo: question) with { ReplyTo = null },
+        ];
+        foreach (GroupChatMessageBody body in forged)
+        {
+            Assert.Equal(HttpStatusCode.BadRequest, (await PostAsync(tuan, mai, $"chat/groups/{groupId}/messages", body)).Status);
+        }
+
+        Assert.Single(Messages(mai));
+    }
+
+    [Fact]
+    public async Task A_reply_is_not_sent_to_a_version_that_could_not_check_it()
+    {
+        // Heard directly, with group messages but not "chat2".
+        host.Directory.Observe(
+            new PresencePacket
+            {
+                Type = PresencePacketTypes.Heartbeat, Id = tuan.Id.Value, Name = "peer", Port = tuan.ApiPort,
+                Capabilities = [PresenceCapabilities.Chat, PresenceCapabilities.GroupChat],
+            },
+            IPAddress.Loopback,
+            discoveryPort: 47470);
+        await ApartAsync(mai, tuan);
+
+        GroupChatMessage plain = await host.GroupChat.SendTextAsync(groupId, "một", Ct);
+        GroupChatMessage reply = await host.GroupChat.SendTextAsync(groupId, "hai", Ct, replyTo: plain.Id);
+
+        await WaitUntil(() => Delivery(host, plain.Id, tuan) == GroupDeliveryState.Delivered
+            && Delivery(host, reply.Id, tuan) == GroupDeliveryState.Old && Delivery(host, reply.Id, mai) == GroupDeliveryState.Delivered);
+        Assert.Equal(["một"], Messages(tuan).Select(m => m.Text));
+    }
+
+    [Fact]
     public async Task Search_finds_group_messages_but_not_deleted_ones()
     {
         GroupChatMessage holiday = await tuan.GroupChat.SendTextAsync(groupId, "Tuần sau nghỉ lễ 2 ngày", Ct);
@@ -843,15 +916,17 @@ public sealed class GroupChatTests : IAsyncLifetime
         author.GroupChat.GetDeliveriesAsync(groupId, id, Ct).Result.SingleOrDefault(d => d.Peer == peer.Id)?.State;
 
     /// <summary>A text from <paramref name="author"/> to the group, signed as the app would, sent now or at <paramref name="at"/>.</summary>
-    private GroupChatMessageBody Signed(TestNode author, string text, DateTimeOffset? at = null, string? group = null)
+    private GroupChatMessageBody Signed(
+        TestNode author, string text, DateTimeOffset? at = null, string? group = null, string? replyTo = null, IReadOnlyList<string>? mentions = null)
     {
         X509Certificate2 certificate = author.Get<ShorekeeperEngine>().Identity.Certificate;
         DateTimeOffset sentAt = DateTimeOffset.FromUnixTimeMilliseconds((at ?? DateTimeOffset.UtcNow).ToUnixTimeMilliseconds());
         string id = Guid.CreateVersion7(sentAt).ToString("N");
         using ECDsa key = certificate.GetECDsaPrivateKey()!;
         byte[] sig = GroupChatSignature.SignMessage(
-            key, new GroupChatContent(group ?? groupId, id, author.Id, sentAt.ToUnixTimeMilliseconds(), ChatKinds.Text, text, 0, null, null));
-        return new GroupChatMessageBody(id, author.Id.Value, "peer", certificate.PublicKey.ExportSubjectPublicKeyInfo(), sentAt, ChatKinds.Text, sig, text);
+            key, new GroupChatContent(group ?? groupId, id, author.Id, sentAt.ToUnixTimeMilliseconds(), ChatKinds.Text, text, 0, null, null, replyTo, mentions));
+        return new GroupChatMessageBody(
+            id, author.Id.Value, "peer", certificate.PublicKey.ExportSubjectPublicKeyInfo(), sentAt, ChatKinds.Text, sig, text, ReplyTo: replyTo, Mentions: mentions);
     }
 
     /// <summary>A tone recorded as the microphone would deliver it.</summary>
