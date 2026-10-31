@@ -1,6 +1,6 @@
 # 18 — Tin nhắn: tìm, trả lời, @nhắc tên, sửa, cảm xúc (C6)
 
-> Trạng thái: **kế hoạch, đã chốt** (2026-10-31, §8). Nối tiếp [15](15-chat.md) (1-1) và [16](16-group-chat.md) (nhóm), lúc đó để sau: "@nhắc tên, cảm xúc, trả lời trích dẫn, sửa tin", và "tìm trong tin nhắn" ([17](17-ui-cleanup.md) U5a).
+> Trạng thái: **C6a xong** (2026-10-31); C6b–C6d theo kế hoạch đã chốt (§8). Nối tiếp [15](15-chat.md) (1-1) và [16](16-group-chat.md) (nhóm), lúc đó để sau: "@nhắc tên, cảm xúc, trả lời trích dẫn, sửa tin", và "tìm trong tin nhắn" ([17](17-ui-cleanup.md) U5a).
 
 ## 1. Mục tiêu
 
@@ -20,20 +20,24 @@ Thứ tự làm: **C6a tìm** (không đổi giao thức) → **C6b trả lời 
 - **1-1**: máy cũ bỏ qua trường lạ ([15 §4](15-chat.md)), nên tin có `replyTo` vẫn tới, chỉ không hiện phần trích. Lệnh sửa và cảm xúc đi route mới, chỉ gửi cho máy có `chat2`; máy cũ vẫn thấy chữ cũ, không thấy cảm xúc.
 - **Nhóm**: chữ ký là chuỗi byte cố định có tiền tố phiên bản ([16 §3.5](16-group-chat.md)). Tin có trường mới ký bằng `shorekeeper-group-chat/2`, gồm thêm `replyTo` và `mentions`; tin không có trường mới vẫn ký `/1`. Máy cũ không kiểm được `/2` nên sẽ bỏ tin. Vì vậy tin `/2` không gửi cho thành viên chưa có `chat2`, và với người đó tin mang trạng thái `old` ("Máy này chưa cập nhật"), như máy chưa có chat nhóm hiện nay.
 
-## 3. C6a — Tìm theo nội dung tin nhắn
+## 3. C6a — Tìm theo nội dung tin nhắn ✅ (2026-10-31)
 
 **Engine**
-- Migration thêm cột `SearchText` vào `ChatMessages` và `ChatGroupMessages`: chữ của tin đã chuẩn hóa như ô tìm hiện nay (`TextSearch`: chữ thường, bỏ dấu, `đ` thành `d`). Điền cho tin cũ ngay trong migration; tin thoại, tin đã thu hồi và tin đã xóa để trống.
-- Thẻ văn bản (offer chỉ có chữ) cũng tìm được: chữ của offer có `SearchText` trong `InboxOffers` / `Offers`.
-- `ChatSearch.FindAsync(query, limit)`: mọi từ đều phải có (`LIKE` từng từ trên `SearchText`), mới nhất trước, tối đa 50 kết quả. Chưa cần FTS5: vài nghìn tin thì `LIKE` vẫn chỉ mất vài ms; đo lại nếu chậm.
-- Sửa tin (C6c) cập nhật `SearchText`.
+- `ChatService.FindAsync` và `GroupChatService.FindAsync`: đọc tin chữ từ mới tới cũ (`QueryUnbufferedAsync`), giữ tin có **mọi từ** của câu tìm theo đúng quy tắc của Ctrl+K (`TextSearch`: không phân biệt hoa thường, bỏ dấu, `đ` thành `d`), dừng khi đủ 50. Không thêm cột hay migration: lọc trong bộ nhớ, vài nghìn tin chỉ mất vài ms, và sửa tin (C6c) không phải cập nhật gì thêm. Đo lại nếu chậm (FTS5).
+- Bỏ tin thoại, tin đã thu hồi; tin nhóm đã xóa (`Deleted`) cũng bỏ, tin 1-1 đã xóa thì không còn trong bảng.
+
+**Chung cho hai app** (`ChatViewModel.FindAsync`, `Shorekeeper.UI`)
+- Gộp tin 1-1, tin nhóm và **thẻ văn bản** (offer chỉ có chữ, gửi hay nhận, chưa thu hồi), mới nhất trước, tối đa 50.
+- Mỗi kết quả (`ChatSearchHit`): tên hội thoại, giờ, và một dòng "Mai: …nộp Báo cáo tháng 9…": người viết, rồi đoạn chữ quanh chỗ khớp (`TransferText.Snippet`, tối đa 80 ký tự, cắt ở ranh giới từ). Phần khớp không tô đậm.
+- `OpenAt`: mở hội thoại, rồi cuộn tới đúng tin (hay thẻ) và viền nó 2 giây (`ChatScroll.Reveal`, kiểu `Border.found`). Hội thoại tải cả lịch sử nên tin cũ cũng tới được.
 
 **Giao diện**
-- **PC**: Ctrl+K thêm nhóm kết quả **Tin nhắn**, dưới Người / Nhóm / File. Mỗi dòng gồm tên hội thoại, đoạn chữ quanh chỗ khớp (tô đậm phần khớp) và giờ. Chọn thì mở hội thoại, cuộn tới tin đó và viền nó trong chốc lát, như cách tìm File đang làm.
-- **Điện thoại**: nút 🔍 ở đầu tab Tin nhắn mở ô tìm, kết quả như trên; chạm thì mở hội thoại tại tin đó.
-- Tin nằm quá xa (hội thoại dài): hội thoại tải đủ tới tin đó trước khi cuộn.
+- **PC**: Ctrl+K liệt kê thêm tối đa 8 tin nhắn (biểu tượng 💬) sau Người / Nhóm / File; chúng tới sau các mục kia một chút vì đọc từ database. Chọn thì sang trang Tin nhắn tại tin đó.
+- **Điện thoại**: ô **Tìm trong tin nhắn** luôn nằm đầu danh sách hội thoại (thay cho nút 🔍 dự kiến). Có chữ thì danh sách kết quả hiện thay chỗ các hội thoại, "Không tìm thấy tin nhắn nào." nếu trống; ✕ hay nút Back xóa ô tìm. Chạm một kết quả thì mở hội thoại tại tin đó.
 
-**Xong khi**: test Engine (có dấu / không dấu, nhiều từ, bỏ tin thoại / đã thu hồi / đã xóa, tin nhóm, thẻ văn bản); thử thật Ctrl+K trên PC và tab Tin nhắn trên điện thoại.
+**Đã kiểm**: test Engine (có dấu / không dấu, nhiều từ không theo thứ tự, giới hạn số kết quả, bỏ tin thoại / đã thu hồi / đã xóa, tin nhóm); test UI cho đoạn trích. Thử thật (2026-10-31):
+- PC: Ctrl+K "u5 nubia" ra thẻ "Bạn: U5 thu tren Nubia…" trong hội thoại với Z2577; Enter mở hội thoại và viền thẻ đó.
+- Nubia: gõ "nubia" ra 2 kết quả (tin nhóm và thẻ văn bản); chạm thẻ thì mở hội thoại với PC và viền nó.
 
 ## 4. C6b — Trả lời trích dẫn và @nhắc tên
 
