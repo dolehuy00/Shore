@@ -171,11 +171,16 @@ Thứ tự làm: **C6a tìm** (không đổi giao thức) → **C6b trả lời 
   - Nhóm: tới mọi thành viên, mỗi người một; chỉ tác giả được báo; chờ thành viên offline và không chuyển hộ qua người khác; người ngoài nhóm bị từ chối; thu hồi xóa cảm xúc.
   - Sửa tin nhiều lần liền nhau thì máy kia ra chữ cuối; bỏ điều kiện chặn xoá hàng đợi thì test này báo lỗi.
 - Test UI: chip (gộp, thứ tự, của mình, ai đã thả); chữ thông báo cho 1, 2 và nhiều người. Test Windows: toast thay thế không kêu.
-- Thử thật PC và Nubia (2026-10-31; OPPO mất kết nối nên không thử được 3 máy):
+- Thử thật PC và Nubia (2026-10-31; OPPO mất kết nối, thử 3 máy sau):
   - 1-1, Nubia thả 👍 rồi đổi ❤️, 😂 vào tin của PC. Lịch sử toast của PC chỉ có **một** toast cho tin đó, toast sau cùng không kêu. Trên Nubia chỉ còn chip "😂 1".
   - PC thả ❤️ rồi đổi 🙏 vào tin của Nubia. Nubia có một thông báo (`ONLY_ALERT_ONCE`), chữ đổi theo. Mở hội thoại thì thông báo tự mất.
   - Chạm chip thì hiện "🙏 PC · MSI". Nubia chọn lại 😂 thì chip mất ở cả hai máy.
   - Nhóm tạm, theo cả hai chiều: thông báo trên Nubia "Nhóm C6d · PC · MSI đã thả ❤️…", toast trên PC "Nhóm C6d · Z2577 đã thả 😮…".
+- Thử 3 máy PC, Nubia, OPPO trong một nhóm tạm (2026-11-01):
+  - Nubia thả 👍 rồi OPPO thả ❤️ vào tin của PC. PC chỉ có **một** toast cho tin đó, đổi từ "Z2577 đã thả 👍…" thành "OPPO Reno10 5G và Z2577 đã thả cảm xúc…", lần sau không kêu.
+  - OPPO gửi "@Z2577 …" (chọn từ gợi ý). Nubia có thông báo, danh sách ghi "@", bong bóng có viền.
+  - PC thả 😮 rồi Nubia thả 🙏 vào tin đó, lúc OPPO ở ngoài app. OPPO có **một** thông báo (`ONLY_ALERT_ONCE`), đổi thành "Z2577 và PC · MSI đã thả cảm xúc…". Mở hội thoại thì thông báo mất.
+  - PC sửa tin của mình. Hai điện thoại ra chữ mới với "Đã sửa", cảm xúc vẫn giữ.
 
 ## 7. Không làm
 
