@@ -152,4 +152,30 @@ public class TransferTextTests
 
         public string? DayText { get; set; }
     }
+
+    [Fact]
+    public void A_transfer_in_progress_says_how_far_how_fast_and_how_long()
+    {
+        DateTimeOffset start = new(2026, 11, 1, 9, 0, 0, TimeSpan.Zero);
+        // No sample yet, then too soon to say, then 10 MB in a second, smoothed with the next one.
+        Assert.Equal(0, TransferActivityItem.NextSpeed(0, 0, default, 1000, start, out _));
+        Assert.Equal(0, TransferActivityItem.NextSpeed(0, 0, start, 1000, start.AddMilliseconds(200), out bool sampled));
+        Assert.False(sampled);
+        Assert.Equal(10_000_000, TransferActivityItem.NextSpeed(0, 0, start, 10_000_000, start.AddSeconds(1), out sampled));
+        Assert.True(sampled);
+        Assert.Equal(13_000_000, TransferActivityItem.NextSpeed(10_000_000, 10_000_000, start.AddSeconds(1), 30_000_000, start.AddSeconds(2), out _), 3);
+        // A retry counts from the start again.
+        Assert.Equal(0, TransferActivityItem.NextSpeed(10_000_000, 30_000_000, start, 5, start.AddSeconds(1), out _));
+
+        string speed = TransferText.Size(10_000_000);
+        Assert.Equal($"45% · {speed}/s · còn 2 phút", TransferActivityItem.StatusOf(45.6, 10_000_000, 1_000_000_000, reconnecting: false));
+        Assert.Equal($"99% · {speed}/s · còn vài giây", TransferActivityItem.StatusOf(99.9, 10_000_000, 50_000_000, reconnecting: false));
+        Assert.Equal($"10% · {speed}/s · còn 2 giờ", TransferActivityItem.StatusOf(10, 10_000_000, 60_000_000_000, reconnecting: false));
+        Assert.Equal("45%", TransferActivityItem.StatusOf(45, 0, 1000, reconnecting: false));
+        Assert.Equal("Đang nối lại…", TransferActivityItem.StatusOf(45, 10, 1000, reconnecting: true));
+
+        Assert.Equal("Đang nhận 2 · đang gửi 1", TransferActivityViewModel.DescribeOf(2, 1));
+        Assert.Equal("Đang gửi 1", TransferActivityViewModel.DescribeOf(0, 1));
+        Assert.Equal("", TransferActivityViewModel.DescribeOf(0, 0));
+    }
 }

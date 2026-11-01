@@ -82,6 +82,7 @@ public static class EngineHost
         // The view models, each given what it uses (docs/02-architecture.md); App asks for MainViewModel once all runs.
         builder.Services.AddSingleton<MainViewModel>();
         builder.Services.AddSingleton<ChatViewModel>();
+        builder.Services.AddSingleton<TransferActivityViewModel>();
         builder.Services.AddSingleton<AudioViewModel>();
         builder.Services.AddSingleton<Func<MainViewModel, GroupsTabViewModel>>(
             services => main => ActivatorUtilities.CreateInstance<GroupsTabViewModel>(services, main));

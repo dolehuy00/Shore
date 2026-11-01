@@ -13,6 +13,41 @@
       <Button Grid.Column="1" Classes="segment" Classes.on="{Binding FilesShowSent}" Command="{Binding ShowSentFilesCommand}" Content="{l:T 'Đã gửi'}" />
     </Grid>
   </Border>
+  <!-- "Đang chuyển" (docs/19-transfers-preview.md §3): only while something moves; a tap opens the list of each one. -->
+  <Border DockPanel.Dock="Top" Classes="card" Margin="0,0,0,10" Padding="12,10" IsVisible="{Binding Transfers.HasItems}">
+    <StackPanel Spacing="6">
+      <Button Command="{Binding ToggleTransfersCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="0"
+              Background="Transparent" BorderThickness="0" AutomationProperties.Name="{l:T 'Đang chuyển'}">
+        <StackPanel Spacing="6">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Text="{l:T 'Đang chuyển'}" FontWeight="SemiBold" />
+            <TextBlock Grid.Column="1" Text="{Binding Transfers.Summary}" />
+          </Grid>
+          <ProgressBar Value="{Binding Transfers.Progress}" Maximum="100" Height="4" MinHeight="4" MinWidth="0" CornerRadius="2" />
+          <TextBlock Classes="muted" Text="{Binding Transfers.SpeedText}" FontSize="12" />
+        </StackPanel>
+      </Button>
+      <ItemsControl ItemsSource="{Binding Transfers.Items}" IsVisible="{Binding TransfersOpen}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="ui:TransferActivityItem">
+            <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,8,0,0">
+              <TextBlock Text="{Binding Arrow}" FontSize="16" VerticalAlignment="Center" Margin="0,0,8,0" />
+              <Button Grid.Column="1" Command="{Binding RevealCommand}" AutomationProperties.Name="{Binding Title}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="0"
+                      Background="Transparent" BorderThickness="0">
+                <StackPanel Spacing="3">
+                  <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                  <TextBlock Classes="muted" Text="{Binding Person}" FontSize="12" TextTrimming="CharacterEllipsis" />
+                  <ProgressBar Value="{Binding Progress}" Maximum="100" Height="4" MinHeight="4" MinWidth="0" CornerRadius="2" />
+                  <TextBlock Classes="muted" Text="{Binding Status}" FontSize="12" />
+                </StackPanel>
+              </Button>
+              <Button Grid.Column="2" Content="{l:T 'Hủy'}" Command="{Binding CancelCommand}" IsVisible="{Binding CanCancel}" VerticalAlignment="Center" Margin="8,0,0,0" />
+            </Grid>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </StackPanel>
+  </Border>
   <Panel>
   <Panel Classes="page" IsVisible="{Binding IsInboxTab}">
   <Panel>

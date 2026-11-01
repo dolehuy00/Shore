@@ -33,6 +33,12 @@ public sealed class TransferService : Service
     private WifiManager.WifiLock? wifiLock;
     private PowerManager.WakeLock? wakeLock;
 
+    /// <summary>Bytes served to someone grow without an event: the notification's bar is looked at every 2 seconds.</summary>
+    private Timer? ticker;
+
+    /// <summary>What the notification says now: the same again is not posted.</summary>
+    private (string Text, int? Progress) shown;
+
     /// <summary>The service is in the foreground right now.</summary>
     public static bool IsRunning { get; private set; }
 
@@ -47,6 +53,7 @@ public sealed class TransferService : Service
         {
             IsRunning = true;
             AcquireLocks();
+            ticker = new Timer(_ => BackgroundTransfers.Recheck(), null, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2));
         }
 
         _ = HandleAsync(intent);
@@ -56,17 +63,22 @@ public sealed class TransferService : Service
     public override void OnDestroy()
     {
         IsRunning = false;
+        ticker?.Dispose();
         wifiLock?.Release();
         wakeLock?.Release();
         base.OnDestroy();
     }
 
     /// <summary>Refreshes the ongoing notification, or stops when there is nothing left to keep alive.</summary>
-    internal void Update(bool keepRunning, string text)
+    internal void Update(bool keepRunning, string text, int? progress)
     {
         if (keepRunning)
         {
-            ((NotificationManager)GetSystemService(NotificationService)!).Notify(NotificationId, Notifications.Transfer(this, text));
+            if (shown != (text, progress))
+            {
+                shown = (text, progress);
+                ((NotificationManager)GetSystemService(NotificationService)!).Notify(NotificationId, Notifications.Transfer(this, text, progress));
+            }
         }
         else
         {

@@ -1,6 +1,6 @@
 # 19 — Khu "Đang chuyển" và xem trước file (T1–T2)
 
-> Trạng thái: **kế hoạch** (2026-11-01), chờ chốt các câu hỏi ở §6. Nối tiếp [17 §5](17-ui-cleanup.md): "khu đang gửi / đang nhận chung, xem trước file trong app: tính năng mới, làm riêng sau".
+> Trạng thái: **T1 xong** (2026-11-01); T2 theo kế hoạch đã chốt (§6). Nối tiếp [17 §5](17-ui-cleanup.md): "khu đang gửi / đang nhận chung, xem trước file trong app: tính năng mới, làm riêng sau".
 
 ## 1. Mục tiêu
 
@@ -20,26 +20,35 @@ Thứ tự: **T1 Đang chuyển** (không đổi giao thức) → **T2 Xem trư�
 - Không có chỗ nào gộp hai chiều: muốn biết máy đang bận gì thì phải mở đúng tab và tìm dòng đó giữa lịch sử. Bản phác ở [10 §2](10-ux.md) có "⬆ 1 đang gửi" ở cuối thanh bên, nhưng chưa làm.
 - **Mở ảnh / file**: [Mở] và bấm ảnh trong hội thoại đều gọi app của hệ điều hành. Ảnh nhỏ trong hội thoại và trang File được giải mã thẳng, **không đọc hướng EXIF**: ảnh chụp dọc bằng điện thoại có thể hiện nằm ngang.
 
-## 3. T1 — Khu "Đang chuyển"
+## 3. T1 — Khu "Đang chuyển" ✅ (2026-11-01)
 
-**Chung cho hai app** (`Shorekeeper.UI`)
-- `TransferActivity`: danh sách việc đang chạy, lấy từ dữ liệu đã có, không thêm gì vào Engine hay giao thức:
+**Chung cho hai app** (`TransferActivityViewModel`, `Shorekeeper.UI`)
+- Danh sách việc đang chạy, lấy từ dữ liệu đã có, không thêm gì vào Engine hay giao thức:
   - nhận: offer ở `InboxState.Downloading`, tiến độ theo `BytesReceived`;
-  - gửi: mỗi người đang tải file mình gửi (`RecipientState.Downloading`), tiến độ theo `BytesServed`.
-- Mỗi dòng có chiều (⬇/⬆), tên ("báo cáo.pdf + 2 file"), người hay nhóm, đã chuyển / tổng, tốc độ (làm mượt như `InboxViewModel.UpdateSpeed`, chuyển sang UI dùng chung) và thời gian còn lại.
-- Cập nhật theo sự kiện `Changed`, cộng thêm nhịp 1 giây khi danh sách không trống (để tốc độ và thời gian còn lại chạy).
+  - gửi: mỗi người đang tải file mình gửi (`RecipientState.Downloading`), tiến độ theo `BytesServed`, một dòng cho mỗi người.
+- Mỗi dòng có chiều (⬇/⬆), tên ("báo cáo.pdf + 2 file"), người gửi hay người đang tải, thanh tiến độ, và "45% · 8,9 MB/s · còn 3 phút". Tốc độ được làm mượt như dòng ở trang File; thời gian còn lại chỉ hiện khi đã có tốc độ. Đang nối lại thì ghi "Đang nối lại…".
+- Cập nhật theo sự kiện `Changed`, thêm nhịp 1 giây khi danh sách không trống: `BytesServed` tăng mà không có sự kiện.
+- Xong (nhận Completed / Partial, người nhận Completed / Partial) thì dòng thành **"Xong ✓"** 5 giây rồi biến mất. Hủy, lỗi hay bị từ chối thì biến mất ngay.
+- [Hủy] chỉ có ở việc nhận. Việc gửi không có nút dừng: muốn dừng thì Thu hồi cả offer ở Đã gửi (§6 Q2).
 
 **PC**
-- Thanh bên, ngay trên thẻ "Ổ nhận file": thẻ **Đang chuyển**, chỉ hiện khi có việc. Thẻ ghi "⬇ 2 · ⬆ 1", tốc độ tổng và một thanh tiến độ chung.
-- Bấm thẻ thì mở popup liệt kê từng việc: tên, người, thanh tiến độ, "45% · 98 MB/s · còn 2 phút", [Hủy] cho việc nhận (§6 Q2 cho việc gửi).
-- Bấm vào một dòng thì mở File đúng tab và cuộn tới mục đó (như chọn một kết quả Ctrl+K).
-- Tooltip của biểu tượng tray: "Đang nhận 2 · đang gửi 1".
+- Thanh bên, ngay trên thẻ "Ổ nhận file": thẻ **Đang chuyển**, chỉ hiện khi có việc, với "⬇ 2 · ⬆ 1", thanh tiến độ chung và tốc độ tổng.
+- Bấm thẻ thì mở popup liệt kê từng việc. Việc nhận xong có [Mở] (mở file, hay thư mục khi có nhiều file).
+- Bấm một dòng: popup đóng, mở File đúng tab và cuộn tới mục đó (như kết quả Ctrl+K). Popup đóng **sau** khi lệnh của dòng đã chạy; đóng trước thì dòng mất mục cần mở, như lỗi menu cảm xúc ở C6d.
+- Tooltip của biểu tượng tray: "Shorekeeper · Đang nhận 2 · đang gửi 1".
 
 **Điện thoại**
-- Tab File: dải **Đang chuyển (3)** trên đầu, chạm thì mở ra danh sách như popup của PC.
-- Thông báo thường trực của `TransferService` có thanh tiến độ và "45% · 12 MB/s" (§6 Q6).
+- Tab File: dải **Đang chuyển** dưới hai nút Nhận / Đã gửi, chạm thì mở ra danh sách như popup của PC. Chạm một dòng thì sang đúng tab Nhận / Đã gửi.
+- Thông báo thường trực của `TransferService` có thanh tiến độ chung và phần trăm ("Đang nhận 1 lượt file · 22%"), xem lại mỗi 2 giây, chỉ đăng lại khi chữ hay số đổi. Không có tốc độ: thông báo được tính trong service, không qua giao diện.
 
-**Xong khi:** PC tải 1 GB từ điện thoại trong lúc điện thoại tải một file từ PC. Cả hai máy thấy 2 dòng đúng chiều, % và tốc độ khớp với dòng ở trang File; xong thì dòng đổi thành "Xong" rồi biến mất (§6 Q3); Hủy ở đây hủy được việc nhận.
+**Đã kiểm**
+- Test UI: làm mượt tốc độ (chưa đủ nửa giây thì giữ, đếm lùi thì về 0), chữ "45% · … · còn 2 phút / 2 giờ / vài giây", "Đang nối lại…", chữ cho tray.
+- Thử thật PC và Nubia (2026-11-01; OPPO không cắm), PC gửi 1,4 GB qua Gửi nhanh:
+  - PC "⬆ 1 · 9,1 MB/s", Nubia "⬇ 1 · 8,8 MB/s"; popup PC "T1 thu chuyen.bin · Z2577 · 13% · 8,9 MB/s · còn 3 phút"; thông báo Nubia "Đang nhận 1 lượt file · 22%" có thanh.
+  - [Hủy] trên dải của Nubia: việc dừng ("Đã dừng"), dải và thẻ biến mất ở cả hai máy.
+  - File 286 MB tải hết: cả hai máy "Xong ✓", 5 giây sau biến mất.
+  - Bấm dòng trong popup PC mở File › Đã gửi.
+- Chưa thử: chiều điện thoại → PC (nên chưa thấy [Mở] trên PC bằng mắt), hai việc cùng lúc.
 
 ## 4. T2 — Xem trước file trong app
 
@@ -66,9 +75,9 @@ Thứ tự: **T1 Đang chuyển** (không đổi giao thức) → **T2 Xem trư�
 | Ảnh lớn làm hết bộ nhớ trên điện thoại | Luôn giải mã theo cỡ màn hình; chỉ giữ ảnh đang xem và hai ảnh kế bên |
 | `Windows.Data.Pdf` cần WinRT | App PC đã gọi WinRT cho toast; bản Linux/macOS sau này không có PDF |
 
-## 6. Câu hỏi cần chốt
+## 6. Đã chốt (2026-11-01, theo đề xuất)
 
-| # | Câu hỏi | Đề xuất |
+| # | Câu hỏi | Kết luận |
 |---|---|---|
 | Q1 | Khu Đang chuyển trên PC đặt ở đâu? | **Thẻ ở thanh bên + popup** (luôn thấy, không thêm trang); hoặc tab thứ ba "Đang chuyển" trong trang File |
 | Q2 | Bên gửi: có nút dừng một người đang tải file mình gửi không? | **Không**: chỉ hiện; muốn dừng thì Thu hồi cả offer ở Đã gửi như hiện nay |

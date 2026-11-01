@@ -228,6 +228,15 @@ public partial class App : Application
             Menu = [openItem, quickSendItem, audioItem, new NativeMenuItemSeparator(), exitItem],
         };
         trayIcon.Clicked += (_, _) => ShowMainWindow();
+        // What moves shows when the pointer rests on the icon (docs/19-transfers-preview.md §3).
+        var transfers = Services!.GetRequiredService<TransferActivityViewModel>();
+        transfers.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(TransferActivityViewModel.Describe))
+            {
+                trayIcon.ToolTipText = transfers.Describe is "" ? "Shorekeeper" : $"Shorekeeper · {transfers.Describe}";
+            }
+        };
 
         TrayIcon.SetIcons(this, [trayIcon]);
     }

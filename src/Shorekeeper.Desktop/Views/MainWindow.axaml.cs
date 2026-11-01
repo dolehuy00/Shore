@@ -101,6 +101,12 @@ public partial class MainWindow : Window
         public Task DropAsync(IReadOnlyList<string> paths) => chat.AttachAsync(paths);
     }
 
+    /// <summary>
+    /// A row of "Đang chuyển" was clicked: the list closes on the way to its offer, once the row's command has run (closed
+    /// first, the row would lose the item it reveals).
+    /// </summary>
+    private void OnTransferRevealed(object? sender, RoutedEventArgs e) => Dispatcher.UIThread.Post(() => TransfersButton.Flyout?.Hide());
+
     private void OnDragOver(object? sender, DragEventArgs e)
     {
         IFileDropTarget? target = DropTargetAt(e.Source);

@@ -103,7 +103,7 @@ internal static class BackgroundTransfers
 
         if (running is not null)
         {
-            running.Update(keep, Describe());
+            running.Update(keep, Describe(), Progress());
             return;
         }
 
@@ -121,6 +121,29 @@ internal static class BackgroundTransfers
             // Android 12+ refuses to start it from the background; it starts with the next tap in the app or on a notification.
             logger?.LogWarning("Foreground service not allowed now: {Message}", ex.Message);
         }
+    }
+
+    /// <summary>Of everything moving in either direction, 0 to 99; null when nothing moves (docs/19-transfers-preview.md §6 Q6).</summary>
+    public static int? Progress()
+    {
+        long done = 0;
+        long total = 0;
+        foreach (ReceivedOffer offer in inbox?.GetOffers().Where(o => o.State == InboxState.Downloading) ?? [])
+        {
+            done += offer.BytesReceived;
+            total += offer.TotalBytes;
+        }
+
+        foreach (SentOffer offer in offers?.GetOffers().Where(o => o.State == OfferState.Open) ?? [])
+        {
+            foreach (SentRecipient recipient in offer.Recipients.Where(r => r.State == RecipientState.Downloading))
+            {
+                done += recipient.BytesServed;
+                total += offer.TotalBytes;
+            }
+        }
+
+        return total == 0 ? null : (int)Math.Min(99, 100 * done / total);
     }
 
     /// <summary>Text of the ongoing notification.</summary>

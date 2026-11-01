@@ -2,6 +2,7 @@
         xmlns:l="using:Shorekeeper.UI.Localization"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Shorekeeper.Desktop.ViewModels"
+        xmlns:ui="using:Shorekeeper.UI.ViewModels"
         xmlns:v="using:Shorekeeper.Desktop.Views"
         xmlns:p="using:Shorekeeper.Desktop.Views.Pages"
         x:Class="Shorekeeper.Desktop.Views.MainWindow"
@@ -522,6 +523,52 @@
             <TextBlock Classes="muted" Text="{Binding StorageText}" FontSize="11" />
           </StackPanel>
         </Border>
+
+        <!-- "Đang chuyển" (docs/19-transfers-preview.md §3): only while something moves; a click lists each one. -->
+        <Button x:Name="TransfersButton" DockPanel.Dock="Bottom" Margin="10,10,10,0" Padding="12,10" CornerRadius="8" BorderThickness="1"
+                HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" IsVisible="{Binding Transfers.HasItems}"
+                BorderBrush="{DynamicResource Sk.CardBorder}" Background="{DynamicResource Sk.CardBackground}"
+                AutomationProperties.Name="{l:T 'Đang chuyển'}">
+          <Button.Flyout>
+            <Flyout Placement="RightEdgeAlignedBottom">
+              <StackPanel Width="380" Spacing="6">
+                <TextBlock Text="{l:T 'Đang chuyển'}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                <ItemsControl ItemsSource="{Binding Transfers.Items}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="ui:TransferActivityItem">
+                      <Grid ColumnDefinitions="Auto,*,Auto">
+                        <TextBlock Text="{Binding Arrow}" FontSize="16" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <!-- The row: its offer in File. -->
+                        <Button Grid.Column="1" Classes="person" Command="{Binding RevealCommand}" AutomationProperties.Name="{Binding Title}" Click="OnTransferRevealed">
+                          <StackPanel Spacing="3">
+                            <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Classes="muted" Text="{Binding Person}" FontSize="12" TextTrimming="CharacterEllipsis" />
+                            <ProgressBar Value="{Binding Progress}" Maximum="100" Height="4" MinHeight="4" MinWidth="0" CornerRadius="2"
+                                         Background="{DynamicResource Sk.Track}" />
+                            <TextBlock Classes="muted" Text="{Binding Status}" FontSize="12" />
+                          </StackPanel>
+                        </Button>
+                        <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="8,0,0,0">
+                          <Button Content="{l:T 'Hủy'}" Command="{Binding CancelCommand}" IsVisible="{Binding CanCancel}" />
+                          <Button Content="{l:T 'Mở'}" Command="{Binding OpenCommand}" IsVisible="{Binding CanOpen}" />
+                        </StackPanel>
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </Flyout>
+          </Button.Flyout>
+          <StackPanel Spacing="6">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Text="{l:T 'Đang chuyển'}" FontSize="12" FontWeight="SemiBold" />
+              <TextBlock Grid.Column="1" Text="{Binding Transfers.Summary}" FontSize="12" />
+            </Grid>
+            <ProgressBar Value="{Binding Transfers.Progress}" Maximum="100" Height="4" MinHeight="4" MinWidth="0" CornerRadius="2"
+                         Background="{DynamicResource Sk.Track}" />
+            <TextBlock Classes="muted" Text="{Binding Transfers.SpeedText}" FontSize="11" />
+          </StackPanel>
+        </Button>
 
         <ListBox Classes="nav"
                  ItemsSource="{Binding NavItems}"

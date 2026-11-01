@@ -742,5 +742,13 @@
   "{0} đã thả {1}": "{0} reacted {1}",
   "{0} đã thả {1} vào tin của bạn: “{2}”": "{0} reacted {1} to your message: “{2}”",
   "{0} và {1} đã thả cảm xúc vào tin của bạn: “{2}”": "{0} and {1} reacted to your message: “{2}”",
-  "{0}, {1} và {2} người khác đã thả cảm xúc vào tin của bạn: “{3}”": "{0}, {1} and {2} others reacted to your message: “{3}”"
+  "{0}, {1} và {2} người khác đã thả cảm xúc vào tin của bạn: “{3}”": "{0}, {1} and {2} others reacted to your message: “{3}”",
+  "Đang chuyển": "Transfers",
+  "{0}/s": "{0}/s",
+  "Đang nhận {0} · đang gửi {1}": "Receiving {0} · sending {1}",
+  "Đang nhận {0}": "Receiving {0}",
+  "Đang gửi {0}": "Sending {0}",
+  "Xong ✓": "Done ✓",
+  "Đang nối lại…": "Reconnecting…",
+  "còn vài giây": "a few seconds left"
 }

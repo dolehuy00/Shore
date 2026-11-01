@@ -95,9 +95,11 @@ public sealed partial class MainWindowViewModel : ObservableObject
         AudioViewModel audio,
         StatsViewModel stats,
         ChatViewModel chat,
+        TransferActivityViewModel transfers,
         IDialogs dialogs)
     {
         this.dialogs = dialogs;
+        Transfers = transfers;
         Groups = groups;
         Chat = chat;
         Stats = stats;
@@ -161,6 +163,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
         chat.ShowFiles = received => ShowPage(received ? NavPage.Inbox : NavPage.Sent);
         chat.PickFiles = () => dialogs.PickFilesAsync();
         chat.OpenFile = path => _ = OpenReceivedAsync(path);
+        transfers.OpenFile = path => _ = OpenReceivedAsync(path);
+        transfers.RevealRequested += (_, item) => RevealTransfer(item);
         chat.SendFiles = async (recipients, groupId, paths) =>
         {
             // Problems are asked or told by the dialogs themselves.
@@ -207,6 +211,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public SearchViewModel Search { get; }
 
     /// <summary>"Tin nhắn".</summary>
+    /// <summary>"Đang chuyển" at the bottom of the sidebar (docs/19-transfers-preview.md §3).</summary>
+    public TransferActivityViewModel Transfers { get; }
+
     public ChatViewModel Chat { get; }
 
     /// <summary>A search result was chosen: the view scrolls to this row's view model and points at it.</summary>
@@ -419,6 +426,21 @@ public sealed partial class MainWindowViewModel : ObservableObject
     }
 
     private NavItem Nav(NavPage page) => NavItems.First(i => i.Page == page);
+
+    /// <summary>A row of "Đang chuyển": its offer in File, on the right tab.</summary>
+    private void RevealTransfer(TransferActivityItem item)
+    {
+        FilesFilter = FileFilter.All;
+        FilesQuery = "";
+        ShowPage(item.IsIncoming ? NavPage.Inbox : NavPage.Sent);
+        object? row = item.Received is { } key
+            ? Inbox.Items.FirstOrDefault(i => i.Key == key)
+            : Sent.Items.FirstOrDefault(i => i.OfferId == item.SentOfferId);
+        if (row is not null)
+        {
+            RevealRequested?.Invoke(this, row);
+        }
+    }
 
     private void Reveal(SearchResult result)
     {

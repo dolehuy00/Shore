@@ -46,9 +46,16 @@ public sealed partial class MainViewModel : ObservableObject
     public MainViewModel(
         PeerDirectory directory, TrustStore trust, PairingService pairing, InboxService inbox, OfferService offers, IExternalFileSource external,
         GroupStore groups, SettingsService settings, PeerNaming naming, LocalDevice device, AppPaths paths, ManualPeerFinder finder,
-        ChatViewModel chat, AudioViewModel audio, Func<MainViewModel, GroupsTabViewModel> groupsTab,
+        ChatViewModel chat, AudioViewModel audio, TransferActivityViewModel transfers, Func<MainViewModel, GroupsTabViewModel> groupsTab,
         Func<MainViewModel, SettingsTabViewModel> settingsTab)
     {
+        Transfers = transfers;
+        transfers.RevealRequested += (_, item) =>
+        {
+            TransfersOpen = false;
+            FilesShowSent = !item.IsIncoming;
+            SelectedTab = 1;
+        };
         this.directory = directory;
         this.trust = trust;
         this.pairing = pairing;
@@ -168,6 +175,16 @@ public sealed partial class MainViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsNearbyTab), nameof(IsFilesTab), nameof(IsInboxTab), nameof(IsSentTab), nameof(IsChatTab), nameof(IsGroupsTab),
         nameof(IsAudioTab), nameof(IsSettingsTab), nameof(PageTitle), nameof(HasPageTitle))]
     public partial int SelectedTab { get; set; }
+
+    /// <summary>"Đang chuyển" on top of the File tab (docs/19-transfers-preview.md §3).</summary>
+    public TransferActivityViewModel Transfers { get; }
+
+    /// <summary>The "Đang chuyển" strip is opened into its list.</summary>
+    [ObservableProperty]
+    public partial bool TransfersOpen { get; set; }
+
+    [RelayCommand]
+    private void ToggleTransfers() => TransfersOpen = !TransfersOpen;
 
     /// <summary>"Đã gửi" rather than "Nhận" on the File tab (docs/15-chat.md §6.2).</summary>
     [ObservableProperty]

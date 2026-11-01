@@ -80,14 +80,23 @@ internal static class Notifications
             .Build()!;
     }
 
-    public static Notification Transfer(Context context, string text) =>
-        new Notification.Builder(context, TransfersChannel)
+    /// <param name="progress">Of everything moving, shown as a bar; null when nothing moves.</param>
+    public static Notification Transfer(Context context, string text, int? progress = null)
+    {
+        Notification.Builder builder = new Notification.Builder(context, TransfersChannel)
             .SetContentTitle("Shorekeeper")!
-            .SetContentText(text)!
+            .SetContentText(progress is { } percent ? $"{text} · {percent}%" : text)!
             .SetSmallIcon(Resource.Drawable.ic_stat_shorekeeper)!
             .SetOngoing(true)!
-            .SetContentIntent(OpenApp(context, tab: 0))!
-            .Build()!;
+            .SetOnlyAlertOnce(true)!
+            .SetContentIntent(OpenApp(context, tab: 0))!;
+        if (progress is { } value)
+        {
+            builder.SetProgress(100, value, false);
+        }
+
+        return builder.Build()!;
+    }
 
     /// <summary>"Huy gửi cho bạn · app.zip · 2,4 GB" with [Tải] [Bỏ qua] (docs/10-ux.md §4).</summary>
     public static void ShowOffer(Context context, ReceivedOffer offer, string senderName)
