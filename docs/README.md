@@ -35,7 +35,8 @@
 | 15 | [Tin nhắn](15-chat.md) | Hội thoại 1-1, văn bản và tin nhắn thoại, giai đoạn C1 → C5 |
 | 16 | [Chat nhóm](16-group-chat.md) | C5: hội thoại theo Nhóm, gửi tới từng thành viên, đã xem theo người |
 | 17 | [Dọn giao diện](17-ui-cleanup.md) | U5–U7: gom trang trùng, văn bản chỉ ở Tin nhắn, danh sách File gọn, Cài đặt chia mục |
-| 18 | [Tin nhắn: tìm, trả lời, @nhắc tên, sửa, cảm xúc](18-chat-extras.md) | C6 (kế hoạch): tìm theo nội dung, trả lời trích dẫn, @nhắc tên, sửa tin, thả cảm xúc |
+| 18 | [Tin nhắn: tìm, trả lời, @nhắc tên, sửa, cảm xúc](18-chat-extras.md) | C6: tìm theo nội dung, trả lời trích dẫn, @nhắc tên, sửa tin, thả cảm xúc |
+| 19 | [Đang chuyển và xem trước file](19-transfers-preview.md) | T1–T2 (kế hoạch): một chỗ cho mọi việc đang nhận / gửi, xem ảnh trong app, ảnh đúng chiều |
 | — | [Quyết định kiến trúc (ADR)](decisions.md) | Nhật ký quyết định & lý do |
 | — | [Câu hỏi mở](open-questions.md) | Những điểm cần chốt thêm |
 

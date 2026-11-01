@@ -77,7 +77,7 @@ Mục đúng nhóm nào sẽ theo những gì trang Cài đặt đang có; bản
 
 ## 5. Không làm đợt này
 
-Tìm trong tin nhắn, trả lời trích dẫn, sửa tin, khu "đang gửi / đang nhận" chung, xem trước file trong app: tính năng mới, làm riêng sau. Điện thoại chỉ có U5a; phần còn lại theo sau nếu cần.
+Tìm trong tin nhắn, trả lời trích dẫn, sửa tin, khu "đang gửi / đang nhận" chung, xem trước file trong app: tính năng mới, làm riêng sau ([18](18-chat-extras.md), [19](19-transfers-preview.md)). Điện thoại chỉ có U5a; phần còn lại theo sau nếu cần.
 
 ## 6. Kiểm tra
 
