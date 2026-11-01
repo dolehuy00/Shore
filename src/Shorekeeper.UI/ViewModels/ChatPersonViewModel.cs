@@ -90,10 +90,25 @@ public sealed partial class ChatPersonViewModel : ObservableObject
     [RelayCommand]
     private void Open() => owner.Open(this);
 
+    /// <summary>When the row's newest thing happened: its last message, file card, or a reaction to ours.</summary>
+    internal static DateTimeOffset At(DateTimeOffset? message, ChatLastFile? file, ChatReaction? reacted) =>
+        new[] { message, file?.At, reacted?.At }.Max() ?? default;
+
+    /// <summary>A reaction to ours newer than the last message and file card: "Mai đã thả ❤️" (docs/18-chat-extras.md §6).</summary>
+    internal static bool ReactedLast(DateTimeOffset message, ChatLastFile? file, ChatReaction? reacted) =>
+        reacted is not null && reacted.At > message && (file is null || reacted.At > file.At);
+
     /// <param name="file">The newest offer with this person; it shows when newer than the last message.</param>
     internal ChatPersonViewModel Update(ChatConversation? conversation, ChatLastFile? file)
     {
         Unread = conversation?.Unread ?? 0;
+        if (conversation is { Reacted: { } reacted } && ReactedLast(conversation.Last.SentAt, file, reacted))
+        {
+            TimeText = ChatViewModel.ShortTime(reacted.At);
+            Preview = L.F("{0} đã thả {1}", owner.NameOf(Peer), reacted.Emoji);
+            return this;
+        }
+
         if (file is not null && (conversation is null || file.At > conversation.Last.SentAt))
         {
             TimeText = ChatViewModel.ShortTime(file.At);
@@ -119,6 +134,13 @@ public sealed partial class ChatPersonViewModel : ObservableObject
         if (conversation is not null)
         {
             Name = conversation.Name;
+        }
+
+        if (conversation is { Reacted: { } reacted } && ReactedLast(conversation.Last.SentAt, file, reacted))
+        {
+            TimeText = ChatViewModel.ShortTime(reacted.At);
+            Preview = L.F("{0} đã thả {1}", owner.NameOf(conversation.GroupId, reacted.Reactor, reacted.Reactor.ShortForm), reacted.Emoji);
+            return this;
         }
 
         if (file is not null && (conversation is null || file.At > conversation.Last.SentAt))

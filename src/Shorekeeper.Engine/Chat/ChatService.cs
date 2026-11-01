@@ -36,7 +36,8 @@ public sealed record ChatMessage(
     int DurationMs = 0, byte[]? Wave = null, string? VoicePath = null, string? ReplyTo = null, DateTimeOffset? EditedAt = null);
 
 /// <summary>A conversation in the list: its newest message and how many from the peer are unread.</summary>
-public sealed record ChatConversation(DeviceId Peer, ChatMessage Last, int Unread);
+/// <param name="Reacted">The peer's newest reaction to one of ours (docs/18-chat-extras.md §6).</param>
+public sealed record ChatConversation(DeviceId Peer, ChatMessage Last, int Unread, ChatReaction? Reacted = null);
 
 /// <summary>
 /// Messages between two contacts (docs/15-chat.md §2), apart from offers. Each is stored first, then sent; one that
@@ -430,7 +431,8 @@ public sealed class ChatService(
             WHERE m.Id = (SELECT l.Id FROM ChatMessages l WHERE l.PeerId = m.PeerId ORDER BY l.SentAt DESC, l.Id DESC LIMIT 1)
             ORDER BY m.SentAt DESC;
             """);
-        return [.. rows.Select(r => new ChatConversation(DeviceId.Parse(r.PeerId), r.ToMessage(), (int)r.Unread))];
+        Dictionary<string, ChatReaction> reacted = await ChatReactions.OneToOne.NewestOnOursAsync(connection, engine.Identity.DeviceId);
+        return [.. rows.Select(r => new ChatConversation(DeviceId.Parse(r.PeerId), r.ToMessage(), (int)r.Unread, reacted.GetValueOrDefault(r.PeerId)))];
     }
 
     /// <summary>The whole conversation, oldest first.</summary>

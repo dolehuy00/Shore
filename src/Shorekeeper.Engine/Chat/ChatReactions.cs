@@ -16,21 +16,23 @@ public sealed class ChatReactions
 {
     private readonly string table;
     private readonly string scope;
+    private readonly string messages;
 
-    private ChatReactions(string table, string scope)
+    private ChatReactions(string table, string scope, string messages)
     {
         this.table = table;
         this.scope = scope;
+        this.messages = messages;
     }
 
     /// <summary>👍 ❤️ 😂 😮 😢 🙏 (docs/18-chat-extras.md §8 Q2).</summary>
     public static readonly IReadOnlyList<string> Emojis = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 
     /// <summary>1-1 conversations, by the peer.</summary>
-    internal static readonly ChatReactions OneToOne = new("ChatReactions", "PeerId");
+    internal static readonly ChatReactions OneToOne = new("ChatReactions", "PeerId", "ChatMessages");
 
     /// <summary>Group conversations, by the group.</summary>
-    internal static readonly ChatReactions Groups = new("ChatGroupReactions", "GroupId");
+    internal static readonly ChatReactions Groups = new("ChatGroupReactions", "GroupId", "ChatGroupMessages");
 
     /// <summary>One of the set, or none: taking a reaction away.</summary>
     public static bool IsEmoji(string? emoji) => emoji is null || Emojis.Contains(emoji);
@@ -62,6 +64,26 @@ public sealed class ChatReactions
             """,
             new { at, messageId });
         return [.. rows.Select(r => new ChatReaction(r.MessageId, DeviceId.Parse(r.ReactorId), r.Emoji, DateTimeOffset.FromUnixTimeMilliseconds(r.At), r.Unseen != 0))];
+    }
+
+    /// <summary>
+    /// Each conversation's newest reaction of someone else to one of ours: the list of conversations says it when
+    /// nothing came after (docs/18-chat-extras.md §6).
+    /// </summary>
+    internal async Task<Dictionary<string, ChatReaction>> NewestOnOursAsync(SqliteConnection connection, DeviceId me)
+    {
+        // With MAX, SQLite takes the other columns from that row.
+        var rows = await connection.QueryAsync<(string At, string MessageId, string ReactorId, string Emoji, long Time, long Unseen)>(
+            $"""
+            SELECT r.{scope}, r.MessageId, r.ReactorId, r.Emoji, MAX(r.At), r.Unseen
+            FROM {table} r JOIN {messages} m ON m.{scope} = r.{scope} AND m.Id = r.MessageId
+            WHERE m.Outgoing = 1 AND r.Emoji IS NOT NULL AND r.ReactorId <> @me
+            GROUP BY r.{scope};
+            """,
+            new { me = me.Value });
+        return rows.ToDictionary(
+            r => r.At,
+            r => new ChatReaction(r.MessageId, DeviceId.Parse(r.ReactorId), r.Emoji, DateTimeOffset.FromUnixTimeMilliseconds(r.Time), r.Unseen != 0));
     }
 
     /// <summary>What a reaction of ours tells: its emoji (none when taken away) and time.</summary>

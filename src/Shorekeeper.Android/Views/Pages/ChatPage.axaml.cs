@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Shorekeeper.Android.ViewModels;
@@ -18,6 +19,12 @@ public partial class ChatPage : UserControl
 {
     /// <summary>Slid this far left, letting go of 🎤 throws the recording away.</summary>
     private const double CancelDistance = 90;
+
+    /// <summary>Slid this far right, a message is answered when let go (docs/18-chat-extras.md §4).</summary>
+    private const double ReplyDistance = 60;
+
+    /// <summary>Where the finger went down on a message, while it may still slide it right.</summary>
+    private Point? slideStart;
 
     private ChatScroll? chatScroll;
 
@@ -76,6 +83,63 @@ public partial class ChatPage : UserControl
         }
 
         e.Handled = true;
+    }
+
+    /// <summary>A finger down on a message: it may slide it right to answer it.</summary>
+    private void OnBubblePressed(object? sender, PointerPressedEventArgs e) => slideStart = e.GetPosition(this);
+
+    /// <summary>
+    /// The message follows the finger to the right, up to a little past <see cref="ReplyDistance"/>; a move up or down
+    /// first is the list scrolling.
+    /// </summary>
+    private void OnBubbleMoved(object? sender, PointerEventArgs e)
+    {
+        if (slideStart is not { } start || sender is not Control { DataContext: ChatBubbleViewModel { CanReply: true, Owner.IsSelecting: false } } bubble)
+        {
+            return;
+        }
+
+        Point now = e.GetPosition(this);
+        double right = now.X - start.X;
+        if (bubble.RenderTransform is null && (right < 12 || Math.Abs(now.Y - start.Y) > right))
+        {
+            if (Math.Abs(now.Y - start.Y) > 12)
+            {
+                slideStart = null;
+            }
+
+            return;
+        }
+
+        bubble.RenderTransform = new TranslateTransform(Math.Clamp(right, 0, ReplyDistance * 1.3), 0);
+        e.Handled = true;
+    }
+
+    /// <summary>Let go far enough right: the message is answered, with a buzz; it goes back in place either way.</summary>
+    private void OnBubbleReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        slideStart = null;
+        if (sender is Control { DataContext: ChatBubbleViewModel message } bubble && bubble.RenderTransform is TranslateTransform slid)
+        {
+            bubble.RenderTransform = null;
+            if (slid.X >= ReplyDistance)
+            {
+                MainActivity.Current?.Window?.DecorView.PerformHapticFeedback(FeedbackConstants.VirtualKey);
+                message.ReplyCommand.Execute(null);
+            }
+
+            e.Handled = true;
+        }
+    }
+
+    /// <summary>The list took the finger to scroll: the message goes back in place.</summary>
+    private void OnBubbleLost(object? sender, PointerCaptureLostEventArgs e)
+    {
+        slideStart = null;
+        if (sender is Control bubble)
+        {
+            bubble.RenderTransform = null;
+        }
     }
 
     /// <summary>

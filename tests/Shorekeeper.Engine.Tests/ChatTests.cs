@@ -421,6 +421,30 @@ public sealed class ChatTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task The_list_has_the_peers_newest_reaction_to_ours()
+    {
+        ChatMessage first = await a.Chat.SendTextAsync(b.Id, "một", Ct);
+        ChatMessage second = await a.Chat.SendTextAsync(b.Id, "hai", Ct);
+        await WaitUntil(() => b.Chat.GetMessagesAsync(a.Id, Ct).Result.Count == 2);
+
+        await b.Chat.ReactAsync(a.Id, first.Id, "👍", Ct);
+        await Task.Delay(20, Ct);
+        await b.Chat.ReactAsync(a.Id, second.Id, "❤️", Ct);
+        // Ours, even on our own message, is not something to be told of.
+        await a.Chat.ReactAsync(b.Id, second.Id, "😂", Ct);
+        await WaitUntil(() => a.Chat.GetReactionsAsync(b.Id, Ct).Result.Count(r => r.Reactor == b.Id) == 2);
+
+        ChatReaction? reacted = (await a.Chat.GetConversationsAsync(Ct)).Single().Reacted;
+        Assert.Equal((second.Id, b.Id, "❤️"), (reacted?.MessageId, reacted?.Reactor, reacted?.Emoji));
+        await WaitUntil(() => b.Chat.GetReactionsAsync(a.Id, Ct).Result.Count == 3);
+        Assert.Null((await b.Chat.GetConversationsAsync(Ct)).Single().Reacted);
+
+        // Taken away, the one before is the newest.
+        await b.Chat.ReactAsync(a.Id, second.Id, null, Ct);
+        await WaitUntil(() => a.Chat.GetConversationsAsync(Ct).Result.Single().Reacted?.Emoji == "👍");
+    }
+
+    [Fact]
     public async Task Taking_a_message_back_takes_its_reactions()
     {
         ChatMessage sent = await a.Chat.SendTextAsync(b.Id, "gửi nhầm", Ct);

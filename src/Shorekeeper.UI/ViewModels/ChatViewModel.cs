@@ -843,12 +843,12 @@ public sealed partial class ChatViewModel : ObservableObject
             .. conversations.Select(c => c.Peer).Union(files.Keys)
                 .Select(p => (Peer: p, Conversation: conversations.FirstOrDefault(c => c.Peer == p), File: files.GetValueOrDefault(p)))
                 .Select(x => (
-                    At: x.File is { } file && (x.Conversation is null || file.At > x.Conversation.Last.SentAt) ? file.At : x.Conversation!.Last.SentAt,
+                    At: ChatPersonViewModel.At(x.Conversation?.Last.SentAt, x.File, x.Conversation?.Reacted),
                     Row: Person(x.Peer).Update(x.Conversation, x.File)))
                 .Concat(groupConversations.Select(c => c.GroupId).Union(groupFiles.Keys.Where(g => groups.Get(g) is not null))
                     .Select(g => (Group: g, Conversation: groupConversations.FirstOrDefault(c => c.GroupId == g), File: groupFiles.GetValueOrDefault(g)))
                     .Select(x => (
-                        At: x.File is { } file && (x.Conversation is null || file.At > x.Conversation.Last.SentAt) ? file.At : x.Conversation!.Last.SentAt,
+                        At: ChatPersonViewModel.At(x.Conversation?.Last.SentAt, x.File, x.Conversation?.Reacted),
                         Row: GroupRow(x.Group).Update(
                             x.Conversation, x.Conversation is { } c ? AuthorOf(x.Group, c.Last) : null, muted.Contains(x.Group),
                             x.File, x.File is { Outgoing: false, Author: { } sender } ? NameOf(x.Group, sender, sender.ShortForm) : L.T("Bạn")))))

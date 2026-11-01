@@ -52,7 +52,8 @@ public sealed record GroupChatReaction(string GroupId, ChatReaction Reaction);
 
 /// <summary>A group conversation in the list: its newest message and how many are unread.</summary>
 /// <param name="Mentioned">Unread messages that name us (docs/18-chat-extras.md §4).</param>
-public sealed record GroupChatConversation(string GroupId, string Name, GroupChatMessage Last, int Unread, int Mentioned = 0);
+/// <param name="Reacted">A member's newest reaction to one of ours (docs/18-chat-extras.md §6).</param>
+public sealed record GroupChatConversation(string GroupId, string Name, GroupChatMessage Last, int Unread, int Mentioned = 0, ChatReaction? Reacted = null);
 
 /// <summary>
 /// Messages to a whole group (docs/16-group-chat.md §3), apart from 1-1 ones: the author sends each one to every other
@@ -658,8 +659,9 @@ public sealed partial class GroupChatService : BackgroundService
             ORDER BY m.SentAt DESC;
             """, new { me = $"% {engine.Identity.DeviceId.Value} %" })).ToList();
         Dictionary<(string, string), ChatMessageState> states = await OutgoingStatesAsync(connection, rows);
+        Dictionary<string, ChatReaction> reacted = await ChatReactions.Groups.NewestOnOursAsync(connection, engine.Identity.DeviceId);
         return [.. rows.Select(r => new GroupChatConversation(
-            r.GroupId, groups.Get(r.GroupId)?.Name ?? r.GroupName, r.ToMessage(states), (int)r.Unread, (int)r.Mentioned))];
+            r.GroupId, groups.Get(r.GroupId)?.Name ?? r.GroupName, r.ToMessage(states), (int)r.Unread, (int)r.Mentioned, reacted.GetValueOrDefault(r.GroupId)))];
     }
 
     /// <summary>The whole group conversation, oldest first.</summary>

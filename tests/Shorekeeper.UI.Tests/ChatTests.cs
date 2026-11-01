@@ -24,6 +24,22 @@ public class ChatTests
     }
 
     [Fact]
+    public void A_reaction_to_ours_leads_a_row_only_when_nothing_came_after()
+    {
+        DateTimeOffset message = new(2026, 11, 1, 9, 0, 0, TimeSpan.Zero);
+        ChatReaction reacted = new("m", Mai, "❤️", message.AddMinutes(2), Unseen: false);
+        ChatLastFile file = new(message.AddMinutes(1), Outgoing: true, "báo cáo.pdf");
+
+        Assert.True(ChatPersonViewModel.ReactedLast(message, file, reacted));
+        Assert.Equal(reacted.At, ChatPersonViewModel.At(message, file, reacted));
+        Assert.False(ChatPersonViewModel.ReactedLast(message.AddMinutes(3), null, reacted));
+        Assert.False(ChatPersonViewModel.ReactedLast(message, file with { At = message.AddMinutes(3) }, reacted));
+        Assert.False(ChatPersonViewModel.ReactedLast(message, null, null));
+        Assert.Equal(message.AddMinutes(1), ChatPersonViewModel.At(message, file, null));
+        Assert.Equal(file.At, ChatPersonViewModel.At(null, file, null));
+    }
+
+    [Fact]
     public void A_message_stands_for_itself_in_a_list_or_a_notification()
     {
         Assert.Equal("chào", ChatBubbleViewModel.TextOf(ChatKinds.Text, "chào", 0));

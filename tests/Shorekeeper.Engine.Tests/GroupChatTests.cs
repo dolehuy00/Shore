@@ -713,6 +713,24 @@ public sealed class GroupChatTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task The_list_has_a_members_newest_reaction_to_ours()
+    {
+        GroupChatMessage sent = await host.GroupChat.SendTextAsync(groupId, "họp 3 giờ", Ct);
+        await WaitUntil(() => Messages(mai).Count == 1 && Messages(tuan).Count == 1);
+
+        await mai.GroupChat.ReactAsync(groupId, sent.Id, "👍", Ct);
+        await Task.Delay(20, Ct);
+        await tuan.GroupChat.ReactAsync(groupId, sent.Id, "😂", Ct);
+        await WaitUntil(() => host.GroupChat.GetReactionsAsync(groupId, Ct).Result.Count == 2
+            && mai.GroupChat.GetReactionsAsync(groupId, Ct).Result.Count == 2);
+
+        ChatReaction? reacted = (await host.GroupChat.GetConversationsAsync(Ct)).Single(c => c.GroupId == groupId).Reacted;
+        Assert.Equal((sent.Id, tuan.Id, "😂"), (reacted?.MessageId, reacted?.Reactor, reacted?.Emoji));
+        // Not Mai's message: nothing for her list.
+        Assert.Null((await mai.GroupChat.GetConversationsAsync(Ct)).Single(c => c.GroupId == groupId).Reacted);
+    }
+
+    [Fact]
     public async Task A_reaction_waits_for_an_offline_member_and_is_not_passed_on()
     {
         GroupChatMessage sent = await host.GroupChat.SendTextAsync(groupId, "họp 3 giờ", Ct);

@@ -736,6 +736,7 @@
   "Sửa tin nhắn": "Editing message",
   "Đã sửa": "Edited",
   "Tin nhắn này không còn sửa được.": "This message can no longer be edited.",
+  "{0} đã thả {1}": "{0} reacted {1}",
   "{0} đã thả {1} vào tin của bạn: “{2}”": "{0} reacted {1} to your message: “{2}”",
   "{0} và {1} đã thả cảm xúc vào tin của bạn: “{2}”": "{0} and {1} reacted to your message: “{2}”",
   "{0}, {1} và {2} người khác đã thả cảm xúc vào tin của bạn: “{3}”": "{0}, {1} and {2} others reacted to your message: “{3}”"

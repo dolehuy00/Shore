@@ -46,7 +46,7 @@ Thứ tự làm: **C6a tìm** (không đổi giao thức) → **C6b trả lời 
 - Bong bóng hiện khung trích ngay dưới tên người viết: tên và dòng đầu, "Tin nhắn thoại 0:12", tên file. Bấm vào khung thì cuộn tới tin gốc và viền nó (`ChatScroll.Reveal`, như kết quả tìm ở §3).
   - Tin gốc là thẻ đã thu hồi: chữ thu hồi của thẻ, ví dụ "File đã được thu hồi".
   - Máy mình không có tin gốc (đã xóa, hay người mới vào nhóm không có lịch sử đó): "Tin nhắn không còn".
-- Cách bắt đầu trả lời: mục **Trả lời** khi chuột phải (PC) hay nhấn giữ (điện thoại). Ô soạn hiện dải "Trả lời Mai: …" có nút ✕. **Vuốt bong bóng sang phải chưa làm.**
+- Cách bắt đầu trả lời: mục **Trả lời** khi chuột phải (PC) hay nhấn giữ (điện thoại). Ô soạn hiện dải "Trả lời Mai: …" có nút ✕. Trên điện thoại còn **vuốt bong bóng sang phải** (2026-11-01): bong bóng đi theo ngón tay, buông ra khi đã quá 60 dp thì máy rung nhẹ và bắt đầu trả lời; vuốt ngắn hơn thì bong bóng về chỗ cũ. Kéo lên xuống trước vẫn là cuộn danh sách, nhấn giữ vẫn mở menu.
 - Trả lời được tin chữ, tin thoại và thẻ file chưa thu hồi.
 
 **@nhắc tên** (chỉ trong nhóm)
@@ -150,7 +150,7 @@ Thứ tự làm: **C6a tìm** (không đổi giao thức) → **C6b trả lời 
 - Bỏ cảm xúc thì không báo gì.
 - **Đã xem** nghĩa là mở hội thoại đó (`MarkReactionsSeenAsync`). Trên điện thoại thông báo tự mất; lần thả sau tạo thông báo mới.
 - Không báo khi đang mở đúng hội thoại đó, hay khi nhóm đã Tắt thông báo. PC còn không báo khi đang "Bận", như tin nhắn.
-- **Chưa làm:** danh sách hội thoại ghi "Mai đã thả ❤️" khi đó là việc mới nhất. Danh sách vẫn chỉ hiện tin mới nhất.
+- **Danh sách hội thoại** (2026-11-01): cảm xúc mới nhất người khác thả vào tin của mình mà mới hơn tin cuối và thẻ file cuối thì hội thoại ghi "Mai đã thả ❤️", xếp theo giờ thả. Bỏ cảm xúc thì quay về cái trước đó, hoặc về tin cuối. Không tính vào số chưa đọc: thông báo đã lo việc đó.
 
 **Giao thức**
 - `POST /chat/reactions` và `POST /chat/groups/{id}/reactions`, cùng thân `{ id, emoji?, at }` (`emoji` rỗng nghĩa là bỏ).

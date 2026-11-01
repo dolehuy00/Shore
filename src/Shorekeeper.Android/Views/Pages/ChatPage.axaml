@@ -265,9 +265,10 @@
                       <TextBlock Text="{Binding AuthorInitial}" Foreground="White" FontWeight="SemiBold" FontSize="13" HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
                   </Panel>
-                  <!-- Long press: copy the words, choose several, or take the message away here. -->
+                  <!-- Long press: copy the words, choose several, or take the message away here. Slid right: answer it. -->
                   <Border Grid.Column="2" Classes="bubble" Classes.mine="{Binding IsMine}" Classes.unknown="{Binding IsUnknown}" Classes.mention="{Binding MentionsMe}"
-                          Holding="OnBubbleHolding">
+                          Holding="OnBubbleHolding" PointerPressed="OnBubblePressed" PointerMoved="OnBubbleMoved"
+                          PointerReleased="OnBubbleReleased" PointerCaptureLost="OnBubbleLost">
                     <FlyoutBase.AttachedFlyout>
                       <MenuFlyout>
                         <!-- The reactions in a row on top (docs/18-chat-extras.md §6): a tap chooses one and closes the menu. -->
