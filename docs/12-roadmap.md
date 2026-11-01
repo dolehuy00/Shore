@@ -79,7 +79,8 @@ Mỗi milestone kết thúc bằng một bản **chạy được, demo được*
 - Nhóm quảng bá trong presence (`groups`), "Nhóm trong mạng" → [Xin vào]; địa chỉ thành viên → probe, nên thấy nhau khác subnet.
 - UI trang Nhóm: tạo, thẻ nhóm (thành viên online, yêu cầu chờ duyệt, Gửi file cho nhóm, Mời…, Đổi tên, Đóng, Rời), lời mời, thông báo; popup yêu cầu vào nhóm / lời mời; kéo file vào nhóm → chọn người nhận; thẻ "Xóm" của người cùng nhóm gửi được file; badge.
 - GPO `DisableGroups` (+ ADMX).
-- **Chưa làm:** menu "Mời vào nhóm…" trên thẻ người (đang mời từ trang Nhóm); thử với nhóm 6 máy thật.
+- Sau M5 (2026-11-01): mục "Mời vào nhóm…" trên thẻ người ở trang Xóm (PC).
+- **Chưa làm:** thử với nhóm 6 máy thật.
 
 Kế hoạch ban đầu:
 

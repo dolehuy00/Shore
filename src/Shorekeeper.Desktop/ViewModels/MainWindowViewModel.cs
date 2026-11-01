@@ -151,6 +151,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             }
         };
         neighborhood.ChatRequested += (_, peer) => OpenChat(peer);
+        neighborhood.InviteRequested += (_, card) => _ = groups.InviteAsync(card.DeviceId, card.DisplayName);
         groups.ChatRequested += (_, groupId) => OpenGroupChat(groupId);
         chat.ShowsGroups = true;
         chat.CopyText = text => _ = dialogs.CopyTextAsync(text);

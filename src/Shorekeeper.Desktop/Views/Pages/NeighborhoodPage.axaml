@@ -19,6 +19,7 @@
             <MenuItem Header="{l:T 'Gửi văn bản…'}" Command="{Binding SendTextCommand}" IsVisible="{Binding CanSend}" />
             <MenuItem Header="{l:T 'Tự nhận file…'}" Command="{Binding ChooseAutoAcceptCommand}" IsVisible="{Binding IsTrusted}"
                       ToggleType="CheckBox" IsChecked="{Binding IsAutoAccept, Mode=OneWay}" />
+            <MenuItem Header="{l:T 'Mời vào nhóm…'}" Command="{Binding InviteCommand}" IsVisible="{Binding CanInvite}" />
             <MenuItem Header="{l:T 'Kết nối'}" Command="{Binding ConnectCommand}" IsVisible="{Binding CanConnect}" />
             <MenuItem Header="{l:T 'Đặt tên gợi nhớ…'}" Command="{Binding RenameCommand}" IsVisible="{Binding IsTrusted}" />
             <MenuItem Header="{l:T 'Ngắt kết nối'}" Command="{Binding DisconnectCommand}" IsVisible="{Binding IsTrusted}" />

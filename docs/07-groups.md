@@ -35,7 +35,7 @@ sequenceDiagram
 ```
 
 - **Chỉ có một cách: xin vào → Host duyệt.** Người xin chờ bằng long-poll, nên Host không cần gọi ngược được tới người xin, và người xin offline lúc Host duyệt vẫn biết khi mở lại app (yêu cầu đang chờ được lưu ở cả hai phía).
-- Host muốn thêm người thì bấm **"Mời…"** trên nhóm và tick người đang online. Người kia nhận popup và đồng ý là vào. Lời mời là một **duyệt trước**: khi người được mời đồng ý, app của họ gửi yêu cầu vào nhóm như thường và Host cho vào ngay.
+- Host muốn thêm người thì bấm **"Mời…"** trên nhóm và tick người đang online. Người kia nhận popup và đồng ý là vào. Trên PC còn mời được từ thẻ người ở trang Xóm: mục **"Mời vào nhóm…"** chỉ hiện khi người đó online và còn nhóm mình làm Host mà họ chưa vào; bấm vào thì chọn nhóm (2026-11-01). Lời mời là một **duyệt trước**: khi người được mời đồng ý, app của họ gửi yêu cầu vào nhóm như thường và Host cho vào ngay.
 - Người từng bị từ chối 3 lần thì yêu cầu bị khóa 24 giờ với nhóm đó (`429`). Mỗi DeviceId gửi tối đa 5 yêu cầu (hoặc lời mời) / 10 phút; mỗi nhóm tối đa 50 yêu cầu đang chờ.
 
 ## 4. Thành viên ↔ Host

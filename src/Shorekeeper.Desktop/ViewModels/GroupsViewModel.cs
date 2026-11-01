@@ -162,6 +162,23 @@ public sealed partial class GroupsViewModel : ObservableObject
         }
     }
 
+    /// <summary>"Mời vào nhóm…" on a person's card: into one of the groups we host that they are not in yet.</summary>
+    internal async Task InviteAsync(DeviceId peer, string name)
+    {
+        Group[] open = [.. store.GetAll().Where(g => g.Role == GroupRole.Host && !g.Contains(peer)).OrderBy(g => g.Name, StringComparer.CurrentCultureIgnoreCase)];
+        if (open.Length == 0)
+        {
+            return;
+        }
+
+        int choice = await dialogs.ChooseAsync(L.F("Mời {0} vào nhóm", name), L.T("Chọn nhóm:"), [.. open.Select(g => g.Name), L.T("Hủy")]);
+        if (choice >= 0 && choice < open.Length)
+        {
+            string host = directory.Snapshot().FirstOrDefault(p => p.DeviceId == peer)?.HostName ?? "";
+            await RunAsync(L.F("Không mời được {0}", name), () => groups.InviteAsync(open[choice].Id, peer, name, host));
+        }
+    }
+
     internal async Task EditAsync(GroupCardViewModel card)
     {
         bool hostOnly = store.Get(card.Id)?.HostOnlyChat ?? false;

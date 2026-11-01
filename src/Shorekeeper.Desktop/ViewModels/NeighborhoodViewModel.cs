@@ -72,6 +72,9 @@ public sealed partial class NeighborhoodViewModel : ObservableObject
     /// <summary>"Nhắn tin" on a card: the main window opens the conversation.</summary>
     public event EventHandler<DeviceId>? ChatRequested;
 
+    /// <summary>"Mời vào nhóm…" on a card: the person is asked into one of our groups.</summary>
+    public event EventHandler<PeerCardViewModel>? InviteRequested;
+
     [RelayCommand]
     private Task AddPeerAsync() => dialogs.AddPeerAsync();
 
@@ -82,6 +85,7 @@ public sealed partial class NeighborhoodViewModel : ObservableObject
     {
         Dictionary<DeviceId, PeerInfo> live = directory.Snapshot().ToDictionary(p => p.DeviceId);
         Group[] joined = [.. groups.GetAll().Where(g => g.Role != GroupRole.Pending)];
+        Group[] hosted = settings.Current.GroupsEnabled ? [.. joined.Where(g => g.Role == GroupRole.Host)] : [];
 
         var contacts = trust.GetAll(TrustLevel.Trusted)
             .Select(record => Show(Card(record.DeviceId).Update(record, live.GetValueOrDefault(record.DeviceId), null), live.GetValueOrDefault(record.DeviceId)))
@@ -95,6 +99,7 @@ public sealed partial class NeighborhoodViewModel : ObservableObject
         foreach (PeerCardViewModel card in Everyone)
         {
             card.IsListening = listening.Contains(card.DeviceId);
+            card.CanInvite = card.IsOnline && hosted.Any(g => !g.Contains(card.DeviceId));
         }
 
         Sync(Contacts, contacts);
@@ -193,6 +198,8 @@ public sealed partial class NeighborhoodViewModel : ObservableObject
 
     /// <summary>"Gửi văn bản…": a link or a few lines, to the card or to every selected card.</summary>
     internal void RequestChat(PeerCardViewModel card) => ChatRequested?.Invoke(this, card.DeviceId);
+
+    internal void RequestInvite(PeerCardViewModel card) => InviteRequested?.Invoke(this, card);
 
     internal async Task SendTextAsync(PeerCardViewModel card, string initialText = "")
     {
@@ -352,6 +359,10 @@ public sealed partial class PeerCardViewModel(DeviceId deviceId, NeighborhoodVie
     [ObservableProperty]
     public partial bool IsAutoAccept { get; set; }
 
+    /// <summary>Online, and not yet in a group we host: "Mời vào nhóm…" (docs/07-groups.md).</summary>
+    [ObservableProperty]
+    public partial bool CanInvite { get; set; }
+
     /// <summary>Picked with Ctrl+click; dropping files on any selected card sends to all of them.</summary>
     [ObservableProperty]
     public partial bool IsSelected { get; set; }
@@ -404,6 +415,9 @@ public sealed partial class PeerCardViewModel(DeviceId deviceId, NeighborhoodVie
 
     [RelayCommand]
     private void Message() => owner.RequestChat(this);
+
+    [RelayCommand]
+    private void Invite() => owner.RequestInvite(this);
 
     [RelayCommand]
     private Task RenameAsync() => owner.RenameAsync(this);
