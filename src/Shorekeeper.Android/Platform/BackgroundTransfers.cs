@@ -69,6 +69,15 @@ internal static class BackgroundTransfers
         Recheck();
     }
 
+    /// <summary>The phone has started: with "Luôn nhận file" on, the app runs again and is reachable, as before.</summary>
+    public static void Boot(Context appContext)
+    {
+        if (appContext.GetSharedPreferences(PreferencesName, FileCreationMode.Private)?.GetBoolean(AlwaysReceiveKey, false) == true)
+        {
+            appContext.StartForegroundService(new Intent(appContext, typeof(TransferService)).SetAction(TransferService.ActionKeep));
+        }
+    }
+
     public static void Attach(TransferService running)
     {
         lock (Gate)

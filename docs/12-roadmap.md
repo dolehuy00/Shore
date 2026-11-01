@@ -118,7 +118,8 @@ Kế hoạch ban đầu:
 Xem [14](14-android.md): A0 spike trên điện thoại thật (mTLS, multicast) → A1 tách Engine khỏi ASP.NET Core → A2 nhận file → A3 gửi từ menu Chia sẻ → A4 chạy nền & thông báo → A5 nhóm → A6 phát hành APK.
 
 - Sau A6 (2026-10-19 → 10-20): nghe / phát âm thanh, quét mã QR để Kết nối, gửi chữ đã chép, tự gửi ảnh, widget màn hình chính.
-- **Chưa làm:** quyền mạng LAN của Android 17; tự chạy lại sau khi khởi động lại máy; giữ service đủ 30 phút liên tục (đã thử ~13 phút); chạy workflow phát hành trên GitHub.
+- Sau A6 (2026-11-01): "Luôn nhận file" tự chạy lại sau khi khởi động lại máy (chưa thấy chạy trên máy thật: Nubia chặn app ngoài danh sách của hãng, [14](14-android.md) A4).
+- **Chưa làm:** quyền mạng LAN của Android 17; giữ service đủ 30 phút liên tục (đã thử ~13 phút); chạy workflow phát hành trên GitHub.
 
 ## M8 — Tin nhắn ✅ (C1–C5, 2026-10-21)
 
