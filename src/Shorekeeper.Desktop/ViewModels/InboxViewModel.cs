@@ -534,6 +534,20 @@ public sealed partial class InboxItemViewModel(OfferKey key, InboxViewModel owne
     [RelayCommand]
     private void Cancel() => owner.Inbox.Cancel(Key);
 
+    /// <summary>The received pictures of this offer, still where they were saved, in the app's viewer.</summary>
+    [RelayCommand]
+    private void ViewPictures()
+    {
+        string[] pictures = [.. offer?.Files
+            .Where(f => f.FinalPath is not null && !f.IsDirectory && TransferText.IsImage(f.FinalPath) && File.Exists(f.FinalPath))
+            .Select(f => f.FinalPath!) ?? []];
+        if (pictures.Length > 0)
+        {
+            owner.Dialogs.ShowPictures(new PictureViewerViewModel(
+                pictures, 0, File.OpenRead, Path.GetFileName, MainWindowViewModel.PictureWidth, MainWindowViewModel.PictureHeight));
+        }
+    }
+
     /// <summary>Decodes the first received picture once, off the UI thread.</summary>
     private void LoadThumbnail(ReceivedOffer value)
     {
@@ -549,7 +563,7 @@ public sealed partial class InboxItemViewModel(OfferKey key, InboxViewModel owne
             try
             {
                 using FileStream stream = File.OpenRead(path);
-                return Bitmap.DecodeToWidth(stream, ThumbnailWidth, BitmapInterpolationMode.MediumQuality);
+                return PictureLoader.Decode(stream, ThumbnailWidth);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or InvalidOperationException)
             {

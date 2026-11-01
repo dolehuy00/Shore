@@ -467,6 +467,19 @@ public sealed class DialogService(
     /// <returns>False when the file cannot be read any more.</returns>
     public Task<bool> CopyImageAsync(string path) => Task.Run(() => ClipboardImage.Copy(path));
 
+    public void ShowPictures(PictureViewerViewModel viewer)
+    {
+        var window = new PictureWindow { DataContext = viewer };
+        if (MainWindow is { IsVisible: true } owner)
+        {
+            window.Show(owner);
+        }
+        else
+        {
+            window.Show();
+        }
+    }
+
     /// <summary>
     /// Opening a received file that runs (a program, a script, a shortcut…) runs it with the user's rights, so it asks
     /// first, offering the folder instead (docs/04-identity-security.md §5). Anything else opens at once.

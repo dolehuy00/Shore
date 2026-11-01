@@ -750,5 +750,12 @@
   "Đang gửi {0}": "Sending {0}",
   "Xong ✓": "Done ✓",
   "Đang nối lại…": "Reconnecting…",
-  "còn vài giây": "a few seconds left"
+  "còn vài giây": "a few seconds left",
+  "Ảnh trước": "Previous picture",
+  "Ảnh sau": "Next picture",
+  "Sao chép ảnh": "Copy picture",
+  "Hiện trong thư mục": "Show in folder",
+  "Mở bằng app khác": "Open with another app",
+  "Xem ảnh": "View pictures",
+  "Không xem được ảnh này trong app.": "This picture can't be shown in the app."
 }

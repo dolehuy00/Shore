@@ -3,11 +3,14 @@ using Avalonia.Controls;
 using Avalonia.Controls.Platform;
 using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Presenters;
+using Avalonia.Input;
 using Avalonia.Layout;
+using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Shorekeeper.Android.Platform;
 using Shorekeeper.Android.ViewModels;
+using Shorekeeper.UI.ViewModels;
 
 namespace Shorekeeper.Android.Views;
 
@@ -22,6 +25,17 @@ public partial class MainView : UserControl
     /// <summary>Menus and drop-down lists open now, the newest last, and when one last closed.</summary>
     private static readonly List<Popup> openPopups = [];
     private static long popupClosedAt;
+
+    /// <summary>The picture viewer: how far it is zoomed and moved, where a finger went down, and when two last pinched.</summary>
+    private double viewerScale = 1;
+    private double pinchFrom = 1;
+    private Vector viewerShift;
+    private Point? viewerPressed;
+    private Vector shiftFrom;
+    private long pinchedAt;
+
+    /// <summary>A finger moved this far sideways, on a picture not zoomed in, shows the next or the one before.</summary>
+    private const double SwipeDistance = 80;
 
     static MainView()
     {
@@ -55,6 +69,90 @@ public partial class MainView : UserControl
         LayoutLog.View = this;
         SizeChanged += (_, e) => LayoutLog.Event($"size {e.PreviousSize.Width:0}x{e.PreviousSize.Height:0} -> {e.NewSize.Width:0}x{e.NewSize.Height:0}");
         LayoutUpdated += (_, _) => RemeasureIfCollapsed();
+        ViewerArea.AddHandler(PinchEvent, OnViewerPinch);
+        ViewerArea.AddHandler(PinchEndedEvent, (_, _) => pinchFrom = viewerScale);
+        // Another picture, or the viewer closed: back to the whole picture.
+        DataContextChanged += (_, _) =>
+        {
+            if (DataContext is MainViewModel main)
+            {
+                main.PropertyChanged += (_, e) =>
+                {
+                    if (e.PropertyName == nameof(MainViewModel.Viewer))
+                    {
+                        ResetViewer();
+                        if (main.Viewer is { } viewer)
+                        {
+                            viewer.PropertyChanged += (_, change) =>
+                            {
+                                if (change.PropertyName == nameof(PictureViewerViewModel.Index))
+                                {
+                                    ResetViewer();
+                                }
+                            };
+                        }
+                    }
+                };
+            }
+        };
+    }
+
+    private void ResetViewer()
+    {
+        (viewerScale, pinchFrom, viewerShift) = (1, 1, default);
+        ApplyViewer();
+    }
+
+    private void ApplyViewer()
+    {
+        if (viewerScale <= 1)
+        {
+            viewerShift = default;
+        }
+
+        ViewerImage.RenderTransform = viewerScale <= 1 ? null
+            : new MatrixTransform(Matrix.CreateScale(viewerScale, viewerScale) * Matrix.CreateTranslation(viewerShift));
+    }
+
+    /// <summary>Two fingers zoom, from 1 (the whole picture) to 6 times.</summary>
+    private void OnViewerPinch(object? sender, PinchEventArgs e)
+    {
+        pinchedAt = Environment.TickCount64;
+        viewerScale = Math.Clamp(pinchFrom * e.Scale, 1, 6);
+        ApplyViewer();
+        e.Handled = true;
+    }
+
+    private void OnViewerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        viewerPressed = e.GetPosition(ViewerArea);
+        shiftFrom = viewerShift;
+    }
+
+    /// <summary>Zoomed in, a finger moves the picture.</summary>
+    private void OnViewerMoved(object? sender, PointerEventArgs e)
+    {
+        if (viewerPressed is { } from && viewerScale > 1 && Environment.TickCount64 - pinchedAt > 150)
+        {
+            viewerShift = shiftFrom + (e.GetPosition(ViewerArea) - from);
+            ApplyViewer();
+        }
+    }
+
+    /// <summary>Not zoomed in, a swipe sideways shows the next picture (to the left) or the one before (to the right).</summary>
+    private void OnViewerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (viewerPressed is { } from && viewerScale <= 1 && Environment.TickCount64 - pinchedAt > 300
+            && DataContext is MainViewModel { Viewer: { } viewer })
+        {
+            Vector moved = e.GetPosition(ViewerArea) - from;
+            if (Math.Abs(moved.X) > SwipeDistance && Math.Abs(moved.X) > 2 * Math.Abs(moved.Y))
+            {
+                (moved.X < 0 ? viewer.NextCommand : viewer.PreviousCommand).Execute(null);
+            }
+        }
+
+        viewerPressed = null;
     }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
@@ -66,7 +164,12 @@ public partial class MainView : UserControl
         {
             top.BackRequested += (_, back) =>
             {
-                if (openPopups.LastOrDefault() is { } popup)
+                if (DataContext is MainViewModel { HasViewer: true } viewing)
+                {
+                    viewing.CloseViewerCommand.Execute(null);
+                    back.Handled = true;
+                }
+                else if (openPopups.LastOrDefault() is { } popup)
                 {
                     popup.Close();
                     back.Handled = true;

@@ -4,6 +4,7 @@ using Shorekeeper.Core.Identity;
 using Shorekeeper.Desktop.ViewModels;
 using Shorekeeper.Engine.Transfers;
 using Shorekeeper.Engine.Trust;
+using Shorekeeper.UI.ViewModels;
 
 namespace Shorekeeper.Desktop.Views;
 
@@ -70,6 +71,9 @@ public interface IDialogs
     Task CopyTextAsync(string text);
 
     Task<bool> CopyImageAsync(string path);
+
+    /// <summary>Pictures in the app's viewer (docs/19-transfers-preview.md §4); the viewer is let go when it closes.</summary>
+    void ShowPictures(PictureViewerViewModel viewer);
 
     Task<bool> ConfirmOpenAsync(string path);
 

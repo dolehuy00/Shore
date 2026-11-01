@@ -72,9 +72,13 @@
                       <PathIcon Data="{StaticResource Icon.FolderOpen}" IsVisible="{Binding Kind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static ui:TransferKind.Folder}}" Width="20" Height="20" />
                     </Panel>
                   </Border>
-                  <Border Width="40" Height="40" CornerRadius="8" ClipToBounds="True" IsVisible="{Binding HasThumbnail}">
-                    <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" />
-                  </Border>
+                  <!-- A received picture: clicked, the pictures of this offer in the app's viewer (docs/19-transfers-preview.md §4). -->
+                  <Button Classes="picture" Command="{Binding ViewPicturesCommand}" IsVisible="{Binding HasThumbnail}"
+                          AutomationProperties.Name="{l:T 'Xem ảnh'}" ToolTip.Tip="{l:T 'Xem ảnh'}">
+                    <Border Width="40" Height="40" CornerRadius="8" ClipToBounds="True">
+                      <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" />
+                    </Border>
+                  </Button>
                 </Panel>
 
                 <!-- Two lines: the files, then who · size · state · when. -->

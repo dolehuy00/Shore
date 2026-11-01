@@ -1,6 +1,6 @@
 # 19 — Khu "Đang chuyển" và xem trước file (T1–T2)
 
-> Trạng thái: **T1 xong** (2026-11-01); T2 theo kế hoạch đã chốt (§6). Nối tiếp [17 §5](17-ui-cleanup.md): "khu đang gửi / đang nhận chung, xem trước file trong app: tính năng mới, làm riêng sau".
+> Trạng thái: **T1, T2 xong** (2026-11-01), theo kế hoạch đã chốt (§6). Xem trước chữ và PDF để sau. Nối tiếp [17 §5](17-ui-cleanup.md): "khu đang gửi / đang nhận chung, xem trước file trong app: tính năng mới, làm riêng sau".
 
 ## 1. Mục tiêu
 
@@ -50,21 +50,56 @@ Thứ tự: **T1 Đang chuyển** (không đổi giao thức) → **T2 Xem trư�
   - Bấm dòng trong popup PC mở File › Đã gửi.
 - Chưa thử: chiều điện thoại → PC (nên chưa thấy [Mở] trên PC bằng mắt), hai việc cùng lúc.
 
-## 4. T2 — Xem trước file trong app
+## 4. T2 — Xem ảnh trong app ✅ (2026-11-01)
 
-**Ảnh** (JPEG, PNG, GIF tĩnh, WebP, BMP: những gì Skia giải mã được)
-- Mở bằng: bấm ảnh trong hội thoại (§6 Q5), [Xem] hay bấm vào dòng ảnh ở trang File, kết quả Ctrl+K là ảnh.
-- **PC**: cửa sổ xem với ảnh vừa khung, lăn chuột để phóng to / thu nhỏ, kéo để di chuyển, ←/→ sang ảnh khác của cùng offer hay thẻ, `Esc` để đóng. Thêm nút [Mở bằng app khác], [Hiện trong thư mục], [Sao chép ảnh] (`CopyImageAsync` đã có).
-- **Điện thoại**: màn hình đầy, chụm hai ngón để phóng to, vuốt ngang sang ảnh khác, nút quay lại để đóng; [Chia sẻ], [Mở bằng app khác].
-- Giải mã theo cỡ màn hình (`Bitmap.DecodeToWidth`), không giữ ảnh gốc 50 MP trong bộ nhớ; ảnh kế bên được nạp trước.
-- **Hướng EXIF**: đọc tag Orientation (JPEG, mã ngắn tự viết, không thêm thư viện) rồi xoay khi hiện. Áp dụng cho cả ảnh nhỏ đang có ở hội thoại và trang File (§2).
-- Định dạng không giải mã được (HEIC, RAW…) thì hiện biểu tượng file với [Mở bằng app khác].
+Đợt này chỉ ảnh (§6 Q4); chữ và PDF để sau.
 
-**Chữ và PDF** (§6 Q4)
-- Chữ thuần (.txt .log .md .json .csv .xml, tối đa 1 MB): chữ đơn cách, chỉ đọc, chọn và chép được.
-- PDF: PC dùng `Windows.Data.Pdf` (có sẵn từ Windows 10) để vẽ từng trang thành ảnh; điện thoại dùng `android.graphics.pdf.PdfRenderer`. Chỉ xem, cuộn theo trang.
+**Giải mã và hướng EXIF** (`PictureLoader`, `Shorekeeper.UI`)
+- Đọc phần đầu file, không thêm thư viện:
+  - JPEG: đi qua các marker tới khung ảnh (SOF) để lấy cỡ, lấy tag Orientation (0x0112) trong APP1 "Exif", theo cả hai thứ tự byte;
+  - PNG: cỡ trong IHDR.
+- Giải mã không lớn hơn cỡ cần hiện (`DecodeToWidth`, hay `DecodeToHeight` khi ảnh lưu nằm ngang), ảnh nhỏ giữ nguyên cỡ.
+- Rồi xoay theo tag, bằng cách sắp lại điểm ảnh 32 bit; đủ 8 giá trị (lật, xoay 90/180/270, chuyển vị).
+- Áp dụng cho ảnh trong thẻ hội thoại (hai app) và ảnh nhỏ ở File › Nhận (PC).
+- Định dạng Skia không đọc được (HEIC…) thì thẻ vẫn ghi như trước; trong trình xem ghi "Không xem được ảnh này trong app."
 
-**Xong khi:** ảnh dọc chụp bằng điện thoại gửi sang PC hiện đúng chiều ở ảnh nhỏ và trong cửa sổ xem; ảnh 40 MB mở trong dưới 1 giây và bộ nhớ không tăng quá cỡ màn hình × vài ảnh; ←/→ đi hết các ảnh của một thẻ 48 ảnh.
+**Trình xem** (`PictureViewerViewModel`, dùng chung)
+- Giữ ảnh đang xem và hai ảnh kế bên (nạp trước); ảnh xa hơn được giải phóng. Đóng trình xem thì giải phóng hết.
+- Giải mã tối đa 2560 × 1600 trên PC, 1600 × 2560 trên điện thoại.
+- Mở bằng cách:
+  - bấm ảnh trong thẻ hội thoại (§6 Q5), với mọi ảnh của thẻ đó, bắt đầu từ ảnh vừa bấm;
+  - trên PC, bấm ảnh nhỏ ở File › Nhận: các ảnh đã nhận của offer đó.
+- Kết quả Ctrl+K vẫn mở bằng app của hệ điều hành như trước.
+
+**PC** (`PictureWindow`)
+- Cửa sổ riêng, ảnh vừa khung (không phóng quá cỡ thật).
+- Lăn chuột phóng to / thu nhỏ quanh con trỏ, kéo để di chuyển; `+` / `−` / `0` (vừa khung).
+- ◀ ▶ hay ←/→ sang ảnh khác, có "2 / 3"; `Esc` để đóng.
+- [Sao chép ảnh], [Hiện trong thư mục], [Mở bằng app khác].
+
+**Điện thoại** (lớp phủ trong `MainView`)
+- Nền đen toàn màn hình, tên file và "2 / 3" ở trên, ✕ hay nút Back của hệ thống để đóng.
+- Chụm hai ngón phóng to từ 1 đến 6 lần (`PinchGestureRecognizer`); đã phóng to thì kéo để di chuyển.
+- Chưa phóng to thì vuốt ngang để sang ảnh khác (sang trái là ảnh sau).
+- **Chưa làm:** [Chia sẻ] và [Mở bằng app khác], vì app chưa có FileProvider để đưa file cho app khác.
+
+**Đã kiểm**
+- Test UI:
+  - cỡ và hướng từ JPEG theo cả hai thứ tự byte, có đoạn APP0 đứng trước;
+  - PNG; file lạ; JPEG không có tag;
+  - cả 8 cách sắp điểm ảnh.
+- Thử thật (2026-11-01). PC gửi Nubia 3 ảnh JPEG tạo bằng PIL, có chữ "TRÊN" ở mép trên:
+  - một ảnh dọc lưu nằm ngang 2000 × 1500 với tag 6;
+  - một ảnh lưu lộn ngược với tag 3;
+  - một ảnh thường.
+- Kết quả:
+  - Ảnh trong hội thoại đứng đúng chiều trên cả PC lẫn Nubia.
+  - Trình xem PC mở "3 / 3", ◀ về "1 / 3" là ảnh dọc đứng đúng, lăn chuột phóng to quanh giữa, `Esc` đóng.
+  - Nubia: chạm ảnh mở lớp phủ "2 / 3", vuốt trái sang "3 / 3", vuốt phải về "1 / 3", Back đóng.
+- Chưa thử trên máy thật:
+  - chụm hai ngón (adb chỉ giả lập được một ngón);
+  - ảnh nhỏ ở File › Nhận của PC (cần PC nhận ảnh);
+  - ảnh 40 MB và thẻ 48 ảnh.
 
 ## 5. Rủi ro
 

@@ -107,6 +107,12 @@ public sealed partial class ChatViewModel : ObservableObject
     /// <summary>Opens a received or sent picture in the system's viewer (set by the window); without it, "Xem" happens.</summary>
     public Action<string>? OpenFile { get; set; }
 
+    /// <summary>
+    /// Shows a card's pictures in the app, from the one clicked (docs/19-transfers-preview.md §4); set by each app. Without
+    /// it a picture opens as <see cref="OpenFile"/> says.
+    /// </summary>
+    public Action<IReadOnlyList<string>, int>? ViewPictures { get; set; }
+
     /// <summary>Cài đặt: pictures from contacts download by themselves and show in the conversation (on by default).</summary>
     public bool AutoDownloadPictures
     {
@@ -1516,10 +1522,17 @@ public sealed partial class ChatViewModel : ObservableObject
         }
     }
 
-    /// <summary>A picture of a card: the system's viewer, or Hộp nhận / Đã gửi where the viewer is not available.</summary>
-    internal void OpenPicture(ChatPicture picture, bool received)
+    /// <summary>
+    /// A picture of a card: the app's viewer with every picture of the card, else the system's viewer, else Hộp nhận /
+    /// Đã gửi.
+    /// </summary>
+    internal void OpenPicture(ChatPicture picture, bool received, IReadOnlyList<string> pictures)
     {
-        if (OpenFile is { } open && !(external?.Owns(picture.Location) ?? false))
+        if (ViewPictures is { } view)
+        {
+            view(pictures, Math.Max(0, pictures.ToList().IndexOf(picture.Location)));
+        }
+        else if (OpenFile is { } open && !(external?.Owns(picture.Location) ?? false))
         {
             open(picture.Location);
         }
@@ -1528,6 +1541,14 @@ public sealed partial class ChatViewModel : ObservableObject
             ShowFiles?.Invoke(received);
         }
     }
+
+    /// <summary>The viewer for <paramref name="pictures"/>, decoding no bigger than <paramref name="maxWidth"/> × <paramref name="maxHeight"/>.</summary>
+    public PictureViewerViewModel ViewerFor(IReadOnlyList<string> pictures, int index, int maxWidth, int maxHeight) =>
+        new(pictures, index, OpenRead, NameOfFile, maxWidth, maxHeight);
+
+    /// <summary>The name a picture shows under: the file's, or what the OS calls a location such as content://.</summary>
+    private string NameOfFile(string location) =>
+        external?.Owns(location) == true ? external.Describe(location)?.Name ?? "" : Path.GetFileName(location);
 
     /// <summary>Reads a picture where it is: a path, or a location of the OS such as content://.</summary>
     internal Stream OpenRead(string location) =>

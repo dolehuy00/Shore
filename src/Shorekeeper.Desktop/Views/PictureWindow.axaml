@@ -1,0 +1,37 @@
+<!-- Pictures in the app (docs/19-transfers-preview.md §4): fitted, wheel to zoom, drag to move, ←/→ for the others. -->
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:l="using:Shorekeeper.UI.Localization"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="using:Shorekeeper.UI.ViewModels"
+        x:Class="Shorekeeper.Desktop.Views.PictureWindow"
+        x:DataType="ui:PictureViewerViewModel"
+        Title="{Binding Name}"
+        Icon="/Assets/shorekeeper.png"
+        Width="1100" Height="760" MinWidth="480" MinHeight="360"
+        WindowStartupLocation="CenterOwner">
+  <DockPanel>
+    <Border DockPanel.Dock="Bottom" Padding="12,8" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource Sk.Divider}">
+      <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto">
+        <Button Content="◀" Command="{Binding PreviousCommand}" IsEnabled="{Binding CanPrevious}" IsVisible="{Binding CountText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                AutomationProperties.Name="{l:T 'Ảnh trước'}" ToolTip.Tip="{l:T 'Ảnh trước'}" />
+        <TextBlock Grid.Column="1" Classes="muted" Text="{Binding CountText}" VerticalAlignment="Center" Margin="10,0" />
+        <Button Grid.Column="2" Content="▶" Command="{Binding NextCommand}" IsEnabled="{Binding CanNext}" IsVisible="{Binding CountText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                AutomationProperties.Name="{l:T 'Ảnh sau'}" ToolTip.Tip="{l:T 'Ảnh sau'}" />
+        <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="8">
+          <Button Content="{l:T 'Sao chép ảnh'}" Click="OnCopy" IsEnabled="{Binding !CannotShow}" />
+          <Button Content="{l:T 'Hiện trong thư mục'}" Click="OnShowInFolder" />
+          <Button Content="{l:T 'Mở bằng app khác'}" Click="OnOpenElsewhere" />
+        </StackPanel>
+      </Grid>
+    </Border>
+    <Panel Background="#101010">
+      <ScrollViewer x:Name="Scroller" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
+                    PointerWheelChanged="OnWheel" PointerPressed="OnPressed" PointerMoved="OnMoved" PointerReleased="OnReleased">
+        <LayoutTransformControl x:Name="Zoomed" HorizontalAlignment="Center" VerticalAlignment="Center">
+          <Image Source="{Binding Image}" Stretch="None" />
+        </LayoutTransformControl>
+      </ScrollViewer>
+      <TextBlock Text="{Binding CannotShowText}" Foreground="#C0C0C0" HorizontalAlignment="Center" VerticalAlignment="Center" />
+    </Panel>
+  </DockPanel>
+</Window>

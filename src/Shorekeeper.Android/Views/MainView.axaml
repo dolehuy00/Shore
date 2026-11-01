@@ -659,5 +659,26 @@
         </StackPanel>
       </Border>
     </Border>
+
+    <!-- Pictures (docs/19-transfers-preview.md §4): full screen, two fingers to zoom, swipe for the others, Back closes. -->
+    <Panel Background="Black" IsVisible="{Binding HasViewer}">
+      <Panel x:Name="ViewerArea" Background="Transparent" ClipToBounds="True"
+             PointerPressed="OnViewerPressed" PointerMoved="OnViewerMoved" PointerReleased="OnViewerReleased">
+        <Panel.GestureRecognizers>
+          <PinchGestureRecognizer />
+        </Panel.GestureRecognizers>
+        <Image x:Name="ViewerImage" Source="{Binding Viewer.Image}" Stretch="Uniform" />
+        <TextBlock Text="{Binding Viewer.CannotShowText}" Foreground="#C0C0C0" HorizontalAlignment="Center" VerticalAlignment="Center"
+                   TextWrapping="Wrap" Margin="24" />
+      </Panel>
+      <Grid VerticalAlignment="Top" ColumnDefinitions="Auto,*,Auto" Background="#80000000" Margin="0">
+        <Button Classes="round" Command="{Binding CloseViewerCommand}" Margin="8" Foreground="White" Background="Transparent"
+                AutomationProperties.Name="{l:T 'Đóng'}">
+          <PathIcon Data="{StaticResource Icon.Dismiss}" Width="16" Height="16" Foreground="White" />
+        </Button>
+        <TextBlock Grid.Column="1" Text="{Binding Viewer.Name}" Foreground="White" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+        <TextBlock Grid.Column="2" Text="{Binding Viewer.CountText}" Foreground="#C0C0C0" VerticalAlignment="Center" Margin="8,0,16,0" />
+      </Grid>
+    </Panel>
   </Panel>
 </UserControl>

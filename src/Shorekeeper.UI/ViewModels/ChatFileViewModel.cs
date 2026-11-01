@@ -104,7 +104,7 @@ public sealed partial class ChatFileViewModel(string id, ChatViewModel owner) : 
     internal override void RefreshRecall() => CanRecall = DateTimeOffset.UtcNow <= recallUntil;
 
     [RelayCommand]
-    private void OpenPicture(ChatPicture picture) => owner.OpenPicture(picture, received: !IsMine);
+    private void OpenPicture(ChatPicture picture) => owner.OpenPicture(picture, received: !IsMine, locations);
 
     /// <summary>Loads the pictures in the background when where they are has changed; none for a card of other files.</summary>
     internal void ShowPictures(IReadOnlyList<string> locations)
@@ -162,7 +162,7 @@ public sealed partial class ChatFileViewModel(string id, ChatViewModel owner) : 
                 try
                 {
                     using Stream stream = owner.OpenRead(location);
-                    pictures.Add(new ChatPicture(Bitmap.DecodeToWidth(stream, 480), location));
+                    pictures.Add(new ChatPicture(PictureLoader.Decode(stream, 480), location));
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or InvalidOperationException or NotSupportedException)
                 {

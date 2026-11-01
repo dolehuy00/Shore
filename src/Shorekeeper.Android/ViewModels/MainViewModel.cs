@@ -101,6 +101,7 @@ public sealed partial class MainViewModel : ObservableObject
             };
             return answer.Task;
         };
+        Chat.ViewPictures = (pictures, index) => Viewer = Chat.ViewerFor(pictures, index, PictureWidth, PictureHeight);
         Chat.ShowFiles = received =>
         {
             FilesShowSent = !received;
@@ -175,6 +176,26 @@ public sealed partial class MainViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsNearbyTab), nameof(IsFilesTab), nameof(IsInboxTab), nameof(IsSentTab), nameof(IsChatTab), nameof(IsGroupsTab),
         nameof(IsAudioTab), nameof(IsSettingsTab), nameof(PageTitle), nameof(HasPageTitle))]
     public partial int SelectedTab { get; set; }
+
+    /// <summary>The biggest a picture is decoded for the viewer: a phone screen's worth, with room to zoom.</summary>
+    private const int PictureWidth = 1600;
+    private const int PictureHeight = 2560;
+
+    /// <summary>Pictures looked at full screen (docs/19-transfers-preview.md §4); null when none.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasViewer))]
+    public partial PictureViewerViewModel? Viewer { get; set; }
+
+    public bool HasViewer => Viewer is not null;
+
+    /// <summary>The pictures are let go once the screen no longer shows them.</summary>
+    [RelayCommand]
+    private void CloseViewer()
+    {
+        PictureViewerViewModel? closing = Viewer;
+        Viewer = null;
+        Dispatcher.UIThread.Post(() => closing?.Dispose());
+    }
 
     /// <summary>"Đang chuyển" on top of the File tab (docs/19-transfers-preview.md §3).</summary>
     public TransferActivityViewModel Transfers { get; }

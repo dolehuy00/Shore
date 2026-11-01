@@ -163,6 +163,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         chat.ShowFiles = received => ShowPage(received ? NavPage.Inbox : NavPage.Sent);
         chat.PickFiles = () => dialogs.PickFilesAsync();
         chat.OpenFile = path => _ = OpenReceivedAsync(path);
+        chat.ViewPictures = (pictures, index) => dialogs.ShowPictures(chat.ViewerFor(pictures, index, PictureWidth, PictureHeight));
         transfers.OpenFile = path => _ = OpenReceivedAsync(path);
         transfers.RevealRequested += (_, item) => RevealTransfer(item);
         chat.SendFiles = async (recipients, groupId, paths) =>
@@ -211,6 +212,10 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public SearchViewModel Search { get; }
 
     /// <summary>"Tin nhắn".</summary>
+    /// <summary>The biggest a picture is decoded for the viewer: a large screen's worth.</summary>
+    internal const int PictureWidth = 2560;
+    internal const int PictureHeight = 1600;
+
     /// <summary>"Đang chuyển" at the bottom of the sidebar (docs/19-transfers-preview.md §3).</summary>
     public TransferActivityViewModel Transfers { get; }
 
