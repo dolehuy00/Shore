@@ -72,13 +72,16 @@ public sealed class ChatReactions
     /// </summary>
     internal async Task<Dictionary<string, ChatReaction>> NewestOnOursAsync(SqliteConnection connection, DeviceId me)
     {
-        // With MAX, SQLite takes the other columns from that row.
+        // Each conversation's reactions, newest first by the index, until one on ours by someone else: rather than all of
+        // them grouped, which took a tenth of a second with years of reactions (docs/22-scale.md).
         var rows = await connection.QueryAsync<(string At, string MessageId, string ReactorId, string Emoji, long Time, long Unseen)>(
             $"""
-            SELECT r.{scope}, r.MessageId, r.ReactorId, r.Emoji, MAX(r.At), r.Unseen
-            FROM {table} r JOIN {messages} m ON m.{scope} = r.{scope} AND m.Id = r.MessageId
-            WHERE m.Outgoing = 1 AND r.Emoji IS NOT NULL AND r.ReactorId <> @me
-            GROUP BY r.{scope};
+            SELECT r.{scope}, r.MessageId, r.ReactorId, r.Emoji, r.At, r.Unseen
+            FROM (SELECT DISTINCT {scope} FROM {table}) c
+            JOIN {table} r ON r.rowid = (
+              SELECT x.rowid FROM {table} x JOIN {messages} m ON m.{scope} = x.{scope} AND m.Id = x.MessageId
+              WHERE x.{scope} = c.{scope} AND m.Outgoing = 1 AND x.Emoji IS NOT NULL AND x.ReactorId <> @me
+              ORDER BY x.At DESC, x.ReactorId DESC LIMIT 1);
             """,
             new { me = me.Value });
         return rows.ToDictionary(

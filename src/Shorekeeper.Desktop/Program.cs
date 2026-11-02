@@ -43,6 +43,13 @@ internal static class Program
         }
 
         AppPaths paths = AppPaths.ForCurrentUser();
+#if DEBUG
+        // A separate folder for trying the app on prepared data (docs/22-scale.md), never the user's own.
+        if (Environment.GetEnvironmentVariable("SHOREKEEPER_DATA_DIR") is { Length: > 0 } trial)
+        {
+            paths = new AppPaths(trial, Path.Combine(trial, "Downloads"));
+        }
+#endif
         paths.EnsureCreated();
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Information()

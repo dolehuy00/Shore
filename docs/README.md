@@ -39,6 +39,7 @@
 | 19 | [Đang chuyển và xem trước file](19-transfers-preview.md) | T1–T3: một chỗ cho mọi việc đang nhận / gửi, xem ảnh trong app, ảnh đúng chiều, ảnh chưa tải hiện bản nhỏ |
 | 20 | [Điện thoại làm Host nhóm](20-phone-host.md) | H1–H3: điện thoại tạo và quản lý nhóm, duyệt từ thông báo, giữ online bằng Chạy nền |
 | 21 | [Âm thanh trong Tin nhắn](21-chat-audio.md) | Nghe ngay trong hội thoại, phát cho người / nhóm từ ⋮, người cùng nhóm nghe được |
+| 22 | [Dữ liệu cỡ thật](22-scale.md) | Đo với 50 000 tin, nhóm 100 người, 4 000 file; sửa truy vấn; kế hoạch S1–S3 cho giao diện |
 | — | [Quyết định kiến trúc (ADR)](decisions.md) | Nhật ký quyết định & lý do |
 | — | [Câu hỏi mở](open-questions.md) | Những điểm cần chốt thêm |
 

@@ -97,6 +97,9 @@ public sealed partial class GroupChatService : BackgroundService
     private const string Columns =
         "GroupId, Id, AuthorId, AuthorName, AuthorKey, Outgoing, Kind, Text, SentAt, State, DurationMs, Wave, VoicePath, Sig, OutOfGroup, ReplyTo, Mentions, EditedAt, EditSig";
 
+    /// <summary>Ids per query when looking up how far ours got: SQLite takes at most 32 766 values in one.</summary>
+    private const int OutgoingStatesBatch = 500;
+
     private readonly Lock gate = new();
     private readonly HashSet<DeviceId> sending = [];
     private readonly HashSet<DeviceId> sendAgain = [];
@@ -644,18 +647,19 @@ public sealed partial class GroupChatService : BackgroundService
         }
     }
 
-    /// <summary>Group conversations with at least one message, newest first.</summary>
+    /// <summary>Group conversations with at least one message, newest first; each group's newest found by the index (docs/22-scale.md).</summary>
     public async Task<IReadOnlyList<GroupChatConversation>> GetConversationsAsync(CancellationToken cancellationToken)
     {
         await using SqliteConnection connection = await database.OpenAsync(cancellationToken);
         var rows = (await connection.QueryAsync<ConversationRow>(
             $"""
             SELECT m.{Columns.Replace(", ", ", m.")}, g.Name AS GroupName,
-                   (SELECT COUNT(*) FROM ChatGroupMessages u WHERE u.GroupId = m.GroupId AND u.State = 'unread') AS Unread,
-                   (SELECT COUNT(*) FROM ChatGroupMessages u WHERE u.GroupId = m.GroupId AND u.State = 'unread'
+                   (SELECT COUNT(*) FROM ChatGroupMessages u WHERE u.GroupId = g.GroupId AND u.State = 'unread') AS Unread,
+                   (SELECT COUNT(*) FROM ChatGroupMessages u WHERE u.GroupId = g.GroupId AND u.State = 'unread'
                       AND (' ' || u.Mentions || ' ' LIKE '% all %' OR ' ' || u.Mentions || ' ' LIKE @me)) AS Mentioned
-            FROM ChatGroupMessages m JOIN ChatGroups g ON g.GroupId = m.GroupId
-            WHERE m.Id = (SELECT l.Id FROM ChatGroupMessages l WHERE l.GroupId = m.GroupId AND l.Deleted = 0 ORDER BY l.SentAt DESC, l.Id DESC LIMIT 1)
+            FROM ChatGroups g
+            JOIN ChatGroupMessages m ON m.GroupId = g.GroupId
+              AND m.Id = (SELECT l.Id FROM ChatGroupMessages l WHERE l.GroupId = g.GroupId AND l.Deleted = 0 ORDER BY l.SentAt DESC, l.Id DESC LIMIT 1)
             ORDER BY m.SentAt DESC;
             """, new { me = $"% {engine.Identity.DeviceId.Value} %" })).ToList();
         Dictionary<(string, string), ChatMessageState> states = await OutgoingStatesAsync(connection, rows);
@@ -755,16 +759,18 @@ public sealed partial class GroupChatService : BackgroundService
     private static async Task<Dictionary<(string, string), ChatMessageState>> OutgoingStatesAsync(SqliteConnection connection, IEnumerable<MessageRow> rows)
     {
         Dictionary<(string, string), ChatMessageState> states = [];
-        foreach (var group in rows.Where(r => r.Outgoing != 0).GroupBy(r => r.GroupId))
+        // A few hundred ids per query: SQLite takes at most 32 766 values in one, and a group where we wrote more than
+        // that could not be opened (docs/22-scale.md).
+        foreach (var batch in rows.Where(r => r.Outgoing != 0).GroupBy(r => r.GroupId)
+            .SelectMany(g => g.Select(r => r.Id).Chunk(OutgoingStatesBatch).Select(ids => (GroupId: g.Key, Ids: ids))))
         {
-            string[] ids = [.. group.Select(r => r.Id)];
             var counts = await connection.QueryAsync<(string Id, string State, long Count)>(
                 "SELECT Id, State, COUNT(*) FROM ChatGroupDeliveries WHERE GroupId = @groupId AND Id IN @ids GROUP BY Id, State;",
-                new { groupId = group.Key, ids });
+                new { groupId = batch.GroupId, ids = batch.Ids });
             foreach (var message in counts.GroupBy(c => c.Id))
             {
                 HashSet<string> seen = [.. message.Select(c => c.State)];
-                states[(group.Key, message.Key)] =
+                states[(batch.GroupId, message.Key)] =
                     seen.Contains("read") ? ChatMessageState.Read
                     : seen.Contains("delivered") ? ChatMessageState.Delivered
                     : seen.Contains("pending") ? ChatMessageState.Pending

@@ -419,16 +419,20 @@ public sealed class ChatService(
         return rows.ToDictionary(r => DeviceId.Parse(r.PeerId), r => FromMs(r.ClearedAt));
     }
 
-    /// <summary>Newest first.</summary>
+    /// <summary>
+    /// Newest first. Each peer's newest message is looked up by the index, rather than every message checked against
+    /// its peer's newest: with years of messages that took a fifth of a second each time (docs/22-scale.md).
+    /// </summary>
     public async Task<IReadOnlyList<ChatConversation>> GetConversationsAsync(CancellationToken cancellationToken)
     {
         await using SqliteConnection connection = await database.OpenAsync(cancellationToken);
         var rows = await connection.QueryAsync<ConversationRow>(
             $"""
-            SELECT {Columns},
-                   (SELECT COUNT(*) FROM ChatMessages u WHERE u.PeerId = m.PeerId AND u.State = 'unread') AS Unread
-            FROM ChatMessages m
-            WHERE m.Id = (SELECT l.Id FROM ChatMessages l WHERE l.PeerId = m.PeerId ORDER BY l.SentAt DESC, l.Id DESC LIMIT 1)
+            SELECT m.{Columns.Replace(", ", ", m.")},
+                   (SELECT COUNT(*) FROM ChatMessages u WHERE u.PeerId = p.PeerId AND u.State = 'unread') AS Unread
+            FROM (SELECT DISTINCT PeerId FROM ChatMessages) p
+            JOIN ChatMessages m ON m.PeerId = p.PeerId
+              AND m.Id = (SELECT l.Id FROM ChatMessages l WHERE l.PeerId = p.PeerId ORDER BY l.SentAt DESC, l.Id DESC LIMIT 1)
             ORDER BY m.SentAt DESC;
             """);
         Dictionary<string, ChatReaction> reacted = await ChatReactions.OneToOne.NewestOnOursAsync(connection, engine.Identity.DeviceId);
