@@ -29,6 +29,23 @@ public partial class ChatPage : UserControl
                 chatScroll = new ChatScroll(ChatScroller);
                 main.Chat.ScrollToEndRequested += (_, _) => chatScroll?.ToEnd();
                 main.Chat.RevealRequested += (_, entry) => Dispatcher.UIThread.Post(() => chatScroll?.Reveal(entry), DispatcherPriority.Loaded);
+                // A page at a time (docs/22-scale.md S1): what is on screen stays put while the next comes in.
+                chatScroll.TopReached += async (_, _) =>
+                {
+                    if (main.Chat.HasOlder)
+                    {
+                        chatScroll.HoldFirst();
+                        await main.Chat.ShowOlderAsync();
+                    }
+                };
+                chatScroll.EndReached += async (_, _) =>
+                {
+                    if (main.Chat.HasNewer)
+                    {
+                        chatScroll.HoldLast();
+                        await main.Chat.ShowNewerAsync();
+                    }
+                };
             }
         };
     }

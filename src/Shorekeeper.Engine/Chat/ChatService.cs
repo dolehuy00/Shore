@@ -439,6 +439,31 @@ public sealed class ChatService(
         return [.. rows.Select(r => new ChatConversation(DeviceId.Parse(r.PeerId), r.ToMessage(), (int)r.Unread, reacted.GetValueOrDefault(r.PeerId)))];
     }
 
+    /// <summary>Part of the conversation, oldest first: a page at a time (docs/22-scale.md S1).</summary>
+    public async Task<IReadOnlyList<ChatMessage>> GetMessagesAsync(DeviceId peer, ChatRange range, CancellationToken cancellationToken)
+    {
+        await using SqliteConnection connection = await database.OpenAsync(cancellationToken);
+        var values = new DynamicParameters(new { peer = peer.Value });
+        var rows = await connection.QueryAsync<MessageRow>(range.Query("ChatMessages", Columns, "PeerId = @peer", values), values);
+        return [.. rows.Select(r => r.ToMessage())];
+    }
+
+    /// <summary>One message, e.g. what a reply answers when it is older than the part shown; null when it is gone.</summary>
+    public async Task<ChatMessage?> GetMessageAsync(DeviceId peer, string id, CancellationToken cancellationToken)
+    {
+        await using SqliteConnection connection = await database.OpenAsync(cancellationToken);
+        MessageRow? row = await connection.QueryFirstOrDefaultAsync<MessageRow>(
+            $"SELECT {Columns} FROM ChatMessages WHERE PeerId = @peer AND Id = @id;", new { peer = peer.Value, id });
+        return row?.ToMessage();
+    }
+
+    /// <summary>The reactions on the messages from <paramref name="from"/> to <paramref name="to"/> (the newest when null), oldest first.</summary>
+    public async Task<IReadOnlyList<ChatReaction>> GetReactionsAsync(DeviceId peer, ChatCursor from, ChatCursor? to, CancellationToken cancellationToken)
+    {
+        await using SqliteConnection connection = await database.OpenAsync(cancellationToken);
+        return await ChatReactions.OneToOne.GetAsync(connection, peer.Value, from, to);
+    }
+
     /// <summary>The whole conversation, oldest first.</summary>
     public async Task<IReadOnlyList<ChatMessage>> GetMessagesAsync(DeviceId peer, CancellationToken cancellationToken)
     {

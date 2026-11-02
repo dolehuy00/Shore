@@ -70,6 +70,17 @@ public sealed class ScaleTests
         await Measure("Reactions of that conversation", async () => await node.Chat.GetReactionsAsync(seed.BigPeer, Ct), 300);
         await Measure("Messages of a 30 000 group (100 people)", async () => await node.GroupChat.GetMessagesAsync(seed.BigGroup, Ct), 1500);
         await Measure("Reactions of that group", async () => await node.GroupChat.GetReactionsAsync(seed.BigGroup, Ct), 300);
+
+        // What a conversation reads now: its newest page, and the reactions on it (docs/22-scale.md S1).
+        IReadOnlyList<ChatMessage> page = await node.Chat.GetMessagesAsync(seed.BigPeer, ChatRange.Newest(50), Ct);
+        ChatCursor top = new(page[0].SentAt, page[0].Id);
+        await Measure("Newest 50 of the 50 000 conversation", async () => await node.Chat.GetMessagesAsync(seed.BigPeer, ChatRange.Newest(51), Ct), 30);
+        await Measure("The 50 before them", async () => await node.Chat.GetMessagesAsync(seed.BigPeer, ChatRange.Before(top, 51), Ct), 30);
+        await Measure("Reactions on those 50", async () => await node.Chat.GetReactionsAsync(seed.BigPeer, top, null, Ct), 30);
+        IReadOnlyList<GroupChatMessage> groupPage = await node.GroupChat.GetMessagesAsync(seed.BigGroup, ChatRange.Newest(50), Ct);
+        await Measure("Newest 50 of the 30 000 group", async () => await node.GroupChat.GetMessagesAsync(seed.BigGroup, ChatRange.Newest(51), Ct), 50);
+        await Measure("Reactions on those 50 (group)", async () =>
+            await node.GroupChat.GetReactionsAsync(seed.BigGroup, new ChatCursor(groupPage[0].SentAt, groupPage[0].Id), null, Ct), 50);
         await Measure("Sent and received offers in memory", () => Task.FromResult<object?>(node.Offers.GetOffers().Count + node.Inbox.GetOffers().Count), 100);
 
         // Ctrl+K: words found soon, and words nowhere (every message read).

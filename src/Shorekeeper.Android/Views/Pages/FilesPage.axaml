@@ -87,6 +87,12 @@
     </StackPanel>
     <ScrollViewer>
       <ItemsControl ItemsSource="{Binding Offers}">
+        <!-- Only the rows on screen are built (docs/22-scale.md S2). -->
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <VirtualizingStackPanel />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:OfferItemViewModel">
             <Border Classes="card offer" Classes.picked="{Binding IsSelected}" Classes.leaving="{Binding IsLeaving}" Holding="OnCardHolding" Tapped="OnCardTapped"
@@ -196,6 +202,12 @@
     </StackPanel>
     <ScrollViewer>
       <ItemsControl ItemsSource="{Binding Sent}">
+        <!-- Only the rows on screen are built (docs/22-scale.md S2). -->
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <VirtualizingStackPanel />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:SentItemViewModel">
             <Border Classes="card offer" Classes.picked="{Binding IsSelected}" Classes.leaving="{Binding IsLeaving}" Holding="OnCardHolding" Tapped="OnCardTapped"

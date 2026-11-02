@@ -298,19 +298,24 @@ public sealed partial class ChatViewModel : ObservableObject
             Open(peer);
         }
 
-        // Already there: point at it now; otherwise once the conversation has loaded.
+        // Already there: point at it now; otherwise the part around it is read, and it is pointed at then.
         if (Messages.FirstOrDefault(m => m.Id == hit.EntryId) is { } entry)
         {
             revealId = null;
             RevealRequested?.Invoke(this, entry);
         }
-        else
+        else if (Current is { } person)
         {
-            revealId = hit.EntryId;
+            // Opening may have read its newest page already (SQLite answers at once): read again, around the result.
+            RevealAround(hit.EntryId, new ChatCursor(hit.At, hit.EntryId.Contains(':', StringComparison.Ordinal) ? "" : hit.EntryId));
+            _ = RefreshMessagesAsync(person);
         }
     }
 
-    /// <summary>After a conversation loaded: the message a search result asked for, or new ones at the end.</summary>
+    /// <summary>
+    /// After a conversation loaded: the message a search result asked for, or new ones at the end (not a page read
+    /// further on, where the view keeps its place).
+    /// </summary>
     private void Scroll(int added)
     {
         if (revealId is { } id && Messages.FirstOrDefault(m => m.Id == id) is { } entry)
@@ -318,10 +323,269 @@ public sealed partial class ChatViewModel : ObservableObject
             revealId = null;
             RevealRequested?.Invoke(this, entry);
         }
-        else if (added > 0)
+        else if (added > 0 && !paging)
         {
             ScrollToEndRequested?.Invoke(this, EventArgs.Empty);
         }
+    }
+
+    // ───────────── A page at a time (docs/22-scale.md S1) ─────────────
+
+    /// <summary>Messages read at a time: the newest when a conversation opens, then more as it is scrolled.</summary>
+    public const int PageSize = 50;
+
+    /// <summary>The part of the open conversation shown: from this message (null: its newest page), to this one (null: to the newest, new ones added).</summary>
+    private ChatCursor? shownFrom;
+    private ChatCursor? shownTo;
+
+    /// <summary>Where the part to read next is around (a search result, what a reply answers); its entry is pointed at then.</summary>
+    private ChatCursor? revealAt;
+
+    /// <summary>A page is being read for scrolling: one at a time, and the view keeps its place.</summary>
+    private bool paging;
+
+    /// <summary>What replies answer that is older than the part shown, read once each.</summary>
+    private readonly Dictionary<string, (string Author, string Text)> quotedEarlier = [];
+
+    /// <summary>There is more before the part shown: scrolling to its top reads it.</summary>
+    [ObservableProperty]
+    public partial bool HasOlder { get; set; }
+
+    /// <summary>An older part is shown and there is more after it: scrolling to its end reads it.</summary>
+    [ObservableProperty]
+    public partial bool HasNewer { get; set; }
+
+    /// <summary>The page before the part shown (the view holds the first entry where it is).</summary>
+    public async Task ShowOlderAsync()
+    {
+        if (paging || !HasOlder || Current is not { } person || shownFrom is not { } from)
+        {
+            return;
+        }
+
+        paging = true;
+        try
+        {
+            IReadOnlyList<ChatCursor> older = await CursorsAsync(person, ChatRange.Before(from, PageSize + 1));
+            if (Current != person || shownFrom != from)
+            {
+                return;
+            }
+
+            HasOlder = older.Count > PageSize;
+            if (older.Count > 0)
+            {
+                shownFrom = older[HasOlder ? 1 : 0];
+            }
+
+            await RefreshMessagesAsync(person);
+        }
+        finally
+        {
+            paging = false;
+        }
+    }
+
+    /// <summary>The page after the part shown, while an older part is shown (the view holds the last entry where it is).</summary>
+    public async Task ShowNewerAsync()
+    {
+        if (paging || !HasNewer || Current is not { } person || shownTo is not { } to)
+        {
+            return;
+        }
+
+        paging = true;
+        try
+        {
+            IReadOnlyList<ChatCursor> newer = await CursorsAsync(person, ChatRange.After(to, PageSize + 1));
+            if (Current != person || shownTo != to)
+            {
+                return;
+            }
+
+            HasNewer = newer.Count > PageSize;
+            shownTo = HasNewer ? newer[PageSize - 1] : null;
+            await RefreshMessagesAsync(person);
+        }
+        finally
+        {
+            paging = false;
+        }
+    }
+
+    /// <summary>Back to the newest page, read next.</summary>
+    private void ResetShown()
+    {
+        shownFrom = null;
+        shownTo = null;
+        HasOlder = false;
+        HasNewer = false;
+    }
+
+    /// <summary>Reads the part around <paramref name="at"/> next, and points at the entry <paramref name="entryId"/> once there.</summary>
+    private void RevealAround(string entryId, ChatCursor at)
+    {
+        ResetShown();
+        revealId = entryId;
+        revealAt = at;
+    }
+
+    /// <summary>Card times inside the part shown; all of them before it when nothing older is left to read.</summary>
+    private bool InShownPart(DateTimeOffset at) =>
+        (!HasOlder || shownFrom is not { } from || at >= from.SentAt) && (shownTo is not { } to || at <= to.SentAt);
+
+    /// <summary>
+    /// The messages of the part shown of <paramref name="person"/>'s conversation: the newest page when none is yet, the
+    /// part around <see cref="revealAt"/> when asked, else the same part (and new ones, at the newest).
+    /// </summary>
+    private async Task<IReadOnlyList<T>> ShownAsync<T>(ChatPersonViewModel person, Func<ChatRange, Task<IReadOnlyList<T>>> read, Func<T, ChatCursor> cursor)
+    {
+        if (shownFrom is { } from)
+        {
+            return await read(ChatRange.Between(from, shownTo));
+        }
+
+        if (revealAt is { } at)
+        {
+            const int Around = PageSize / 2;
+            IReadOnlyList<T> before = await read(ChatRange.Before(at, Around + 1));
+            IReadOnlyList<T> after = await read(ChatRange.After(at, Around + 1));
+            if (Current != person)
+            {
+                return [];
+            }
+
+            revealAt = null;
+            HasOlder = before.Count > Around;
+            HasNewer = after.Count > Around;
+            shownFrom = before.Count == 0 ? at : cursor(before[HasOlder ? 1 : 0]);
+            shownTo = HasNewer ? cursor(after[Around - 1]) : null;
+            return await read(ChatRange.Between(shownFrom.Value, shownTo));
+        }
+
+        IReadOnlyList<T> newest = await read(ChatRange.Newest(PageSize + 1));
+        if (Current != person)
+        {
+            return [];
+        }
+
+        HasOlder = newest.Count > PageSize;
+        HasNewer = false;
+        shownTo = null;
+        IReadOnlyList<T> page = HasOlder ? [.. newest.Skip(1)] : newest;
+        shownFrom = page.Count > 0 ? cursor(page[0]) : null;
+        return page;
+    }
+
+    private async Task<IReadOnlyList<ChatCursor>> CursorsAsync(ChatPersonViewModel person, ChatRange range) =>
+        person.GroupId is { } groupId
+            ? [.. (await groupChat.GetMessagesAsync(groupId, range, CancellationToken.None)).Select(m => new ChatCursor(m.SentAt, m.Id))]
+            : [.. (await chat.GetMessagesAsync(person.Peer, range, CancellationToken.None)).Select(m => new ChatCursor(m.SentAt, m.Id))];
+
+    /// <summary>
+    /// Lines <see cref="Messages"/> up with the entries <paramref name="ids"/>: those already shown are kept (their pictures,
+    /// their place on screen), older ones read in go in front, newer ones after. Anything else (a late message from a clock
+    /// behind, one deleted, another part) shows them all again.
+    /// </summary>
+    /// <returns>How many came after the ones already shown.</returns>
+    private int Align(string[] ids, Func<int, ChatEntryViewModel> create)
+    {
+        int start = Messages.Count == 0 ? 0 : Array.IndexOf(ids, Messages[0].Id);
+        bool kept = start >= 0 && start + Messages.Count <= ids.Length && Messages.Select((m, i) => m.Id == ids[start + i]).All(same => same);
+        if (!kept)
+        {
+            Messages.Clear();
+            start = 0;
+        }
+
+        for (int i = start - 1; i >= 0; i--)
+        {
+            Messages.Insert(0, create(i));
+        }
+
+        int shown = Messages.Count;
+        for (int i = shown; i < ids.Length; i++)
+        {
+            Messages.Add(create(i));
+        }
+
+        return ids.Length - shown;
+    }
+
+    /// <summary>An entry older than the part shown, to quote it or go to it: a message, or a file card; with its place.</summary>
+    private async Task<(ChatEntryViewModel Entry, ChatCursor At)?> EarlierAsync(ChatPersonViewModel person, string replyId)
+    {
+        if (replyId.StartsWith(ChatReplies.OfferPrefix, StringComparison.Ordinal))
+        {
+            string offerId = replyId[ChatReplies.OfferPrefix.Length..];
+            if (offers.GetOffers().FirstOrDefault(o => o.OfferId == offerId) is { } sent)
+            {
+                var card = new ChatFileViewModel("sent:" + offerId, this);
+                card.Update(sent, person.GroupId is null ? person.Peer : null);
+                return (card, new ChatCursor(sent.CreatedAt, ""));
+            }
+
+            if (inbox.GetOffers().FirstOrDefault(o => o.OfferId == offerId) is { } received)
+            {
+                var card = new ChatFileViewModel("received:" + offerId, this);
+                card.Update(received, senderOnline: false);
+                return (card, new ChatCursor(received.SentAt, ""));
+            }
+
+            return null;
+        }
+
+        if (person.GroupId is { } groupId)
+        {
+            if (await groupChat.GetMessageAsync(groupId, replyId, CancellationToken.None) is { } message)
+            {
+                var bubble = new ChatBubbleViewModel(message.Id, this);
+                bubble.Update(message, AuthorOf(groupId, message), true, null);
+                return (bubble, new ChatCursor(message.SentAt, message.Id));
+            }
+        }
+        else if (await chat.GetMessageAsync(person.Peer, replyId, CancellationToken.None) is { } message)
+        {
+            var bubble = new ChatBubbleViewModel(message.Id, this);
+            bubble.Update(message, false);
+            return (bubble, new ChatCursor(message.SentAt, message.Id));
+        }
+
+        return null;
+    }
+
+    /// <summary>Reads once what replies answer that is older than the part shown, then quotes it.</summary>
+    private async Task QuoteEarlierAsync(IReadOnlyList<string> replyIds)
+    {
+        if (Current is not { } person)
+        {
+            return;
+        }
+
+        foreach (string id in replyIds)
+        {
+            (ChatEntryViewModel Entry, ChatCursor At)? found = await EarlierAsync(person, id);
+            if (Current != person)
+            {
+                return;
+            }
+
+            quotedEarlier[id] = found is { } earlier ? (QuoteAuthor(earlier.Entry), QuoteText(earlier.Entry)) : ("", QuoteText(null));
+        }
+
+        Quote();
+    }
+
+    /// <summary>A quote clicked whose message is older than the part shown: the part around it is read, then it is pointed at.</summary>
+    private async Task RevealEarlierAsync(string replyId)
+    {
+        if (Current is not { } person || await EarlierAsync(person, replyId) is not { } found || Current != person)
+        {
+            return;
+        }
+
+        RevealAround(found.Entry.Id, found.At);
+        await RefreshMessagesAsync(person);
     }
 
     /// <summary>The phone's search box above the conversations (the desktop searches with Ctrl+K).</summary>
@@ -640,9 +904,18 @@ public sealed partial class ChatViewModel : ObservableObject
     /// <summary>Clicked on what a reply answers: the conversation goes to it.</summary>
     internal void ShowQuote(ChatBubbleViewModel bubble)
     {
-        if (bubble.ReplyTo is { } replyTo && Entries().GetValueOrDefault(replyTo) is { } entry)
+        if (bubble.ReplyTo is not { } replyTo)
+        {
+            return;
+        }
+
+        if (Entries().GetValueOrDefault(replyTo) is { } entry)
         {
             RevealRequested?.Invoke(this, entry);
+        }
+        else if (HasOlder)
+        {
+            _ = RevealEarlierAsync(replyTo);
         }
     }
 
@@ -682,19 +955,39 @@ public sealed partial class ChatViewModel : ObservableObject
         _ => "",
     };
 
-    /// <summary>Each reply shows what it answers, as it is here now: recalled, or gone ("Tin nhắn không còn").</summary>
+    /// <summary>
+    /// Each reply shows what it answers, as it is here now: recalled, or gone ("Tin nhắn không còn"). What is older than
+    /// the part shown is read once (docs/22-scale.md S1).
+    /// </summary>
     private void Quote()
     {
         Dictionary<string, ChatEntryViewModel>? entries = null;
+        List<string> earlier = [];
         foreach (ChatBubbleViewModel bubble in Messages.OfType<ChatBubbleViewModel>())
         {
             bubble.HasQuote = bubble.ReplyTo is not null;
             if (bubble.ReplyTo is { } replyTo)
             {
                 ChatEntryViewModel? answered = (entries ??= Entries()).GetValueOrDefault(replyTo);
+                if (answered is null && quotedEarlier.TryGetValue(replyTo, out var quoted))
+                {
+                    (bubble.QuoteAuthor, bubble.QuoteText) = quoted;
+                    continue;
+                }
+
+                if (answered is null && HasOlder)
+                {
+                    earlier.Add(replyTo);
+                }
+
                 bubble.QuoteAuthor = answered is null ? "" : QuoteAuthor(answered);
-                bubble.QuoteText = QuoteText(answered);
+                bubble.QuoteText = answered is null && HasOlder ? "" : QuoteText(answered);
             }
+        }
+
+        if (earlier.Count > 0)
+        {
+            _ = QuoteEarlierAsync([.. earlier.Distinct()]);
         }
     }
 
@@ -780,6 +1073,11 @@ public sealed partial class ChatViewModel : ObservableObject
 
         string? replyTo = ReplyingTo is { } answered ? ReplyIdOf(answered) : null;
         List<string>? mentions = MentionsIn(text);
+        if (HasNewer)
+        {
+            // An older part was shown: what is sent shows with the newest.
+            ResetShown();
+        }
         Draft = "";
         ReplyingTo = null;
         if (person.GroupId is { } groupId)
@@ -800,6 +1098,9 @@ public sealed partial class ChatViewModel : ObservableObject
 
     partial void OnCurrentChanged(ChatPersonViewModel? oldValue, ChatPersonViewModel? newValue)
     {
+        ResetShown();
+        revealAt = null;
+        quotedEarlier.Clear();
         StopPlaying();
         ReplyingTo = null;
         StopEditing();
@@ -901,8 +1202,10 @@ public sealed partial class ChatViewModel : ObservableObject
             return;
         }
 
-        IReadOnlyList<ChatMessage> messages = await chat.GetMessagesAsync(person.Peer, CancellationToken.None);
-        IReadOnlyList<ChatReaction> reactions = await chat.GetReactionsAsync(person.Peer, CancellationToken.None);
+        IReadOnlyList<ChatMessage> messages = await ShownAsync(
+            person, range => chat.GetMessagesAsync(person.Peer, range, CancellationToken.None), m => new ChatCursor(m.SentAt, m.Id));
+        IReadOnlyList<ChatReaction> reactions = messages.Count == 0 ? []
+            : await chat.GetReactionsAsync(person.Peer, new ChatCursor(messages[0].SentAt, messages[0].Id), shownTo, CancellationToken.None);
         IReadOnlyDictionary<DeviceId, DateTimeOffset> cleared = await chat.GetClearedAsync(CancellationToken.None);
         if (Current != person)
         {
@@ -914,30 +1217,23 @@ public sealed partial class ChatViewModel : ObservableObject
         [
             .. messages.Select(m => (m.SentAt, m.Id, (object)m)),
             .. offers.GetOffers()
-                .Where(o => o.GroupId is null && o.Recipients.Any(r => r.DeviceId == person.Peer) && After(cleared, person.Peer, o.CreatedAt))
+                .Where(o => o.GroupId is null && o.Recipients.Any(r => r.DeviceId == person.Peer) && After(cleared, person.Peer, o.CreatedAt) && InShownPart(o.CreatedAt))
                 .Select(o => (o.CreatedAt, "sent:" + o.OfferId, (object)o)),
             .. inbox.GetOffers()
-                .Where(o => o.SenderId == person.Peer && o.GroupId is null && After(cleared, person.Peer, o.ReceivedAt))
+                .Where(o => o.SenderId == person.Peer && o.GroupId is null && After(cleared, person.Peer, o.ReceivedAt) && InShownPart(o.SentAt))
                 .Select(o => (o.SentAt, "received:" + o.OfferId, (object)o)),
         ];
         entries.Sort((x, y) => x.At != y.At ? x.At.CompareTo(y.At) : string.CompareOrdinal(x.Id, y.Id));
 
-        // Unless the order changed (a late message from a clock behind), only states change and entries are added.
-        bool prefix = Messages.Count <= entries.Count && Messages.Select(b => b.Id).SequenceEqual(entries.Take(Messages.Count).Select(e => e.Id));
-        if (!prefix)
-        {
-            Messages.Clear();
-        }
-
-        int added = entries.Count - Messages.Count;
+        int added = Align([.. entries.Select(e => e.Id)], i => entries[i].Source is ChatMessage
+            ? new ChatBubbleViewModel(entries[i].Id, this)
+            : new ChatFileViewModel(entries[i].Id, this));
         string? lastMine = messages.LastOrDefault(m => m.Outgoing)?.Id;
         for (int i = 0; i < entries.Count; i++)
         {
             DateTime day = entries[i].At.ToLocalTime().Date;
             string? dayText = i == 0 || entries[i - 1].At.ToLocalTime().Date != day ? DayText(day) : null;
-            ChatEntryViewModel entry = i < Messages.Count ? Messages[i] : entries[i].Source is ChatMessage
-                ? new ChatBubbleViewModel(entries[i].Id, this)
-                : new ChatFileViewModel(entries[i].Id, this);
+            ChatEntryViewModel entry = Messages[i];
             entry.DayText = dayText;
             switch (entry, entries[i].Source)
             {
@@ -947,11 +1243,6 @@ public sealed partial class ChatViewModel : ObservableObject
                 case (ChatFileViewModel card, _):
                     ShowCard(card, entries[i].Source, person.Peer, person.IsOnline);
                     break;
-            }
-
-            if (i >= Messages.Count)
-            {
-                Messages.Add(entry);
             }
         }
 
@@ -982,8 +1273,10 @@ public sealed partial class ChatViewModel : ObservableObject
     /// </summary>
     private async Task RefreshGroupMessagesAsync(ChatPersonViewModel row, string groupId)
     {
-        IReadOnlyList<GroupChatMessage> messages = await groupChat.GetMessagesAsync(groupId, CancellationToken.None);
-        IReadOnlyList<ChatReaction> reactions = await groupChat.GetReactionsAsync(groupId, CancellationToken.None);
+        IReadOnlyList<GroupChatMessage> messages = await ShownAsync(
+            row, range => groupChat.GetMessagesAsync(groupId, range, CancellationToken.None), m => new ChatCursor(m.SentAt, m.Id));
+        IReadOnlyList<ChatReaction> reactions = messages.Count == 0 ? []
+            : await groupChat.GetReactionsAsync(groupId, new ChatCursor(messages[0].SentAt, messages[0].Id), shownTo, CancellationToken.None);
         GroupChatMessage? lastMine = messages.LastOrDefault(m => m.Outgoing);
         IReadOnlyList<GroupDelivery> reached = lastMine is null ? [] : await groupChat.GetDeliveriesAsync(groupId, lastMine.Id, CancellationToken.None);
         DateTimeOffset? clearedAt = (await groupChat.GetClearedAsync(CancellationToken.None)).TryGetValue(groupId, out DateTimeOffset at) ? at : null;
@@ -997,30 +1290,23 @@ public sealed partial class ChatViewModel : ObservableObject
         [
             .. messages.Select(m => (m.SentAt, m.Id, m.Outgoing ? "" : m.Author.Value, (object)m)),
             .. offers.GetOffers()
-                .Where(o => o.GroupId == groupId && (clearedAt is null || o.CreatedAt > clearedAt))
+                .Where(o => o.GroupId == groupId && (clearedAt is null || o.CreatedAt > clearedAt) && InShownPart(o.CreatedAt))
                 .Select(o => (o.CreatedAt, "sent:" + o.OfferId, "", (object)o)),
             .. inbox.GetOffers()
-                .Where(o => o.GroupId == groupId && (clearedAt is null || o.ReceivedAt > clearedAt))
+                .Where(o => o.GroupId == groupId && (clearedAt is null || o.ReceivedAt > clearedAt) && InShownPart(o.SentAt))
                 .Select(o => (o.SentAt, "received:" + o.OfferId, o.SenderId.Value, (object)o)),
         ];
         entries.Sort((x, y) => x.At != y.At ? x.At.CompareTo(y.At) : string.CompareOrdinal(x.Id, y.Id));
 
-        // Unless the order changed, only states change and entries are added.
-        bool prefix = Messages.Count <= entries.Count && Messages.Select(b => b.Id).SequenceEqual(entries.Take(Messages.Count).Select(e => e.Id));
-        if (!prefix)
-        {
-            Messages.Clear();
-        }
-
-        int added = entries.Count - Messages.Count;
+        int added = Align([.. entries.Select(e => e.Id)], i => entries[i].Source is GroupChatMessage
+            ? new ChatBubbleViewModel(entries[i].Id, this)
+            : new ChatFileViewModel(entries[i].Id, this));
         Dictionary<DeviceId, PeerInfo> live = directory.Snapshot().ToDictionary(p => p.DeviceId);
         for (int i = 0; i < entries.Count; i++)
         {
             DateTime day = entries[i].At.ToLocalTime().Date;
             bool newDay = i == 0 || entries[i - 1].At.ToLocalTime().Date != day;
-            ChatEntryViewModel entry = i < Messages.Count ? Messages[i] : entries[i].Source is GroupChatMessage
-                ? new ChatBubbleViewModel(entries[i].Id, this)
-                : new ChatFileViewModel(entries[i].Id, this);
+            ChatEntryViewModel entry = Messages[i];
             entry.DayText = newDay ? DayText(day) : null;
             switch (entry, entries[i].Source)
             {
@@ -1037,11 +1323,6 @@ public sealed partial class ChatViewModel : ObservableObject
                 case (ChatFileViewModel card, SentOffer sent):
                     ShowCard(card, sent, null, false);
                     break;
-            }
-
-            if (i >= Messages.Count)
-            {
-                Messages.Add(entry);
             }
         }
 

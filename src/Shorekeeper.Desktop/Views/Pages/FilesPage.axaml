@@ -56,6 +56,12 @@
       </StackPanel>
       <TextBlock Classes="muted" IsVisible="{Binding Inbox.HasNoMatch}" Text="{l:T 'Không có mục nào khớp.'}" HorizontalAlignment="Center" Margin="0,30" />
       <ItemsControl x:Name="InboxList" ItemsSource="{Binding Inbox.Items}">
+        <!-- Only the rows on screen are built (docs/22-scale.md S2): 2 000 received took 31 s and 4.7 GB. -->
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <VirtualizingStackPanel />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:InboxItemViewModel">
             <StackPanel IsVisible="{Binding IsShown}">
@@ -162,6 +168,12 @@
       </StackPanel>
       <TextBlock Classes="muted" IsVisible="{Binding Sent.HasNoMatch}" Text="{l:T 'Không có mục nào khớp.'}" HorizontalAlignment="Center" Margin="0,30" />
       <ItemsControl x:Name="SentList" ItemsSource="{Binding Sent.Items}">
+        <!-- Only the rows on screen are built (docs/22-scale.md S2): 2 000 received took 31 s and 4.7 GB. -->
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <VirtualizingStackPanel />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:SentItemViewModel">
             <StackPanel IsVisible="{Binding IsShown}">

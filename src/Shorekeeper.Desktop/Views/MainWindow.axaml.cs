@@ -192,9 +192,17 @@ public partial class MainWindow : Window
         ];
         foreach (ItemsControl list in lists)
         {
-            if (list.ContainerFromItem(item) is not { } row)
+            if (!list.Items.Contains(item))
             {
                 continue;
+            }
+
+            // A virtualizing list lays out only the rows near the screen: the row first, then its frame.
+            list.ScrollIntoView(item);
+            list.UpdateLayout();
+            if (list.ContainerFromItem(item) is not { } row)
+            {
+                return;
             }
 
             row.BringIntoView();

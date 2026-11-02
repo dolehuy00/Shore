@@ -85,6 +85,11 @@ internal static class ScaleData
             for (int c = 0; c < contacts.Count; c++)
             {
                 int count = c == 0 ? size.BigConversation : size.OtherConversations;
+                if (count == 0)
+                {
+                    continue;
+                }
+
                 long start = now - (c == 0 ? twoYears : twoYears / 4) - c * 60_000L;
                 long step = (now - start - 3_600_000) / count;
                 for (int i = 0; i < count; i++)

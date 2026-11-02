@@ -67,6 +67,28 @@ public sealed class ChatReactions
     }
 
     /// <summary>
+    /// The reactions on the messages from <paramref name="from"/> to <paramref name="to"/> (the newest when null), oldest
+    /// first: those of the part of a conversation on screen (docs/22-scale.md S1). Read from those messages, not from all
+    /// the conversation's reactions.
+    /// </summary>
+    internal async Task<IReadOnlyList<ChatReaction>> GetAsync(SqliteConnection connection, string at, ChatCursor from, ChatCursor? to)
+    {
+        var rows = await connection.QueryAsync<(string MessageId, string ReactorId, string Emoji, long At, long Unseen)>(
+            $"""
+            SELECT r.MessageId, r.ReactorId, r.Emoji, r.At, r.Unseen
+            FROM {messages} m CROSS JOIN {table} r ON r.{scope} = m.{scope} AND r.MessageId = m.Id
+            WHERE m.{scope} = @at AND r.Emoji IS NOT NULL
+              AND (m.SentAt, m.Id) >= (@fromAt, @fromId) AND (@toAt IS NULL OR (m.SentAt, m.Id) <= (@toAt, @toId))
+            ORDER BY r.At;
+            """,
+            new
+            {
+                at, fromAt = from.SentAt.ToUnixTimeMilliseconds(), fromId = from.Id, toAt = to?.SentAt.ToUnixTimeMilliseconds(), toId = to?.Id,
+            });
+        return [.. rows.Select(r => new ChatReaction(r.MessageId, DeviceId.Parse(r.ReactorId), r.Emoji, DateTimeOffset.FromUnixTimeMilliseconds(r.At), r.Unseen != 0))];
+    }
+
+    /// <summary>
     /// Each conversation's newest reaction of someone else to one of ours: the list of conversations says it when
     /// nothing came after (docs/18-chat-extras.md §6).
     /// </summary>

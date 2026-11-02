@@ -668,6 +668,33 @@ public sealed partial class GroupChatService : BackgroundService
             r.GroupId, groups.Get(r.GroupId)?.Name ?? r.GroupName, r.ToMessage(states), (int)r.Unread, (int)r.Mentioned, reacted.GetValueOrDefault(r.GroupId)))];
     }
 
+    /// <summary>Part of the group conversation, oldest first: a page at a time (docs/22-scale.md S1).</summary>
+    public async Task<IReadOnlyList<GroupChatMessage>> GetMessagesAsync(string groupId, ChatRange range, CancellationToken cancellationToken)
+    {
+        await using SqliteConnection connection = await database.OpenAsync(cancellationToken);
+        var values = new DynamicParameters(new { groupId });
+        var rows = (await connection.QueryAsync<MessageRow>(range.Query("ChatGroupMessages", Columns, "GroupId = @groupId AND Deleted = 0", values), values)).ToList();
+        Dictionary<(string, string), ChatMessageState> states = await OutgoingStatesAsync(connection, rows);
+        return [.. rows.Select(r => r.ToMessage(states))];
+    }
+
+    /// <summary>One message, e.g. what a reply answers when it is older than the part shown; null when it is gone.</summary>
+    public async Task<GroupChatMessage?> GetMessageAsync(string groupId, string id, CancellationToken cancellationToken)
+    {
+        await using SqliteConnection connection = await database.OpenAsync(cancellationToken);
+        List<MessageRow> rows = [.. await connection.QueryAsync<MessageRow>(
+            $"SELECT {Columns} FROM ChatGroupMessages WHERE GroupId = @groupId AND Id = @id AND Deleted = 0;", new { groupId, id })];
+        Dictionary<(string, string), ChatMessageState> states = await OutgoingStatesAsync(connection, rows);
+        return rows.Count == 0 ? null : rows[0].ToMessage(states);
+    }
+
+    /// <summary>The reactions on the messages from <paramref name="from"/> to <paramref name="to"/> (the newest when null), oldest first.</summary>
+    public async Task<IReadOnlyList<ChatReaction>> GetReactionsAsync(string groupId, ChatCursor from, ChatCursor? to, CancellationToken cancellationToken)
+    {
+        await using SqliteConnection connection = await database.OpenAsync(cancellationToken);
+        return await ChatReactions.Groups.GetAsync(connection, groupId, from, to);
+    }
+
     /// <summary>The whole group conversation, oldest first.</summary>
     public async Task<IReadOnlyList<GroupChatMessage>> GetMessagesAsync(string groupId, CancellationToken cancellationToken)
     {

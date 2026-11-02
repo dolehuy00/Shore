@@ -8,12 +8,17 @@ namespace Shorekeeper.UI.Views;
 /// <summary>
 /// Keeps a conversation at its newest message: scrolled there before the next frame is drawn (a long conversation would
 /// otherwise show where it was for a frame, then jump), and kept there while pictures load and cards grow, until the
-/// person scrolls up to read. A card opened or closed with "+N ảnh" stays where it is instead.
+/// person scrolls up to read. A card opened or closed with "+N ảnh" stays where it is instead. Says when the person
+/// scrolls to the top or the end, for the next page (docs/22-scale.md S1), which then comes in without moving what is
+/// on screen.
 /// </summary>
 public sealed class ChatScroll
 {
     /// <summary>This close to the end counts as at the end.</summary>
     private const double Slack = 8;
+
+    /// <summary>This close to the top, the page before is read: before it is reached, so scrolling goes on smoothly.</summary>
+    private const double NearTop = 400;
 
     private readonly ScrollViewer scroller;
     private bool atEnd = true;
@@ -29,11 +34,42 @@ public sealed class ChatScroll
     /// <summary>Laying the entry out again scrolls too; that is handled by the call that asked for it.</summary>
     private bool keeping;
 
+    /// <summary>Scrolling to an entry asked for (a search result): not the person scrolling to the top or the end.</summary>
+    private bool revealing;
+
     public ChatScroll(ScrollViewer scroller)
     {
         this.scroller = scroller;
         scroller.ScrollChanged += OnScrollChanged;
     }
+
+    /// <summary>The person scrolled near the top: the page before can be read.</summary>
+    public event EventHandler? TopReached;
+
+    /// <summary>The person scrolled to the end: the page after can be read, while an older part is shown.</summary>
+    public event EventHandler? EndReached;
+
+    /// <summary>A page is about to come in before the entries shown: the first of them stays where it is.</summary>
+    public void HoldFirst() => HoldItem(items => items.Items.Count > 0 ? items.Items[0] : null);
+
+    /// <summary>A page is about to come in after the entries shown: the last of them stays where it is, not the end.</summary>
+    public void HoldLast()
+    {
+        atEnd = false;
+        HoldItem(items => items.Items.Count > 0 ? items.Items[^1] : null);
+    }
+
+    private void HoldItem(Func<ItemsControl, object?> pick)
+    {
+        if (Items() is { } items && pick(items) is { } item && Bottom(items, item) is { } bottom)
+        {
+            list = items;
+            held = item;
+            heldBottom = bottom;
+        }
+    }
+
+    private ItemsControl? Items() => scroller.GetVisualDescendants().OfType<ItemsControl>().FirstOrDefault();
 
     /// <summary>New messages at the end: lays them out now and shows them.</summary>
     public void ToEnd()
@@ -52,10 +88,25 @@ public sealed class ChatScroll
     {
         atEnd = false;
         held = null;
-        scroller.UpdateLayout();
-        if (scroller.GetVisualDescendants().OfType<ItemsControl>().FirstOrDefault() is { } items && items.ContainerFromItem(item) is { } row)
+        // Scrolled here by the app, not the person: no page is read for it.
+        revealing = true;
+        try
+        {
+            scroller.UpdateLayout();
+            // A virtualizing list lays out only what is near the screen: the entry first, then its row.
+            Items()?.ScrollIntoView(item);
+            scroller.UpdateLayout();
+        }
+        finally
+        {
+            revealing = false;
+        }
+
+        if (Items() is { } items && items.ContainerFromItem(item) is { } row)
         {
             row.BringIntoView();
+            // Kept there while what is around it is laid out and changes size, until the person scrolls.
+            HoldItem(_ => item);
             if (row.GetVisualDescendants().OfType<Border>().FirstOrDefault(b => b.Classes.Contains("bubble") || b.Classes.Contains("filecard")) is { } frame)
             {
                 frame.Classes.Add("found");
@@ -81,6 +132,23 @@ public sealed class ChatScroll
 
     private void OnScrollChanged(object? sender, ScrollChangedEventArgs e)
     {
+        // Where the person scrolled to first: a virtualizing list changes its extent as it lays out what comes into view,
+        // in the same event, and that must neither hide the scroll (the top, for the page before) nor pull them back to
+        // the end they are leaving.
+        if (e.OffsetDelta.Y != 0 && !(held is not null && Math.Abs(scroller.Offset.Y - heldOffset) < 0.5))
+        {
+            held = null;
+            atEnd = scroller.Offset.Y >= scroller.Extent.Height - scroller.Viewport.Height - Slack;
+            if (!revealing && e.OffsetDelta.Y < 0 && scroller.Offset.Y <= NearTop)
+            {
+                TopReached?.Invoke(this, EventArgs.Empty);
+            }
+            else if (!revealing && e.OffsetDelta.Y > 0 && atEnd)
+            {
+                EndReached?.Invoke(this, EventArgs.Empty);
+            }
+        }
+
         if (e.ExtentDelta.Y != 0 || e.ViewportDelta.Y != 0)
         {
             if (held is not null)
@@ -92,11 +160,6 @@ public sealed class ChatScroll
                 // Grown or shrunk under the person (a picture, the keyboard): still at the end if they were.
                 scroller.ScrollToEnd();
             }
-        }
-        else if (e.OffsetDelta.Y != 0 && !(held is not null && Math.Abs(scroller.Offset.Y - heldOffset) < 0.5))
-        {
-            held = null;
-            atEnd = scroller.Offset.Y >= scroller.Extent.Height - scroller.Viewport.Height - Slack;
         }
     }
 
