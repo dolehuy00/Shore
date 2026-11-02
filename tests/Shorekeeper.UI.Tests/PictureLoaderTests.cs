@@ -46,6 +46,16 @@ public class PictureLoaderTests
         Assert.Equal([3u, 6, 2, 5, 1, 4], PictureLoader.Turn(stored, 3, 2, 8));
     }
 
+    [Fact]
+    public void A_see_through_picture_turns_white_where_nothing_shows()
+    {
+        Assert.Equal(0xFFFFFFFFu, PictureThumbnailMaker.OverWhite(0x00000000, premultiplied: true));
+        Assert.Equal(0xFF102030u, PictureThumbnailMaker.OverWhite(0xFF102030, premultiplied: true));
+        // Half see-through red: premultiplied it holds half its red already; unpremultiplied all of it.
+        Assert.Equal(0xFFFF7F7Fu, PictureThumbnailMaker.OverWhite(0x80800000, premultiplied: true));
+        Assert.Equal(0xFFFF7F7Fu, PictureThumbnailMaker.OverWhite(0x80FF0000, premultiplied: false));
+    }
+
     /// <summary>The start of a JPEG: an APP1 "Exif" segment with the orientation (when given), then the frame header.</summary>
     private static byte[] Jpeg(int width, int height, int? orientation, bool littleEndian)
     {

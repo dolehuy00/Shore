@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json.Nodes;
@@ -30,6 +31,7 @@ public sealed class OfferService(
     SettingsService settings,
     AppPaths paths,
     IExternalFileSource external,
+    IThumbnailMaker thumbnailMaker,
     UsageStatsService usage,
     AuditLog audit,
     TimeProvider timeProvider,
@@ -48,6 +50,15 @@ public sealed class OfferService(
     public const int MaxNoteLength = 20_000;
     public const int MaxConcurrentStreams = 16;
 
+    /// <summary>The longer side of the small copy of a picture a recipient sees before downloading (docs/19-transfers-preview.md §7).</summary>
+    public const int ThumbnailSize = 640;
+
+    /// <summary>A bigger picture gets no small copy: decoding it would take too long and too much memory.</summary>
+    private const long ThumbnailSourceMaxBytes = 100L << 20;
+
+    /// <summary>Small copies kept for the next recipient; all of them go when there are more.</summary>
+    private const int ThumbnailsKept = 256;
+
     /// <summary>How long a hash request waits for the background hash before answering 202 (must stay below the client timeout).</summary>
     private static readonly TimeSpan HashWait = TimeSpan.FromSeconds(10);
 
@@ -65,6 +76,10 @@ public sealed class OfferService(
     private readonly Dictionary<string, Offer> offers = [];
     private readonly HashSet<(string, DeviceId)> delivering = [];
     private readonly Dictionary<string, DateTimeOffset> lastProgress = [];
+    private readonly ConcurrentDictionary<(string OfferId, string FileId), Task<byte[]?>> thumbnails = new();
+
+    /// <summary>Decoding a photo takes a lot of memory: two at a time.</summary>
+    private static readonly SemaphoreSlim ThumbnailSlots = new(2);
     private int activeStreams;
 
     /// <summary>Raised with the offer id whenever it changes (state, recipients, progress).</summary>
@@ -556,6 +571,74 @@ public sealed class OfferService(
             _ = AuditFileSentAsync(offer, file, caller);
         }, () => Interlocked.Decrement(ref activeStreams));
         return PeerResponse.File(counting, "application/octet-stream", file.ModifiedAt, ETagFor(file));
+    }
+
+    /// <summary>
+    /// The small copy of a picture (docs/19-transfers-preview.md §7), for whoever may download it: made when first asked
+    /// and kept for the next recipient. Reading it is not downloading: the recipient's state stays as it was.
+    /// </summary>
+    internal async Task<PeerResponse> ServeThumbnailAsync(DeviceId caller, string offerId, string fileId)
+    {
+        (PeerResponse? error, (Offer, OfferFile, Recipient)? found) = Find(caller, offerId, fileId);
+        if (error is not null)
+        {
+            return error;
+        }
+
+        (Offer offer, OfferFile file, _) = found!.Value;
+        if (!StorageReport.IsPicture(file.RelativePath) || file.Size > ThumbnailSourceMaxBytes)
+        {
+            return PeerResponse.Problem(HttpStatusCode.NotFound, ApiErrorCodes.NotFound);
+        }
+
+        if (!IsUnchanged(file))
+        {
+            MarkChanged(offer, file);
+            return PeerResponse.Problem(HttpStatusCode.PreconditionFailed, ApiErrorCodes.SourceChanged);
+        }
+
+        if (thumbnails.Count > ThumbnailsKept)
+        {
+            thumbnails.Clear();
+        }
+
+        Task<byte[]?> making = thumbnails.GetOrAdd((offerId, fileId), _ => MakeThumbnailAsync(file));
+        byte[]? jpeg = await making;
+        if (jpeg is null)
+        {
+            // Maybe open elsewhere for a moment: tried again next time.
+            thumbnails.TryRemove(new KeyValuePair<(string, string), Task<byte[]?>>((offerId, fileId), making));
+            return PeerResponse.Problem(HttpStatusCode.NotFound, ApiErrorCodes.NotFound);
+        }
+
+        return PeerResponse.File(new MemoryStream(jpeg, writable: false), "image/jpeg");
+    }
+
+    private async Task<byte[]?> MakeThumbnailAsync(OfferFile file)
+    {
+        await ThumbnailSlots.WaitAsync();
+        try
+        {
+            return await Task.Run(() =>
+            {
+                try
+                {
+                    using Stream stream = external.Owns(file.ServePath)
+                        ? external.OpenRead(file.ServePath)
+                        : new FileStream(file.ServePath, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
+                    return thumbnailMaker.Make(stream, ThumbnailSize);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    logger.LogDebug(ex, "No small copy of {Path}", file.ServePath);
+                    return null;
+                }
+            });
+        }
+        finally
+        {
+            ThumbnailSlots.Release();
+        }
     }
 
     internal async Task<PeerResponse> GetHashAsync(DeviceId caller, string offerId, string fileId, CancellationToken cancellationToken)

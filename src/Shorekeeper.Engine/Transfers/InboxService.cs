@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json.Nodes;
 using Dapper;
 using Microsoft.Data.Sqlite;
@@ -32,6 +34,7 @@ public sealed class InboxService(
     TrustStore trust,
     FileDownloader downloader,
     SettingsService settings,
+    AppPaths paths,
     IFileTagger fileTagger,
     IPolicyProvider policy,
     UsageStatsService usage,
@@ -49,8 +52,17 @@ public sealed class InboxService(
     private static readonly TimeSpan ProgressEvery = TimeSpan.FromMilliseconds(250);
     private static readonly TimeSpan HashWait = TimeSpan.FromMinutes(10);
 
+    /// <summary>A small copy bigger than this is not one (the sender makes them at most 640 px, tens of KB).</summary>
+    private const long PreviewMaxBytes = 1L << 20;
+    private static readonly TimeSpan PreviewTimeout = TimeSpan.FromSeconds(20);
+
+    /// <summary>Small copies the sender could not give are asked for again after this long, not each time a card shows.</summary>
+    private static readonly TimeSpan PreviewRetry = TimeSpan.FromMinutes(1);
+
     private readonly Lock gate = new();
     private readonly Dictionary<OfferKey, Item> items = [];
+    private readonly HashSet<OfferKey> previewing = [];
+    private readonly Dictionary<OfferKey, DateTimeOffset> previewTried = [];
 
     /// <summary>A new offer arrived (for the "file đến" popup).</summary>
     public event EventHandler<ReceivedOffer>? OfferArrived;
@@ -108,6 +120,7 @@ public sealed class InboxService(
         }
 
         DeleteLeftoverPartialFiles();
+        LoadPreviews();
     }
 
     public IReadOnlyList<ReceivedOffer> GetOffers()
@@ -211,6 +224,8 @@ public sealed class InboxService(
                     "DELETE FROM InboxOffers WHERE SenderId = @sender AND OfferId = @offerId;",
                     new { sender = item.Key.SenderId.Value, offerId = item.Key.OfferId });
             }
+
+            DeletePreviews(item.Key);
 
             if (item.State == InboxState.New && item.ExpiresAt > timeProvider.GetUtcNow())
             {
@@ -357,6 +372,10 @@ public sealed class InboxService(
         {
             Download(key);
         }
+        else
+        {
+            FetchPreviews(key);
+        }
 
         OfferArrived?.Invoke(this, item.ToSnapshot());
         Changed?.Invoke(this, key);
@@ -400,6 +419,10 @@ public sealed class InboxService(
 
                 item.Recalled = true;
                 item.Cancellation?.Cancel();
+                foreach (FileItem file in item.Files)
+                {
+                    file.PreviewPath = null;
+                }
                 if (item.ChatPicture)
                 {
                     delete.AddRange(item.Files.Where(f => f.State == InboxFileState.Completed && f.FinalPath is not null).Select(f => f.FinalPath!));
@@ -413,6 +436,7 @@ public sealed class InboxService(
                 state = item.State;
             }
 
+            DeletePreviews(key);
             foreach (string file in delete)
             {
                 try
@@ -434,6 +458,205 @@ public sealed class InboxService(
             }
 
             Changed?.Invoke(this, key);
+        }
+    }
+
+    // ───────────── Small copies of pictures (docs/19-transfers-preview.md §7) ─────────────
+
+    /// <summary>
+    /// Fetches the small copies of an offer of pictures not downloaded, to show in the conversation: from a contact, or
+    /// through a group from any member; never from anyone else. Does nothing while it runs, when every picture has one or
+    /// is here, or within <see cref="PreviewRetry"/> of the last try. Returns immediately.
+    /// </summary>
+    public void FetchPreviews(OfferKey key)
+    {
+        lock (gate)
+        {
+            if (!items.TryGetValue(key, out Item? item) || !WantsPreviews(item)
+                || (previewTried.TryGetValue(key, out DateTimeOffset tried) && timeProvider.GetUtcNow() - tried < PreviewRetry)
+                || !previewing.Add(key))
+            {
+                return;
+            }
+        }
+
+        _ = FetchPreviewsAsync(key);
+    }
+
+    /// <summary>A small copy shown in place of a picture not downloaded, in the app's own folder (never the download folder).</summary>
+    public bool IsPreview(string path) =>
+        path.StartsWith(paths.PreviewsDirectory + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Pictures only, not all here, not taken back, not downloading by themselves, from someone allowed to show them.</summary>
+    private bool WantsPreviews(Item item) =>
+        !item.Recalled && !item.ChatPicture
+        && item.State is InboxState.New or InboxState.Partial or InboxState.Failed or InboxState.Cancelled
+        && IsPictures(item)
+        && item.Files.Any(f => f.PreviewPath is null && f.State != InboxFileState.Completed)
+        && (item.GroupId is not null || trust.Get(item.Key.SenderId) is { TrustLevel: TrustLevel.Trusted });
+
+    private static bool IsPictures(Item item) =>
+        item.Files.Count > 0 && item.Files.All(f => !f.IsDirectory && StorageReport.IsPicture(f.RelativePath));
+
+    private async Task FetchPreviewsAsync(OfferKey key)
+    {
+        try
+        {
+            List<(string FileId, string Path)> wanted;
+            lock (gate)
+            {
+                wanted = items.TryGetValue(key, out Item? item)
+                    ? [.. item.Files.Where(f => f.PreviewPath is null && f.State != InboxFileState.Completed).Select(f => (f.FileId, PreviewPathOf(key, f)))]
+                    : [];
+            }
+
+            foreach ((string fileId, string path) in wanted)
+            {
+                byte[] jpeg;
+                try
+                {
+                    using HttpResponseMessage response = await client.SendAsync(
+                        key.SenderId, b => new HttpRequestMessage(HttpMethod.Get, new Uri(b, $"offers/{key.OfferId}/files/{fileId}/thumbnail")),
+                        PreviewTimeout, CancellationToken.None);
+                    await PeerClient.EnsureSuccessAsync(response, CancellationToken.None);
+                    if (response.Content.Headers.ContentLength is > PreviewMaxBytes)
+                    {
+                        continue;
+                    }
+
+                    jpeg = await response.Content.ReadAsByteArrayAsync();
+                }
+                catch (PeerApiException ex) when (ex.Status == (int)HttpStatusCode.NotFound)
+                {
+                    // None for this one (too big, or a kind the sender cannot read); the others may have one.
+                    continue;
+                }
+                catch (Exception ex) when (ex is PeerUnreachableException or PeerApiException or HttpRequestException or TaskCanceledException)
+                {
+                    // Offline, the offer closed, or a version without small copies: asked again later.
+                    logger.LogDebug(ex, "No small copies of offer {Offer} from {Sender}", key.OfferId, key.SenderId);
+                    break;
+                }
+
+                if (jpeg.Length is 0 or > (int)PreviewMaxBytes)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                    await File.WriteAllBytesAsync(path, jpeg);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    logger.LogWarning(ex, "Could not keep a small copy at {Path}", path);
+                    break;
+                }
+
+                bool kept = false;
+                lock (gate)
+                {
+                    if (items.TryGetValue(key, out Item? item) && !item.Recalled && item.Files.FirstOrDefault(f => f.FileId == fileId) is { } file)
+                    {
+                        file.PreviewPath = path;
+                        kept = true;
+                    }
+                }
+
+                if (!kept)
+                {
+                    // Removed or taken back meanwhile.
+                    DeletePreviews(key);
+                    return;
+                }
+
+                Changed?.Invoke(this, key);
+            }
+        }
+        finally
+        {
+            lock (gate)
+            {
+                previewing.Remove(key);
+                previewTried[key] = timeProvider.GetUtcNow();
+            }
+        }
+    }
+
+    private string PreviewFolderOf(OfferKey key) => Path.Combine(paths.PreviewsDirectory, key.SenderId.Value, key.OfferId);
+
+    /// <summary>Under the file's own name, which the viewer shows; the file id may hold anything, so a hash of it names the folder.</summary>
+    private string PreviewPathOf(OfferKey key, FileItem file) => Path.Combine(
+        PreviewFolderOf(key), Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(file.FileId)))[..16], file.Segments[^1]);
+
+    private void DeletePreviews(OfferKey key)
+    {
+        string folder = PreviewFolderOf(key);
+        try
+        {
+            if (Directory.Exists(folder))
+            {
+                Directory.Delete(folder, recursive: true);
+            }
+
+            // The sender's folder too, once its last offer went.
+            string sender = Path.GetDirectoryName(folder)!;
+            if (Directory.Exists(sender) && !Directory.EnumerateFileSystemEntries(sender).Any())
+            {
+                Directory.Delete(sender);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Open in the viewer: it goes with the next start.
+            logger.LogDebug(ex, "Small copies in {Folder} not deleted", folder);
+        }
+    }
+
+    /// <summary>At start: the small copies of offers still here show again; those of the others (removed, too old) go.</summary>
+    private void LoadPreviews()
+    {
+        if (!Directory.Exists(paths.PreviewsDirectory))
+        {
+            return;
+        }
+
+        HashSet<string> kept = new(StringComparer.OrdinalIgnoreCase);
+        lock (gate)
+        {
+            foreach (Item item in items.Values)
+            {
+                kept.Add(PreviewFolderOf(item.Key));
+                if (!IsPictures(item))
+                {
+                    continue;
+                }
+
+                foreach (FileItem file in item.Files)
+                {
+                    string path = PreviewPathOf(item.Key, file);
+                    if (File.Exists(path))
+                    {
+                        file.PreviewPath = path;
+                    }
+                }
+            }
+        }
+
+        try
+        {
+            foreach (string folder in Directory.EnumerateDirectories(paths.PreviewsDirectory).SelectMany(Directory.EnumerateDirectories).ToList())
+            {
+                if (!kept.Contains(folder))
+                {
+                    Directory.Delete(folder, recursive: true);
+                }
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            logger.LogDebug(ex, "Old small copies not all deleted");
         }
     }
 
@@ -892,7 +1115,7 @@ public sealed class InboxService(
         public ReceivedOffer ToSnapshot() => new(
             Key.SenderId, Key.OfferId, Note, TotalBytes, ReceivedAt, ExpiresAt, State,
             Files.Sum(f => f.BytesReceived), ReconnectingUntil, Error,
-            [.. Files.Select(f => new InboxFile(f.FileId, f.RelativePath, f.Size, f.IsDirectory, f.State, f.FinalPath, f.Error))], SentAt, Recalled, GroupId);
+            [.. Files.Select(f => new InboxFile(f.FileId, f.RelativePath, f.Size, f.IsDirectory, f.State, f.FinalPath, f.Error, f.PreviewPath))], SentAt, Recalled, GroupId);
     }
 
     private sealed class FileItem(string fileId, string relativePath, string[] segments, long size, bool isDirectory, DateTimeOffset? modifiedAt)
@@ -916,6 +1139,9 @@ public sealed class InboxService(
         public string? Error { get; set; }
 
         public long BytesReceived { get; set; }
+
+        /// <summary>Its small copy, when it is a picture whose copy came.</summary>
+        public string? PreviewPath { get; set; }
     }
 
     private sealed class SyncProgress(Action<DownloadProgress> report) : IProgress<DownloadProgress>

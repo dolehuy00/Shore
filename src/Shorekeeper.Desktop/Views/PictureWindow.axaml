@@ -17,10 +17,12 @@
         <TextBlock Grid.Column="1" Classes="muted" Text="{Binding CountText}" VerticalAlignment="Center" Margin="10,0" />
         <Button Grid.Column="2" Content="▶" Command="{Binding NextCommand}" IsEnabled="{Binding CanNext}" IsVisible="{Binding CountText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
                 AutomationProperties.Name="{l:T 'Ảnh sau'}" ToolTip.Tip="{l:T 'Ảnh sau'}" />
+        <TextBlock Grid.Column="3" Classes="muted" Text="{Binding PreviewText}" VerticalAlignment="Center" Margin="12,0"
+                   TextTrimming="CharacterEllipsis" />
         <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="8">
           <Button Content="{l:T 'Sao chép ảnh'}" Click="OnCopy" IsEnabled="{Binding !CannotShow}" />
-          <Button Content="{l:T 'Hiện trong thư mục'}" Click="OnShowInFolder" />
-          <Button Content="{l:T 'Mở bằng app khác'}" Click="OnOpenElsewhere" />
+          <Button Content="{l:T 'Hiện trong thư mục'}" Click="OnShowInFolder" IsVisible="{Binding IsOriginal}" />
+          <Button Content="{l:T 'Mở bằng app khác'}" Click="OnOpenElsewhere" IsVisible="{Binding IsOriginal}" />
         </StackPanel>
       </Grid>
     </Border>

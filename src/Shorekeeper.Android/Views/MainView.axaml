@@ -686,6 +686,9 @@
         <TextBlock Grid.Column="1" Text="{Binding Viewer.Name}" Foreground="White" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
         <TextBlock Grid.Column="2" Text="{Binding Viewer.CountText}" Foreground="#C0C0C0" VerticalAlignment="Center" Margin="8,0,16,0" />
       </Grid>
+      <Border VerticalAlignment="Bottom" Background="#80000000" Padding="16,10" IsVisible="{Binding Viewer.IsPreview, FallbackValue=False}">
+        <TextBlock Text="{Binding Viewer.PreviewText}" Foreground="#C0C0C0" HorizontalAlignment="Center" TextWrapping="Wrap" />
+      </Border>
     </Panel>
   </Panel>
 </UserControl>

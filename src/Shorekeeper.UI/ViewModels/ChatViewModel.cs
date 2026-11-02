@@ -1071,7 +1071,7 @@ public sealed partial class ChatViewModel : ObservableObject
     /// Only offers of pictures and nothing else show as pictures; by their names, as an Android source
     /// (content://…/document/msf:1234) need not have one.
     /// </summary>
-    private static void ShowCard(ChatFileViewModel card, object offer, DeviceId? peer, bool senderOnline)
+    private void ShowCard(ChatFileViewModel card, object offer, DeviceId? peer, bool senderOnline)
     {
         switch (offer)
         {
@@ -1081,10 +1081,16 @@ public sealed partial class ChatViewModel : ObservableObject
                 break;
             case ReceivedOffer received:
                 card.Update(received, senderOnline);
-                card.ShowPictures(
-                    !received.Recalled && received.Files.Count > 0 && received.Files.All(f => !f.IsDirectory && StorageReport.IsPicture(f.RelativePath))
-                        ? [.. received.Files.Where(f => f.State == InboxFileState.Completed && f.FinalPath is not null && File.Exists(f.FinalPath)).Select(f => f.FinalPath!)]
-                        : []);
+                bool pictures = !received.Recalled && received.Files.Count > 0 && received.Files.All(f => !f.IsDirectory && StorageReport.IsPicture(f.RelativePath));
+                // Not downloaded yet: its small copy, when the sender gave one (docs/19-transfers-preview.md §7).
+                card.ShowPictures(pictures
+                    ? [.. received.Files.Select(f => f.State == InboxFileState.Completed && f.FinalPath is not null && File.Exists(f.FinalPath) ? f.FinalPath : f.PreviewPath).OfType<string>()]
+                    : []);
+                if (pictures && senderOnline && received.Files.Any(f => f.State != InboxFileState.Completed && f.PreviewPath is null))
+                {
+                    inbox.FetchPreviews(new OfferKey(received.SenderId, received.OfferId));
+                }
+
                 break;
         }
     }
@@ -1544,7 +1550,7 @@ public sealed partial class ChatViewModel : ObservableObject
 
     /// <summary>The viewer for <paramref name="pictures"/>, decoding no bigger than <paramref name="maxWidth"/> × <paramref name="maxHeight"/>.</summary>
     public PictureViewerViewModel ViewerFor(IReadOnlyList<string> pictures, int index, int maxWidth, int maxHeight) =>
-        new(pictures, index, OpenRead, NameOfFile, maxWidth, maxHeight);
+        new(pictures, index, OpenRead, NameOfFile, maxWidth, maxHeight, inbox.IsPreview);
 
     /// <summary>The name a picture shows under: the file's, or what the OS calls a location such as content://.</summary>
     private string NameOfFile(string location) =>

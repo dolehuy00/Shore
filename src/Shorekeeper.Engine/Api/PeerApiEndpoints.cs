@@ -129,6 +129,10 @@ public static class PeerApiEndpoints
         api.Map("GET", "/offers/{offerId}/files/{fileId}", RequiredAccess.TrustedOrGroupMember, request =>
             offers.ServeFile(request.Caller, request.Route("offerId"), request.Route("fileId")));
 
+        // The small copy of a picture, seen in the conversation before downloading (docs/19-transfers-preview.md §7).
+        api.Map("GET", "/offers/{offerId}/files/{fileId}/thumbnail", RequiredAccess.TrustedOrGroupMember, request =>
+            offers.ServeThumbnailAsync(request.Caller, request.Route("offerId"), request.Route("fileId")));
+
         api.Map("GET", "/offers/{offerId}/files/{fileId}/hash", RequiredAccess.TrustedOrGroupMember, request =>
             offers.GetHashAsync(request.Caller, request.Route("offerId"), request.Route("fileId"), request.Aborted));
 

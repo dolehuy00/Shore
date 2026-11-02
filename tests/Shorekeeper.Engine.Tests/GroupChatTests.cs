@@ -7,6 +7,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using Shorekeeper.Core.Audio;
 using Shorekeeper.Core.Discovery;
+using Shorekeeper.Core.Platform;
 using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Chat;
 using Shorekeeper.Engine.Discovery;
@@ -27,7 +28,11 @@ public sealed class GroupChatTests : IAsyncLifetime
 
     public async ValueTask InitializeAsync()
     {
-        host = await TestNode.StartAsync("Huy", services: s => s.AddSingleton<TimeProvider>(hostTime));
+        host = await TestNode.StartAsync("Huy", services: s =>
+        {
+            s.AddSingleton<TimeProvider>(hostTime);
+            s.AddSingleton<IThumbnailMaker>(new SmallCopies());
+        });
         mai = await TestNode.StartAsync("Mai");
         tuan = await TestNode.StartAsync("Tuấn");
         // What discovery would do: everyone knows where everyone listens.
@@ -963,6 +968,21 @@ public sealed class GroupChatTests : IAsyncLifetime
         Assert.False(await host.GroupChat.RecallOfferAsync(groupId, offerId, Ct));
         // Not an offer of another group, nor one sent to contacts.
         Assert.False(await host.GroupChat.RecallOfferAsync("0123456789abcdef0123456789abcdef", offerId, Ct));
+    }
+
+    [Fact]
+    public async Task Pictures_sent_to_the_group_show_small_copies_to_members_who_are_not_contacts()
+    {
+        string source = Path.Combine(host.WorkDirectory, "ảnh nhóm.jpg");
+        await File.WriteAllBytesAsync(source, [1, 2, 3], Ct);
+
+        string offerId = await host.Offers.CreateAsync(OfferService.Prepare([source]), [mai.Id], null, snapshotLocked: false, groupId, Ct);
+
+        await WaitUntil(() => mai.Inbox.GetOffers().SingleOrDefault(o => o.OfferId == offerId) is { Files: [{ PreviewPath: not null }] });
+        ReceivedOffer offer = mai.Inbox.GetOffers().Single(o => o.OfferId == offerId);
+        Assert.Equal(SmallCopies.Of([1, 2, 3]), await File.ReadAllBytesAsync(offer.Files.Single().PreviewPath!, Ct));
+        // Not a contact: nothing downloads by itself.
+        Assert.Equal(InboxState.New, offer.State);
     }
 
     [Fact]

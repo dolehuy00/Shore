@@ -85,7 +85,9 @@ public enum InboxFileState
     Failed,
 }
 
-public sealed record InboxFile(string FileId, string RelativePath, long Size, bool IsDirectory, InboxFileState State, string? FinalPath, string? Error);
+/// <param name="PreviewPath">The small copy of a picture fetched to show before it is downloaded (docs/19-transfers-preview.md §7).</param>
+public sealed record InboxFile(
+    string FileId, string RelativePath, long Size, bool IsDirectory, InboxFileState State, string? FinalPath, string? Error, string? PreviewPath = null);
 
 /// <summary>What the "Hộp nhận" page shows about one offer.</summary>
 /// <param name="ReconnectingUntil">Set while the connection dropped and the download is retrying.</param>

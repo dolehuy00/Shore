@@ -404,6 +404,9 @@
                           </Button>
                           <TextBlock Grid.Column="1" Classes="muted" Text="{Binding StatusText}" FontSize="11" />
                         </Grid>
+                        <!-- Small copies of pictures not downloaded yet (docs/19-transfers-preview.md §7): [Tải] for the originals. -->
+                        <ProgressBar Value="{Binding Progress}" Maximum="100" IsVisible="{Binding IsDownloading}" MinWidth="0" Margin="0,2" />
+                        <Button Classes="accent" Content="{l:T 'Tải'}" Command="{Binding DownloadCommand}" IsVisible="{Binding CanDownload}" Padding="12,4" />
                       </StackPanel>
                       <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding IsPlain}">
                         <Border Classes="tile" Width="36" Height="36" CornerRadius="8" VerticalAlignment="Top">

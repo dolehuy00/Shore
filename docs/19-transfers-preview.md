@@ -1,6 +1,6 @@
-# 19 — Khu "Đang chuyển" và xem trước file (T1–T2)
+# 19 — Khu "Đang chuyển" và xem trước file (T1–T3)
 
-> Trạng thái: **T1, T2 xong** (2026-11-01), theo kế hoạch đã chốt (§6). Xem trước chữ và PDF để sau. Nối tiếp [17 §5](17-ui-cleanup.md): "khu đang gửi / đang nhận chung, xem trước file trong app: tính năng mới, làm riêng sau".
+> Trạng thái: **T1, T2 xong** (2026-11-01), theo kế hoạch đã chốt (§6); **T3 xong** (2026-11-02, §7): ảnh chưa tải hiện bằng bản nhỏ. Xem trước chữ và PDF để sau. Nối tiếp [17 §5](17-ui-cleanup.md): "khu đang gửi / đang nhận chung, xem trước file trong app: tính năng mới, làm riêng sau".
 
 ## 1. Mục tiêu
 
@@ -8,7 +8,7 @@
 |---|---|
 | **Một chỗ** thấy mọi việc đang chuyển, cả nhận lẫn gửi, trên PC và điện thoại | Tạm dừng / tiếp tục bằng tay (đã có tự nối lại 60 giây khi rớt mạng, [06](06-file-transfer.md)) |
 | Tiến độ, tốc độ, thời gian còn lại; Hủy ngay tại đó | Giới hạn tốc độ, xếp hàng ưu tiên |
-| **Xem trước ảnh** ngay trong app, phóng to, qua ảnh trước/sau | Xem trước file **chưa tải** về |
+| **Xem trước ảnh** ngay trong app, phóng to, qua ảnh trước/sau | Xem trước file **chưa tải** về (trừ ảnh: bản nhỏ, T3 §7) |
 | Ảnh chụp bằng điện thoại hiện đúng chiều (EXIF), ở cả ảnh nhỏ | Sửa ảnh, xem video / nghe nhạc trong app (vẫn mở app của hệ điều hành) |
 
 Thứ tự: **T1 Đang chuyển** (không đổi giao thức) → **T2 Xem trước** (chỉ ở máy mình, không đổi giao thức).
@@ -120,3 +120,32 @@ Thứ tự: **T1 Đang chuyển** (không đổi giao thức) → **T2 Xem trư�
 | Q4 | Xem trước những loại nào? | **Đợt này chỉ ảnh**; chữ và PDF làm sau nếu cần |
 | Q5 | Bấm ảnh trong hội thoại mở gì? | **Trình xem trong app** (có nút mở bằng app khác) thay vì app của hệ điều hành |
 | Q6 | Thông báo trên điện thoại có thanh tiến độ không? | **Có**, một thanh chung cho mọi việc |
+| Q7 | (2026-11-02) Ảnh chưa tải: xem được không, từ ai? | **Bản nhỏ** máy gửi làm (T3, §7), không tự tải ảnh gốc. Như "Tự tải ảnh": chỉ từ máy đã Kết nối, **trừ nhóm chat**: trong nhóm thì từ mọi thành viên |
+
+## 7. T3 — Ảnh chưa tải hiện bằng bản nhỏ ✅ (2026-11-02)
+
+Trước đây ảnh không tự tải (quá 20 MB tổng, tắt "Tự tải ảnh", hay từ thành viên nhóm chưa Kết nối) chỉ hiện tên file và [Tải]. Giờ thẻ hiện bản nhỏ của từng ảnh; ảnh gốc vẫn chỉ về khi bấm Tải.
+
+**Máy gửi**
+- `GET /offers/{offerId}/files/{fileId}/thumbnail` ([05 §4.3](05-protocol.md)): cùng quyền như tải file (người nhận của offer, còn là liên hệ hay còn trong nhóm, offer còn mở).
+- Làm khi được hỏi, không làm trước: JPEG chất lượng 80, cạnh dài tối đa **640 px**, đứng đúng chiều (EXIF), phần trong suốt thành nền trắng (`PictureThumbnailMaker`, qua `IThumbnailMaker`).
+- Giữ trong bộ nhớ cho người nhận sau (tối đa 256 bản); hai ảnh giải mã cùng lúc; ảnh trên 100 MB hay kiểu không đọc được (HEIC) thì `404`.
+- Lấy bản nhỏ **không** tính là tải: trạng thái người nhận vẫn "chưa mở".
+
+**Máy nhận** (`InboxService`)
+- Offer chỉ gồm ảnh, không tự tải, từ liên hệ đã Kết nối hay gửi qua nhóm: lấy bản nhỏ ngay khi offer tới, và mỗi lần thẻ hiện mà còn thiếu (người gửi vừa online lại), cách nhau ít nhất 1 phút.
+- Lưu ở `previews\{người gửi}\{offerId}\…` trong thư mục dữ liệu của app ([09 §1](09-data-storage.md)), không phải thư mục nhận; mở lại app vẫn còn.
+- Xóa khi offer bị xóa khỏi lịch sử hay bị thu hồi; lúc khởi động dọn bản nhỏ của offer không còn (quá 90 ngày).
+- Người gửi bản cũ (chưa có địa chỉ này) hay không làm được bản nhỏ: thẻ như trước.
+
+**Thẻ và trình xem**
+- Thẻ ảnh hiện bản nhỏ cho ảnh chưa tải, ảnh gốc cho ảnh đã tải; có [Tải] và thanh tiến độ ngay dưới (trước đây thẻ ảnh chỉ có khi đã tải xong nên không cần).
+- Bấm bản nhỏ mở trình xem như ảnh thường, có dòng "Ảnh xem trước · bấm Tải để lấy ảnh gốc"; trên PC ẩn [Hiện trong thư mục] và [Mở bằng app khác].
+- File › Nhận chưa dùng bản nhỏ (vẫn biểu tượng ảnh).
+
+**Đã kiểm**
+- Test engine: bản nhỏ đến mà offer vẫn "Mới" và thư mục nhận trống, người gửi vẫn thấy "chưa mở"; xóa offer thì hết sạch; thu hồi thì xóa; máy không phải người nhận bị `403`; người gửi không làm được bản nhỏ hay offer có file khác thì không có; thành viên nhóm **không** là liên hệ vẫn nhận được bản nhỏ (bỏ điều kiện nhóm thì test này hỏng). Test UI: phủ nền trắng.
+- Thử thật (2026-11-02):
+  - PC gửi Nubia 3 ảnh JPEG 9 MB (tổng 26,8 MB, nên không tự tải), một ảnh lưu nằm ngang có tag 6: thẻ hiện 3 bản nhỏ đứng đúng chiều, "Mới"; trình xem "1 / 3" có dòng xem trước; cài lại app vẫn còn; [Tải] → "Đang tải 32%" có thanh → "Đã nhận", ảnh gốc thay bản nhỏ.
+  - Nubia gửi PC một ảnh 26 MB chọn bằng 📎 (`content://`, tag 6): PC hiện bản nhỏ 471 × 640 px, **9,4 KB**, đứng đúng chiều; trình xem PC có dòng xem trước và chỉ còn [Sao chép ảnh].
+  - Xóa offer: thư mục bản nhỏ trên PC bị xóa.

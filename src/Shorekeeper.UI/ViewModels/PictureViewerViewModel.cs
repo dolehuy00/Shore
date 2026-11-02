@@ -14,18 +14,22 @@ public sealed partial class PictureViewerViewModel : ObservableObject, IDisposab
     private readonly IReadOnlyList<string> locations;
     private readonly Func<string, Stream> open;
     private readonly Func<string, string> nameOf;
+    private readonly Func<string, bool>? isPreview;
     private readonly int maxWidth;
     private readonly int maxHeight;
     private readonly Dictionary<int, Task<Bitmap?>> loaded = [];
     private bool disposed;
 
     /// <param name="open">Reads a picture where it is: a path, or a location of the OS such as content://.</param>
+    /// <param name="isPreview">Whether a location is the small copy of a picture not downloaded (docs/19-transfers-preview.md §7).</param>
     public PictureViewerViewModel(
-        IReadOnlyList<string> locations, int index, Func<string, Stream> open, Func<string, string> nameOf, int maxWidth, int maxHeight)
+        IReadOnlyList<string> locations, int index, Func<string, Stream> open, Func<string, string> nameOf, int maxWidth, int maxHeight,
+        Func<string, bool>? isPreview = null)
     {
         this.locations = locations;
         this.open = open;
         this.nameOf = nameOf;
+        this.isPreview = isPreview;
         this.maxWidth = maxWidth;
         this.maxHeight = maxHeight;
         Index = Math.Clamp(index, 0, Math.Max(0, locations.Count - 1));
@@ -46,8 +50,15 @@ public sealed partial class PictureViewerViewModel : ObservableObject, IDisposab
 
     public bool CanNext => Index < Count - 1;
 
+    /// <summary>The small copy of a picture not downloaded: there is no file of it to show in a folder or open elsewhere.</summary>
+    public bool IsPreview => isPreview?.Invoke(Location) ?? false;
+
+    public bool IsOriginal => !IsPreview;
+
+    public string PreviewText => IsPreview ? L.T("Ảnh xem trước · bấm Tải để lấy ảnh gốc") : "";
+
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Location), nameof(Name), nameof(CountText), nameof(CanPrevious), nameof(CanNext))]
+    [NotifyPropertyChangedFor(nameof(Location), nameof(Name), nameof(CountText), nameof(CanPrevious), nameof(CanNext), nameof(IsPreview), nameof(IsOriginal), nameof(PreviewText))]
     public partial int Index { get; set; }
 
     /// <summary>Null while loading, or when it cannot be shown.</summary>

@@ -12,6 +12,7 @@
 ├── restore.pending                 ← bản sao lưu chờ áp dụng ở lần khởi động sau (mã hóa như khóa), M6b
 ├── identity.pfx.dpapi.replaced-*   ← khóa cũ, giữ lại sau khi khôi phục
 ├── snapshots\{offerId}\...         ← bản sao tạm; xóa khi offer đóng
+├── previews\{người gửi}\{offerId}\… ← bản nhỏ của ảnh chưa tải (docs/19-transfers-preview.md §7)
 ├── chat\voice\{id}.ogg              ← tin nhắn thoại gửi và nhận (docs/15-chat.md §3)
 └── logs\shorekeeper-YYYYMMDD.log
 
@@ -258,6 +259,7 @@ CREATE TABLE ActivityLog (
 | `Offers` đã đóng | 90 ngày (lịch sử) |
 | `InboxOffers` đã xong/hết hạn | 90 ngày (người dùng xóa tay được) |
 | `snapshots\` | Xóa khi offer đóng; dọn phần sót lúc khởi động |
+| `previews\` | Xóa khi offer bị xóa hay thu hồi; lúc khởi động dọn của offer không còn |
 | `ChatMessages` | Không tự xóa; người dùng xóa từng tin hoặc cả hội thoại (kèm file thoại) |
 | `.skpart` | Xóa khi lỗi/hủy; dọn phần sót lúc khởi động |
 | `Peers` Unknown không thấy lại | 30 ngày |

@@ -69,6 +69,7 @@ public static class EngineHost
         builder.Logging.AddProvider(new LogcatLoggerProvider());
         builder.Services.AddSingleton<ISecretProtector, KeystoreSecretProtector>();
         builder.Services.AddSingleton<IExternalFileSource>(new ContentUriFiles(context.ContentResolver!));
+        builder.Services.AddSingleton<IThumbnailMaker, PictureThumbnailMaker>();
         builder.Services.AddSingleton<IAudioOutput>(new AndroidAudioOutput(context.ApplicationContext ?? context));
         var capture = new AndroidAudioCapture(context.ApplicationContext ?? context);
         builder.Services.AddSingleton<IAudioCapture>(capture);

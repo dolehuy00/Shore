@@ -60,6 +60,7 @@ public static class ServiceCollectionExtensions
     {
         services.TryAddSingleton<IFileTagger>(NullFileTagger.Instance);
         services.TryAddSingleton<IExternalFileSource>(NullExternalFileSource.Instance);
+        services.TryAddSingleton<IThumbnailMaker>(NullThumbnailMaker.Instance);
         services.AddSingleton<FileHasher>();
         services.AddSingleton<FileDownloader>();
         services.AddSingleton<UsageStatsService>();

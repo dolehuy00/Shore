@@ -106,6 +106,19 @@ internal static class FreePort
     }
 }
 
+/// <summary>"Small copies" of pictures (docs/19-transfers-preview.md §7) that say what they were made of.</summary>
+internal sealed class SmallCopies : IThumbnailMaker
+{
+    public static byte[] Of(byte[] picture) => [.. "small:"u8, .. picture];
+
+    public byte[]? Make(Stream picture, int maxSize)
+    {
+        using var all = new MemoryStream();
+        picture.CopyTo(all);
+        return Of(all.ToArray());
+    }
+}
+
 /// <summary>For tests of behavior only Windows has (<c>SkipUnless</c>).</summary>
 public static class TestPlatform
 {

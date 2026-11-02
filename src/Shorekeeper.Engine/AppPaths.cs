@@ -36,6 +36,9 @@ public sealed class AppPaths
 
     public string SnapshotsDirectory => Path.Combine(DataDirectory, "snapshots");
 
+    /// <summary>Small copies of pictures offered to us, shown before they are downloaded (docs/19-transfers-preview.md §7).</summary>
+    public string PreviewsDirectory => Path.Combine(DataDirectory, "previews");
+
     /// <summary>Pictures copied as pictures (not files) and sent, saved as PNG to be offered (desktop).</summary>
     public string ClipboardDirectory => Path.Combine(DataDirectory, "clipboard");
 

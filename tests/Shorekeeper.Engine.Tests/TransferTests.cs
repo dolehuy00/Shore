@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Security.Cryptography;
 using Microsoft.Extensions.DependencyInjection;
 using Shorekeeper.Core.Identity;
+using Shorekeeper.Core.Platform;
 using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Chat;
 using Shorekeeper.Engine.Monitoring;
@@ -489,6 +490,77 @@ public sealed class TransferTests : IAsyncLifetime
 
         Assert.False(await sender.Chat.RecallOfferAsync(b.Id, offerId, Ct));
         Assert.False(sender.Offers.GetOffers().Single().Recalled);
+    }
+
+    [Fact]
+    public async Task Pictures_not_downloaded_show_small_copies_until_the_offer_goes()
+    {
+        await using TestNode sender = await TestNode.StartAsync("Sender", services: s => s.AddSingleton<IThumbnailMaker>(new SmallCopies()));
+        await using TestNode c = await TestNode.StartAsync("C", "\"chatAutoDownloadPictures\": false");
+        await sender.ConnectAsync(c);
+
+        string offerId = await SendAsync(sender, [WriteFile(sender, "photo.jpg", [1, 2, 3]), WriteFile(sender, "shot.png", [4, 5, 6])], c.Id);
+        var key = new OfferKey(sender.Id, offerId);
+
+        await WaitUntil(() => c.Inbox.Get(key) is { } offer && offer.Files.All(f => f.PreviewPath is not null));
+        ReceivedOffer shown = c.Inbox.Get(key)!;
+        string photo = shown.Files.Single(f => f.RelativePath == "photo.jpg").PreviewPath!;
+        Assert.Equal(SmallCopies.Of([1, 2, 3]), await File.ReadAllBytesAsync(photo, Ct));
+        Assert.Equal("photo.jpg", Path.GetFileName(photo));
+        Assert.All(shown.Files, f => Assert.True(c.Inbox.IsPreview(f.PreviewPath!)));
+        // Seeing them is not downloading them.
+        Assert.Equal(InboxState.New, shown.State);
+        Assert.False(Directory.Exists(c.DownloadDirectory) && Directory.EnumerateFiles(c.DownloadDirectory, "*", SearchOption.AllDirectories).Any());
+        await WaitUntil(() => sender.Offers.GetOffers().Single().Recipients.Single().State != RecipientState.Pending);
+        Assert.Equal(RecipientState.Delivered, sender.Offers.GetOffers().Single().Recipients.Single().State);
+
+        await c.Inbox.RemoveAsync([key], deleteFiles: false);
+
+        Assert.All(shown.Files, f => Assert.False(File.Exists(f.PreviewPath)));
+        // Nothing of them is left, not even a folder for the sender.
+        Assert.Empty(Directory.EnumerateFileSystemEntries(Path.GetDirectoryName(Path.GetDirectoryName(Path.GetDirectoryName(Path.GetDirectoryName(photo))))!));
+    }
+
+    [Fact]
+    public async Task Small_copies_go_when_the_pictures_are_taken_back_and_only_recipients_get_them()
+    {
+        await using TestNode sender = await TestNode.StartAsync("Sender", services: s => s.AddSingleton<IThumbnailMaker>(new SmallCopies()));
+        await using TestNode c = await TestNode.StartAsync("C", "\"chatAutoDownloadPictures\": false");
+        await sender.ConnectAsync(c);
+        await sender.ConnectAsync(b);
+        string offerId = await SendAsync(sender, [WriteFile(sender, "photo.jpg", [1, 2, 3])], c.Id);
+        var key = new OfferKey(sender.Id, offerId);
+        await WaitUntil(() => c.Inbox.Get(key) is { Files: [{ PreviewPath: not null }] });
+        InboxFile file = c.Inbox.Get(key)!.Files.Single();
+
+        // A contact of the sender's the offer was not sent to.
+        using (HttpResponseMessage response = await b.Client.SendAsync(
+            sender.Id, u => new HttpRequestMessage(HttpMethod.Get, new Uri(u, $"offers/{offerId}/files/{file.FileId}/thumbnail")), TimeSpan.FromSeconds(10), Ct))
+        {
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        Assert.True(await sender.Chat.RecallOfferAsync(c.Id, offerId, Ct));
+
+        await WaitUntil(() => c.Inbox.Get(key) is { Recalled: true });
+        Assert.Null(c.Inbox.Get(key)!.Files.Single().PreviewPath);
+        Assert.False(File.Exists(file.PreviewPath));
+    }
+
+    [Fact]
+    public async Task Other_files_and_senders_that_cannot_make_small_copies_show_none()
+    {
+        await using TestNode c = await TestNode.StartAsync("C", "\"chatAutoDownloadPictures\": false");
+        await a.ConnectAsync(c);
+
+        // A has no IThumbnailMaker (like an older version); "report.pdf" is no picture.
+        string pictures = await SendAsync(a, [WriteFile(a, "photo.jpg", [1, 2, 3])], c.Id);
+        string other = await SendAsync(a, [WriteFile(a, "photo2.jpg", [1]), WriteFile(a, "report.pdf", [1])], c.Id);
+
+        await WaitForOfferAsync(c, pictures);
+        await WaitForOfferAsync(c, other);
+        await Task.Delay(500, Ct);
+        Assert.All(c.Inbox.GetOffers().SelectMany(o => o.Files), f => Assert.Null(f.PreviewPath));
     }
 
     [Theory]

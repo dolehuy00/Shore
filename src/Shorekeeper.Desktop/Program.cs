@@ -11,11 +11,11 @@ using Shorekeeper.Desktop.Views;
 using Shorekeeper.Engine;
 using Shorekeeper.Engine.Hosting;
 using Shorekeeper.Engine.Kestrel;
+using Shorekeeper.Core.Platform;
 using Shorekeeper.UI.ViewModels;
 #if WINDOWS
 using Shorekeeper.Platform.Windows;
 #else
-using Shorekeeper.Core.Platform;
 using Shorekeeper.Engine.Identity;
 #endif
 
@@ -115,6 +115,7 @@ internal static class Program
         });
 
         builder.Services.AddSerilog();
+        builder.Services.AddSingleton<IThumbnailMaker, PictureThumbnailMaker>();
         builder.Services.AddShorekeeperEngine(paths);
         builder.Services.AddTransfers();
         builder.Services.AddPeerApi();

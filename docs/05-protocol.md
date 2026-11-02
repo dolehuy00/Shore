@@ -125,6 +125,7 @@
 | Method | Path | Quyền | Mô tả |
 |---|---|---|---|
 | GET | `/offers/{offerId}/files/{fileId}` | Recipient | Dữ liệu; hỗ trợ `Range`, `If-Range`, `ETag` |
+| GET | `/offers/{offerId}/files/{fileId}/thumbnail` | Recipient | Bản nhỏ của một ảnh: JPEG cạnh dài ≤ 640 px, đứng đúng chiều, `image/jpeg`. Không phải ảnh, quá 100 MB hay không đọc được: `404`. Không đổi trạng thái người nhận ([19 §7](19-transfers-preview.md)) |
 | GET | `/offers/{offerId}/files/{fileId}/hash` | Recipient | `{ sha256 }`. Server chờ hash nền tối đa 10 giây rồi mới trả `202` (đang tính, hỏi lại sau) |
 | POST | `/offers/{offerId}/receipts` | Recipient | `{ status: "downloading" \| "completed" \| "partial" \| "failed" \| "declined" }`. `partial` = đã lấy file mình chọn, offer vẫn mở |
 
