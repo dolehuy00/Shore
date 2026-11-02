@@ -384,8 +384,15 @@
     <Style Selector="Button.reaction.mine">
       <Setter Property="BorderBrush" Value="{DynamicResource AccentButtonBackground}" />
     </Style>
+    <!-- On our own bubble a see-through chip took the accent color and was lost in it: a solid one, in the card color. -->
+    <Style Selector="Border.bubble.mine Button.reaction">
+      <Setter Property="Background" Value="{DynamicResource Sk.CardBackground}" />
+    </Style>
+    <Style Selector="Border.bubble.mine Button.reaction TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource ButtonForeground}" />
+    </Style>
     <Style Selector="Border.bubble.mine Button.reaction.mine">
-      <Setter Property="BorderBrush" Value="White" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Sk.MutedText}" />
     </Style>
     <Style Selector="Button.emoji">
       <Setter Property="Background" Value="Transparent" />
