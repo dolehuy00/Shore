@@ -74,7 +74,7 @@ public sealed partial class AudioService : IDisposable
     private const int MaxWrongPasswords = 5;
 
     private readonly PeerClient client;
-    private readonly TrustStore trust;
+    private readonly PeerNaming naming;
     private readonly LocalPresence presence;
     private readonly SettingsService settings;
     private readonly AudioPasswords passwords;
@@ -96,7 +96,7 @@ public sealed partial class AudioService : IDisposable
 
     public AudioService(
         PeerClient client,
-        TrustStore trust,
+        PeerNaming naming,
         LocalPresence presence,
         SettingsService settings,
         AudioPasswords passwords,
@@ -107,7 +107,7 @@ public sealed partial class AudioService : IDisposable
         IMediaKeys? mediaKeys = null)
     {
         this.client = client;
-        this.trust = trust;
+        this.naming = naming;
         this.presence = presence;
         this.settings = settings;
         this.passwords = passwords;
@@ -790,7 +790,8 @@ public sealed partial class AudioService : IDisposable
         }
     }
 
-    private string NameOf(DeviceId peer) => trust.Get(peer)?.ShownName ?? peer.ShortForm;
+    /// <summary>A contact, or a fellow member of a group (docs/21-chat-audio.md), as named everywhere else.</summary>
+    private string NameOf(DeviceId peer) => naming.Of(peer);
 
     private static bool IsValidSessionId(string? id) => id is { Length: > 0 and <= 64 } && id.All(char.IsAsciiLetterOrDigit);
 

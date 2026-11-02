@@ -38,6 +38,7 @@
 | 18 | [Tin nhắn: tìm, trả lời, @nhắc tên, sửa, cảm xúc](18-chat-extras.md) | C6: tìm theo nội dung, trả lời trích dẫn, @nhắc tên, sửa tin, thả cảm xúc |
 | 19 | [Đang chuyển và xem trước file](19-transfers-preview.md) | T1–T3: một chỗ cho mọi việc đang nhận / gửi, xem ảnh trong app, ảnh đúng chiều, ảnh chưa tải hiện bản nhỏ |
 | 20 | [Điện thoại làm Host nhóm](20-phone-host.md) | H1–H3: điện thoại tạo và quản lý nhóm, duyệt từ thông báo, giữ online bằng Chạy nền |
+| 21 | [Âm thanh trong Tin nhắn](21-chat-audio.md) | Nghe ngay trong hội thoại, phát cho người / nhóm từ ⋮, người cùng nhóm nghe được |
 | — | [Quyết định kiến trúc (ADR)](decisions.md) | Nhật ký quyết định & lý do |
 | — | [Câu hỏi mở](open-questions.md) | Những điểm cần chốt thêm |
 

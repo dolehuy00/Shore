@@ -76,6 +76,8 @@ public sealed partial class MainViewModel : ObservableObject
             : Task.FromResult(false);
         Audio.CanChooseSource = true;
         Audio.Notice += (_, message) => Notice = message;
+        // "Nghe" and "Phát âm thanh" in a conversation (docs/21-chat-audio.md).
+        chat.Audio = Audio;
         Audio.AskPassword = AskPasswordAsync;
         Settings = settingsTab(this);
         Chat = chat;

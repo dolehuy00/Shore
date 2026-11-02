@@ -72,6 +72,7 @@
                 <MenuItem Header="{l:T 'Đặt tên gợi nhớ…'}" Command="{Binding RenameCurrentCommand}" IsVisible="{Binding !Current.IsGroup, FallbackValue=False}" />
                 <MenuItem Header="{l:T 'Thành viên'}" Command="{Binding ShowMembersCommand}" IsVisible="{Binding Current.IsGroup, FallbackValue=False}" />
                 <MenuItem Header="{Binding Current.MuteText, FallbackValue=''}" Command="{Binding ToggleMuteCommand}" IsVisible="{Binding Current.IsGroup, FallbackValue=False}" />
+                <MenuItem Header="{Binding PlayAudioText}" Command="{Binding TogglePlayAudioCommand}" IsVisible="{Binding CanPlayAudio}" />
                 <MenuItem Header="{l:T 'Xóa hội thoại…'}" Command="{Binding DeleteConversationCommand}" />
               </MenuFlyout>
             </Button.Flyout>
@@ -85,6 +86,24 @@
           </StackPanel>
           </Grid>
         </Border>
+
+        <!-- Someone here plays their sound (docs/21-chat-audio.md): listen without leaving the conversation. -->
+        <ItemsControl DockPanel.Dock="Top" ItemsSource="{Binding PlayingHere}" IsVisible="{Binding HasPlayingHere}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="ui:AudioSourceItem">
+              <Border Background="#1A3B82F6" Padding="20,6" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource Sk.Divider}">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                  <PathIcon Data="{StaticResource Icon.Speaker}" Width="16" Height="16" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="1" Text="{Binding PlayingText}" Margin="10,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                  <Panel Grid.Column="2">
+                    <Button Classes="accent" Content="{l:T 'Nghe'}" Command="{Binding ListenCommand}" IsVisible="{Binding CanListen}" Padding="12,4" />
+                    <Button Content="{l:T 'Dừng nghe'}" Command="{Binding StopListeningCommand}" IsVisible="{Binding IsListening}" Padding="12,4" />
+                  </Panel>
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
 
         <!-- "Chọn nhiều": what to do with the checked messages. -->
         <Border DockPanel.Dock="Top" Classes="selectionbar" IsVisible="{Binding IsSelecting}" Padding="16,8" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource Sk.Divider}">

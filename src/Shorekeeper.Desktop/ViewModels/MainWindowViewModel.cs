@@ -185,6 +185,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
         dialogs.TextSent += (_, target) => OpenChat(target);
         dialogs.ChatRequested += (_, target) => OpenChat(target);
         audio.Notice += (_, message) => dialogs.Ask(L.T("Âm thanh"), [message], [], NavPage.Audio, _ => { });
+        // "Nghe" and "Phát âm thanh" in a conversation (docs/21-chat-audio.md).
+        chat.Audio = audio;
         audio.AskPassword = question => question.Masked
             ? dialogs.PromptPasswordAsync(question.Title, question.Label, question.OkText, confirm: false, _ => Task.FromResult<string?>(null))
             : dialogs.PromptAsync(question.Title, question.Label, "", question.OkText);

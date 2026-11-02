@@ -200,7 +200,7 @@ public static class PeerApiEndpoints
         // ───────────── Sound (docs/05-protocol.md §4.7): contacts only ─────────────
 
         // On the device playing its sound: a contact starts or stops listening.
-        api.Map("POST", "/audio/listeners", RequiredAccess.Trusted, async request =>
+        api.Map("POST", "/audio/listeners", RequiredAccess.TrustedOrGroupMember, async request =>
             await request.ReadJsonAsync<AudioListenBody>() is not { } body ? Invalid()
             : audio.HandleJoin(request.Caller, request.RemoteAddress, body) switch
             {
@@ -215,12 +215,12 @@ public static class PeerApiEndpoints
             });
 
         // A listener presses a media key here ("Điều khiển"): only in the session it listens with.
-        api.Map("POST", "/audio/listeners/{sessionId}/keys", RequiredAccess.Trusted, async request =>
+        api.Map("POST", "/audio/listeners/{sessionId}/keys", RequiredAccess.TrustedOrGroupMember, async request =>
             await request.ReadJsonAsync<AudioKeyBody>() is not { } body || !MediaKeyNames.TryParse(body.Key, out MediaKey key) ? Invalid()
             : audio.HandleKey(request.Caller, request.Route("sessionId"), key) ? NoContent()
             : NotFound());
 
-        api.Map("DELETE", "/audio/listeners/{sessionId}", RequiredAccess.Trusted, request =>
+        api.Map("DELETE", "/audio/listeners/{sessionId}", RequiredAccess.TrustedOrGroupMember, request =>
         {
             audio.HandleLeave(request.Caller, request.Route("sessionId"));
             return NoContent();
@@ -228,7 +228,7 @@ public static class PeerApiEndpoints
 
         // On the listener: the sound it listens to was turned off.
         // An older source sends no body: it turned playing off.
-        api.Map("POST", "/audio/listening/{sessionId}/ended", RequiredAccess.Trusted, async request =>
+        api.Map("POST", "/audio/listening/{sessionId}/ended", RequiredAccess.TrustedOrGroupMember, async request =>
         {
             AudioEndedBody? body = await request.ReadJsonAsync<AudioEndedBody>();
             audio.HandleEnded(request.Caller, request.Route("sessionId"), body?.Reason);
@@ -236,7 +236,7 @@ public static class PeerApiEndpoints
         });
 
         // On the listener: the source now lets us press its media keys, or no longer.
-        api.Map("POST", "/audio/listening/{sessionId}/control", RequiredAccess.Trusted, async request =>
+        api.Map("POST", "/audio/listening/{sessionId}/control", RequiredAccess.TrustedOrGroupMember, async request =>
         {
             if (await request.ReadJsonAsync<AudioControlBody>() is not { } body)
             {

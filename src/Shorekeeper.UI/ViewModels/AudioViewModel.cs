@@ -10,6 +10,7 @@ using Shorekeeper.Core.Trust;
 using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Audio;
 using Shorekeeper.Engine.Discovery;
+using Shorekeeper.Engine.Groups;
 using Shorekeeper.Engine.Settings;
 using Shorekeeper.Engine.Trust;
 
@@ -86,6 +87,9 @@ public sealed partial class AudioSourceItem(AudioViewModel owner, DeviceId devic
 
     public bool CanListen => !IsListening;
 
+    /// <summary>In a conversation (docs/21-chat-audio.md): "Mai đang phát âm thanh", or "Đang nghe âm thanh từ Mai".</summary>
+    public string PlayingText => IsListening ? L.F("Đang nghe âm thanh từ {0}", Name) : L.F("{0} đang phát âm thanh", Name);
+
     /// <summary>Listening needs its password (asked once, then remembered).</summary>
     public bool IsLocked { get; } = isLocked;
 
@@ -101,14 +105,16 @@ public sealed partial class AudioSourceItem(AudioViewModel owner, DeviceId devic
 
 /// <summary>
 /// The "Âm thanh" page on the computer and the tab on the phone (docs/10-ux.md §12): this device's sound for contacts
-/// that choose to listen (optionally with a password), the contacts playing theirs, and how much delay listening allows;
-/// on Windows also phones playing into the computer over Bluetooth.
+/// and fellow group members that choose to listen (optionally with a password), those playing theirs
+/// (docs/21-chat-audio.md), and how much delay listening allows; on Windows also phones playing into the computer over
+/// Bluetooth.
 /// </summary>
 public sealed partial class AudioViewModel : ObservableObject
 {
     private readonly AudioService audio;
     private readonly PeerDirectory directory;
     private readonly TrustStore trust;
+    private readonly GroupStore groups;
     private readonly PeerNaming naming;
     private readonly SettingsService settings;
     private readonly IBluetoothAudioReceiver? bluetooth;
@@ -119,9 +125,10 @@ public sealed partial class AudioViewModel : ObservableObject
     /// <param name="bluetooth">Null where the platform cannot receive Bluetooth audio (Android, Linux, macOS).</param>
     /// <param name="outputDevices">Null where "Nghe" always plays on the default device (Android).</param>
     public AudioViewModel(
-        AudioService audio, PeerDirectory directory, TrustStore trust, SettingsService settings, PeerNaming naming,
+        AudioService audio, PeerDirectory directory, TrustStore trust, GroupStore groups, SettingsService settings, PeerNaming naming,
         IBluetoothAudioReceiver? bluetooth = null, IAudioOutputDevices? outputDevices = null)
     {
+        this.groups = groups;
         this.naming = naming;
         this.audio = audio;
         this.directory = directory;
@@ -141,8 +148,12 @@ public sealed partial class AudioViewModel : ObservableObject
         audio.StatsChanged += (_, stats) => Dispatcher.UIThread.Post(() => ShowStats(stats));
         directory.Changed += (_, _) => Dispatcher.UIThread.Post(RefreshSources);
         trust.Changed += (_, _) => Dispatcher.UIThread.Post(Refresh);
+        groups.Changed += (_, _) => Dispatcher.UIThread.Post(RefreshSources);
         Refresh();
     }
+
+    /// <summary>"Phát âm thanh" came on, once what the system asks first was allowed. Raised on the UI thread.</summary>
+    public event EventHandler? PlayingStarted;
 
     /// <summary>Something the user should read: the sound stopped, a source refused. Raised on the UI thread.</summary>
     public event EventHandler<string>? Notice;
@@ -178,7 +189,7 @@ public sealed partial class AudioViewModel : ObservableObject
     [ObservableProperty]
     public partial bool HasPassword { get; set; }
 
-    /// <summary>Contacts playing their sound now, and the one we listen to.</summary>
+    /// <summary>Contacts and fellow group members playing their sound now, and the one we listen to.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasNoSources))]
     public partial IReadOnlyList<AudioSourceItem> Sources { get; set; } = [];
@@ -472,6 +483,10 @@ public sealed partial class AudioViewModel : ObservableObject
             }
 
             audio.SetPlaying(on);
+            if (on)
+            {
+                PlayingStarted?.Invoke(this, EventArgs.Empty);
+            }
         }
         catch (InvalidOperationException ex)
         {
@@ -546,7 +561,8 @@ public sealed partial class AudioViewModel : ObservableObject
         List<AudioSourceItem> items =
         [
             .. directory.Snapshot()
-                .Where(p => (p.IsPlayingAudio || p.DeviceId == listeningTo) && trust.GetLevel(p.DeviceId) == TrustLevel.Trusted)
+                .Where(p => (p.IsPlayingAudio || p.DeviceId == listeningTo)
+                    && (trust.GetLevel(p.DeviceId) == TrustLevel.Trusted || groups.SharesGroup(p.DeviceId)))
                 .Select(p => new AudioSourceItem(this, p.DeviceId, NameOf(p.DeviceId, p), IsPhone(p.DeviceId), p.DeviceId == listeningTo, p.IsAudioLocked)),
         ];
         items.Sort((x, y) => CultureInfo.CurrentCulture.CompareInfo.Compare(x.Name, y.Name, CompareOptions.IgnoreCase));

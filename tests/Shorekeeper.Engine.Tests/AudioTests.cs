@@ -281,7 +281,7 @@ public sealed class AudioTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Only_contacts_may_listen()
+    public async Task Strangers_may_not_listen()
     {
         phone.Sees(pc);
         pc.Audio.SetPlaying(true);
@@ -290,6 +290,30 @@ public sealed class AudioTests : IAsyncLifetime
 
         Assert.Equal(403, error.Status);
         Assert.Empty(pc.Audio.Listeners);
+    }
+
+    [Fact]
+    public async Task A_fellow_group_member_listens_without_being_a_contact()
+    {
+        pc.Sees(phone);
+        phone.Sees(pc);
+        var group = await pc.Groups.CreateAsync("Phòng họp", Ct);
+        await pc.Groups.InviteAsync(group.Id, phone.Id, "Phone", "Phone", Ct);
+        await WaitUntil(() => phone.Groups.GetInvitations().Count == 1);
+        await phone.Groups.AcceptInvitationAsync(phone.Groups.GetInvitations().Single(), Ct);
+        await WaitUntil(() => phone.GroupStore.Get(group.Id) is { Members.Count: 2 });
+        pc.Audio.SetPlaying(true);
+
+        await phone.Audio.ListenAsync(pc.Id, cancellationToken: Ct);
+
+        await WaitUntil(() => headphones.SoundFrames > 20);
+        Assert.Equal(phone.Id, Assert.Single(pc.Audio.Listeners).PeerId);
+
+        // Out of the group, out of the sound: a stranger again.
+        await phone.Audio.StopListeningAsync();
+        await pc.Groups.RemoveMemberAsync(group.Id, phone.Id);
+        var error = await Assert.ThrowsAsync<PeerApiException>(() => phone.Audio.ListenAsync(pc.Id, cancellationToken: Ct));
+        Assert.Equal(403, error.Status);
     }
 
     [Fact]

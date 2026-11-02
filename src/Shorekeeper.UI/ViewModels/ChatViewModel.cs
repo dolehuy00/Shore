@@ -1560,9 +1560,119 @@ public sealed partial class ChatViewModel : ObservableObject
     internal Stream OpenRead(string location) =>
         external?.Owns(location) == true ? external.OpenRead(location) : File.OpenRead(location);
 
+    // ───────────── Sound (docs/21-chat-audio.md) ─────────────
+
+    /// <summary>A message inviting to listen goes only if playing comes on within this long of asking for it here.</summary>
+    private static readonly TimeSpan InviteWait = TimeSpan.FromMinutes(2);
+
+    private AudioViewModel? audio;
+
+    /// <summary>The conversation "Phát âm thanh cho …" was chosen in, until playing comes on.</summary>
+    private (ChatPersonViewModel Person, DateTimeOffset At)? inviting;
+
+    /// <summary>The Âm thanh page's, set by each app: listening and playing here work as there (password, permission, notices).</summary>
+    public AudioViewModel? Audio
+    {
+        get => audio;
+        set
+        {
+            audio = value;
+            if (value is not null)
+            {
+                value.PropertyChanged += (_, e) =>
+                {
+                    if (e.PropertyName is nameof(AudioViewModel.Sources) or nameof(AudioViewModel.IsPlaying))
+                    {
+                        RefreshAudio();
+                    }
+                };
+                value.PlayingStarted += (_, _) => _ = InviteToListenAsync();
+            }
+
+            RefreshAudio();
+        }
+    }
+
+    /// <summary>People of the open conversation playing their sound: "Mai đang phát âm thanh · [Nghe]" on top.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPlayingHere))]
+    public partial IReadOnlyList<AudioSourceItem> PlayingHere { get; set; } = [];
+
+    public bool HasPlayingHere => PlayingHere.Count > 0;
+
+    /// <summary>This device can play its sound: "Phát âm thanh cho …" / "Tắt phát âm thanh" in ⋮.</summary>
+    [ObservableProperty]
+    public partial bool CanPlayAudio { get; set; }
+
+    [ObservableProperty]
+    public partial string PlayAudioText { get; set; } = "";
+
+    /// <summary>Plays this device's sound and, once it plays, tells the conversation how to listen; or stops playing.</summary>
+    [RelayCommand]
+    private void TogglePlayAudio()
+    {
+        if (audio is null || Current is not { } person)
+        {
+            return;
+        }
+
+        if (audio.IsPlaying)
+        {
+            inviting = null;
+            audio.IsPlaying = false;
+            return;
+        }
+
+        inviting = (person, DateTimeOffset.UtcNow);
+        audio.IsPlaying = true;
+    }
+
+    private async Task InviteToListenAsync()
+    {
+        if (inviting is not { } invite || DateTimeOffset.UtcNow - invite.At > InviteWait)
+        {
+            return;
+        }
+
+        inviting = null;
+        string text = L.T("🔊 Mình đang phát âm thanh: bấm Nghe ở đầu cuộc trò chuyện để nghe.");
+        try
+        {
+            if (invite.Person.GroupId is { } groupId)
+            {
+                await groupChat.SendTextAsync(groupId, text, CancellationToken.None);
+            }
+            else
+            {
+                await chat.SendTextAsync(invite.Person.Peer, text, CancellationToken.None);
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            Notice = ex.Message;
+        }
+    }
+
+    private void RefreshAudio()
+    {
+        CanPlayAudio = audio?.CanPlay == true && Current is not null;
+        PlayAudioText = audio?.IsPlaying == true ? L.T("Tắt phát âm thanh")
+            : Current is { } person ? L.F("Phát âm thanh cho {0}", person.Name)
+            : "";
+        HashSet<DeviceId> here = Current is { GroupId: { } groupId } ? [.. (groupChat.OthersIn(groupId) ?? []).Select(m => m.DeviceId)]
+            : Current is { } peer ? [peer.Peer]
+            : [];
+        List<AudioSourceItem> playing = [.. (audio?.Sources ?? []).Where(s => here.Contains(s.DeviceId))];
+        if (!playing.SequenceEqual(PlayingHere))
+        {
+            PlayingHere = playing;
+        }
+    }
+
     /// <summary>Names, online dots and whether the open conversation can be written to.</summary>
     private void RefreshPresence()
     {
+        RefreshAudio();
         Dictionary<DeviceId, PeerInfo> live = directory.Snapshot().ToDictionary(p => p.DeviceId);
         foreach (ChatPersonViewModel person in Conversations)
         {

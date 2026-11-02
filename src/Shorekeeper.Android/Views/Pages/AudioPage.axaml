@@ -19,7 +19,7 @@
             <StackPanel Grid.Column="1" Spacing="2" Margin="12,0,8,0" VerticalAlignment="Center">
               <TextBlock Text="{l:T 'Phát âm thanh'}" FontWeight="SemiBold" />
               <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
-                         Text="{l:T 'Máy đã kết nối thấy máy này đang phát và tự bấm Nghe khi muốn. Tắt là mọi máy đang nghe đều dừng.'}" />
+                         Text="{l:T 'Máy đã kết nối và người cùng nhóm thấy máy này đang phát và tự bấm Nghe khi muốn. Tắt là mọi máy đang nghe đều dừng.'}" />
             </StackPanel>
             <ToggleSwitch Grid.Column="2" IsChecked="{Binding IsPlaying}" IsEnabled="{Binding CanPlay}" OnContent="" OffContent=""
                           MinWidth="0" VerticalAlignment="Center" AutomationProperties.Name="{l:T 'Phát âm thanh'}" />
@@ -34,7 +34,7 @@
             <Grid ColumnDefinitions="Auto,*">
               <PathIcon Data="{StaticResource Icon.Lock}" Width="14" Height="14" VerticalAlignment="Center" />
               <TextBlock Grid.Column="1" Classes="muted" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" Margin="8,0,0,0"
-                         Text="{l:T 'Không có mật khẩu: máy đã kết nối nào cũng nghe được.'}" IsVisible="{Binding !HasPassword}" />
+                         Text="{l:T 'Không có mật khẩu: máy đã kết nối và người cùng nhóm nào cũng nghe được.'}" IsVisible="{Binding !HasPassword}" />
               <TextBlock Grid.Column="1" Classes="muted" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" Margin="8,0,0,0"
                          Text="{l:T 'Có mật khẩu: máy muốn nghe nhập một lần, sau đó tự nhớ.'}" IsVisible="{Binding HasPassword}" />
             </Grid>

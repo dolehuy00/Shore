@@ -475,7 +475,7 @@
   "Ổn định: cho nghe nhạc": "Stable: for music",
   "Bảo toàn: không hụt tiếng, trễ hơn": "Preserve: no gaps, more delay",
   "Âm thanh": "Sound",
-  "Máy đã kết nối thấy máy này đang phát và tự bấm Nghe khi muốn. Tắt là mọi máy đang nghe đều dừng.": "Connected devices see this computer is playing and tap Listen when they want. Turning it off stops everyone listening.",
+  "Máy đã kết nối và người cùng nhóm thấy máy này đang phát và tự bấm Nghe khi muốn. Tắt là mọi máy đang nghe đều dừng.": "Connected devices and fellow group members see this device playing and tap Listen when they like. Turning it off stops everyone listening.",
   "Chưa được phép thu âm thanh của điện thoại.": "The phone's sound may not be captured yet.",
   "Không thu được âm thanh của điện thoại.": "Could not capture the phone's sound.",
   "Đang phát âm thanh của điện thoại": "Playing this phone's sound",
@@ -483,10 +483,10 @@
   "Chưa máy nào đang phát.": "No device is playing.",
   "Độ trễ khi nghe": "Listening delay",
   "Thấp trễ ít nhưng đôi khi hụt tiếng lúc Wi-Fi chập chờn; Ổn định trễ hơn một chút nhưng ít hụt; Bảo toàn xin gửi lại gói bị mất và chịu trễ thêm (có khi vài giây) khi mạng kém để không hụt nhịp nào. Áp dụng từ lần nghe sau.": "Low has little delay but may cut out when Wi-Fi hiccups; Stable is a little later but rarely cuts out; Preserve asks again for lost packets and takes on more delay (seconds, at times) on a poor network so not a beat is missed. Applies from the next time you listen.",
-  "Máy đã kết nối đang bật Phát âm thanh hiện ở đây.": "Connected devices with Play sound on show here.",
+  "Máy đã kết nối và người cùng nhóm đang bật Phát âm thanh hiện ở đây.": "Connected devices and fellow group members playing their sound show here.",
   "Phát lấy tiếng từ loa mặc định của Windows; Nghe phát ra thiết bị chọn ở Phát ra. Bật nhanh Phát âm thanh từ biểu tượng khay.": "Play sound takes what Windows' default speakers play; Listen plays on the device chosen in Play on. Turn Play sound on quickly from the tray icon.",
   "Phát âm thanh cần quyền micrô. Nếu đã từ chối, bật lại trong Cài đặt → Ứng dụng → Shorekeeper → Quyền.": "Play sound needs the microphone permission. If it was refused, turn it on in Settings → Apps → Shorekeeper → Permissions.",
-  "Không có mật khẩu: máy đã kết nối nào cũng nghe được.": "No password: any connected device can listen.",
+  "Không có mật khẩu: máy đã kết nối và người cùng nhóm nào cũng nghe được.": "No password: any connected device or fellow group member can listen.",
   "Có mật khẩu: máy muốn nghe nhập một lần, sau đó tự nhớ.": "Password set: a device that wants to listen types it once, then remembers it.",
   "Đặt mật khẩu…": "Set password…",
   "Đổi mật khẩu…": "Change password…",
@@ -770,5 +770,8 @@
   "Tạo": "Create",
   "Tắt Chạy nền?": "Turn off Run in the background?",
   "Bạn đang làm Host nhóm. Khi tắt màn hình, nhóm sẽ thường \"Host offline\": không ai xin vào, được duyệt hay biết ai bị loại cho tới khi bạn mở lại app.": "You host a group. With the screen off it will often be \"Host offline\": nobody can ask to join, be approved or learn who was removed until you open the app again.",
-  "Tắt": "Turn off"
+  "Tắt": "Turn off",
+  "🔊 Mình đang phát âm thanh: bấm Nghe ở đầu cuộc trò chuyện để nghe.": "🔊 I'm playing my sound: tap Listen at the top of the conversation to hear it.",
+  "Tắt phát âm thanh": "Stop playing sound",
+  "Phát âm thanh cho {0}": "Play sound for {0}"
 }
