@@ -13,12 +13,19 @@ namespace Shorekeeper.Android;
 /// The only activity, also the target of the share sheet ("Chia sẻ → Shorekeeper"). singleTask: Avalonia has one
 /// main view, so a share must reach this activity rather than create a second one (docs/14-android.md, A0).
 /// </summary>
-[Activity(Label = "Shorekeeper", Theme = "@style/ShorekeeperTheme", MainLauncher = true, Exported = true,
+[Activity(Label = Name, Theme = "@style/ShorekeeperTheme", MainLauncher = true, Exported = true,
     LaunchMode = LaunchMode.SingleTask,
     ConfigurationChanges = ConfigChanges.Orientation | ConfigChanges.ScreenSize | ConfigChanges.UiMode)]
 [IntentFilter([Intent.ActionSend, Intent.ActionSendMultiple], Categories = [Intent.CategoryDefault], DataMimeType = "*/*")]
 public sealed class MainActivity : AvaloniaMainActivity
 {
+    /// <summary>The name on the home screen: the Debug build installs beside the real app (docs/22-scale.md S3).</summary>
+#if DEBUG
+    private const string Name = "Shorekeeper Debug";
+#else
+    private const string Name = "Shorekeeper";
+#endif
+
     /// <summary>Tab to show when a notification opens the app.</summary>
     public const string ExtraTab = "tab";
 

@@ -1,6 +1,6 @@
 # 22 — Dữ liệu cỡ thật (S1–S3)
 
-> Trạng thái: **đã đo và sửa phần cơ sở dữ liệu** (2026-11-02); **S1, S2 đã làm** (trang 50 tin), S3 (đo trên điện thoại) đang làm.
+> Trạng thái: **đã đo và sửa phần cơ sở dữ liệu** (2026-11-02); **S1–S3 đã làm** (trang 50 tin, đo cả PC và điện thoại).
 
 Test thường chỉ có vài tin, vài file. Đợt này đo trên lượng dữ liệu của một máy dùng vài năm.
 
@@ -19,6 +19,14 @@ Test thường chỉ có vài tin, vài file. Đợt này đo trên lượng d�
 
 - `ScaleTests` (chỉ chạy khi `SHOREKEEPER_SCALE=1`): đổ dữ liệu vào một node thử, đo từng bước ba lần, báo lần đầu và trung vị, hỏng khi quá ngưỡng người dùng thấy chậm.
 - App thật trên thư mục riêng: bản **Debug** của app PC đọc `SHOREKEEPER_DATA_DIR` (không có ở bản phát hành), test `Fill_an_app_folder` đổ dữ liệu vào thư mục đó. Đo bằng cách bấm qua PostMessage và hỏi cửa sổ bằng `WM_NULL` (không dùng UI Automation, vì nó buộc app dựng thêm đối tượng cho từng mục).
+- Điện thoại: bản **Debug** của app điện thoại là một app khác (`dev.shorekeeper.app.debug`, tên "Shorekeeper Debug", file nhận vào Download/Shorekeeper Debug), cài cạnh app thật mà không đụng dữ liệu của nó. Cách đổ dữ liệu:
+  1. `dotnet build src/Shorekeeper.Android -c Debug -p:EmbedAssembliesIntoApk=true -p:UseInterpreter=false`, cài APK, mở một lần rồi tắt.
+  2. Chép dữ liệu ra: `adb exec-out run-as dev.shorekeeper.app.debug tar -cf - -C files Shorekeeper`.
+  3. Mã thiết bị của app: app điện thoại chỉ ghi log vào logcat, nên lấy từ chứng chỉ TLS của nó (SHA-256 của khóa công khai, base32). Chạy `Fill_an_app_folder` với `SHOREKEEPER_SCALE_SEED_DIR` và `SHOREKEEPER_SCALE_SEED_ID`.
+  4. Chép `shorekeeper.db` vào lại qua `/data/local/tmp` và `run-as … cat >`, xóa `-wal`/`-shm` cũ.
+  5. Đo xong thì gỡ app.
+
+  Đo bằng `input tap`/`input swipe`, chụp màn hình tới khi đứng yên, bộ nhớ từ `dumpsys meminfo`, nghẽn luồng giao diện từ "Skipped N frames" trong logcat.
 
 ## 3. Kết quả
 
@@ -72,6 +80,19 @@ Nguyên nhân:
 
 Lặt vặt: nút "Xem" trên thẻ file chưa dịch (hiện tiếng Việt khi app tiếng Anh). Đã sửa.
 
+### App điện thoại (Nubia Z2577, Android 16; bản Debug, chạy JIT nên chậm hơn bản phát hành)
+
+| Việc | Kết quả |
+|---|---|
+| Mở app | 6,1 s (bản phát hành biên dịch trước: khoảng 2 s) |
+| Mở hội thoại **50 000** tin | đứng yên sau khoảng 2 s (gồm hiệu ứng chuyển trang), bộ nhớ 320 → 350 MB |
+| Vuốt lên 30 lần (về tin 5 ngày trước) | mượt, 400 MB |
+| Mở nhóm 100 người, 30 000 tin | 1,8 s; cảm xúc, "Đã xem 99/99" đúng |
+| Trang File, vuốt 30 lần qua 2 000 lượt nhận; tab Đã gửi | 1,3 s; 0,6 s; 410 MB |
+| Tìm "ke toan" (có kết quả) | kết quả sau 2,2 s, tính cả lúc gõ |
+
+Không lần nào Android báo luồng giao diện bỏ khung hình.
+
 ## 4. Đã làm
 
 ### S1 — Tin nhắn theo trang
@@ -90,7 +111,7 @@ Lặt vặt: nút "Xem" trên thẻ file chưa dịch (hiện tiếng Việt khi
 
 ### S3 — Đo lại
 
-- `ScaleTests` có thêm ngưỡng cho phần đọc theo trang; app PC đã đo lại (§3). Còn đo trên điện thoại: bản Debug của app điện thoại dùng dữ liệu riêng (§5 Q3).
+- `ScaleTests` có thêm ngưỡng cho phần đọc theo trang; app PC và app điện thoại đã đo lại (§2, §3).
 
 ## 5. Đã chốt
 

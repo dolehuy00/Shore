@@ -101,15 +101,17 @@ public sealed class ScaleTests
 
     /// <summary>
     /// Fills the app folder SHOREKEEPER_SCALE_SEED_DIR (made by the Debug app started with SHOREKEEPER_DATA_DIR, then
-    /// closed) for trying the app on it (docs/22-scale.md §3). Its own device id is read from its log.
+    /// closed) for trying the app on it (docs/22-scale.md §2). Its own device id is read from its log, or given in
+    /// SHOREKEEPER_SCALE_SEED_ID.
     /// </summary>
     [Fact(Skip = "Set SHOREKEEPER_SCALE_SEED_DIR to an app folder to fill.", SkipType = typeof(ScaleRun), SkipUnless = nameof(ScaleRun.SeedsFolder))]
     public void Fill_an_app_folder()
     {
         string folder = Environment.GetEnvironmentVariable("SHOREKEEPER_SCALE_SEED_DIR")!;
-        string log = Directory.GetFiles(Path.Combine(folder, "logs"), "*.log").Order().Last();
-        string me = System.Text.RegularExpressions.Regex.Match(
-            File.ReadAllText(log), "(?:Created new|Loaded) device identity ([a-z2-7]{52})").Groups[1].Value;
+        // The phone logs to logcat only: its identity is given (docs/22-scale.md S3).
+        string me = Environment.GetEnvironmentVariable("SHOREKEEPER_SCALE_SEED_ID") is { Length: > 0 } given ? given : System.Text.RegularExpressions.Regex.Match(
+            File.ReadAllText(Directory.GetFiles(Path.Combine(folder, "logs"), "*.log").Order().Last()),
+            "(?:Created new|Loaded) device identity ([a-z2-7]{52})").Groups[1].Value;
 
         ScaleSeed seed = ScaleData.Seed(Path.Combine(folder, "shorekeeper.db"), DeviceId.Parse(me), new ScaleSize());
 

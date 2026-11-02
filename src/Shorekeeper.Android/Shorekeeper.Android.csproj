@@ -30,6 +30,14 @@
     <AndroidEnableProfiledAot>false</AndroidEnableProfiledAot>
   </PropertyGroup>
 
+  <!--
+    Debug installs beside the real app, with its own data (docs/22-scale.md S3): trying it on prepared data never
+    touches the user's messages. Being debuggable, its data can be copied in with "adb shell run-as".
+  -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <ApplicationId>dev.shorekeeper.app.debug</ApplicationId>
+  </PropertyGroup>
+
   <ItemGroup>
     <AvaloniaResource Include="Assets\**" />
   </ItemGroup>

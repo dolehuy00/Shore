@@ -26,6 +26,13 @@ namespace Shorekeeper.Android;
 /// </summary>
 public static class EngineHost
 {
+    /// <summary>Received files; the Debug build, beside the real app, keeps its own (docs/22-scale.md S3).</summary>
+#if DEBUG
+    private const string DownloadFolder = "Shorekeeper Debug";
+#else
+    private const string DownloadFolder = "Shorekeeper";
+#endif
+
     private static Task<IServiceProvider>? starting;
     private static WifiManager.MulticastLock? multicastLock;
 
@@ -39,7 +46,7 @@ public static class EngineHost
         {
             var paths = new AppPaths(
                 Path.Combine(context.FilesDir!.AbsolutePath, "Shorekeeper"),
-                Path.Combine(DownloadDirectory(), "Shorekeeper"));
+                Path.Combine(DownloadDirectory(), DownloadFolder));
             paths.EnsureCreated();
 
             // The UI is built while the engine starts, so the language and theme chosen in Settings must be in place first.
