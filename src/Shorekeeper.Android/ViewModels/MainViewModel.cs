@@ -121,6 +121,8 @@ public sealed partial class MainViewModel : ObservableObject
 
         directory.Changed += (_, _) => Dispatcher.UIThread.Post(RefreshPeers);
         trust.Changed += (_, _) => Dispatcher.UIThread.Post(RefreshPeers);
+        // "Mời vào nhóm…" on the cards follows the groups we host and who is in them.
+        groups.Changed += (_, _) => Dispatcher.UIThread.Post(RefreshPeers);
         inbox.OfferArrived += (_, _) => Dispatcher.UIThread.Post(RefreshOffers);
         inbox.Changed += (_, _) => Dispatcher.UIThread.Post(RefreshOffers);
         offers.Changed += (_, _) => Dispatcher.UIThread.Post(RefreshSent);
@@ -251,6 +253,13 @@ public sealed partial class MainViewModel : ObservableObject
     public partial ShareViewModel? Share { get; set; }
 
     public bool HasShare => Share is not null;
+
+    /// <summary>"Mời…" on a group we host; null when not open.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasInvite))]
+    public partial InviteViewModel? Invite { get; set; }
+
+    public bool HasInvite => Invite is not null;
 
     /// <summary>A short message at the bottom; it goes away by itself after a few seconds, or with its ✕.</summary>
     [ObservableProperty]
@@ -714,11 +723,15 @@ public sealed partial class MainViewModel : ObservableObject
                 IsPhone = live.TryGetValue(record.DeviceId, out PeerInfo? peer)
                     ? peer.Os.Equals("android", StringComparison.OrdinalIgnoreCase)
                     : record.IsPhone,
+                CanInvite = live.ContainsKey(record.DeviceId) && Groups.OpenTo(record.DeviceId).Count > 0,
             }),
             .. live.Values
                 .Where(peer => trust.GetLevel(peer.DeviceId) == TrustLevel.Unknown)
                 .Select(peer => new PeerItemViewModel(
-                    peer.DeviceId, peer.DisplayName, peer.HostName, Detail(peer, peer.HostName), false, peer, false, this)),
+                    peer.DeviceId, peer.DisplayName, peer.HostName, Detail(peer, peer.HostName), false, peer, false, this)
+                {
+                    CanInvite = Groups.OpenTo(peer.DeviceId).Count > 0,
+                }),
         ];
         items.Sort((x, y) => x.IsTrusted != y.IsTrusted ? (x.IsTrusted ? -1 : 1) : CultureInfo.CurrentCulture.CompareInfo.Compare(x.Name, y.Name, CompareOptions.IgnoreCase));
 

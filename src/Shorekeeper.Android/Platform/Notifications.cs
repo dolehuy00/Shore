@@ -3,20 +3,28 @@ using Android.Graphics.Drawables;
 using Shorekeeper.Core.Localization;
 using Shorekeeper.Core.Platform;
 using Shorekeeper.UI.ViewModels;
+using Shorekeeper.Core.Identity;
+using Shorekeeper.Engine.Groups;
 using Shorekeeper.Engine.Transfers;
 using AndroidResource = Android.Resource;
 using AndroidUri = Android.Net.Uri;
 
 namespace Shorekeeper.Android.Platform;
 
-/// <summary>The app's notifications: someone sent files ([Tải] [Bỏ qua]) and the ongoing one of <see cref="TransferService"/>.</summary>
+/// <summary>
+/// The app's notifications: someone sent files ([Tải] [Bỏ qua]), someone asks to join a group we host ([Duyệt]
+/// [Từ chối]), and the ongoing one of <see cref="TransferService"/>.
+/// </summary>
 internal static class Notifications
 {
     private const string OffersChannel = "offers";
     // A new id: a channel's badge setting cannot change once created, and the old "transfers" one showed a badge.
     private const string TransfersChannel = "transfer-progress";
     private const string AudioChannel = "audio";
+    private const string GroupsChannel = "groups";
     private const int OfferNotificationId = 2;
+    private const int JoinNotificationId = 3;
+    private const int GroupsTab = 3;
     private const int AudioTab = 4;
 
     public static void CreateChannels(Context context)
@@ -28,6 +36,7 @@ internal static class Notifications
         transfers.SetShowBadge(false);
         manager.CreateNotificationChannel(transfers);
         manager.DeleteNotificationChannel("transfers");
+        manager.CreateNotificationChannel(new NotificationChannel(GroupsChannel, L.T("Xin vào nhóm"), NotificationImportance.High));
         var audio = new NotificationChannel(AudioChannel, L.T("Âm thanh"), NotificationImportance.Low);
         audio.SetShowBadge(false);
         manager.CreateNotificationChannel(audio);
@@ -149,6 +158,40 @@ internal static class Notifications
     }
 
     public static void CancelOffer(Context context, OfferKey key) => Manager(context).Cancel(Tag(key), OfferNotificationId);
+
+    /// <summary>"Mai xin vào nhóm" with [Duyệt] [Từ chối], for a group we host (docs/20-phone-host.md, H2).</summary>
+    public static void ShowJoinRequest(Context context, JoinRequest request, string groupName)
+    {
+        string text = L.F("{0} ({1}) xin vào nhóm {2}.", request.Name, request.Host, groupName);
+        Notification notification = new Notification.Builder(context, GroupsChannel)
+            .SetContentTitle(L.F("{0} xin vào nhóm", request.Name))!
+            .SetContentText(text)!
+            .SetStyle(new Notification.BigTextStyle().BigText(request.Note is null ? text : $"{text}\n\"{request.Note}\""))!
+            .SetSmallIcon(Resource.Drawable.ic_stat_shorekeeper)!
+            .SetAutoCancel(true)!
+            .SetContentIntent(OpenApp(context, GroupsTab))!
+            .AddAction(JoinAction(context, L.T("Duyệt"), TransferService.ActionApproveJoin, request))!
+            .AddAction(JoinAction(context, L.T("Từ chối"), TransferService.ActionDeclineJoin, request))!
+            .Build()!;
+        Manager(context).Notify(Tag(request.GroupId, request.PeerId), JoinNotificationId, notification);
+    }
+
+    public static void CancelJoinRequest(Context context, string groupId, DeviceId peer) =>
+        Manager(context).Cancel(Tag(groupId, peer), JoinNotificationId);
+
+    private static Notification.Action JoinAction(Context context, string title, string action, JoinRequest request)
+    {
+        // The data URI makes each request's intent distinct, as for offers.
+        Intent intent = new Intent(context, typeof(TransferService))
+            .SetAction(action)!
+            .SetData(AndroidUri.Parse($"shorekeeper://join/{request.GroupId}/{request.PeerId.Value}"))!
+            .PutExtra(TransferService.ExtraGroup, request.GroupId)!
+            .PutExtra(TransferService.ExtraPeer, request.PeerId.Value)!;
+        PendingIntent pending = PendingIntent.GetForegroundService(context, 0, intent, PendingIntentFlags.Immutable | PendingIntentFlags.UpdateCurrent)!;
+        return new Notification.Action.Builder(Icon.CreateWithResource(context, AndroidResource.Drawable.IcMenuAdd), title, pending).Build()!;
+    }
+
+    private static string Tag(string groupId, DeviceId peer) => $"join/{groupId}/{peer.Value}";
 
     private static Notification.Action Action(Context context, string title, string action, OfferKey key)
     {

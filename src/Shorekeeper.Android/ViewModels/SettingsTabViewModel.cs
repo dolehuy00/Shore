@@ -12,6 +12,7 @@ using Shorekeeper.UI.ViewModels;
 using Shorekeeper.Engine;
 using Shorekeeper.Engine.Api;
 using Shorekeeper.Engine.Discovery;
+using Shorekeeper.Engine.Groups;
 using Shorekeeper.Engine.Identity;
 using Shorekeeper.Engine.Monitoring;
 using Shorekeeper.Engine.Settings;
@@ -41,6 +42,7 @@ public sealed partial class SettingsTabViewModel : ObservableObject
     private readonly ApiServer api;
     private readonly LocalDevice device;
     private readonly AppPaths paths;
+    private readonly GroupStore groups;
     private readonly MainViewModel main;
     private readonly string? startLanguage;
     private OpenedBackup? opened;
@@ -49,7 +51,7 @@ public sealed partial class SettingsTabViewModel : ObservableObject
     public SettingsTabViewModel(
         SettingsService settings, IdentityBackup backup, IExternalFileSource external, PeerDirectory directory, ApiServer api,
         LocalDevice device, AppPaths paths, TrustStore trust, UsageStatsService usage, PeerNaming naming, PhotoBackupService photoBackup,
-        MainViewModel main)
+        GroupStore groups, MainViewModel main)
     {
         this.settings = settings;
         this.backup = backup;
@@ -58,6 +60,7 @@ public sealed partial class SettingsTabViewModel : ObservableObject
         this.api = api;
         this.device = device;
         this.paths = paths;
+        this.groups = groups;
         Blocked = new BlockedPeersViewModel(trust);
         Stats = new StatsViewModel(usage, naming, settings);
         PhotoBackup = new PhotoBackupViewModel(photoBackup, trust, directory, main);
@@ -67,6 +70,7 @@ public sealed partial class SettingsTabViewModel : ObservableObject
         startLanguage = settings.User.Language;
         Language = LanguageChoice.Of(startLanguage);
         Theme = ThemeChoice.Of(settings.User.Theme);
+        AlwaysReceive = BackgroundTransfers.AlwaysReceive;
         directory.Changed += (_, _) => Dispatcher.UIThread.Post(() => OnPropertyChanged(nameof(NetworkText)));
     }
 
@@ -77,18 +81,42 @@ public sealed partial class SettingsTabViewModel : ObservableObject
     [ObservableProperty]
     public partial decimal? AutoAcceptLimitGb { get; set; }
 
-    /// <summary>"Chạy nền": keeps a foreground service so PCs reach the phone with the screen off.</summary>
-    public bool AlwaysReceive
+    /// <summary>
+    /// "Chạy nền": keeps a foreground service so PCs reach the phone with the screen off. What the switch shows; the
+    /// saved setting follows it, except while turning it off waits for an answer.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool AlwaysReceive { get; set; }
+
+    partial void OnAlwaysReceiveChanged(bool value)
     {
-        get => BackgroundTransfers.AlwaysReceive;
-        set
+        if (value == BackgroundTransfers.AlwaysReceive)
         {
-            BackgroundTransfers.AlwaysReceive = value;
-            OnPropertyChanged();
-            if (value)
-            {
-                BatteryOptimization.RequestExemption(global::Android.App.Application.Context);
-            }
+            return;
+        }
+
+        // Hosting a group: off only once confirmed (docs/20-phone-host.md §6 Q2). The switch goes back on meanwhile: told
+        // only that the value it had just set had not changed, the switch kept showing off.
+        if (!value && groups.GetAll().Any(g => g.Role == GroupRole.Host))
+        {
+            Dispatcher.UIThread.Post(() => AlwaysReceive = true);
+            main.Question = new QuestionViewModel(
+                L.T("Tắt Chạy nền?"),
+                L.T("Bạn đang làm Host nhóm. Khi tắt màn hình, nhóm sẽ thường \"Host offline\": không ai xin vào, được duyệt hay biết ai bị loại cho tới khi bạn mở lại app."),
+                L.T("Tắt"), null,
+                _ =>
+                {
+                    BackgroundTransfers.AlwaysReceive = false;
+                    AlwaysReceive = false;
+                    return Task.CompletedTask;
+                }, main);
+            return;
+        }
+
+        BackgroundTransfers.AlwaysReceive = value;
+        if (value)
+        {
+            BatteryOptimization.RequestExemption(global::Android.App.Application.Context);
         }
     }
 

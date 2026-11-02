@@ -35,6 +35,9 @@ public sealed partial class PeerItemViewModel(
 
     public bool CanConnect { get; } = !isTrusted && live is not null;
 
+    /// <summary>"Mời vào nhóm…": online, and not yet in a group we host (docs/20-phone-host.md, H2).</summary>
+    public bool CanInvite { get; init; }
+
     /// <summary>Contacts receive files; the picker is opened by the view (it needs the window).</summary>
     public bool CanSend { get; } = isTrusted;
 
@@ -60,4 +63,7 @@ public sealed partial class PeerItemViewModel(
 
     [RelayCommand]
     private void Block() => owner.ConfirmBlock(this);
+
+    [RelayCommand]
+    private void Invite() => owner.Groups.InviteFromCard(DeviceId, Name);
 }

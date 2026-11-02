@@ -101,7 +101,7 @@
   "Đồng ý": "Accept",
   "Từ chối": "Decline",
   "Nhóm của bạn": "Your groups",
-  "Chưa ở nhóm nào. Xin vào một nhóm bên dưới, hoặc nhờ Host mời bạn.": "Not in any group yet. Ask to join a group below, or ask a Host to invite you.",
+  "Chưa ở nhóm nào. Tạo nhóm, xin vào một nhóm bên dưới, hoặc nhờ Host mời bạn.": "Not in any group yet. Create one, ask to join one below, or ask a Host to invite you.",
   "Gửi file cho nhóm…": "Send files to the group…",
   "Nhóm trong mạng": "Groups on the network",
   "Xin vào": "Ask to join",
@@ -758,5 +758,17 @@
   "Mở bằng app khác": "Open with another app",
   "Xem ảnh": "View pictures",
   "Không xem được ảnh này trong app.": "This picture can't be shown in the app.",
-  "Ảnh xem trước · bấm Tải để lấy ảnh gốc": "Preview · tap Download for the original"
+  "Ảnh xem trước · bấm Tải để lấy ảnh gốc": "Preview · tap Download for the original",
+  "{0} · Host {1} nhóm": "{0} · Host of {1} groups",
+  "Xin vào nhóm": "Requests to join",
+  "{0} xin vào nhóm {1}: xem tab Nhóm.": "{0} asks to join {1}: see the Groups tab.",
+  "Chỉ nhắn khi Host online: điện thoại này tắt hay ngủ thì cả nhóm không nhắn được, đổi lại người bị loại không chen được tin nào": "Chat only while the Host is online: when this phone is off or asleep nobody in the group can send messages; in return, removed members cannot slip any in",
+  "Điện thoại làm Host tối đa {0} nhóm.": "A phone can host at most {0} groups.",
+  "Bật Chạy nền?": "Turn on Run in the background?",
+  "Người khác chỉ xin vào, được duyệt và biết ai bị loại khi Host online. Bật Chạy nền để điện thoại vẫn làm Host khi tắt màn hình.": "Others can only ask to join, be approved and learn who was removed while the Host is online. Turn on Run in the background so the phone keeps hosting with the screen off.",
+  "Bật và tiếp tục": "Turn on and continue",
+  "Tạo": "Create",
+  "Tắt Chạy nền?": "Turn off Run in the background?",
+  "Bạn đang làm Host nhóm. Khi tắt màn hình, nhóm sẽ thường \"Host offline\": không ai xin vào, được duyệt hay biết ai bị loại cho tới khi bạn mở lại app.": "You host a group. With the screen off it will often be \"Host offline\": nobody can ask to join, be approved or learn who was removed until you open the app again.",
+  "Tắt": "Turn off"
 }

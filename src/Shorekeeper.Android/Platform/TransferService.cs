@@ -3,6 +3,7 @@ using Android.Content.PM;
 using Android.Net.Wifi;
 using Android.Runtime;
 using Microsoft.Extensions.DependencyInjection;
+using Shorekeeper.Engine.Groups;
 using Shorekeeper.Engine.Transfers;
 using IBinder = Android.OS.IBinder;
 using PeerDeviceId = Shorekeeper.Core.Identity.DeviceId;
@@ -15,8 +16,8 @@ namespace Shorekeeper.Android.Platform;
 /// <summary>
 /// Keeps the app reachable with the screen off while files move, or all the time with "Chạy nền"
 /// (docs/14-android.md §3.3). A0 showed Doze cuts the network otherwise; this service holds a high-performance
-/// Wi-Fi lock and a partial wake lock. It also carries the "Tải" / "Bỏ qua" buttons of offer notifications,
-/// which work even when Android had closed the app.
+/// Wi-Fi lock and a partial wake lock. It also carries the "Tải" / "Bỏ qua" buttons of offer notifications and the
+/// "Duyệt" / "Từ chối" ones of join requests, which work even when Android had closed the app.
 /// </summary>
 [Service(Exported = false, ForegroundServiceType = ForegroundService.TypeConnectedDevice)]
 public sealed class TransferService : Service
@@ -25,8 +26,12 @@ public sealed class TransferService : Service
     public const string ActionDownload = "dev.shorekeeper.DOWNLOAD";
     public const string ActionDecline = "dev.shorekeeper.DECLINE";
     public const string ActionCopy = "dev.shorekeeper.COPY";
+    public const string ActionApproveJoin = "dev.shorekeeper.APPROVE_JOIN";
+    public const string ActionDeclineJoin = "dev.shorekeeper.DECLINE_JOIN";
     public const string ExtraSender = "sender";
     public const string ExtraOffer = "offer";
+    public const string ExtraGroup = "group";
+    public const string ExtraPeer = "peer";
 
     private const int NotificationId = 1;
 
@@ -108,6 +113,27 @@ public sealed class TransferService : Service
             else if (intent.Action == ActionCopy && inbox.Get(key)?.Note is { } text)
             {
                 TextActions.Copy(this, text);
+            }
+        }
+        else if (intent?.GetStringExtra(ExtraGroup) is { } groupId && intent.GetStringExtra(ExtraPeer) is { } peer
+            && PeerDeviceId.TryParse(peer, out PeerDeviceId peerId))
+        {
+            Notifications.CancelJoinRequest(this, groupId, peerId);
+            GroupService groups = services.GetRequiredService<GroupService>();
+            try
+            {
+                if (intent.Action == ActionApproveJoin)
+                {
+                    await groups.ApproveAsync(groupId, peerId);
+                }
+                else if (intent.Action == ActionDeclineJoin)
+                {
+                    await groups.DeclineAsync(groupId, peerId);
+                }
+            }
+            catch (InvalidOperationException)
+            {
+                // Answered already, or the group is gone: nothing left to do.
             }
         }
 

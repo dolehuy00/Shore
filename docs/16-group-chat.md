@@ -211,7 +211,7 @@ Migration `0011_group_chat.sql` cho C5a–C5c (chưa phát hành nên C5b, C5c s
   - Nhóm đã tắt thông báo thì chỉ còn số chưa đọc. Đang mở đúng nhóm đó thì không báo.
   - Tin cũ kéo về khi mới vào nhóm không báo, và không tính chưa đọc.
 - Widget đếm cả tin nhóm chưa đọc.
-- Điện thoại chỉ làm thành viên, không làm Host ([14](14-android.md)); chat nhóm không cần Host nên điện thoại nhắn, chuyển hộ và cho kéo tin như máy tính.
+- Điện thoại làm thành viên, và từ 2026-11-02 làm Host được ([20](20-phone-host.md)); chat nhóm không cần Host nên điện thoại nhắn, chuyển hộ và cho kéo tin như máy tính.
 
 ### 6.3 File trong hội thoại nhóm
 

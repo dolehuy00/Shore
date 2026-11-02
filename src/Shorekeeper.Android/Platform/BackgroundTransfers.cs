@@ -1,7 +1,9 @@
 using Android.Content;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Shorekeeper.Core.Identity;
 using Shorekeeper.Core.Localization;
+using Shorekeeper.Engine.Groups;
 using Shorekeeper.Engine.Transfers;
 using Shorekeeper.Engine.Trust;
 
@@ -9,8 +11,8 @@ namespace Shorekeeper.Android.Platform;
 
 /// <summary>
 /// Decides when <see cref="TransferService"/> runs (docs/14-android.md §3.3): while files move in either direction,
-/// while someone may still download what we sent, or always with "Chạy nền". Also posts the notification
-/// for offers that arrive.
+/// while someone may still download what we sent, or always with "Chạy nền". Also posts the notifications for offers
+/// that arrive and for people asking to join a group we host (docs/20-phone-host.md).
 /// </summary>
 internal static class BackgroundTransfers
 {
@@ -21,7 +23,11 @@ internal static class BackgroundTransfers
     private static Context? context;
     private static InboxService? inbox;
     private static OfferService? offers;
+    private static GroupStore? groups;
     private static PeerNaming? naming;
+
+    /// <summary>Join requests whose notification shows; it goes once the request is answered, here or anywhere else.</summary>
+    private static readonly HashSet<(string GroupId, DeviceId Peer)> AskedToJoin = [];
     private static ILogger? logger;
     private static TransferService? service;
 
@@ -41,6 +47,8 @@ internal static class BackgroundTransfers
         context = appContext;
         inbox = services.GetRequiredService<InboxService>();
         offers = services.GetRequiredService<OfferService>();
+        GroupStore store = services.GetRequiredService<GroupStore>();
+        groups = store;
         naming = services.GetRequiredService<PeerNaming>();
         logger = services.GetRequiredService<ILoggerFactory>().CreateLogger(nameof(BackgroundTransfers));
         Notifications.CreateChannels(appContext);
@@ -66,7 +74,37 @@ internal static class BackgroundTransfers
             Recheck();
         };
         offers.Changed += (_, _) => Recheck();
+        services.GetRequiredService<GroupService>().JoinRequested += (_, request) =>
+        {
+            lock (Gate)
+            {
+                AskedToJoin.Add((request.GroupId, request.PeerId));
+            }
+
+            Notifications.ShowJoinRequest(appContext, request, store.Get(request.GroupId)?.Name ?? "");
+        };
+        store.Changed += (_, _) =>
+        {
+            CancelAnswered(appContext, store);
+            Recheck();
+        };
         Recheck();
+    }
+
+    /// <summary>Approved or declined here, in the app or by the notification: its notification goes.</summary>
+    private static void CancelAnswered(Context appContext, GroupStore store)
+    {
+        List<(string GroupId, DeviceId Peer)> answered;
+        lock (Gate)
+        {
+            answered = [.. AskedToJoin.Where(r => !store.GetRequests(r.GroupId).Any(x => x.PeerId == r.Peer && x.State == JoinRequestState.Pending))];
+            AskedToJoin.ExceptWith(answered);
+        }
+
+        foreach ((string groupId, DeviceId peer) in answered)
+        {
+            Notifications.CancelJoinRequest(appContext, groupId, peer);
+        }
     }
 
     /// <summary>The phone has started: with "Chạy nền" on, the app runs again and is reachable, as before.</summary>
@@ -146,15 +184,17 @@ internal static class BackgroundTransfers
         return total == 0 ? null : (int)Math.Min(99, 100 * done / total);
     }
 
-    /// <summary>Text of the ongoing notification.</summary>
+    /// <summary>Text of the ongoing notification; "· Host 2 nhóm" while we host groups (docs/20-phone-host.md, H1).</summary>
     public static string Describe()
     {
         int receiving = inbox?.GetOffers().Count(o => o.State == InboxState.Downloading) ?? 0;
         int sending = SendingOffers();
-        return receiving > 0 && sending > 0 ? L.F("Đang nhận {0} và gửi {1} lượt file", receiving, sending)
+        string text = receiving > 0 && sending > 0 ? L.F("Đang nhận {0} và gửi {1} lượt file", receiving, sending)
             : receiving > 0 ? L.F("Đang nhận {0} lượt file", receiving)
             : sending > 0 ? L.F("Chờ người nhận tải {0} lượt file bạn gửi", sending)
             : L.T("Chạy nền: đang chờ");
+        int hosting = groups?.GetAll().Count(g => g.Role == GroupRole.Host) ?? 0;
+        return hosting > 0 ? L.F("{0} · Host {1} nhóm", text, hosting) : text;
     }
 
     private static bool IsBusy() =>

@@ -1,6 +1,6 @@
 # 20 — Điện thoại làm Host nhóm (H1–H3)
 
-> Trạng thái: **kế hoạch** (2026-11-02), chờ chốt §6. Nối tiếp [14 §1.1](14-android.md): bản đầu để "Host nhóm" lại vì điện thoại hay ngủ, hay đổi mạng.
+> Trạng thái: **H1–H3 xong** (2026-11-02), theo đề xuất (§6); kết quả ở §7. Nối tiếp [14 §1.1](14-android.md): bản đầu để "Host nhóm" lại vì điện thoại hay ngủ, hay đổi mạng.
 
 ## 1. Mục tiêu
 
@@ -43,10 +43,10 @@ Nên điện thoại làm Host được khi nó online **phần lớn thời gia
 
 - Tab Nhóm: nút **Tạo nhóm** (tên, ô "Chỉ nhắn khi Host online", §6 Q3).
 - Thẻ nhóm mình làm Host, như PC:
-  - người xin vào: [Duyệt] [Từ chối], badge ở tab Nhóm;
+  - người xin vào: [Duyệt] [Từ chối], chấm đỏ ở tab Nhóm (như Tin nhắn);
   - [Mời…]: chọn người đang online chưa trong nhóm;
   - ⋮: **Sửa nhóm…** (tên, "Chỉ nhắn khi Host online"), **Đóng nhóm** (hỏi lại);
-  - Thành viên: nhấn giữ một người → **Loại khỏi nhóm** (hỏi lại).
+  - Thành viên: ⋮ của người đó → **Loại khỏi nhóm** (hỏi lại), cạnh "Đặt tên gợi nhớ…".
 - Thông báo khi có người xin vào lúc app ở nền, có nút [Duyệt] [Từ chối] (§6 Q4); bấm vào thông báo thì mở tab Nhóm.
 - Thẻ người ở Xóm: **Mời vào nhóm…** như PC (chỉ khi người đó online và còn nhóm để mời).
 - Chữ dùng lại của PC; khóa mới thêm vào `en.json`.
@@ -70,9 +70,9 @@ Nên điện thoại làm Host được khi nó online **phần lớn thời gia
 | Mất điện thoại | Sao lưu danh tính có nhóm; không có sao lưu thì nhóm mất như PC mất ổ cứng |
 | "Chỉ nhắn khi Host online" làm nhóm bị khóa mỗi khi điện thoại vắng | Mặc định tắt cho nhóm tạo trên điện thoại, ô có dòng giải thích (§6 Q3) |
 
-## 6. Cần chốt
+## 6. Đã chốt (2026-11-02, theo đề xuất)
 
-| # | Câu hỏi | Đề xuất |
+| # | Câu hỏi | Kết luận |
 |---|---|---|
 | Q1 | Giữ điện thoại online khi làm Host bằng gì? | **Đòi bật "Chạy nền"** khi tạo nhóm: một công tắc, một thông báo, đã có sẵn đường xin quyền pin. Cách khác: tự chạy service riêng khi đang làm Host (thêm một lý do chạy nền, người dùng khó hiểu vì sao có thông báo) |
 | Q2 | Đang làm Host mà tắt "Chạy nền"? | **Hỏi lại rồi cho tắt**; nhóm vẫn còn, chỉ thường "Host offline" |
@@ -80,3 +80,28 @@ Nên điện thoại làm Host được khi nó online **phần lớn thời gia
 | Q4 | Có người xin vào lúc app ở nền? | **Thông báo có [Duyệt] [Từ chối]**, như thông báo file đến có [Tải] |
 | Q5 | Điện thoại làm Host tối đa bao nhiêu nhóm? | **3 nhóm** (PC 10); mỗi nhóm vẫn tối đa 100 người |
 | Q6 | Chuyển Host sang máy khác (vd. sang PC khi điện thoại không còn dùng)? | **Để sau**, làm riêng cho cả PC và điện thoại; cần thêm giao thức |
+
+## 7. Đã làm (2026-11-02)
+
+Chỉ app điện thoại đổi; Engine và giao thức giữ nguyên.
+
+**Tab Nhóm** (`GroupsTabViewModel`, `GroupsPage`)
+- **Tạo nhóm** cạnh "Nhóm của bạn". Đã làm Host 3 nhóm thì báo "Điện thoại làm Host tối đa 3 nhóm." (Q5). "Chạy nền" đang tắt thì hỏi "Bật Chạy nền?" trước, bật bằng đúng công tắc ở Cài đặt (kèm hỏi miễn tối ưu hóa pin) rồi mới hỏi tên (Q1).
+- Hộp hỏi (`QuestionViewModel`) có thêm ô đánh dấu (dùng cho "Chỉ nhắn khi Host online", mặc định không tích, câu nói rõ điện thoại ngủ thì nhóm không nhắn được: Q3) và danh sách chọn (chọn nhóm khi mời từ Xóm).
+- Thẻ nhóm mình làm Host: dòng xin vào với [Duyệt] [Từ chối], dòng "Đã mời …, chờ đồng ý"; nút [Mời…] mở hộp chọn người đang online chưa trong nhóm (`InviteViewModel`); ⋮ có **Sửa nhóm…** và **Đóng nhóm**; ⋮ của từng thành viên có **Loại khỏi nhóm**. Chữ và câu hỏi lại như PC.
+- Chấm đỏ ở tab Nhóm khi có người xin vào hay có lời mời.
+- Xóm: ⋮ của một người online có **Mời vào nhóm…** khi còn nhóm mình làm Host mà họ chưa vào.
+
+**Chạy nền và thông báo** (`BackgroundTransfers`, `Notifications`, `TransferService`)
+- Thông báo "… xin vào nhóm" (kênh "Xin vào nhóm") có [Duyệt] [Từ chối], chạy qua `TransferService` nên dùng được cả khi Android đã đóng app (Q4); tự mất khi yêu cầu được trả lời ở bất cứ đâu.
+- Thông báo thường trực ghi thêm "· Host 1 nhóm".
+- Tắt "Chạy nền" khi đang làm Host thì hỏi "Tắt Chạy nền?" (Q2); trong lúc hỏi và khi bấm Hủy, công tắc hiện lại "bật". Lần đầu chỉ báo lại giá trị cũ thì công tắc vẫn hiện tắt; nay công tắc giữ giá trị riêng và được đặt lại thật.
+
+**Đã thử thật** (Nubia Z2577 làm Host, PC làm thành viên; OPPO không cắm nên chỉ 2 máy):
+- Tạo nhóm khi Chạy nền tắt: hỏi bật → hộp miễn pin của hệ thống (đã từ chối) → hộp tên có ô "Chỉ nhắn khi Host online" → nhóm hiện "Host: bạn", PC thấy nhóm trong "Nhóm trong mạng".
+- PC xin vào: Nubia hiện thông báo có [Duyệt] [Từ chối], dòng trong thẻ, chấm đỏ, dòng nhắc. Duyệt trong thẻ và duyệt từ khay thông báo đều cho PC vào (lần đầu chạm vào thân thông báo nổi, không trúng nút, nên chỉ mở app).
+- Loại PC: PC báo ngay "Bạn không còn ở trong nhóm". Mời lại từ ⋮ ở Xóm (chọn nhóm) → PC có lời mời → Đồng ý → vào lại. [Mời…] khi không còn ai online ngoài thành viên: "Không có ai đang online…", nút Mời tắt.
+- Sửa nhóm (đổi tên, bật "Chỉ nhắn khi Host online"): PC thấy tên mới.
+- Ép Doze sâu (`dumpsys deviceidle force-idle`) 3 phút với Chạy nền bật: PC vẫn thấy Host online, gửi tin vào nhóm "Chỉ nhắn khi Host online" được, "Đã nhận 1/1". Đã trả lại (`unforce`, `battery reset`).
+- Đóng nhóm: nhóm mất ở Nubia, PC báo không còn trong nhóm. Đã xóa hội thoại thử ở hai máy và tắt lại Chạy nền.
+- Chưa thử: ba máy; Doze 30 phút và tắt màn hình thật (cần mở khóa); duyệt trên màn hình khóa; tắt / bật Wi-Fi; đo pin 1 giờ; khởi động lại máy (Nubia chặn tự chạy, [14 A4](14-android.md)).

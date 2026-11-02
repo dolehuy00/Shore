@@ -10,7 +10,7 @@
 
 | Có | Không (để sau hoặc không làm) |
 |---|---|
-| Discovery (multicast + probe), danh sách "Xóm" | Host nhóm, Bridge, Subnet Probe (điện thoại hay ngủ, hay đổi mạng) |
+| Discovery (multicast + probe), danh sách "Xóm" | Bridge, Subnet Probe (điện thoại hay ngủ, hay đổi mạng); Host nhóm có từ 2026-11-02 ([20](20-phone-host.md)) |
 | Kết nối bằng mã 6 số | AD, GPO (không có trên Android) |
 | Hộp nhận: tải, tải tiếp khi rớt mạng, lưu vào Downloads | Kéo thả, phím tắt |
 | Gửi: từ menu **Chia sẻ** của Android và từ trong app | Tự nhận file (có thể thêm sau) |
@@ -208,7 +208,7 @@ Chia làm A5a (Android) và A5b (tiếng Anh cho cả desktop lẫn Android, chu
 
 **A5a — kết quả (2026-10-15, ✅ xong):**
 
-- Tab **Nhóm** (điện thoại chỉ làm thành viên, không làm Host): nhóm của mình (thành viên, online, Host offline), "Nhóm trong mạng" → [Xin vào], lời mời [Đồng ý] [Từ chối], [Gửi file cho nhóm…] (mọi thành viên khác, offer mang `groupId`), 💬 mở hội thoại nhóm ([16](16-group-chat.md)), [Rời nhóm] / [Hủy yêu cầu], thông báo gần đây. Màn hình chọn người khi Chia sẻ có thêm người cùng nhóm; mỗi nhóm một offer, như cửa sổ Gửi nhanh của desktop.
+- Tab **Nhóm** (bản đầu điện thoại chỉ làm thành viên; làm Host được từ 2026-11-02, [20](20-phone-host.md)): nhóm của mình (thành viên, online, Host offline), "Nhóm trong mạng" → [Xin vào], lời mời [Đồng ý] [Từ chối], [Gửi file cho nhóm…] (mọi thành viên khác, offer mang `groupId`), 💬 mở hội thoại nhóm ([16](16-group-chat.md)), [Rời nhóm] / [Hủy yêu cầu], thông báo gần đây. Màn hình chọn người khi Chia sẻ có thêm người cùng nhóm; mỗi nhóm một offer, như cửa sổ Gửi nhanh của desktop.
 - Tab **Cài đặt**: đổi tên hiển thị, "Chạy nền" (chuyển từ đầu màn hình; trước 2026-11-02 tên là "Luôn nhận file", đổi vì nó giữ cả tin nhắn và nhóm chứ không chỉ file; cài đặt đã lưu vẫn là `always_receive`), **sao lưu** danh tính vào `Download/Shorekeeper` và **khôi phục** (chọn file `content://`, mật khẩu, xem tóm tắt, app tự khởi động lại để engine áp dụng — ADR-013), **mạng**: địa chỉ của điện thoại, cổng, số máy đang thấy, gợi ý khi Wi-Fi cách ly thiết bị, **thêm máy bằng địa chỉ** (dùng lại `ManualPeerFinder`, rồi Kết nối).
 - Thử thật với desktop bản dev: desktop tạo nhóm "Thử A5" → điện thoại [Xin vào] → desktop duyệt → điện thoại gửi 6 ảnh cho nhóm → desktop tải xong, 6/6 khớp SHA-256 (desktop thêm " (1)" vì trùng tên ảnh đã nhận trước đó). Sao lưu tạo được file `.skbackup`; mở lại file đó với mật khẩu hiện đúng tóm tắt (DeviceId, liên hệ, nhóm).
 - Chưa kiểm chứng trên máy thật: bấm khôi phục đến bước khởi động lại, thêm máy bằng địa chỉ.

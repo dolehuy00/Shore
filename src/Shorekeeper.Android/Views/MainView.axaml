@@ -456,7 +456,12 @@
         <TabItem AutomationProperties.Name="{l:T 'Nhóm'}">
           <TabItem.Header>
             <StackPanel Spacing="3">
-              <PathIcon Data="{StaticResource Icon.Team}" Width="22" Height="22" HorizontalAlignment="Center" />
+              <!-- A red dot while someone asks to join a group we host, or invites us (docs/20-phone-host.md). -->
+              <Panel HorizontalAlignment="Center">
+                <PathIcon Data="{StaticResource Icon.Team}" Width="22" Height="22" />
+                <Ellipse Width="8" Height="8" Fill="#EF4444" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-1,-3,0"
+                         IsVisible="{Binding Groups.NeedsAttention}" />
+              </Panel>
               <TextBlock Text="{l:T 'Nhóm'}" HorizontalAlignment="Center" />
             </StackPanel>
           </TabItem.Header>
@@ -543,6 +548,36 @@
           <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
             <Button Content="{l:T 'Hủy'}" Command="{Binding CancelCommand}" />
             <Button Content="{l:T 'Gửi'}" Command="{Binding SendCommand}" IsEnabled="{Binding CanSend}" Classes="accent" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+    </Border>
+
+    <!-- "Mời…" on a group we host: people online who are not in it yet. -->
+    <Border Classes="overlay" IsVisible="{Binding HasInvite}">
+      <Border Classes="dialog" DataContext="{Binding Invite}" x:DataType="vm:InviteViewModel">
+        <StackPanel Spacing="10">
+          <TextBlock Text="{Binding Title}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
+          <TextBlock Text="{l:T 'Không có ai đang online ngoài các thành viên.'}" IsVisible="{Binding HasNobody}" TextWrapping="Wrap" />
+          <ScrollViewer MaxHeight="360">
+            <ItemsControl ItemsSource="{Binding People}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:PickablePerson">
+                  <Border Classes="card pick" Classes.picked="{Binding IsChecked}">
+                    <CheckBox IsChecked="{Binding IsChecked}" HorizontalAlignment="Stretch" Background="Transparent">
+                      <StackPanel Spacing="2">
+                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                        <TextBlock Classes="muted" Text="{Binding Detail}" FontSize="12" TextTrimming="CharacterEllipsis" />
+                      </StackPanel>
+                    </CheckBox>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+          <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+            <Button Content="{l:T 'Hủy'}" Command="{Binding CancelCommand}" />
+            <Button Content="{l:T 'Mời'}" Command="{Binding InviteCommand}" IsEnabled="{Binding CanInvite}" Classes="accent" />
           </StackPanel>
         </StackPanel>
       </Border>
@@ -647,6 +682,10 @@
           <TextBlock Text="{Binding Message}" IsVisible="{Binding HasMessage}" TextWrapping="Wrap" />
           <TextBox Text="{Binding Input}" IsVisible="{Binding HasTextInput}" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="160" />
           <TextBox Text="{Binding Input}" IsVisible="{Binding HasPasswordInput}" PasswordChar="●" Classes="revealPasswordButton" />
+          <ComboBox ItemsSource="{Binding Choices}" SelectedIndex="{Binding Choice}" IsVisible="{Binding HasChoices}" HorizontalAlignment="Stretch" />
+          <CheckBox IsChecked="{Binding OptionChecked}" IsVisible="{Binding HasOption}">
+            <TextBlock Text="{Binding Option}" TextWrapping="Wrap" />
+          </CheckBox>
           <WrapPanel ItemSpacing="8" LineSpacing="8" HorizontalAlignment="Right">
             <Button Content="{l:T 'Hủy'}" Command="{Binding CancelCommand}" />
             <Button Content="{Binding OkText}" Command="{Binding OkCommand}" Classes="accent" />

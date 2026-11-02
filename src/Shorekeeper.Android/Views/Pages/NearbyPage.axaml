@@ -52,6 +52,7 @@
                                   ToggleType="CheckBox" IsChecked="{Binding IsAutoAccept, Mode=OneWay}" />
                         <MenuItem Header="{l:T 'Gửi văn bản…'}" Command="{Binding SendTextCommand}" IsVisible="{Binding IsTrusted}" />
                         <MenuItem Header="{l:T 'Đặt tên gợi nhớ…'}" Command="{Binding RenameCommand}" IsVisible="{Binding IsTrusted}" />
+                        <MenuItem Header="{l:T 'Mời vào nhóm…'}" Command="{Binding InviteCommand}" IsVisible="{Binding CanInvite}" />
                         <MenuItem Header="{l:T 'Ngắt kết nối'}" Command="{Binding DisconnectCommand}" IsVisible="{Binding IsTrusted}" />
                         <MenuItem Header="{l:T 'Chặn'}" Command="{Binding BlockCommand}" />
                       </MenuFlyout>

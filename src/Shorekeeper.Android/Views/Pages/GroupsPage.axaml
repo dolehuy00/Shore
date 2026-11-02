@@ -26,8 +26,17 @@
         </ItemsControl.ItemTemplate>
       </ItemsControl>
 
-      <TextBlock Classes="h3" Text="{l:T 'Nhóm của bạn'}" />
-      <TextBlock Classes="muted" Text="{l:T 'Chưa ở nhóm nào. Xin vào một nhóm bên dưới, hoặc nhờ Host mời bạn.'}" IsVisible="{Binding !HasMyGroups}" TextWrapping="Wrap" />
+      <!-- "Tạo nhóm": the phone hosts it (docs/20-phone-host.md). -->
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Classes="h3" Text="{l:T 'Nhóm của bạn'}" VerticalAlignment="Center" />
+        <Button Grid.Column="1" Command="{Binding CreateCommand}" IsVisible="{Binding IsEnabled}" Padding="12,6" FontSize="13" VerticalAlignment="Center">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <PathIcon Data="{StaticResource Icon.Add}" Width="14" Height="14" />
+            <TextBlock Text="{l:T 'Tạo nhóm'}" />
+          </StackPanel>
+        </Button>
+      </Grid>
+      <TextBlock Classes="muted" Text="{l:T 'Chưa ở nhóm nào. Tạo nhóm, xin vào một nhóm bên dưới, hoặc nhờ Host mời bạn.'}" IsVisible="{Binding !HasMyGroups}" TextWrapping="Wrap" />
       <ItemsControl ItemsSource="{Binding MyGroups}">
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:GroupItemViewModel">
@@ -52,6 +61,8 @@
                     <Button.Flyout>
                       <MenuFlyout>
                         <MenuItem Header="{l:T 'Gửi văn bản cho nhóm…'}" Command="{Binding SendTextCommand}" IsVisible="{Binding CanSend}" />
+                        <MenuItem Header="{l:T 'Sửa nhóm…'}" Command="{Binding EditCommand}" IsVisible="{Binding IsHost}" />
+                        <MenuItem Header="{l:T 'Đóng nhóm'}" Command="{Binding CloseCommand}" IsVisible="{Binding IsHost}" />
                         <MenuItem Header="{Binding LeaveText}" Command="{Binding LeaveCommand}" IsVisible="{Binding CanLeave}" />
                       </MenuFlyout>
                     </Button.Flyout>
@@ -92,6 +103,7 @@
                       <Button.Flyout>
                         <MenuFlyout>
                           <MenuItem Header="{l:T 'Đặt tên gợi nhớ…'}" Command="{Binding RenameCommand}" />
+                          <MenuItem Header="{l:T 'Loại khỏi nhóm'}" Command="{Binding RemoveCommand}" IsVisible="{Binding CanRemove}" />
                         </MenuFlyout>
                       </Button.Flyout>
                     </Button>
@@ -99,7 +111,24 @@
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
+                <!-- As Host: who asks to join ([Duyệt] [Từ chối]) and who was invited and has not answered. -->
+                <ItemsControl ItemsSource="{Binding Requests}" IsVisible="{Binding HasRequests}" Margin="0,4,0,0">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:JoinRequestItem">
+                      <Border Background="#1A3B82F6" CornerRadius="8" Padding="10,8" Margin="0,2">
+                        <StackPanel Spacing="6">
+                          <TextBlock Text="{Binding Text}" TextWrapping="Wrap" FontSize="13" />
+                          <WrapPanel ItemSpacing="8" LineSpacing="8" IsVisible="{Binding IsAsking}">
+                            <Button Content="{l:T 'Duyệt'}" Command="{Binding ApproveCommand}" Classes="accent" Padding="12,4" />
+                            <Button Content="{l:T 'Từ chối'}" Command="{Binding DeclineCommand}" Padding="12,4" />
+                          </WrapPanel>
+                        </StackPanel>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
                 <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" IsVisible="{Binding CanSend}">
+                  <Button Content="{l:T 'Mời…'}" Command="{Binding InviteCommand}" IsVisible="{Binding IsHost}" Padding="12,6" FontSize="13" />
                   <Button Command="{Binding ChatCommand}" Padding="10,6" AutomationProperties.Name="{l:T 'Nhắn tin'}">
                     <PathIcon Data="{StaticResource Icon.Chat}" Width="16" Height="16" />
                   </Button>
