@@ -13,7 +13,7 @@ using WifiMode = Android.Net.WifiMode;
 namespace Shorekeeper.Android.Platform;
 
 /// <summary>
-/// Keeps the app reachable with the screen off while files move, or all the time with "Luôn nhận file"
+/// Keeps the app reachable with the screen off while files move, or all the time with "Chạy nền"
 /// (docs/14-android.md §3.3). A0 showed Doze cuts the network otherwise; this service holds a high-performance
 /// Wi-Fi lock and a partial wake lock. It also carries the "Tải" / "Bỏ qua" buttons of offer notifications,
 /// which work even when Android had closed the app.

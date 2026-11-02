@@ -9,7 +9,7 @@ namespace Shorekeeper.Android.Platform;
 
 /// <summary>
 /// Decides when <see cref="TransferService"/> runs (docs/14-android.md §3.3): while files move in either direction,
-/// while someone may still download what we sent, or always with "Luôn nhận file". Also posts the notification
+/// while someone may still download what we sent, or always with "Chạy nền". Also posts the notification
 /// for offers that arrive.
 /// </summary>
 internal static class BackgroundTransfers
@@ -25,7 +25,7 @@ internal static class BackgroundTransfers
     private static ILogger? logger;
     private static TransferService? service;
 
-    /// <summary>"Luôn nhận file": stay reachable all the time, at the cost of a permanent notification and some battery.</summary>
+    /// <summary>"Chạy nền": stay reachable all the time, at the cost of a permanent notification and some battery.</summary>
     public static bool AlwaysReceive
     {
         get => Preferences()?.GetBoolean(AlwaysReceiveKey, false) ?? false;
@@ -69,7 +69,7 @@ internal static class BackgroundTransfers
         Recheck();
     }
 
-    /// <summary>The phone has started: with "Luôn nhận file" on, the app runs again and is reachable, as before.</summary>
+    /// <summary>The phone has started: with "Chạy nền" on, the app runs again and is reachable, as before.</summary>
     public static void Boot(Context appContext)
     {
         if (appContext.GetSharedPreferences(PreferencesName, FileCreationMode.Private)?.GetBoolean(AlwaysReceiveKey, false) == true)
@@ -154,7 +154,7 @@ internal static class BackgroundTransfers
         return receiving > 0 && sending > 0 ? L.F("Đang nhận {0} và gửi {1} lượt file", receiving, sending)
             : receiving > 0 ? L.F("Đang nhận {0} lượt file", receiving)
             : sending > 0 ? L.F("Chờ người nhận tải {0} lượt file bạn gửi", sending)
-            : L.T("Luôn nhận file: đang chờ");
+            : L.T("Chạy nền: đang chờ");
     }
 
     private static bool IsBusy() =>

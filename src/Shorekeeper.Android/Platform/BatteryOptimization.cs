@@ -6,7 +6,7 @@ using PowerManager = Android.OS.PowerManager;
 namespace Shorekeeper.Android.Platform;
 
 /// <summary>
-/// "Luôn nhận file" only works if the system leaves the app alone. Android's own exemption is asked for here;
+/// "Chạy nền" only works if the system leaves the app alone. Android's own exemption is asked for here;
 /// phone makers' battery savers (ColorOS, MIUI…) kill apps regardless and need their own setting, which apps
 /// cannot change (docs/14-android.md, A4).
 /// </summary>

@@ -29,7 +29,7 @@ public enum BackupStep
 }
 
 /// <summary>
-/// "Cài đặt" on the phone (docs/14-android.md, A5): name, "Luôn nhận file", identity backup and restore (to move to
+/// "Cài đặt" on the phone (docs/14-android.md, A5): name, "Chạy nền", identity backup and restore (to move to
 /// a new phone without connecting again, ADR-013), and what the network looks like from here.
 /// </summary>
 public sealed partial class SettingsTabViewModel : ObservableObject
@@ -77,7 +77,7 @@ public sealed partial class SettingsTabViewModel : ObservableObject
     [ObservableProperty]
     public partial decimal? AutoAcceptLimitGb { get; set; }
 
-    /// <summary>"Luôn nhận file": keeps a foreground service so PCs reach the phone with the screen off.</summary>
+    /// <summary>"Chạy nền": keeps a foreground service so PCs reach the phone with the screen off.</summary>
     public bool AlwaysReceive
     {
         get => BackgroundTransfers.AlwaysReceive;

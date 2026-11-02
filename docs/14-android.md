@@ -65,7 +65,7 @@ API của Shorekeeper nhỏ (khoảng 25 endpoint, JSON, `Range` khi tải file,
 
 - **Mặc định:** online khi app đang mở. Đóng app thì gửi `bye`, PC thấy điện thoại offline; offer gửi tới được giao khi điện thoại online lại (đã có cơ chế giao lại).
 - **Đang truyền file:** foreground service + thông báo tiến độ, giữ `WifiLock`; xong thì dừng.
-- **Tùy chọn "Luôn nhận file":** foreground service thường trực (thông báo cố định), tốn pin hơn. Loại service (`connectedDevice` hay `dataSync`) chốt ở A0 🔍.
+- **Tùy chọn "Chạy nền":** foreground service thường trực (thông báo cố định), tốn pin hơn. Loại service (`connectedDevice` hay `dataSync`) chốt ở A0 🔍.
 
 ### 3.4 Giao diện
 
@@ -97,7 +97,7 @@ Màn hình: Xóm (danh sách, chạm để gửi), File (Nhận / Đã gửi), T
 
 - `MediaStoreLibrary` đọc `MediaStore.Files` (ảnh và video, bỏ mục `is_pending`); mốc là `_id`, tăng theo mục mới. Máy ảnh là `relative_path` DCIM/Camera, ảnh chụp màn hình là thư mục có "Screenshots". File gửi bằng content URI của mục.
 - Quyền `READ_MEDIA_IMAGES` + `READ_MEDIA_VIDEO` (API 33+) hoặc `READ_EXTERNAL_STORAGE` (API 29–32), xin lúc bật công tắc. Bị thu hồi thì không gửi gì đến khi cho lại.
-- `ContentObserver` báo thư viện đổi; engine chạy nền khi bật Luôn nhận file.
+- `ContentObserver` báo thư viện đổi; engine chạy nền khi bật Chạy nền.
 
 ### 3.8 Widget màn hình chính
 
@@ -187,17 +187,17 @@ Chia sẻ từ Gallery / Files → chọn người → gửi; chọn file trong 
 
 ### A4 — Chạy nền & thông báo
 
-Thông báo có file đến (Tải / Bỏ qua), foreground service khi truyền, tùy chọn "Luôn nhận file", quyền `ACCESS_LOCAL_NETWORK` (Android 17) và màn hình giải thích khi bị từ chối.
+Thông báo có file đến (Tải / Bỏ qua), foreground service khi truyền, tùy chọn "Chạy nền", quyền `ACCESS_LOCAL_NETWORK` (Android 17) và màn hình giải thích khi bị từ chối.
 
 **Xong khi:** màn hình tắt, PC gửi file → điện thoại hiện thông báo; tải xong khi máy vẫn khóa màn hình.
 
 **Kết quả (2026-10-15, ✅ xong):**
 
-- `TransferService`: foreground service `connectedDevice` + `WifiLock` (high perf) + `WakeLock` (partial), chạy khi đang nhận, khi còn người có thể tải file mình gửi (offer mở, người nhận chưa xong), hoặc luôn luôn với "Luôn nhận file" (lưu trong SharedPreferences). Hết lý do thì tự dừng. Thông báo thường trực nói đang làm gì.
+- `TransferService`: foreground service `connectedDevice` + `WifiLock` (high perf) + `WakeLock` (partial), chạy khi đang nhận, khi còn người có thể tải file mình gửi (offer mở, người nhận chưa xong), hoặc luôn luôn với "Chạy nền" (lưu trong SharedPreferences). Hết lý do thì tự dừng. Thông báo thường trực nói đang làm gì.
 - Thông báo "… gửi cho bạn" (kênh quan trọng cao) với [Tải] [Bỏ qua]: nút là `PendingIntent.GetForegroundService` mang sẵn offer (URI riêng cho mỗi offer), nên chạy được cả khi Android đã đóng app; bấm vào thông báo mở tab Hộp nhận; thông báo tự gỡ khi offer đã xử lý trong app. Xin `POST_NOTIFICATIONS` khi mở app.
-- Thử thật (OPPO, Android 13, giả lập chạy pin + Doze sâu bằng `dumpsys`): lần 1 app bị **ColorOS (Athena/guardelf) đóng cưỡng bức** sau ~5 phút dù có foreground service. Thêm: bật "Luôn nhận file" thì xin miễn tối ưu hóa pin (`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`) + nhắc bật "hoạt động nền" trong cài đặt pin của hãng. Lần 2 (đã miễn + cho phép hoạt động nền): app sống > 13 phút, PC vẫn gọi được; PC gửi 1 GB → thông báo trên màn hình khóa → bấm Tải không mở khóa → xong ~20 giây, SHA-256 khớp.
+- Thử thật (OPPO, Android 13, giả lập chạy pin + Doze sâu bằng `dumpsys`): lần 1 app bị **ColorOS (Athena/guardelf) đóng cưỡng bức** sau ~5 phút dù có foreground service. Thêm: bật "Chạy nền" thì xin miễn tối ưu hóa pin (`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`) + nhắc bật "hoạt động nền" trong cài đặt pin của hãng. Lần 2 (đã miễn + cho phép hoạt động nền): app sống > 13 phút, PC vẫn gọi được; PC gửi 1 GB → thông báo trên màn hình khóa → bấm Tải không mở khóa → xong ~20 giây, SHA-256 khớp.
 - Bài học: trên máy OPPO/Xiaomi/Vivo… foreground service **không đủ**; người dùng phải tự cho phép chạy nền trong cài đặt của hãng (app chỉ nhắc được). Xem dontkillmyapp.com.
-- Tự chạy lại sau khi khởi động lại máy (2026-11-01): `BootReceiver` nhận `BOOT_COMPLETED` và, nếu "Luôn nhận file" đang bật, chạy lại `TransferService` (kiểu `connectedDevice` vẫn được chạy từ lúc khởi động trên Android 15+). Thử trên Nubia (Android 16, ZTE): Android có gửi nhưng hãng bỏ qua ("skipped by policy … autolaunch policy", cả với Shopee), kể cả khi đặt Cài đặt → Ứng dụng → Shorekeeper → Mức sử dụng pin → Tối ưu hóa pin → Tự động khởi động = Được phép. Chưa thấy chạy trên máy thật; cần một máy không chặn (Android gốc, Samsung) để kiểm.
+- Tự chạy lại sau khi khởi động lại máy (2026-11-01): `BootReceiver` nhận `BOOT_COMPLETED` và, nếu "Chạy nền" đang bật, chạy lại `TransferService` (kiểu `connectedDevice` vẫn được chạy từ lúc khởi động trên Android 15+). Thử trên Nubia (Android 16, ZTE): Android có gửi nhưng hãng bỏ qua ("skipped by policy … autolaunch policy", cả với Shopee), kể cả khi đặt Cài đặt → Ứng dụng → Shorekeeper → Mức sử dụng pin → Tối ưu hóa pin → Tự động khởi động = Được phép. Chưa thấy chạy trên máy thật; cần một máy không chặn (Android gốc, Samsung) để kiểm.
 - Chưa làm: quyền mạng LAN của Android 17 (app đang target API 36 nên chưa bị áp), giữ service đủ 30 phút liên tục (đã thử ~13 phút).
 
 ### A5 — Nhóm & hoàn thiện
@@ -209,7 +209,7 @@ Chia làm A5a (Android) và A5b (tiếng Anh cho cả desktop lẫn Android, chu
 **A5a — kết quả (2026-10-15, ✅ xong):**
 
 - Tab **Nhóm** (điện thoại chỉ làm thành viên, không làm Host): nhóm của mình (thành viên, online, Host offline), "Nhóm trong mạng" → [Xin vào], lời mời [Đồng ý] [Từ chối], [Gửi file cho nhóm…] (mọi thành viên khác, offer mang `groupId`), 💬 mở hội thoại nhóm ([16](16-group-chat.md)), [Rời nhóm] / [Hủy yêu cầu], thông báo gần đây. Màn hình chọn người khi Chia sẻ có thêm người cùng nhóm; mỗi nhóm một offer, như cửa sổ Gửi nhanh của desktop.
-- Tab **Cài đặt**: đổi tên hiển thị, "Luôn nhận file" (chuyển từ đầu màn hình), **sao lưu** danh tính vào `Download/Shorekeeper` và **khôi phục** (chọn file `content://`, mật khẩu, xem tóm tắt, app tự khởi động lại để engine áp dụng — ADR-013), **mạng**: địa chỉ của điện thoại, cổng, số máy đang thấy, gợi ý khi Wi-Fi cách ly thiết bị, **thêm máy bằng địa chỉ** (dùng lại `ManualPeerFinder`, rồi Kết nối).
+- Tab **Cài đặt**: đổi tên hiển thị, "Chạy nền" (chuyển từ đầu màn hình; trước 2026-11-02 tên là "Luôn nhận file", đổi vì nó giữ cả tin nhắn và nhóm chứ không chỉ file; cài đặt đã lưu vẫn là `always_receive`), **sao lưu** danh tính vào `Download/Shorekeeper` và **khôi phục** (chọn file `content://`, mật khẩu, xem tóm tắt, app tự khởi động lại để engine áp dụng — ADR-013), **mạng**: địa chỉ của điện thoại, cổng, số máy đang thấy, gợi ý khi Wi-Fi cách ly thiết bị, **thêm máy bằng địa chỉ** (dùng lại `ManualPeerFinder`, rồi Kết nối).
 - Thử thật với desktop bản dev: desktop tạo nhóm "Thử A5" → điện thoại [Xin vào] → desktop duyệt → điện thoại gửi 6 ảnh cho nhóm → desktop tải xong, 6/6 khớp SHA-256 (desktop thêm " (1)" vì trùng tên ảnh đã nhận trước đó). Sao lưu tạo được file `.skbackup`; mở lại file đó với mật khẩu hiện đúng tóm tắt (DeviceId, liên hệ, nhóm).
 - Chưa kiểm chứng trên máy thật: bấm khôi phục đến bước khởi động lại, thêm máy bằng địa chỉ.
 
@@ -244,7 +244,7 @@ Phát hành một bản mới: tăng `Version` trong `Directory.Build.props` →
 | Giao diện | **Avalonia.Android** |
 | Android tối thiểu | **Android 10 (API 29)**: bỏ được cách ghi file cũ trước scoped storage |
 | Điện thoại để thử | **1 máy Android 13** cùng Wi-Fi với laptop. Android 13 cần xin quyền `POST_NOTIFICATIONS` lúc chạy; quyền mạng LAN của Android 17 (R4) chưa thử được trên máy này |
-| Chạy nền mặc định | (đề xuất) Chỉ khi mở app + tùy chọn "Luôn nhận file" |
+| Chạy nền mặc định | (đề xuất) Chỉ khi mở app + tùy chọn "Chạy nền" |
 | Phân phối | (đề xuất) APK trên GitHub Releases trước |
 | Desktop có chuyển sang MiniHttp không | Quyết định sau A1, dựa trên kết quả test và hiệu năng |
 

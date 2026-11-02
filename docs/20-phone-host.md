@@ -15,7 +15,7 @@
 
 - **Lõi đã đủ.** `GroupService` (dùng chung) có tạo, duyệt, từ chối, mời, loại, đổi tên, `SetHostOnlyChatAsync`, đóng nhóm, ký danh sách, báo ngay cho thành viên. Presence của máy giới thiệu nhóm mình làm Host. Sao lưu danh tính ([ADR-013](decisions.md)) có cả nhóm, nên đổi điện thoại không mất nhóm.
 - **Điện thoại thiếu giao diện.** Tab Nhóm chỉ có: xin vào, nhận lời mời, gửi file / chữ cho nhóm, chat, rời. Không có nút Tạo nhóm, và cũng không có chỗ duyệt, mời, loại, sửa, đóng. Nếu khôi phục bản sao lưu có nhóm do máy đó làm Host lên điện thoại, nhóm vẫn chạy nhưng không quản lý được.
-- **Online.** Không bật "Luôn nhận file" thì khi app ở nền, Android dừng mạng (Doze): Host không trả lời. Bật thì `TransferService` (`connectedDevice` + `WifiLock` + `WakeLock`) giữ được qua Doze; máy OPPO cần thêm quyền chạy nền của hãng; Nubia (ZTE) còn chặn tự chạy lại sau khi khởi động máy ([14 A4](14-android.md)).
+- **Online.** Không bật "Chạy nền" thì khi app ở nền, Android dừng mạng (Doze): Host không trả lời. Bật thì `TransferService` (`connectedDevice` + `WifiLock` + `WakeLock`) giữ được qua Doze; máy OPPO cần thêm quyền chạy nền của hãng; Nubia (ZTE) còn chặn tự chạy lại sau khi khởi động máy ([14 A4](14-android.md)).
 
 ## 3. Host vắng thì sao
 
@@ -33,8 +33,8 @@ Nên điện thoại làm Host được khi nó online **phần lớn thời gia
 
 ### H1 — Giữ Host online (Android)
 
-- Tạo nhóm đòi "Luôn nhận file" đang bật (§6 Q1). Đang tắt thì hộp Tạo nhóm hỏi bật luôn, đi qua đúng đường bật hiện có (xin miễn tối ưu hóa pin, nhắc cài đặt của hãng).
-- Đang làm Host mà tắt "Luôn nhận file": hỏi lại, nói rõ nhóm sẽ thường "Host offline" (§6 Q2).
+- Tạo nhóm đòi "Chạy nền" đang bật (§6 Q1). Đang tắt thì hộp Tạo nhóm hỏi bật luôn, đi qua đúng đường bật hiện có (xin miễn tối ưu hóa pin, nhắc cài đặt của hãng).
+- Đang làm Host mà tắt "Chạy nền": hỏi lại, nói rõ nhóm sẽ thường "Host offline" (§6 Q2).
 - Thông báo thường trực ghi thêm "Host 2 nhóm" bên cạnh việc đang chuyển.
 - Giới hạn số nhóm làm Host trên điện thoại (§6 Q5).
 - Kiểm: thành viên PC vẫn gọi được Host là Nubia sau 30 phút Doze sâu (`dumpsys deviceidle force-idle`), sau khi tắt / bật Wi-Fi (đổi IP), sau khi Android đóng app rồi mở lại.
@@ -64,7 +64,7 @@ Nên điện thoại làm Host được khi nó online **phần lớn thời gia
 
 | Rủi ro | Cách xử lý |
 |---|---|
-| Máy của hãng đóng app dù có foreground service (ColorOS), hay chặn tự chạy sau khởi động (ZTE) | Nhắc cài đặt của hãng như "Luôn nhận file"; nhóm vẫn chạy được khi Host offline (chat, file), chỉ việc vào / ra phải chờ |
+| Máy của hãng đóng app dù có foreground service (ColorOS), hay chặn tự chạy sau khởi động (ZTE) | Nhắc cài đặt của hãng như "Chạy nền"; nhóm vẫn chạy được khi Host offline (chat, file), chỉ việc vào / ra phải chờ |
 | Tốn pin: mỗi thành viên long-poll Host mỗi ~20 giây | Giới hạn số nhóm (§6 Q5); long-poll gần như không tốn CPU khi không có gì đổi. Đo pin 1 giờ với nhóm 3 người ở H3 |
 | Điện thoại đổi IP | Thành viên tìm lại Host qua discovery như với PC; thử ở H1 |
 | Mất điện thoại | Sao lưu danh tính có nhóm; không có sao lưu thì nhóm mất như PC mất ổ cứng |
@@ -74,8 +74,8 @@ Nên điện thoại làm Host được khi nó online **phần lớn thời gia
 
 | # | Câu hỏi | Đề xuất |
 |---|---|---|
-| Q1 | Giữ điện thoại online khi làm Host bằng gì? | **Đòi bật "Luôn nhận file"** khi tạo nhóm: một công tắc, một thông báo, đã có sẵn đường xin quyền pin. Cách khác: tự chạy service riêng khi đang làm Host (thêm một lý do chạy nền, người dùng khó hiểu vì sao có thông báo) |
-| Q2 | Đang làm Host mà tắt "Luôn nhận file"? | **Hỏi lại rồi cho tắt**; nhóm vẫn còn, chỉ thường "Host offline" |
+| Q1 | Giữ điện thoại online khi làm Host bằng gì? | **Đòi bật "Chạy nền"** khi tạo nhóm: một công tắc, một thông báo, đã có sẵn đường xin quyền pin. Cách khác: tự chạy service riêng khi đang làm Host (thêm một lý do chạy nền, người dùng khó hiểu vì sao có thông báo) |
+| Q2 | Đang làm Host mà tắt "Chạy nền"? | **Hỏi lại rồi cho tắt**; nhóm vẫn còn, chỉ thường "Host offline" |
 | Q3 | "Chỉ nhắn khi Host online" mặc định cho nhóm điện thoại tạo? | **Tắt** (như PC), ô có dòng "điện thoại ngủ thì nhóm không nhắn được" |
 | Q4 | Có người xin vào lúc app ở nền? | **Thông báo có [Duyệt] [Từ chối]**, như thông báo file đến có [Tải] |
 | Q5 | Điện thoại làm Host tối đa bao nhiêu nhóm? | **3 nhóm** (PC 10); mỗi nhóm vẫn tối đa 100 người |
